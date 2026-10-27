@@ -79,12 +79,13 @@ struct ExitSign: View {
 struct StateBadge: View {
     let code: String?
     var highlighted = false
+    var compact = false
 
     var body: some View {
         Text(code ?? "—")
-            .font(.system(size: 13, weight: .heavy, design: .rounded))
+            .font(.system(size: compact ? 10 : 13, weight: .heavy, design: .rounded))
             .foregroundStyle(highlighted ? .white : .primary)
-            .frame(width: 36, height: 26)
+            .frame(width: compact ? 26 : 36, height: compact ? 18 : 26)
             .background(highlighted ? AnyShapeStyle(Theme.signGreen) : AnyShapeStyle(Theme.cardStroke),
                         in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }

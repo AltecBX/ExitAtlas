@@ -28,6 +28,7 @@ struct TripOverviewView: View {
                     }
                     Section { DataAttribution() }.listRowBackground(Color.clear)
                 }
+                .simulationBanner(trip.isSimulating)
                 .navigationTitle(trip.mode == .discovery ? (plan.route.title ?? "Discovery") : "Trip")
                 .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
                 .sheet(isPresented: $showStopPlanner) { StopPlannerView() }
@@ -154,8 +155,8 @@ struct RouteMap: View {
                             style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
             }
             ForEach(plan.states.segments.dropFirst()) { seg in
-                Annotation(seg.code ?? "—", coordinate: seg.entryCoordinate.clCoordinate) {
-                    StateBadge(code: seg.code)
+                Annotation("", coordinate: seg.entryCoordinate.clCoordinate) {
+                    StateBadge(code: seg.code, compact: true)
                 }
             }
             Annotation("You", coordinate: plan.route.polyline.coordinate(at: snapshot.progress).clCoordinate) {

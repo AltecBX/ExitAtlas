@@ -15,7 +15,7 @@ struct ExitDetailView: View {
                 HStack(spacing: 14) {
                     ExitSign(label: exit.label)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(exit.name.isEmpty ? exit.displayTitle : exit.name).font(.headline)
+                        if !exit.name.isEmpty { Text(exit.name).font(.headline) }
                         if let upcoming, let snapshot = trip.snapshot {
                             Text("\(Format.miles(upcoming.distance)) ahead · \(Format.duration(upcoming.eta.timeIntervalSince(snapshot.timestamp)))")
                                 .font(.subheadline).foregroundStyle(Theme.secondaryText)

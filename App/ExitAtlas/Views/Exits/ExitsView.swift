@@ -62,6 +62,7 @@ struct ExitsView: View {
                         .listRowBackground(Color.clear)
                     }
                     .listStyle(.insetGrouped)
+                    .simulationBanner(trip.isSimulating)
                 } else {
                     ContentUnavailableView("No active trip", systemImage: "road.lanes",
                                            description: Text("Plan a trip or start discovery mode to see the exits ahead."))
@@ -150,8 +151,12 @@ struct ExitRow: View {
         HStack(spacing: 12) {
             ExitSign(label: upcoming.exit.label, compact: true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(upcoming.exit.name.isEmpty ? upcoming.exit.displayTitle : upcoming.exit.name)
-                    .font(.subheadline.weight(.semibold)).lineLimit(2)
+                if upcoming.exit.name.isEmpty {
+                    Text(services.isEmpty ? "No services listed" : "Services")
+                        .font(.subheadline).foregroundStyle(Theme.secondaryText)
+                } else {
+                    Text(upcoming.exit.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                }
                 ServiceSummary(services: services)
                 if upcoming.exit.confidence == .medium {
                     Text("Direction not verified in source data").font(.caption2).foregroundStyle(Theme.amber)

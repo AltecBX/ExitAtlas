@@ -25,6 +25,7 @@ struct DriveView: View {
                 .padding(.bottom, 24)
             }
             .background(Theme.background.ignoresSafeArea())
+            .simulationBanner(trip.isSimulating)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     TrackingStatusPill(match: trip.snapshot?.match, simulated: trip.isSimulating, rerouting: trip.isRerouting)
@@ -142,9 +143,14 @@ private struct NextExitCard: View {
             ExitSign(label: upcoming.exit.label)
             VStack(alignment: .leading, spacing: 4) {
                 Eyebrow(text: "Next exit")
-                Text(upcoming.exit.name.isEmpty ? upcoming.exit.displayTitle : upcoming.exit.name)
-                    .font(.headline).lineLimit(2)
-                ServiceSummary(services: services)
+                if !upcoming.exit.name.isEmpty {
+                    Text(upcoming.exit.name).font(.headline).lineLimit(2)
+                }
+                if services.isEmpty {
+                    Text("No services listed").font(.subheadline).foregroundStyle(Theme.secondaryText)
+                } else {
+                    ServiceSummary(services: services)
+                }
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 2) {
@@ -166,7 +172,7 @@ private struct DestinationRow: View {
                 MetricTile(title: "Corridor ahead", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
                 MetricTile(title: "State lines", value: "\(snapshot.borderCrossingsRemaining)", caption: "within lookahead", valueSize: 24)
             } else {
-                MetricTile(title: "To destination", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
+                MetricTile(title: "Destination", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
                 MetricTile(title: "Arrival", value: Format.time(snapshot.eta, relativeTo: snapshot.timestamp),
                            caption: Format.duration(snapshot.timeRemaining), valueSize: 20)
                 MetricTile(title: "States left", value: "\(snapshot.statesAhead.count)",

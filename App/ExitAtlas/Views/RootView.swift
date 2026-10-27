@@ -39,14 +39,6 @@ struct RootView: View {
             .onChange(of: trip.mode) { _, mode in
                 if mode != .idle { tab = .drive }
             }
-            .overlay(alignment: .top) {
-                if trip.isSimulating {
-                    Text("SIMULATED GPS · not your real location")
-                        .font(.caption2.weight(.bold)).padding(.horizontal, 10).padding(.vertical, 3)
-                        .background(.purple, in: Capsule()).foregroundStyle(.white)
-                        .allowsHitTesting(false)
-                }
-            }
         }
     }
 }

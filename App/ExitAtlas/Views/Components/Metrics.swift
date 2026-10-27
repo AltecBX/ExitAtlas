@@ -66,6 +66,29 @@ struct ServiceSummary: View {
     }
 }
 
+/// Shown under the navigation bar on every screen while simulated GPS is driving the app.
+struct SimulationBanner: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top, spacing: 0) {
+            if active {
+                Text("SIMULATED GPS · not your real location")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 10).padding(.vertical, 3)
+                    .background(.purple, in: Capsule())
+                    .foregroundStyle(.white)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
+extension View {
+    func simulationBanner(_ active: Bool) -> some View { modifier(SimulationBanner(active: active)) }
+}
+
 /// GPS and tracking state, always visible while driving.
 struct TrackingStatusPill: View {
     let match: RouteMatch?
@@ -75,6 +98,8 @@ struct TrackingStatusPill: View {
     var body: some View {
         let (text, color, symbol) = describe()
         Label(text, systemImage: symbol)
+            .labelStyle(.titleAndIcon)
+            .fixedSize()
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
