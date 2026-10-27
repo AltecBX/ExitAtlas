@@ -77,4 +77,4 @@ Performance (release build, x86 Linux): loading all datasets 0.36 s; building th
 2. ETAs on MapKit routes use only total travel time per leg, spread by distance, then corrected by learned pace and a live ETA every 10 minutes. City segments at either end make early state entry times less accurate. Measure on real drives.
 3. Coverage: OpenInterstate covers signed interstates only. Turnpikes and US routes without an interstate designation (for example Florida's Turnpike) show no exits.
 4. Exit names are missing for most exits in the source.
-5. The active trip is lost if iOS terminates the app (fix planned in Phase 1).
+5. If iOS terminates the app, the trip resumes from saved waypoints and driven miles, but recomputing the route needs a network connection. Offline resume needs storable OSM route geometry (Phase 4).
