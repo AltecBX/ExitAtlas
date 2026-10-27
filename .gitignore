@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj/
+!App/*.xcodeproj/
+xcuserdata/
+DerivedData/
+.DS_Store
+__pycache__/
+*.pyc
