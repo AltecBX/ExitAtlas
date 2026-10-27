@@ -199,6 +199,25 @@ private struct StartCard: View {
 
     var body: some View {
         VStack(spacing: 14) {
+            if let record = trip.resumable, let destination = record.destination {
+                VStack(alignment: .leading, spacing: 8) {
+                    Eyebrow(text: "Trip in progress", color: Theme.amber)
+                    Text("Resume your trip to \(destination.name)").font(.headline)
+                    Text("\(Format.miles(record.ledger.totalMeters)) driven so far. The route is recalculated from your current location; miles per state are kept.")
+                        .font(.subheadline).foregroundStyle(Theme.secondaryText)
+                    HStack {
+                        Button {
+                            Task { await trip.resume(record) }
+                        } label: {
+                            Label("Resume", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent).tint(Theme.signGreen)
+                        Button("Discard", role: .destructive) { trip.discardResumable() }
+                            .buttonStyle(.bordered)
+                    }
+                }
+                .card(padding: 18)
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Eyebrow(text: "Plan a trip")
                 Text("Where are you headed?").font(.title2.weight(.bold))

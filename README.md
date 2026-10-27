@@ -2,10 +2,10 @@
 
 An interstate road trip companion for iOS. It answers, continuously while you drive:
 
-- What exit is coming up next, and what is there?
-- How many miles are left in this state, and how many exits before the next state line?
-- How much of the route is in each upcoming state, and when do I cross into it (in local time)?
-- How far to the destination, and where should I stop?
+* What exit is coming up next, and what is there?
+* How many miles are left in this state, and how many exits before the next state line?
+* How much of the route is in each upcoming state, and when do I cross into it (in local time)?
+* How far to the destination, and where should I stop?
 
 Status: research, design and the first functional version. See [docs/](docs/README.md).
 
@@ -39,7 +39,7 @@ Select your team under Signing, then run on an iPhone (iOS 17+). Use **Simulate*
 
 ## Data and licenses
 
-- Exits and places: OpenStreetMap contributors via [OpenInterstate](https://openinterstate.org/), ODbL 1.0. The derived database shipped in the app (`interstates.eax`, `corridors.eac`) is available under the ODbL; `tools/data-pipeline` rebuilds it.
-- State boundaries: U.S. Census Bureau TIGER/Line 2026 (public domain).
-- Time zones: USDOT BTS NTAD Time Zones (public domain).
-- Maps and routing: Apple MapKit.
+* Exits and places: OpenStreetMap contributors via [OpenInterstate](https://openinterstate.org/), ODbL 1.0. The derived database shipped in the app (`interstates.eax`, `corridors.eac`) is available under the ODbL; `tools/data-pipeline` rebuilds it.
+* State boundaries: U.S. Census Bureau TIGER/Line 2026 (public domain).
+* Time zones: USDOT BTS NTAD Time Zones (public domain).
+* Maps and routing: Apple MapKit.

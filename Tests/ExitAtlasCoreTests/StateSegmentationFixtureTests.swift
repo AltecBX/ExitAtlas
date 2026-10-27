@@ -39,6 +39,18 @@ final class StateSegmentationFixtureTests: XCTestCase {
     func testRichmondToNYCTurnpike() { check("richmond_to_nyc_turnpike") }
     func testRichmondToNYCViaPennsylvania() { check("richmond_to_nyc_via_pa") }
 
+    /// External reference: the Miami route follows I-95 for the full width of Georgia, South Carolina
+    /// and North Carolina. Published I-95 lengths (Wikipedia "Interstate 95" route table, checked
+    /// 2026-10-27): GA 111.80 mi, SC 198.76 mi, NC 181.36 mi.
+    func testMatchesPublishedI95StateLengths() {
+        let profile = RegionSegmenter().segment(Fixtures.route("miami_to_manhattan").polyline, regions: Fixtures.states)
+        let published: [String: Double] = ["GA": 111.80, "SC": 198.76, "NC": 181.36]
+        for (code, miles) in published {
+            let segment = profile.segments.first { $0.code == code }!
+            XCTAssertEqual(segment.length / Geodesy.metersPerMile, miles, accuracy: 0.25, code)
+        }
+    }
+
     func testDistrictOfColumbiaIsItsOwnSegment() {
         let profile = RegionSegmenter().segment(Fixtures.route("miami_to_manhattan").polyline, regions: Fixtures.states)
         let dc = profile.segments.first { $0.code == "DC" }

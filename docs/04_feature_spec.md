@@ -28,7 +28,7 @@ Status key: **Built** (in the app, engine tested, device untested), **Engine** (
 | S4 | Itinerary: every state, miles, duration, exits, entry and exit times | Built | Completed (ledger) shown separately from upcoming (route) |
 | S5 | Border approach notification | Built (voice) | Spoken at 5 mi with exits remaining; banner under 5 mi. Push notification for background: Planned |
 | S6 | Transition on crossing | Built | Snapshot switches state at the crossing distance; voice "Welcome to ..." with miles in that state |
-| S7 | Brief crossings, re-entries, interstate changes, complex interchanges | Engine tested | Atlanta to Nashville re-enters Georgia; loop ramp regression test; DC segment on Miami route |
+| S7 | Brief crossings, reentries, interstate changes, complex interchanges | Engine tested | Atlanta to Nashville reenters Georgia; loop ramp regression test; DC segment on Miami route |
 
 ## 4.3 Upcoming exits
 
@@ -63,7 +63,7 @@ Status key: **Built** (in the app, engine tested, device untested), **Engine** (
 | R3 | Next rest area | Built (category filter). "With bathrooms" needs amenity data: Planned |
 | R4 | Multiple requirements at one exit | Built |
 | R5 | Hours, ratings, pet policy, parking, accessibility | Blocked (needs Foursquare, Google or hotel partner data) |
-| R6 | Real driving detours | Partial: routed exit to place distance doubled; full detour with re-entry planned via Valhalla |
+| R6 | Real driving detours | Partial: routed exit to place distance doubled; full detour with highway reentry planned via Valhalla |
 
 ## 4.6 Smart stop planning
 

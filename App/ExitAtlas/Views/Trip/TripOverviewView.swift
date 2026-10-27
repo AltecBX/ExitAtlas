@@ -12,7 +12,7 @@ struct TripOverviewView: View {
             if let plan = trip.plan, let snapshot = trip.snapshot {
                 List {
                     Section {
-                        RouteMap(plan: plan, snapshot: snapshot)
+                        RouteMap(plan: plan, lines: trip.stateLines(for: plan), snapshot: snapshot)
                             .frame(height: 300)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
@@ -142,14 +142,15 @@ private struct ItinerarySections: View {
 /// Route drawn by state segment, with state line markers.
 struct RouteMap: View {
     let plan: TripPlan
+    let lines: [StateLine]
     let snapshot: TripSnapshot
     @State private var position: MapCameraPosition = .automatic
 
     var body: some View {
         Map(position: $position) {
-            ForEach(segmentLines, id: \.index) { line in
+            ForEach(lines) { line in
                 MapPolyline(coordinates: line.coordinates)
-                    .stroke(Theme.segmentColors[line.index % Theme.segmentColors.count],
+                    .stroke(Theme.segmentColors[line.id % Theme.segmentColors.count],
                             style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
             }
             ForEach(plan.states.segments.dropFirst()) { seg in
@@ -164,22 +165,5 @@ struct RouteMap: View {
         }
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .mapControls { MapCompass() }
-    }
-
-    private struct Line {
-        let index: Int
-        let coordinates: [CLLocationCoordinate2D]
-    }
-
-    /// Each state segment's slice of the route, thinned for drawing.
-    private var segmentLines: [Line] {
-        let polyline = plan.route.polyline
-        return plan.states.segments.map { seg in
-            let slice = polyline.slice(from: seg.startDistance, to: seg.endDistance)
-            let step = max(1, slice.points.count / 600)
-            var coords = stride(from: 0, to: slice.points.count, by: step).map { slice.points[$0].clCoordinate }
-            if let last = slice.points.last { coords.append(last.clCoordinate) }
-            return Line(index: seg.index, coordinates: coords)
-        }
     }
 }

@@ -25,6 +25,15 @@ public struct TripSession: Sendable {
         tracker = RouteProgressTracker(route: plan.route.polyline, startedAt: startedAt)
     }
 
+    /// Resumes a trip after the app was terminated: driven history and pace are restored and
+    /// tracking starts on a new route from the current position.
+    public init(plan: TripPlan, states: RegionIndex, startedAt: Date, ledger: TripLedger, pace: PaceModel) {
+        self.init(plan: plan, states: states, startedAt: startedAt)
+        self.ledger = ledger
+        self.pace = pace
+        hasStartedDriving = ledger.totalMeters > 0
+    }
+
     @discardableResult
     public mutating func ingest(_ sample: LocationSample) -> TripSnapshot {
         let previous = tracker.match

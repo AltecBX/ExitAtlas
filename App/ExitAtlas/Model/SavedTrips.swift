@@ -13,6 +13,19 @@ struct SavedTrip: Codable, Identifiable, Hashable {
     var savedAt = Date()
 }
 
+/// The trip in progress, saved so it can be resumed if iOS terminates the app.
+/// Holds only the user's waypoints and driving history, never route geometry.
+struct ActiveTripRecord: Codable {
+    var origin: Waypoint
+    var remainingWaypoints: [Waypoint]
+    var ledger: TripLedger
+    var pace: PaceModel
+    var startedAt: Date
+    var savedAt: Date
+
+    var destination: Waypoint? { remainingWaypoints.last }
+}
+
 /// A finished trip: actual miles per state from the trip ledger.
 struct TripRecord: Codable, Identifiable, Hashable {
     struct StateMiles: Codable, Hashable {
@@ -60,6 +73,21 @@ final class TripLibrary {
     func record(_ record: TripRecord) {
         history.insert(record, at: 0)
         write(history, "history.json")
+    }
+
+    func saveActive(_ record: ActiveTripRecord) {
+        write(record, "active.json")
+    }
+
+    /// A saved active trip younger than 18 hours, if any.
+    func loadActive(now: Date = Date()) -> ActiveTripRecord? {
+        guard let record: ActiveTripRecord = load("active.json"), now.timeIntervalSince(record.savedAt) < 18 * 3600,
+              record.destination != nil else { return nil }
+        return record
+    }
+
+    func clearActive() {
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent("active.json"))
     }
 
     var lifetimeMeters: Double { history.reduce(0) { $0 + $1.totalMeters } }

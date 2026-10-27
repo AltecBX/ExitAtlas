@@ -1,6 +1,13 @@
+import CoreLocation
 import ExitAtlasCore
 import Foundation
 import Observation
+
+/// One state's part of the route, ready for MapPolyline.
+struct StateLine: Identifiable {
+    let id: Int
+    let coordinates: [CLLocationCoordinate2D]
+}
 
 /// Owns the live trip: feeds GPS (or simulated) fixes to the engine, publishes snapshots,
 /// reroutes when the driver leaves the route, and runs discovery mode when there is no trip.
@@ -30,6 +37,8 @@ final class TripController {
     private(set) var lastFixAt: Date?
     /// Remaining waypoints for rerouting: upcoming stops then the destination.
     private(set) var remainingWaypoints: [Waypoint] = []
+    /// A trip saved before the app was terminated, offered for resuming.
+    private(set) var resumable: ActiveTripRecord?
 
     @ObservationIgnored private var session: TripSession?
     @ObservationIgnored private var discovery: HighwayDiscovery?
@@ -37,8 +46,10 @@ final class TripController {
     @ObservationIgnored private var tripStartedAt: Date?
     @ObservationIgnored private var lastRerouteAt: Date?
     @ObservationIgnored private var lastCalibrationAt: Date?
+    @ObservationIgnored private var lastPersistAt: Date?
     @ObservationIgnored private var refreshTimer: Timer?
     @ObservationIgnored private var serviceCache: [String: [ExitService]] = [:]
+    @ObservationIgnored private var lineCache: (routeID: UUID, lines: [StateLine])?
     @ObservationIgnored let location = LocationService()
     @ObservationIgnored let simulator = DriveSimulator()
     @ObservationIgnored let announcer = Announcer()
@@ -60,6 +71,7 @@ final class TripController {
     func attach(data: BundledData) {
         self.data = data
         discovery = HighwayDiscovery(corridors: data.corridors)
+        resumable = library?.loadActive()
     }
 
     var datasets: TripDatasets? { data?.datasets }
@@ -86,13 +98,22 @@ final class TripController {
     /// - Parameters:
     ///   - startMiles: simulation only, where along the route the simulated drive begins.
     ///   - fixLimit: simulation only, stop after this many fixes (frozen demo).
-    func startTrip(route: PlannedRoute, simulate: Bool, startMiles: Double = 0, fixLimit: Int? = nil) {
+    func startTrip(route: PlannedRoute, simulate: Bool, startMiles: Double = 0, fixLimit: Int? = nil,
+                   restoring record: ActiveTripRecord? = nil) {
         guard let data else { return }
         let plan = TripPlan(route: route, datasets: data.datasets)
         self.plan = plan
         let now = Date()
-        session = TripSession(plan: plan, states: data.datasets.states, startedAt: now)
-        tripStartedAt = now
+        if let record {
+            session = TripSession(plan: plan, states: data.datasets.states, startedAt: now,
+                                  ledger: record.ledger, pace: record.pace)
+            tripStartedAt = record.startedAt
+        } else {
+            session = TripSession(plan: plan, states: data.datasets.states, startedAt: now)
+            tripStartedAt = now
+        }
+        resumable = nil
+        lastPersistAt = nil
         remainingWaypoints = route.stops.map(\.waypoint) + [route.destination]
         mode = .trip
         snapshot = session?.snapshot(at: now)
@@ -122,6 +143,41 @@ final class TripController {
         plan = nil
         snapshot = nil
         mode = .idle
+        library?.clearActive()
+    }
+
+    /// Recomputes a route from here to the saved trip's remaining stops and continues it.
+    func resume(_ record: ActiveTripRecord) async {
+        guard let destination = record.destination else { return }
+        isRerouting = true
+        defer { isRerouting = false }
+        do {
+            let here = Waypoint(name: "Current location", coordinate: try await CurrentLocation.fetch())
+            let options = MapKitRouteService.Options(avoidTolls: settings?.avoidTolls ?? false)
+            guard let route = try await routing.routes(from: here, via: Array(record.remainingWaypoints.dropLast()),
+                                                       to: destination, options: options).first else { return }
+            let restored = PlannedRoute(source: route.source, polyline: route.polyline, steps: route.steps,
+                                    timeProfile: route.timeProfile, origin: record.origin, destination: route.destination,
+                                    stops: route.stops, hasTolls: route.hasTolls, createdAt: route.createdAt, title: route.title)
+            startTrip(route: restored, simulate: false, restoring: record)
+            lastError = nil
+        } catch {
+            lastError = "Could not resume: \(error.localizedDescription)"
+        }
+    }
+
+    func discardResumable() {
+        resumable = nil
+        library?.clearActive()
+    }
+
+    /// Saves the trip in progress at most every 30 seconds (device GPS trips only).
+    private func persistIfDue(at date: Date) {
+        guard mode == .trip, !isSimulating, let session, let plan, let start = tripStartedAt else { return }
+        if let last = lastPersistAt, date.timeIntervalSince(last) < 30 { return }
+        lastPersistAt = date
+        library?.saveActive(ActiveTripRecord(origin: plan.route.origin, remainingWaypoints: dropPassedStops(),
+                                             ledger: session.ledger, pace: session.pace, startedAt: start, savedAt: date))
     }
 
     func stopSimulation() {
@@ -143,6 +199,7 @@ final class TripController {
             publish(snap)
             if session.needsReroute(at: sample.timestamp) { reroute(from: sample) }
             calibrateIfDue(at: sample)
+            persistIfDue(at: sample.timestamp)
         case .discovery:
             handleDiscovery(sample)
         }
@@ -267,6 +324,21 @@ final class TripController {
         let services = interstates?.services(for: exit) ?? []
         serviceCache[exit.id] = services
         return services
+    }
+
+    /// Each state segment's slice of the route, thinned for drawing. Computed once per route.
+    func stateLines(for plan: TripPlan) -> [StateLine] {
+        if let cached = lineCache, cached.routeID == plan.route.id { return cached.lines }
+        let polyline = plan.route.polyline
+        let lines = plan.states.segments.map { seg -> StateLine in
+            let slice = polyline.slice(from: seg.startDistance, to: seg.endDistance)
+            let step = max(1, slice.points.count / 600)
+            var coords = stride(from: 0, to: slice.points.count, by: step).map { slice.points[$0].clCoordinate }
+            if let last = slice.points.last { coords.append(last.clCoordinate) }
+            return StateLine(id: seg.index, coordinates: coords)
+        }
+        lineCache = (plan.route.id, lines)
+        return lines
     }
 
     func stopSuggestions(_ query: StopQuery) -> [StopSuggestion] {
