@@ -14,14 +14,17 @@ final class DriveSimulator {
     var isRunning: Bool { timer != nil }
 
     /// - Parameter speedup: simulated seconds per real second.
-    func start(route: PlannedRoute, from distance: Double = 0, speedup: Double = 30) {
+    /// - Parameter limit: stop after this many fixes (used to freeze a demo at one spot).
+    func start(route: PlannedRoute, from distance: Double = 0, speedup: Double = 30, limit: Int? = nil) {
         stop()
         self.speedup = speedup
         var options = GPSSimulator.Options()
         options.interval = 1
         options.noise = 5
         options.seed = UInt64(Date().timeIntervalSince1970)
-        samples = GPSSimulator(route: route, options: options).trace(from: distance, startTime: Date())
+        let end = limit.map { distance + Double($0) * 45 }
+        samples = GPSSimulator(route: route, options: options).trace(from: distance, to: end, startTime: Date())
+        if let limit { samples = Array(samples.prefix(limit)) }
         index = 0
         // Deliver several one second fixes per tick so the tracker sees realistic spacing.
         let perTick = max(1, Int(speedup / 4))

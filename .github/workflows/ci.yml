@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     container: swift:6.3.3-noble
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build and test ExitAtlasCore
         run: swift test --parallel
 
-  ios-build:
-    name: iOS app build (Xcode)
+  ios-app:
+    name: iOS app build and screenshots (Xcode)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Show Xcode
         run: xcodebuild -version
       - name: Install XcodeGen
@@ -32,9 +32,31 @@ jobs:
       - name: Generate project
         working-directory: App
         run: xcodegen generate
-      - name: Build for iOS Simulator
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))] | last | .udid')
+          NAME=$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))] | last | .name')
+          echo "Using $NAME ($UDID)"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Build and run UI screenshot tests
         working-directory: App
         run: |
           xcodebuild -project ExitAtlas.xcodeproj -scheme ExitAtlas \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug CODE_SIGNING_ALLOWED=NO -quiet build
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            CODE_SIGNING_ALLOWED=NO -quiet test
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p screenshots
+          if [ -d "$RUNNER_TEMP/ui.xcresult" ]; then
+            xcrun xcresulttool export attachments --path "$RUNNER_TEMP/ui.xcresult" --output-path screenshots || true
+          fi
+          ls -la screenshots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: screenshots
+          if-no-files-found: warn

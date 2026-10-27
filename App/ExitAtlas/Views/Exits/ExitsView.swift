@@ -51,6 +51,7 @@ struct ExitsView: View {
                                 NavigationLink(value: upcoming.exit) {
                                     ExitRow(upcoming: upcoming, services: trip.services(for: upcoming.exit), now: snapshot.timestamp)
                                 }
+                                .accessibilityIdentifier("exitRow")
                             case let .border(forecast, distance):
                                 BorderRow(forecast: forecast, distance: distance, now: snapshot.timestamp)
                             }

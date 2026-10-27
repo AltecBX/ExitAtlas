@@ -83,7 +83,10 @@ final class TripController {
         announcer.reset()
     }
 
-    func startTrip(route: PlannedRoute, simulate: Bool) {
+    /// - Parameters:
+    ///   - startMiles: simulation only, where along the route the simulated drive begins.
+    ///   - fixLimit: simulation only, stop after this many fixes (frozen demo).
+    func startTrip(route: PlannedRoute, simulate: Bool, startMiles: Double = 0, fixLimit: Int? = nil) {
         guard let data else { return }
         let plan = TripPlan(route: route, datasets: data.datasets)
         self.plan = plan
@@ -97,7 +100,7 @@ final class TripController {
         startRefreshTimer()
         if simulate {
             gpsSource = .simulation(speedup: 30)
-            simulator.start(route: route, speedup: 30)
+            simulator.start(route: route, from: startMiles * Geodesy.metersPerMile, speedup: 30, limit: fixLimit)
         } else {
             gpsSource = .device
             location.start()

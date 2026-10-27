@@ -59,6 +59,16 @@ struct PlannerView: View {
                         }
                     }
                 }
+                Section {
+                    Button {
+                        app.startDemo()
+                    } label: {
+                        Label("Simulated demo: Miami to Manhattan", systemImage: "play.circle")
+                    }
+                    .disabled(app.data == nil)
+                } footer: {
+                    Text("Plays simulated GPS along a bundled sample route. No location access or network needed.")
+                }
                 if !library.saved.isEmpty {
                     Section("Saved trips") {
                         ForEach(library.saved) { saved in

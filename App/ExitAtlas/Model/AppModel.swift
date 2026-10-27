@@ -17,6 +17,9 @@ final class AppModel {
     let settings = UserSettings()
     let library = TripLibrary()
     let trip = TripController()
+    /// Launch arguments for demos and UI screenshots: -demoTrip <miles> starts the bundled sample
+    /// trip frozen at that mile; -forceDark forces dark mode.
+    let forceDark = ProcessInfo.processInfo.arguments.contains("-forceDark")
 
     init() {
         trip.settings = settings
@@ -30,9 +33,25 @@ final class AppModel {
             data = loaded
             trip.attach(data: loaded)
             loadState = .ready
+            startDemoFromLaunchArguments()
         } catch {
             loadState = .failed(error.localizedDescription)
         }
+    }
+
+    func startDemo(atMiles miles: Double = 0, frozen: Bool = false) {
+        do {
+            trip.startTrip(route: try DemoTrip.load(), simulate: true, startMiles: miles, fixLimit: frozen ? 40 : nil)
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    private func startDemoFromLaunchArguments() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-demoTrip") else { return }
+        let miles = i + 1 < args.count ? Double(args[i + 1]) ?? 0 : 0
+        startDemo(atMiles: miles, frozen: true)
     }
 
     /// Builds plans for route alternatives off the main thread.

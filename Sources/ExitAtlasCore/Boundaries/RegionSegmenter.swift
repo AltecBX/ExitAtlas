@@ -182,7 +182,7 @@ public struct RegionSegmenter: Sendable {
                     changed = true
                 } else if p.region == nil || prev == nil || next == nil {
                     // Tiny unclassified gap, or a tiny piece at either end of the route.
-                    if let prev {
+                    if prev != nil {
                         pieces[i - 1].end = p.end
                         pieces[i - 1].exit = p.exit
                     } else if next != nil {

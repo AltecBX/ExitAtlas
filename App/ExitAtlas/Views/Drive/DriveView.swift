@@ -66,7 +66,7 @@ private struct HeaderRow: View {
         HStack(spacing: 12) {
             HighwayShield(ref: snapshot.highway?.ref, size: 50)
             VStack(alignment: .leading, spacing: 2) {
-                Text(snapshot.highway.map { "\($0.ref) \($0.direction.word)" } ?? "Local roads")
+                Text(snapshot.highway.map { "\($0.ref.description) \($0.direction.word)" } ?? "Local roads")
                     .font(.system(.title3, design: .rounded).weight(.bold))
                 Text(discovery ? "Discovery mode · no destination" : "Driving in \(snapshot.current?.segment.displayName ?? "—")")
                     .font(.subheadline).foregroundStyle(Theme.secondaryText)
