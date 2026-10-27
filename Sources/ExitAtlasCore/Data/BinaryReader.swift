@@ -95,6 +95,11 @@ struct BinaryReader {
 /// Provenance stored in every dataset header (source, license, attribution, build date).
 public struct DatasetMetadata: Sendable, Equatable {
     public let values: [String: String]
+
+    public init(values: [String: String]) {
+        self.values = values
+    }
+
     public var source: String? { values["source"] }
     public var license: String? { values["license"] }
     public var attribution: String? { values["attribution"] }
