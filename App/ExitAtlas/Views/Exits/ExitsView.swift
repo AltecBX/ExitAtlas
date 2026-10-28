@@ -18,6 +18,7 @@ struct ExitsView: View {
         case rest(UpcomingRestArea)
         case gap(GasGaps.Gap)
         case stop(RouteStop, distance: Double)
+        case alert(RoadIntel.Alert)
 
         var id: String {
             switch self {
@@ -26,6 +27,7 @@ struct ExitsView: View {
             case let .rest(r): return r.id
             case let .gap(g): return "gap-\(g.from)"
             case let .stop(st, _): return "stop-\(st.id)"
+            case let .alert(a): return "alert-\(a.incident.id)"
             }
         }
     }
@@ -42,6 +44,7 @@ struct ExitsView: View {
                             }
                             .pickerStyle(.segmented)
                             CategoryFilter(selection: $category)
+                            if let intel = trip.roadIntel { AlertStatusView(intel: intel) }
                         }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -76,6 +79,8 @@ struct ExitsView: View {
                                 .accessibilityIdentifier("restAreaRow")
                             case let .gap(gap):
                                 GasGapRow(gap: gap, progress: snapshot.progress)
+                            case let .alert(alert):
+                                AlertRow(alert: alert, progress: snapshot.progress, now: snapshot.timestamp)
                             case let .stop(stop, distance):
                                 HStack(spacing: 12) {
                                     Image(systemName: "mappin.circle.fill").font(.title2).foregroundStyle(Theme.signGreen).frame(width: 64)
@@ -136,6 +141,11 @@ struct ExitsView: View {
         }
         if category == nil || category == .gas {
             for gap in trip.gasGapsAhead(window: window) { events.append((gap.from, 2, .gap(gap))) }
+        }
+        if category == nil {
+            for a in trip.roadIntel?.alerts ?? [] where a.start - snapshot.progress <= window {
+                events.append((max(a.start, snapshot.progress), 0, .alert(a)))
+            }
         }
         if category == nil, let stops = trip.plan?.route.stops {
             for stop in stops {

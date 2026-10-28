@@ -1,0 +1,823 @@
+{
+ "comment": "Road Intelligence on the real Miami to Manhattan route (northbound I-95), shared by web/tests/roadintel.test.js and RoadIntelTests.swift. Positions are real (route points, the southbound carriageway from OpenInterstate corridors, a hotel beside Exit 147); every event is SIMULATED TEST DATA. Built by web/tests/make_roadintel_fixture.js. Distances in miles, times in unix seconds.",
+ "route": "miami_to_manhattan",
+ "progressMiles": 136,
+ "now": 1793000000,
+ "speedMetersPerSecond": 30,
+ "incidents": {
+  "police2": {
+   "reportedAt": 1792999640,
+   "updatedAt": 1792999640,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": 1793001440,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test:police2",
+   "category": "police",
+   "description": "Police reported (simulated test report)",
+   "verification": "community",
+   "source": {
+    "id": "testCommunity",
+    "name": "Test reports"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.606606,
+     "lon": -80.509743
+    }
+   },
+   "road": "I-95",
+   "direction": "N"
+  },
+  "policeExpired": {
+   "reportedAt": 1792996400,
+   "updatedAt": 1792996400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": 1792999940,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test:policeOld",
+   "category": "police",
+   "description": "Police reported (simulated, expired)",
+   "verification": "community",
+   "source": {
+    "id": "testCommunity",
+    "name": "Test reports"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.620117,
+     "lon": -80.515385
+    }
+   },
+   "road": "I-95",
+   "direction": "N"
+  },
+  "oppositeS": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "major",
+   "id": "test511:opp",
+   "category": "crash",
+   "description": "Crash on the southbound side (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.775414,
+     "lon": -80.550851
+    }
+   },
+   "road": "I-95",
+   "direction": "S"
+  },
+  "oppositeNoDirection": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test511:oppnodir",
+   "category": "hazard",
+   "description": "Debris, direction not given (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.775414,
+     "lon": -80.550851
+    }
+   },
+   "road": "I-95",
+   "direction": null
+  },
+  "parallelRoad": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test511:sr60",
+   "category": "crash",
+   "description": "Crash on SR 60 at the hotel entrance (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.6375432,
+     "lon": -80.5182521
+    }
+   },
+   "road": "SR 60",
+   "direction": "E"
+  },
+  "unnamedNearby": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test511:unnamed",
+   "category": "hazard",
+   "description": "Hazard with no road name beside the highway (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.6375432,
+     "lon": -80.5182521
+    }
+   },
+   "road": null,
+   "direction": null
+  },
+  "behind": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "test511:behind",
+   "category": "disabledVehicle",
+   "description": "Disabled vehicle behind you (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 27.544166,
+     "lon": -80.468909
+    }
+   },
+   "road": "I-95",
+   "direction": "N"
+  },
+  "workZone": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": "Right lane closed",
+   "severity": "unknown",
+   "id": "testWzdx:wz1",
+   "category": "construction",
+   "description": "Right lane closed (simulated work zone)",
+   "verification": "official",
+   "source": {
+    "id": "testWzdx",
+    "name": "Test work zones"
+   },
+   "road": "I-95",
+   "direction": null,
+   "geometry": {
+    "type": "line",
+    "coordinates": [
+     {
+      "lat": 27.703693,
+      "lon": -80.540746
+     },
+     {
+      "lat": 27.710792,
+      "lon": -80.542454
+     },
+     {
+      "lat": 27.717915,
+      "lon": -80.544041
+     },
+     {
+      "lat": 27.725038,
+      "lon": -80.545627
+     },
+     {
+      "lat": 27.732161,
+      "lon": -80.547214
+     }
+    ]
+   }
+  },
+  "workZoneOpposite": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "testWzdx:wz2",
+   "category": "construction",
+   "description": "Work zone on the southbound side (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "testWzdx",
+    "name": "Test work zones"
+   },
+   "road": "I-95",
+   "direction": null,
+   "geometry": {
+    "type": "line",
+    "coordinates": [
+     {
+      "lat": 27.934757,
+      "lon": -80.605054
+     },
+     {
+      "lat": 27.927678,
+      "lon": -80.603232
+     },
+     {
+      "lat": 27.9206,
+      "lon": -80.601411
+     },
+     {
+      "lat": 27.913521,
+      "lon": -80.599589
+     },
+     {
+      "lat": 27.906442,
+      "lon": -80.597768
+     }
+    ]
+   }
+  },
+  "workZoneEndsSoon": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": 1793000600,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "testWzdx:wz3",
+   "category": "construction",
+   "description": "Overnight lane closure ending in 10 minutes (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "testWzdx",
+    "name": "Test work zones"
+   },
+   "road": "I-95",
+   "direction": "N",
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 28.249374,
+     "lon": -80.723881
+    }
+   }
+  },
+  "weather": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": 1793003600,
+   "lanes": null,
+   "severity": "major",
+   "id": "testNws:w1",
+   "category": "weather",
+   "description": "Severe Thunderstorm Warning (simulated polygon)",
+   "verification": "official",
+   "source": {
+    "id": "testNws",
+    "name": "Test weather"
+   },
+   "road": null,
+   "direction": "both",
+   "geometry": {
+    "type": "polygon",
+    "rings": [
+     [
+      [
+       -80.708995,
+       27.988896
+      ],
+      [
+       -80.60899500000001,
+       27.988896
+      ],
+      [
+       -80.60899500000001,
+       28.088896000000002
+      ],
+      [
+       -80.708995,
+       28.088896000000002
+      ],
+      [
+       -80.708995,
+       27.988896
+      ]
+     ]
+    ]
+   }
+  },
+  "crashA": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999400,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": "2 right lanes blocked",
+   "severity": "major",
+   "id": "test511:crash",
+   "category": "crash",
+   "description": "Crash, 2 right lanes blocked (simulated)",
+   "verification": "official",
+   "source": {
+    "id": "test511",
+    "name": "Test 511"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 28.164226,
+     "lon": -80.705783
+    }
+   },
+   "road": "I-95",
+   "direction": "N"
+  },
+  "crashB": {
+   "reportedAt": 1792999400,
+   "updatedAt": 1792999700,
+   "startsAt": null,
+   "endsAt": null,
+   "expiresAt": null,
+   "lanes": null,
+   "severity": "unknown",
+   "id": "testFeed:crash",
+   "category": "crash",
+   "description": "Accident (simulated second source)",
+   "verification": "official",
+   "source": {
+    "id": "testFeed",
+    "name": "Test feed"
+   },
+   "geometry": {
+    "type": "point",
+    "coordinate": {
+     "lat": 28.166405,
+     "lon": -80.705781
+    }
+   },
+   "road": "Interstate 95",
+   "direction": "Northbound"
+  }
+ },
+ "matches": {
+  "police2": {
+   "aheadMiles": 2
+  },
+  "oppositeS": {
+   "why": "other direction"
+  },
+  "oppositeNoDirection": {
+   "why": "other direction"
+  },
+  "parallelRoad": {
+   "why": "other road"
+  },
+  "unnamedNearby": {
+   "why": "off route"
+  },
+  "behind": {
+   "why": "behind"
+  },
+  "workZone": {
+   "aheadMiles": 9,
+   "endMiles": 11
+  },
+  "workZoneOpposite": {
+   "why": "other direction"
+  },
+  "weather": {
+   "aheadMiles": 30
+  }
+ },
+ "scenarios": [
+  {
+   "name": "All sources working: one alert per real event, in route order",
+   "providers": [
+    {
+     "id": "test511",
+     "name": "Test 511",
+     "kinds": [
+      "closure",
+      "crash",
+      "hazard",
+      "disabledVehicle",
+      "congestion",
+      "other"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "oppositeS",
+      "oppositeNoDirection",
+      "parallelRoad",
+      "unnamedNearby",
+      "behind",
+      "crashA"
+     ]
+    },
+    {
+     "id": "testFeed",
+     "name": "Test feed",
+     "kinds": [
+      "crash"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "crashB"
+     ]
+    },
+    {
+     "id": "testWzdx",
+     "name": "Test work zones",
+     "kinds": [
+      "construction"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "workZone",
+      "workZoneOpposite",
+      "workZoneEndsSoon"
+     ]
+    },
+    {
+     "id": "testNws",
+     "name": "Test weather",
+     "kinds": [
+      "weather",
+      "flooding"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "weather"
+     ]
+    },
+    {
+     "id": "testCommunity",
+     "name": "Test reports",
+     "kinds": [
+      "police"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "police2",
+      "policeExpired"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [
+     [
+      "police2",
+      2,
+      [
+       "testCommunity"
+      ]
+     ],
+     [
+      "workZone",
+      9,
+      [
+       "testWzdx"
+      ]
+     ],
+     [
+      "weather",
+      30,
+      [
+       "testNws"
+      ]
+     ],
+     [
+      "crashA",
+      44,
+      [
+       "test511",
+       "testFeed"
+      ]
+     ]
+    ],
+    "status": {
+     "closures": "ok",
+     "incidents": "ok",
+     "weather": "ok",
+     "police": "ok",
+     "cameras": "notConfigured"
+    }
+   }
+  },
+  {
+   "name": "A failed source never reads as all clear",
+   "providers": [
+    {
+     "id": "test511",
+     "name": "Test 511",
+     "kinds": [
+      "closure",
+      "crash",
+      "hazard",
+      "disabledVehicle",
+      "congestion",
+      "other"
+     ],
+     "state": "error",
+     "fetchedAt": null,
+     "maxAgeSeconds": 900,
+     "incidents": []
+    },
+    {
+     "id": "testWzdx",
+     "name": "Test work zones",
+     "kinds": [
+      "construction"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "workZoneOpposite"
+     ]
+    },
+    {
+     "id": "testNws",
+     "name": "Test weather",
+     "kinds": [
+      "weather",
+      "flooding"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": []
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "closures": "unavailable",
+     "incidents": "unavailable",
+     "weather": "noRelevant",
+     "police": "notConfigured",
+     "cameras": "notConfigured"
+    }
+   }
+  },
+  {
+   "name": "A feed older than its limit counts as unavailable",
+   "providers": [
+    {
+     "id": "test511",
+     "name": "Test 511",
+     "kinds": [
+      "closure",
+      "crash",
+      "hazard",
+      "disabledVehicle",
+      "congestion",
+      "other"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792996400,
+     "maxAgeSeconds": 600,
+     "incidents": [
+      "crashA"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "incidents": "unavailable",
+     "closures": "unavailable"
+    }
+   }
+  },
+  {
+   "name": "Only expired reports: shown as expired, never as current",
+   "providers": [
+    {
+     "id": "testCommunity",
+     "name": "Test reports",
+     "kinds": [
+      "police"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "policeExpired"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "police": "expired"
+    }
+   }
+  },
+  {
+   "name": "Police alerts switched off in Settings",
+   "enabled": {
+    "police": false
+   },
+   "providers": [
+    {
+     "id": "testCommunity",
+     "name": "Test reports",
+     "kinds": [
+      "police"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "police2"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "police": "off"
+    }
+   }
+  },
+  {
+   "name": "A source with no coverage on this route",
+   "providers": [
+    {
+     "id": "testWzdx",
+     "name": "Test work zones",
+     "kinds": [
+      "construction"
+     ],
+     "state": "unsupported",
+     "fetchedAt": null,
+     "maxAgeSeconds": 900,
+     "incidents": []
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "closures": "unsupported",
+     "incidents": "notConfigured"
+    }
+   }
+  },
+  {
+   "name": "Opposite direction only: no relevant reports",
+   "providers": [
+    {
+     "id": "test511",
+     "name": "Test 511",
+     "kinds": [
+      "closure",
+      "crash",
+      "hazard",
+      "disabledVehicle",
+      "congestion",
+      "other"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "oppositeS",
+      "oppositeNoDirection",
+      "parallelRoad",
+      "behind"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "incidents": "noRelevant"
+    }
+   }
+  },
+  {
+   "name": "A source that has not answered yet shows as checking, not as clear",
+   "providers": [
+    {
+     "id": "testNws",
+     "name": "Test weather",
+     "kinds": [
+      "weather",
+      "flooding"
+     ],
+     "state": "pending",
+     "fetchedAt": null,
+     "maxAgeSeconds": 900,
+     "incidents": []
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "weather": "loading"
+    }
+   }
+  },
+  {
+   "name": "Offline: the last result ages out and becomes unavailable",
+   "providers": [
+    {
+     "id": "testNws",
+     "name": "Test weather",
+     "kinds": [
+      "weather",
+      "flooding"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792997600,
+     "maxAgeSeconds": 1800,
+     "incidents": [
+      "weather"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "weather": "unavailable"
+    }
+   }
+  },
+  {
+   "name": "A work zone that ends before you get there is left out",
+   "providers": [
+    {
+     "id": "testWzdx",
+     "name": "Test work zones",
+     "kinds": [
+      "construction"
+     ],
+     "state": "ok",
+     "fetchedAt": 1792999940,
+     "maxAgeSeconds": 900,
+     "incidents": [
+      "workZoneEndsSoon"
+     ]
+    }
+   ],
+   "expect": {
+    "alerts": [],
+    "status": {
+     "closures": "expired"
+    }
+   }
+  }
+ ]
+}

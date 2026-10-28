@@ -37,6 +37,18 @@
   {"name": "A stretch without gas the range may not cover outranks the last open stop", "signals": {"nextExit": 2, "overnight": true, "lastOpen": 5,
    "gap": {"startsIn": 15, "length": 62}, "fuel": {"range": 90, "reserve": 50, "stopAhead": 10}},
    "expect": {"focus": "gap", "strip": ["fuel", "exit"]}},
+  {"name": "A serious road alert outranks a planned stop", "signals": {"nextExit": 2, "plannedStop": 10, "alert": {"distance": 30, "serious": true},
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 120}},
+   "expect": {"focus": "alert", "strip": ["fuel", "stop"]}},
+  {"name": "Fuel below the reserve still comes before a serious alert", "signals": {"nextExit": 2, "alert": {"distance": 10, "serious": true},
+   "fuel": {"range": 40, "reserve": 50, "stopAhead": 8}},
+   "expect": {"focus": "fuel", "strip": ["alert", "exit"]}},
+  {"name": "A minor alert takes the focus only when near", "signals": {"nextExit": 3, "alert": {"distance": 6, "serious": false},
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 120}},
+   "expect": {"focus": "alert", "strip": ["fuel", "exit"]}},
+  {"name": "A minor alert farther away waits in the strip", "signals": {"nextExit": 3, "alert": {"distance": 25, "serious": false},
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 120}},
+   "expect": {"focus": "exit", "strip": ["fuel", "alert"]}},
   {"name": "Nothing ahead on this road", "signals": {},
    "expect": {"focus": "none", "strip": ["fuelEntry"]}}
  ]}

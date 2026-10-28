@@ -8,6 +8,7 @@ import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { exitTitle } from '../engine/exits.js';
 import { KIND_TITLES, restAreaTitle } from '../engine/restareas.js';
 import { spokenMiles } from './format.js';
+import { ALERT_KINDS } from '../engine/roadintel.js';
 
 const BORDER_WARN = 5 * MILE;
 const BORDER_MIN = 0.5 * MILE;
@@ -17,6 +18,11 @@ const SAME_BORDER = 3 * MILE;
 const REST_WARN = 2.5 * MILE;
 const REST_MIN = 0.4 * MILE;
 const GAP_WARN = 6 * MILE;
+/// Road alerts: serious ones (closures, major crashes, severe weather) are spoken from this far,
+/// others from ALERT_WARN; never within ALERT_MIN, where it is too late to act on them.
+const ALERT_SERIOUS_WARN = 10 * MILE;
+const ALERT_WARN = 2 * MILE;
+const ALERT_MIN = 0.3 * MILE;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -83,6 +89,7 @@ export class Announcer {
     this.announcedRest = new Set();
     this.announcedGaps = new Set();
     this.announcedOpen = new Set();
+    this.announcedAlerts = new Set();
     this.lastState = null;
     this.lastZone = null;
   }
@@ -105,6 +112,16 @@ export class Announcer {
       if (state !== null) this.lastState = state;
       if (zone !== null) this.lastZone = zone;
       return;
+    }
+    // Road alerts first: once each. A state line message waits for the next position, it is not lost.
+    if (settings.alerts?.voice !== false) {
+      for (const a of ctx.alerts ?? []) {
+        const ahead = a.start - s.progress;
+        if (ahead <= ALERT_MIN || ahead > (a.serious ? ALERT_SERIOUS_WARN : ALERT_WARN) || this.announcedAlerts.has(a.incident.id)) continue;
+        this.announcedAlerts.add(a.incident.id);
+        this.speak(alertWords(a, ahead));
+        return;
+      }
     }
     if (settings.announceStateLines && s.current) {
       const cur = s.current;
@@ -178,4 +195,14 @@ export class Announcer {
       this.speak(`${text}.`);
     }
   }
+}
+
+/// "Crash ahead, in 8 miles. 2 right lanes blocked." Weather says the warning's name; driver reports say so.
+export function alertWords(a, ahead) {
+  const i = a.incident;
+  const label = i.category === 'weather' || i.category === 'flooding' ? `${i.description} on your route` : `${ALERT_KINDS[i.category].label} ahead`;
+  let text = `${label}, in ${spokenMiles(ahead)}.`;
+  if (i.lanes) text += ` ${i.lanes}.`;
+  if (i.verification === 'community') text += ' Reported by drivers, not confirmed.';
+  return text;
 }

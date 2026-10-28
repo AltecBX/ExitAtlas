@@ -23,6 +23,8 @@ public enum ProfileRules {
                         "avoidTolls": false, "keepAwake": true, "liveActivity": true, "theme": "auto"],
             "voice": ["enabled": true, "stateLines": true, "exits": false, "fuel": true, "restAreas": true,
                       "gasGaps": true, "timeZones": true],
+            // Road alerts by Settings group (RoadIntel.Group), and whether they are spoken.
+            "alerts": ["closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true],
         ]
     }
 
@@ -203,6 +205,7 @@ public enum ProfileRules {
             ("theme", { oneOf($0, ["auto", "light", "dark"]) }),
         ])
         section("voice", ["enabled", "stateLines", "exits", "fuel", "restAreas", "gasGaps", "timeZones"].map { ($0, bool) })
+        section("alerts", ["closures", "incidents", "weather", "police", "cameras", "voice"].map { ($0, bool) })
         return (.object(out), problems)
     }
 

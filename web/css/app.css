@@ -422,3 +422,7 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .exit-row.rec { box-shadow: inset 4px 0 0 var(--sign-green); }
 .rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--sign-green); margin-top: 2px; }
 .stop-pin { width: 64px; text-align: center; font-size: 22px; flex: none; }
+.list > .item.alert-row { background: var(--amber-fill); }
+.list > .item.alert-row.serious, .alert-card.serious { border-color: var(--danger); }
+.list > .item.alert-row.serious { background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
+.alert-status { margin: 0; }

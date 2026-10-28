@@ -15,6 +15,8 @@ import { SpeedLimits } from './limits.js';
 import { GasPrices, GRADES } from './prices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates } from './smartstops.js';
+import { RoadAlerts } from './roadalerts.js';
+import { roadIntel } from '../engine/roadintel.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
@@ -86,6 +88,8 @@ const app = {
   location: new LocationService(),
   wake: new ScreenWake(),
   announcer: new Announcer(),
+  /// Road alert sources for the active trip (app/roadalerts.js).
+  roadAlerts: new RoadAlerts(),
 
   /// Gas along the route in order: exits with a gas station and service plazas that list one.
   gasStops(plan = this.plan) {
@@ -250,6 +254,23 @@ const app = {
       });
     }
     return this.lastOpenCache;
+  },
+
+  /// Road alerts on the route ahead and a status per Settings group (engine/roadintel.js). Expiry and
+  /// freshness use the real clock; arrival times come from the trip.
+  roadIntel() {
+    const s = this.snapshot;
+    if (!this.plan || !s) return null;
+    const now = Date.now() / 1000;
+    const providers = this.roadAlerts.providers();
+    const key = `${Math.floor(s.progress / 320)}|${Math.floor(now / 60)}|${providers.map((p) => `${p.id}:${p.state}:${p.fetchedAt}`).join()}|${JSON.stringify(this.settings.alerts)}|${this.plan.route.length}`;
+    if (this.intelKey !== key) {
+      this.intelKey = key;
+      this.intelCache = roadIntel(this.plan.route, s.progress, providers, {
+        now, enabled: this.settings.alerts ?? {}, etaAt: (d) => now + (s.etaTo(d) - s.t),
+      });
+    }
+    return this.intelCache;
   },
 
   secret(key) { return store.get(key, ''); },
@@ -664,6 +685,8 @@ function resetTripState() {
   app.rejectedStops = [];
   app.smartKey = null;
   app.announcer.reset();
+  app.roadAlerts.reset();
+  app.intelKey = null;
   app.limits = null;
   app.lastSpeed = null;
 }
@@ -827,7 +850,13 @@ function handleDiscovery(sample) {
 function publish(snap) {
   app.snapshot = snap;
   const gap = app.gasGapsAhead(snap).find((g) => g.before && g.before.distance > snap.progress) ?? null;
-  app.announcer.consider(snap, app.settings, { zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap, lastOpen: app.lastOpenAhead() });
+  app.announcer.consider(snap, app.settings, {
+    zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap, lastOpen: app.lastOpenAhead(), alerts: app.roadIntel()?.alerts ?? [],
+  });
+  // Road alert sources: fetched only while a trip runs, when due (app/roadalerts.js).
+  app.roadAlerts.refresh(app.plan, snap.progress, { online: navigator.onLine !== false })
+    .then((changed) => { if (changed) { lastViewHTML = ''; render(); } })
+    .catch(() => {});
   considerFuelVoice();
   ensureLimits();
   ensureChargers();
@@ -1371,6 +1400,13 @@ document.addEventListener('change', (ev) => {
       saveProfile();
     }
     el.value = '';
+    lastViewHTML = '';
+    render();
+    return;
+  }
+  if (el.dataset?.alert) {
+    app.settings.alerts = { ...app.settings.alerts, [el.dataset.alert]: el.checked };
+    saveProfile();
     lastViewHTML = '';
     render();
     return;

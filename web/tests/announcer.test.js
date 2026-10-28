@@ -126,4 +126,22 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   a3.consider(fake(100 * MILE), { ...all, announceGasGaps: false }, { lastOpen: lastOpen(4 * MILE, 'other') });
   a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(4 * MILE, 'third', 'g1'), gasGap: { length: 50 * MILE, before: { distance: 0, exit: { id: 'g1', label: '7' } } } });
   assert.equal(heard.length, 1, heard.join(' | '));
+
+  // Road alerts (same cases as VoiceAnnouncements in RoadIntelTests.swift): serious from 10 miles, others from
+  // 2, once each, never within 0.3 mile, and not at all when alert voice is off. Simulated test alerts.
+  const alert = (id, category, startMiles, serious, extra = {}) => ({ incident: { id, category, description: 'Severe Thunderstorm Warning', lanes: null, verification: 'official', ...extra }, start: startMiles * MILE, serious });
+  const crash = alert('c1', 'crash', 109, true, { lanes: 'Right lane blocked' });
+  const police = alert('p1', 'police', 102, false, { verification: 'community' });
+  const said2 = [];
+  const a4 = new Announcer((t) => said2.push(t));
+  for (const at of [97, 99.1, 99.5]) a4.consider(fake(at * MILE), all, { alerts: [crash] });
+  assert.deepEqual(said2, ['Crash ahead, in 10 miles. Right lane blocked.']);
+  a4.consider(fake(99.5 * MILE), all, { alerts: [police] });
+  a4.consider(fake(100.2 * MILE), all, { alerts: [police] });
+  assert.equal(said2[1], 'Police reported ahead, in 2 miles. Reported by drivers, not confirmed.');
+  a4.consider(fake(101.8 * MILE), all, { alerts: [alert('p2', 'police', 102, false)] });
+  a4.consider(fake(100 * MILE), { ...all, alerts: { voice: false } }, { alerts: [alert('w1', 'weather', 101, true)] });
+  assert.equal(said2.length, 2, said2.join(' | '));
+  a4.consider(fake(100 * MILE), all, { alerts: [alert('w1', 'weather', 101, true)] });
+  assert.equal(said2[2], 'Severe Thunderstorm Warning on your route, in 1 mile.');
 });

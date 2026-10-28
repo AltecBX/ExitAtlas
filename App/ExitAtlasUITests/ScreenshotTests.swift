@@ -12,6 +12,29 @@ final class ScreenshotTests: XCTestCase {
 
     func testScreensDark() { capture(dark: true) }
 
+    /// A road alert: one SIMULATED crash 6 miles ahead (-demoAlert, labeled in the app as a simulated test alert)
+    /// takes the Drive focus card and shows in Road Ahead with the alert sources' status.
+    func testRoadAlert() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-demoAlert"] + (dark ? ["-forceDark"] : [])
+            app.launch()
+            XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+            let card = app.descendants(matching: .any)["alertCard"].firstMatch
+            XCTAssertTrue(card.waitForExistence(timeout: 20), "No road alert card")
+            app.swipeUp()
+            sleep(2)
+            snap("1f Road alert", dark)
+            app.tabBars.buttons["Ahead"].tap()
+            XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+            let status = app.descendants(matching: .any)["alertStatus"].firstMatch
+            if status.waitForExistence(timeout: 10) { status.tap() }
+            sleep(2)
+            snap("2b Road Ahead alert", dark)
+            app.terminate()
+        }
+    }
+
     /// Overnight Drive Mode on: before a long stretch where no stop is listed open at its arrival time, the
     /// last one that is takes the focus card (mile 400 on the demo route, as on the web).
     func testOvernightLastOpenStop() {

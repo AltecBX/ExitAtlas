@@ -91,6 +91,13 @@ struct SettingsView: View {
                 } footer: {
                     Text("Auto turns it on when you would reach a stop inside this window, in that stop's own time zone. Overnight, stops listed open 24 hours with a restroom rank first.")
                 }
+                Section {
+                    RoadAlertRows()
+                } header: {
+                    Text("Road alerts")
+                } footer: {
+                    Text("Alerts are matched to your road and direction, so the other side of the highway and parallel roads do not warn. A source that fails shows as unavailable, never as all clear.")
+                }
                 Section("Places and favorites") {
                     NavigationLink {
                         PlacesSettingsView()
@@ -286,5 +293,41 @@ private struct DataVersionSection: View {
         case let .ignored(reason): return "Not updated: \(reason)."
         case let .failed(reason): return "Update failed: \(reason) The data in use is unchanged."
         }
+    }
+}
+
+/// Road alert switches by group, each with its source and, during a trip, its status.
+private struct RoadAlertRows: View {
+    @Environment(UserSettings.self) private var settings
+    @Environment(TripController.self) private var trip
+
+    static let sources: [RoadIntel.Group: String] = [
+        .closures: "No source connected yet: state 511 and work zone feeds need registration",
+        .incidents: "No source connected yet: state 511 feeds need registration",
+        .weather: "National Weather Service, public domain, checked every 10 minutes during a trip",
+        .police: "No authorized live source exists for ExitAtlas, so nothing is shown",
+        .cameras: "No source connected yet",
+    ]
+
+    var body: some View {
+        @Bindable var settings = settings
+        let status = trip.roadIntel?.status
+        ForEach(RoadIntel.Group.allCases, id: \.self) { g in
+            Toggle(isOn: Binding(get: { settings.alertGroups[g.rawValue] ?? true },
+                                 set: { settings.alertGroups[g.rawValue] = $0 })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(g.label)
+                    Text((Self.sources[g] ?? "") + (status?[g].map { " · Now: \($0.label)" } ?? ""))
+                        .font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+            }
+        }
+        Toggle(isOn: $settings.announceAlerts) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Speak road alerts")
+                Text("Serious ones about 10 miles ahead, others about 2 miles, once each").font(.caption).foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .disabled(!settings.voiceEnabled)
     }
 }

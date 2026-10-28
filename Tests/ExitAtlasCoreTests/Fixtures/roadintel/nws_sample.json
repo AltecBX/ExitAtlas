@@ -1,0 +1,115 @@
+{
+ "type": "FeatureCollection",
+ "comment": "Real National Weather Service alerts from api.weather.gov/alerts/active, captured 2026-10-28 (public domain). Description and instruction text shortened.",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e38e51fb4803ee9aacbfe04b575a6b982bf27cb4.001.1",
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -105.32,
+       33.2
+      ],
+      [
+       -105.41,
+       33.31
+      ],
+      [
+       -105.32,
+       33.3
+      ],
+      [
+       -105.32,
+       33.2
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.e38e51fb4803ee9aacbfe04b575a6b982bf27cb4.001.1",
+    "areaDesc": "Otero, NM",
+    "sent": "2026-10-28T17:32:00-06:00",
+    "effective": "2026-10-28T17:32:00-06:00",
+    "onset": "2026-10-28T17:32:00-06:00",
+    "expires": "2026-10-28T18:00:00-06:00",
+    "ends": "2026-10-28T18:00:00-06:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Observed",
+    "urgency": "Immediate",
+    "event": "Severe Thunderstorm Warning",
+    "senderName": "NWS El Paso Tx/Santa Teresa NM",
+    "headline": "Severe Thunderstorm Warning issued October 28 at 5:32PM MDT until October 28 at 6:00PM MDT by NWS El Paso Tx/Santa Teresa NM",
+    "description": "SVREPZ\n\nThe National Weather Service in El Paso has issued a\n\n* Severe Thunderstorm Warning for...\nNorth central Otero County in south central New Mexico...\n\n* Until 600 PM MDT.\n\n* At 532 PM MDT, a severe thunderstorm was located 9 miles southwest\nof Hondo, and is nearly stationary.\n\nHAZARD...60 mph",
+    "instruction": "For your protection move to an interior room on the lowest floor of a\nbuilding.",
+    "response": "Shelter",
+    "affectedZones": [
+     "https://api.weather.gov/zones/county/NMC035"
+    ]
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.6621366079d727b2d70d5ddcf1dc6d9048bed14f.001.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.6621366079d727b2d70d5ddcf1dc6d9048bed14f.001.1",
+    "areaDesc": "Anchorage Hillside / Eagle River",
+    "sent": "2026-10-28T14:57:00-08:00",
+    "effective": "2026-10-28T14:57:00-08:00",
+    "onset": "2026-10-29T15:00:00-08:00",
+    "expires": "2026-10-29T16:00:00-08:00",
+    "ends": "2026-10-30T01:00:00-08:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Wind Advisory",
+    "senderName": "NWS Anchorage AK",
+    "headline": "Wind Advisory issued October 28 at 2:57PM AKDT until October 30 at 1:00AM AKDT by NWS Anchorage AK",
+    "description": "* WHAT...Southeast winds 25 to 40 mph with gusts of 50 to 60 mph\nexpected.\n\n* WHERE...Anchorage and Eagle River Hillsides, mainly above 1000 feet\nelevation.\n\n* WHEN...From 3 PM Thursday to 1 AM AKDT Friday.\n\n* IMPACTS...Gusty winds will blow around unsecured objects and a few\npower outages may resul",
+    "instruction": "Winds this strong can make driving difficult, especially for high\nprofile vehicles. Use extra caution.\n\nSecure outdoor objects.",
+    "response": "Execute",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/AKZ702"
+    ]
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.628a6c849c39a87d702e33c916780d819f2cb05c.006.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.628a6c849c39a87d702e33c916780d819f2cb05c.006.1",
+    "areaDesc": "Cape Tolstoi to Cape Sarichef out to 15 NM",
+    "sent": "2026-10-28T15:32:00-08:00",
+    "effective": "2026-10-28T15:32:00-08:00",
+    "onset": "2026-10-29T05:00:00-08:00",
+    "expires": "2026-10-29T04:30:00-08:00",
+    "ends": "2026-10-30T05:00:00-08:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Small Craft Advisory",
+    "senderName": "NWS Anchorage AK",
+    "headline": "Small Craft Advisory issued October 28 at 3:32PM AKDT until October 30 at 5:00AM AKDT by NWS Anchorage AK",
+    "description": "Coastal Waters Forecast for Southwest Alaska+Bristol Bay+The\nAlaska Peninsula Waters and the Aleutian Islands up to 100 nm out.\n\nWind forecasts reflect the predominant speed and direction\nexpected. Sea forecasts represent an average of the highest\none-third of the combined wind wave and swell height",
+    "instruction": "",
+    "response": "Avoid",
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/PKZ754"
+    ]
+   }
+  }
+ ]
+}

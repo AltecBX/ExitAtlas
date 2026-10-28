@@ -69,6 +69,9 @@ final class TripController {
     @ObservationIgnored let limits = SpeedLimitService()
     @ObservationIgnored let chargers = ChargerService()
     @ObservationIgnored let prices = GasPriceService()
+    /// Road alert sources for the active trip (NWS weather; others when connected).
+    @ObservationIgnored let roadAlerts = RoadAlertService()
+    @ObservationIgnored private var intelMemo: (key: String, result: RoadIntel.Result?)?
     @ObservationIgnored private var fuelVoice = FuelAnnouncements()
     @ObservationIgnored private var rangePlanMemo: (key: String, plan: RangePlan?)?
     @ObservationIgnored weak var settings: UserSettings?
@@ -84,6 +87,7 @@ final class TripController {
             self.handle(sample)
         }
         limits.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        roadAlerts.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         chargers.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onCall = { PriceCallCounter.count() }
@@ -310,7 +314,8 @@ final class TripController {
         snapshot = snap
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
-            announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead)
+            announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead,
+                               alerts: roadIntel?.alerts ?? [])
             if settings.liveActivityEnabled {
                 let content = activityContent(for: snap, gasGap: gap)
                 if activityPending {
@@ -323,6 +328,9 @@ final class TripController {
         }
         limits.reset(for: plan)
         if snap.match.status == .onRoute { limits.ensureAhead(of: snap.progress) }
+        // Road alert sources: only while a trip runs, when due.
+        roadAlerts.reset(for: plan)
+        if let plan { roadAlerts.refresh(plan: plan, progress: snap.progress) }
         if let plan, let settings, settings.vehicle?.isElectric == true {
             chargers.ensure(for: plan, teslaOnly: settings.teslaOnlyChargers, apiKey: settings.nrelKey)
         }
@@ -450,6 +458,27 @@ final class TripController {
                                                  preferences: SmartStop.Preferences(settings.values),
                                                  minLength: settings.gasGapMiles * Geodesy.metersPerMile, windowEnd: end, rejected: rejected)
         lastOpenMemo = (key, result)
+        return result
+    }
+
+    /// Road alerts on the route ahead and a status per Settings group. Expiry and freshness use the clock;
+    /// arrival times come from the trip. Recomputed every 0.2 mile, every minute, or when a source changes.
+    var roadIntel: RoadIntel.Result? {
+        _ = feedsVersion
+        guard let plan, let snapshot, let settings else { return nil }
+        let now = Date()
+        let providers = roadAlerts.providers
+        let groups = settings.alertGroups.keys.sorted().map { "\($0)=\(settings.alertGroups[$0] ?? true)" }.joined(separator: ",")
+        let sources = providers.map { p -> String in "\(p.id):\(p.state.rawValue):\(p.fetchedAt?.timeIntervalSince1970 ?? 0)" }.joined(separator: ",")
+        let place = "\(plan.route.id)|\(Int(snapshot.progress / 320))|\(Int(now.timeIntervalSince1970 / 60))|\(feedsVersion)"
+        let key = place + "|" + groups + "|" + sources
+        if let memo = intelMemo, memo.key == key { return memo.result }
+        var enabled: [RoadIntel.Group: Bool] = [:]
+        for (k, v) in settings.alertGroups { if let g = RoadIntel.Group(rawValue: k) { enabled[g] = v } }
+        let result = RoadIntel.evaluate(route: plan.route, progress: snapshot.progress, providers: providers, now: now, enabled: enabled,
+                                        etaAt: { d in now.addingTimeInterval(plan.eta(from: snapshot.progress, to: d, pace: snapshot.pace,
+                                                                                      now: snapshot.timestamp).timeIntervalSince(snapshot.timestamp)) })
+        intelMemo = (key, result)
         return result
     }
 

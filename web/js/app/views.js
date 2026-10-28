@@ -13,6 +13,7 @@ import { travelStats } from '../engine/travels.js';
 import { dashboardFocus } from '../engine/dashboard.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -257,11 +258,55 @@ function focusSignals(app, s) {
     plannedStop: s.nextStop ? { distance: s.nextStop.distance } : null,
     fuel, overnight: inOvernightWindow(app.profile, localTime(s.t, zone).minute),
     lastOpen: app.lastOpenAhead()?.stop.ahead ?? null,
+    alert: focusAlert(app, s),
   };
+}
+
+/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+function focusAlertItem(app, s) {
+  const alerts = app.roadIntel()?.alerts ?? [];
+  return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
+}
+
+function focusAlert(app, s) {
+  const a = focusAlertItem(app, s);
+  return a ? { distance: Math.max(0, a.start - s.progress), serious: a.serious } : null;
+}
+
+const ALERT_ICONS = { closure: '⛔', crash: '⚠️', flooding: '🌊', weather: '⛈️', hazard: '⚠️', disabledVehicle: '🚗', construction: '🚧', congestion: '🐢', police: '🚓', speedCamera: '📷', other: '⚠️' };
+
+/// "Source: National Weather Service · Updated 6 minutes ago", and "until 8:45 PM" for timed events.
+function alertMeta(app, a, s) {
+  const i = a.incident;
+  const now = Date.now() / 1000;
+  const parts = [`Source: ${a.sources.map((x) => h(x.name)).join(', ')}`, h(freshnessText(i, now))];
+  if (i.endsAt) parts.push(`until ${clock(i.endsAt, app.plan.timeZoneIDAt(a.start), s.t)}`);
+  return parts.join(' · ');
+}
+
+/// A road alert ahead: what, where, how sure, from whom. Driver reports say they are unconfirmed.
+function alertCard(app, s) {
+  const a = focusAlertItem(app, s);
+  if (!a) return nextExitCard(app, s);
+  const i = a.incident;
+  const hw = app.plan.route.highwayAt(a.start);
+  const road = hw ? `${highwayLabel(hw.ref)} ${DIRECTION_WORDS[hw.direction] ?? ''}`.trim() : null;
+  const inside = a.start <= s.progress;
+  const title = i.category === 'weather' || i.category === 'flooding' ? i.description : ALERT_KINDS[i.category].label;
+  const sub = i.category === 'weather' || i.category === 'flooding' ? (i.area ?? '') : (i.lanes ?? (i.description !== title ? i.description : ''));
+  return `<div class="card focus-card alert-card${a.serious ? ' serious' : ''}" role="status">
+    <div class="eyebrow">${ALERT_ICONS[i.category] ?? '⚠️'} ${a.serious ? 'Serious alert' : 'Road alert'}${road ? ` · ${h(road)}` : ''}</div>
+    <div class="row" style="gap:12px;margin-top:6px"><div style="flex:1;min-width:0"><div class="title-md">${h(title)}</div>
+      ${sub ? `<div class="small">${h(sub)}</div>` : ''}
+      ${i.verification === 'community' ? '<div class="small amber-text">Reported by drivers, not confirmed</div>' : ''}
+      ${a.directionKnown ? '' : '<div class="muted tiny">Direction not reported</div>'}
+      <div class="muted tiny" style="margin-top:4px">${alertMeta(app, a, s)}</div></div>
+      <div class="side" style="text-align:right">${inside ? '<div class="small" style="font-weight:800">Now</div>' : `<div class="num" style="font:800 28px/1 var(--num)">${milesValue(a.start - s.progress)}<span class="muted small"> mi</span></div>`}</div></div></div>`;
 }
 
 function focusCard(app, s, kind) {
   switch (kind) {
+    case 'alert': return alertCard(app, s);
     case 'fuel': return fuelCard(app, s);
     case 'stop': return plannedStopCard(app, s);
     case 'gap': return gasGapCard(app, s);
@@ -333,6 +378,12 @@ function thenStrip(app, s, kinds) {
         return chip('data-act="tab" data-arg="ahead"', inside ? '' : `${milesValue(g.from - s.progress)} mi`, `No gas for ${miles(g.to - Math.max(g.from, s.progress))}${g.open ? '+' : ''}`);
       }
       case 'stop': return s.nextStop ? chip('data-act="tab" data-arg="trip"', `${milesValue(s.nextStop.distance)} mi`, `📍 ${h(s.nextStop.stop.waypoint.name)}`) : '';
+      case 'alert': {
+        const a = focusAlertItem(app, s);
+        if (!a) return '';
+        const name = a.incident.category === 'weather' || a.incident.category === 'flooding' ? a.incident.description : ALERT_KINDS[a.incident.category].label;
+        return chip('data-act="tab" data-arg="ahead"', a.start > s.progress ? `${milesValue(a.start - s.progress)} mi` : '', `${ALERT_ICONS[a.incident.category] ?? '⚠️'} ${h(name)}`);
+      }
       case 'restArea': return s.nextRestArea ? chip(`data-act="rest" data-arg="${h(s.nextRestArea.restArea.id)}"`, `${milesValue(s.nextRestArea.distance)} mi`, h(restAreaTitle(s.nextRestArea.restArea))) : '';
       case 'exit': return s.nextExit ? chip(`data-act="exit" data-arg="${h(s.nextExit.exit.id)}"`, `${milesValue(s.nextExit.distance)} mi`, h(exitTitle(s.nextExit.exit))) : '';
       default: return '';
@@ -703,11 +754,37 @@ export function exitsView(app) {
   if (ui.category === null || ui.category === 1) {
     for (const g of app.gasGapsAhead(s, window)) events.push({ d: g.from, o: 2, html: gapRow(g, s) });
   }
+  const intel = app.roadIntel();
+  if (ui.category === null) {
+    for (const a of intel?.alerts ?? []) if (a.start - s.progress <= window) events.push({ d: Math.max(a.start, s.progress), o: 0, html: alertRow(app, a, s) });
+  }
   events.sort((x, y) => x.d - y.d || x.o - y.o);
   for (const e of events) rows.push(e.html);
   const list = rows.length ? `<div class="list">${rows.join('')}</div>`
     : `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${ui.category === null ? 'Try a longer window.' : `No exits or rest areas with ${CATEGORY_NAMES[ui.category]} in this window.`}</div>`;
-  return `<div class="stack">${windowSeg}${chips}${list}${tools}${attribution()}</div>`;
+  return `<div class="stack">${windowSeg}${chips}${alertStatus(intel)}${list}${tools}${attribution()}</div>`;
+}
+
+function alertRow(app, a, s) {
+  const i = a.incident;
+  const title = i.category === 'weather' || i.category === 'flooding' ? i.description : ALERT_KINDS[i.category].label;
+  const sub = [i.lanes, i.verification === 'community' ? 'Reported by drivers, not confirmed' : null, a.directionKnown ? null : 'Direction not reported'].filter(Boolean).join(' · ');
+  const len = !a.approximate && a.end - a.start > 0.5 * MILE ? ` for ${miles(a.end - a.start)}` : '';
+  return `<div class="item alert-row${a.serious ? ' serious' : ''}"><span class="gap-icon" aria-hidden="true">${ALERT_ICONS[i.category] ?? '⚠️'}</span>
+    <div class="main"><div class="t">${h(title)}${len}</div>${sub ? `<div class="small">${h(sub)}</div>` : ''}<div class="muted tiny">${alertMeta(app, a, s)}</div></div>
+    <div class="side"><div class="big">${a.start <= s.progress ? 'Now' : milesValue(a.start - s.progress)}</div></div></div>`;
+}
+
+/// One line on what the alert sources say, with each group's state in a details list: "no relevant
+/// reports" and "data unavailable" are different things and both are shown as such.
+function alertStatus(intel) {
+  if (!intel) return '';
+  const n = intel.alerts.length;
+  const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
+  const failing = on.filter(([, st]) => st.state === 'unavailable').length;
+  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
+  const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
+  return `<details class="facilities alert-status"><summary>${h(summary)}</summary>${rows}</details>`;
 }
 
 export function exitDetail(app, exitId) {
@@ -942,6 +1019,7 @@ export function settingsView(app) {
         <div class="seg" style="width:190px">${[25, 40, 60, 80].map((v) => `<button class="${st.gasGapMiles === v ? 'on' : ''}" data-act="gas-gap" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Favorite gas</div>${fuelPreferences(app)}</div>
     <div><div class="section-title">Overnight driving</div>${overnightSettings(app)}</div>
+    <div><div class="section-title">Road alerts</div>${alertSettings(app)}</div>
     <div><div class="section-title">Gas prices</div><div class="card small">${priceSettings(app)}</div></div>
     <div><div class="section-title">Electric vehicles</div><div class="list">
       <div class="field"><span style="flex:1">Charging stops at</span><div class="seg" style="width:220px">${[['Tesla', 'Superchargers'], ['all', 'All DC fast']].map(([k, n]) => `<button class="${st.chargerNetwork === k ? 'on' : ''}" data-act="charger-network" data-arg="${k}">${n}</button>`).join('')}</div></div>
@@ -1298,4 +1376,23 @@ function profileSection(app) {
     <p class="muted tiny">The website and the iOS app keep separate profiles. To use the same one, export it here and import it there (or the other way). API keys are never included.</p>
     <div class="row" style="gap:8px"><button class="btn sm" data-act="export-profile">Export profile</button>
       <label class="btn sm" style="cursor:pointer">Import profile<input type="file" accept="application/json,.json" data-import hidden></label></div></div>`;
+}
+
+/// Road alert switches by group, with each group's source and status during a trip.
+function alertSettings(app) {
+  const al = app.settings.alerts ?? {};
+  const st = app.roadIntel()?.status ?? null;
+  const sources = {
+    closures: 'No source connected yet: state 511 and work zone feeds need registration (docs/13)',
+    incidents: 'No source connected yet: state 511 feeds need registration (docs/13)',
+    weather: 'National Weather Service, public domain, checked every 10 minutes during a trip',
+    police: 'No authorized live source exists for ExitAtlas, so nothing is shown (docs/13)',
+    cameras: 'No source connected yet',
+  };
+  const row = (g) => `<label class="field"><span style="flex:1">${h(ALERT_GROUPS[g].label)}<div class="muted tiny">${h(sources[g])}${st ? ` · Now: ${h(st[g].label)}` : ''}</div></span>
+    <input type="checkbox" class="toggle" data-alert="${g}" ${al[g] !== false ? 'checked' : ''}></label>`;
+  return `<div class="list">${Object.keys(ALERT_GROUPS).map(row).join('')}
+    <label class="field"><span style="flex:1">Speak road alerts<div class="muted tiny">Serious ones about 10 miles ahead, others about 2 miles, once each</div></span>
+    <input type="checkbox" class="toggle" data-alert="voice" ${al.voice !== false ? 'checked' : ''}></label></div>
+    <p class="note">Alerts are matched to your road and direction, so the other side of the highway and parallel roads do not warn. A source that fails shows as unavailable, never as all clear.</p>`;
 }
