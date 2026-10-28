@@ -1,0 +1,81 @@
+// Data clients with fake servers: Google Places prices and DOE AFDC chargers.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { route } from './support.js';
+import { GasPrices, parsePlaces, pricedForGrade, priceText, ageText } from '../js/app/prices.js';
+import { parseStations, routeWKT, fetchChargers } from '../js/app/chargers.js';
+
+const placesJSON = {
+  places: [
+    { id: 'a', displayName: { text: 'Shell' }, location: { latitude: 31.2, longitude: -81.5 },
+      fuelOptions: { fuelPrices: [
+        { type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 290000000 }, updateTime: '2026-10-28T02:00:00Z' },
+        { type: 'PREMIUM', price: { currencyCode: 'USD', units: '4', nanos: 90000000 }, updateTime: '2026-10-28T02:00:00Z' }] } },
+    { id: 'b', displayName: { text: 'Wawa' }, location: { latitude: 31.21, longitude: -81.5 },
+      fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 150000000 }, updateTime: '2026-10-28T01:00:00Z' }] } },
+    { id: 'c', displayName: { text: 'No prices' }, location: { latitude: 31.22, longitude: -81.5 } },
+  ],
+};
+
+test('Google Places prices: parsing, grade sort, one request per exit per 15 minutes', async () => {
+  const stations = parsePlaces(placesJSON);
+  assert.equal(stations.length, 3);
+  near(stations[0].prices.REGULAR_UNLEADED.value, 3.29);
+  const regular = pricedForGrade(stations, 'REGULAR_UNLEADED');
+  assert.deepEqual(regular.map((s) => s.name), ['Wawa', 'Shell']);
+  assert.equal(priceText(regular[0].prices.REGULAR_UNLEADED), '$3.15');
+  assert.equal(ageText(Date.parse('2026-10-28T01:00:00Z'), Date.parse('2026-10-28T01:25:00Z')), '25 min ago');
+
+  let now = 0, calls = 0, lastReq = null;
+  const prices = new GasPrices({
+    getKey: () => 'k', now: () => now,
+    fetchImpl: async (url, opts) => { calls += 1; lastReq = { url, opts }; return { ok: true, status: 200, json: async () => placesJSON }; },
+  });
+  const exit = { id: 'x1', coordinate: { lat: 31.2, lon: -81.5 } };
+  const a = await prices.load(exit);
+  assert.equal(a.stations.length, 3);
+  assert.equal(lastReq.opts.headers['X-Goog-Api-Key'], 'k');
+  assert.match(lastReq.opts.headers['X-Goog-FieldMask'], /fuelOptions/);
+  const body = JSON.parse(lastReq.opts.body);
+  assert.deepEqual(body.includedTypes, ['gas_station']);
+  assert.equal(body.locationRestriction.circle.radius, 1600);
+  await prices.load(exit);
+  assert.equal(calls, 1, 'cached');
+  now += 16 * 60 * 1000;
+  await prices.load(exit);
+  assert.equal(calls, 2, 'refreshed after 15 minutes');
+  const off = new GasPrices({ getKey: () => '' });
+  assert.equal(off.enabled, false);
+  assert.equal(await off.load(exit), null);
+});
+
+test('Google Places errors are reported, not thrown', async () => {
+  const prices = new GasPrices({ getKey: () => 'bad', fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'API key not valid' } }) }) });
+  const r = await prices.load({ id: 'x', coordinate: { lat: 1, lon: 1 } });
+  assert.equal(r.error, 'API key not valid');
+  assert.equal(r.stations.length, 0);
+});
+
+test('AFDC chargers: route WKT, parsing, request shape', async () => {
+  const r = route('atlanta_to_nashville');
+  const wkt = routeWKT(r.polyline);
+  assert.match(wkt, /^LINESTRING\(-84\.\d+ 33\.\d+, /);
+  assert.ok(wkt.split(',').length > 150 && wkt.split(',').length < 250, 'about one point per 2 km');
+  const json = { fuel_stations: [
+    { id: 1, station_name: 'Chattanooga, TN - Tesla Supercharger', latitude: 35.0, longitude: -85.3, ev_network: 'Tesla', ev_dc_fast_num: 12, status_code: 'E', ev_connector_types: ['TESLA'], access_days_time: '24 hours daily. NACS partner enabled.' },
+    { id: 2, station_name: 'Planned', latitude: 35.1, longitude: -85.3, ev_network: 'Tesla', ev_dc_fast_num: 8, status_code: 'P' },
+    { id: 3, station_name: 'Level 2 only', latitude: 35.2, longitude: -85.3, ev_network: 'Tesla', ev_dc_fast_num: null, status_code: 'E' },
+  ] };
+  const parsed = parseStations(json);
+  assert.deepEqual(parsed.map((s) => s.id), [1]);
+  assert.equal(parsed[0].openToOthers, true);
+  let req = null;
+  const out = await fetchChargers(r.polyline, { apiKey: 'K', fetchImpl: async (url, opts) => { req = { url, opts }; return { ok: true, status: 200, json: async () => json }; } });
+  assert.equal(out.length, 1);
+  assert.match(req.url, /nearby-route\.json\?api_key=K$/);
+  assert.equal(req.opts.body.get('ev_network'), 'Tesla');
+  assert.equal(req.opts.body.get('ev_charging_level'), 'dc_fast');
+  await assert.rejects(fetchChargers(r.polyline, { fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({}) }) }), /rate limited/);
+});
+
+function near(a, b, tol = 1e-9) { assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`); }

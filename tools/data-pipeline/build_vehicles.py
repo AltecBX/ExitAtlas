@@ -13,7 +13,9 @@ Inputs:
 
 Output (compact JSON, loaded by the web app when the vehicle picker opens):
   {"meta": {...}, "tanks": [{"gallons": [17.0], "sources": [...], "basis": "..."}],
-   "years": {"2015": {"Toyota": {"Camry": [[label, city, highway, combined, epa_id, tank_index or -1], ...]}}}}
+   "years": {"2015": {"Toyota": {"Camry": [[label, city, highway, combined, epa_id, tank_index or -1,
+                                            fuel code, EV range mi, EV highway range mi], ...]}}}}
+  Fuel codes: R regular, P premium, M midgrade, D diesel, E electric. MPG values of electric vehicles are MPGe.
 """
 import csv
 import datetime
@@ -21,7 +23,8 @@ import hashlib
 import json
 import sys
 
-SKIP_TYPES = {"EV", "FCV", "CNG", "Bifuel (CNG)", "Bifuel (LPG)"}
+SKIP_TYPES = {"FCV", "CNG", "Bifuel (CNG)", "Bifuel (LPG)"}
+FUEL_CODES = {"Regular Gasoline": "R", "Premium Gasoline": "P", "Midgrade Gasoline": "M", "Diesel": "D", "Electricity": "E"}
 DRIVE = {
     "Front-Wheel Drive": "FWD", "Rear-Wheel Drive": "RWD", "All-Wheel Drive": "AWD", "4-Wheel Drive": "4WD",
     "4-Wheel or All-Wheel Drive": "4WD/AWD", "Part-time 4-Wheel Drive": "4WD", "2-Wheel Drive": "2WD",
@@ -38,6 +41,11 @@ def label(r):
     parts = []
     if r["model"] != r["baseModel"]:
         parts.append(r["model"])
+    if r["atvType"] == "EV":
+        parts += ["Electric", f'{int(r["range"])} mi EPA range']
+        if r["drive"]:
+            parts.append(DRIVE.get(r["drive"], r["drive"]))
+        return " · ".join(parts)
     if r["cylinders"] and r["displ"]:
         parts.append(f'{r["cylinders"]} cyl {r["displ"]} L')
     if r["tCharger"] == "T":
@@ -105,6 +113,12 @@ def main():
         city, hwy, comb = int(r["city08"]), int(r["highway08"]), int(r["comb08"])
         if min(city, hwy, comb) <= 0:
             continue
+        ev = r["atvType"] == "EV"
+        ev_range = int(float(r["range"] or 0)) if ev else 0
+        ev_range_hwy = round(float(r["rangeHwy"] or 0)) if ev else 0
+        if ev and ev_range <= 0:
+            continue
+        fuel = FUEL_CODES.get(r["fuelType1"], "R")
         models = years.setdefault(r["year"], {}).setdefault(r["make"], {})
         variants = models.setdefault(r["baseModel"], [])
         text = label(r)
@@ -112,9 +126,9 @@ def main():
             continue  # identical label and MPG: same choice for the driver
         if any(v[0] == text for v in variants) and r["eng_dscr"]:
             text = f'{text} · {r["eng_dscr"]}'
-        t = tank_for(r)
+        t = -1 if ev else tank_for(r)
         with_tank += t >= 0
-        variants.append([text, city, hwy, comb, int(r["id"]), t])
+        variants.append([text, city, hwy, comb, int(r["id"]), t, fuel, ev_range, ev_range_hwy])
         count += 1
 
     for y in years.values():

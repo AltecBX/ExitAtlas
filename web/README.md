@@ -13,6 +13,10 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * Vehicle picker: EPA fuel economy for every gasoline, diesel and hybrid version since 2000 (all makes), tank size where verified, otherwise entered once. Highway, combined or your own MPG.
 * Fuel stop: enter the miles to empty from your dashboard (or the gauge). Range counts down as you drive; ExitAtlas picks the last interstate exit with gas that you reach with about your buffer left (25, 50, 75 or 100 mi), shows earlier options and the last gas before empty, and announces it.
 * Dash: ring speedometer from GPS with the posted speed limit sign beside it (OpenStreetMap `maxspeed` via the public Valhalla server, fetched about every 50 miles), the next limit change within 2 miles, amber when over the limit and red when over by your threshold (Settings). Two column layout when the phone is mounted sideways.
+* Favorite gas brands (Shell, Wawa, Buc-ee's and so on): the fuel stop picks the last exit with one of them that you reach with your buffer left, anywhere in range, and says so when none does.
+* Live gas prices per station near each exit from Google Maps (Places API, Nearby Search with fuel options), using your own Google Maps Platform key entered in Settings: your favorite brand's price and the cheapest nearby, with the update time. Off without a key. Billed by Google at $40 per 1,000 lookups after 1,000 free a month (Enterprise + Atmosphere tier); ExitAtlas looks up one exit at a time, at most every 15 minutes, and counts lookups in Settings. Shown with Google Maps attribution, never on the map, never stored.
+* Electric vehicles: EPA range for every EV since 2000; charging stops at Tesla Superchargers (or all DC fast chargers) within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center, one request per route (demo key: 10 an hour; a free NREL key raises that). Range by miles or battery percent.
+* Home and recent places: set Home from any search result; Home and recent places appear first when choosing a start, stop or destination, and on the Drive screen for one tap routing.
 * Voice for state lines, exits and fuel stops, screen wake lock, light and dark mode.
 * The trip is saved on the phone every 30 seconds and can be resumed after the page reloads, without a network connection.
 * Offline data: states, time zones and 38,553 exits load once (about 15 MB) and are cached by a service worker.
@@ -50,4 +54,4 @@ cd web
 npm test
 ```
 
-41 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery, fuel stop planner, pace blending and ETA accuracy, speed limit loading.
+46 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery, fuel stop planner, pace blending and ETA accuracy, speed limit loading, favorite brands, charging stops, price and charger clients.

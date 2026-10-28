@@ -37,7 +37,9 @@ Phases follow the original priorities. Each item lists its status as of this pul
 | Add a suggested stop to the active trip with reroute | Next |
 | Small backend: NWS alerts by county codes along the route, WZDx work zones, 511 events, AFDC refresh | Next |
 | Alert relevance: only alerts intersecting the route ahead in the next few hours | Next |
-| Fuel prices | Blocked on a license (request iExit and OPIS quotes) |
+| Fuel prices | Web: live per station prices from Google Places with the driver's own key (optional). App release: still needs a license decision (Google Places terms and cost, or iExit/OPIS quotes) |
+| EV charging stops (Tesla Superchargers or all DC fast, DOE AFDC) | Done in the web version |
+| Home and recent places; favorite gas brands drive the fuel stop | Done in the web version |
 | Toll cost estimates | Later (TollGuru or HERE) |
 | Vehicle picker: EPA MPG for every make since 2000, verified tank sizes for common models, manual entry for the rest | Done in the web version; iOS port next |
 | Fuel stop planner from the dashboard's miles to empty: last gas exit reached with the chosen buffer, earlier options, last gas before empty, voice | Done in the web version (tests on real route data); iOS port next |

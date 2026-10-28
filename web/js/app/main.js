@@ -3,12 +3,14 @@
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { TripPlan, TripSession } from '../engine/trip.js';
 import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
-import { planFuelStop, rangeLeft, fullTankRange } from '../engine/fuel.js';
+import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
+import { GasPrices } from './prices.js';
+import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
   loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
@@ -20,7 +22,8 @@ const VERSION = '2026.10.28';
 const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: 'Settings' };
 const DEFAULT_SETTINGS = {
   voice: true, announceStateLines: true, announceExits: false, keepAwake: true,
-  theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, bufferMiles: 50, preferredBrands: '',
+  theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, customRange: null, bufferMiles: 50,
+  preferredBrands: '', favoriteBrands: [], chargerNetwork: 'Tesla',
   speedAlertOver: 5,
 };
 
@@ -36,7 +39,8 @@ const app = {
   settings: { ...DEFAULT_SETTINGS, ...store.get('ea.settings', {}) },
   history: store.get('ea.history', []),
   resumable: null,
-  planner: { from: null, to: null, stops: [], results: [], busy: false, error: null, recent: store.get('ea.recent', []) },
+  planner: { from: null, to: null, stops: [], results: [], busy: false, error: null },
+  places: loadPlaces(),
   placeSearch: { field: 'to', index: null, query: '', results: [], busy: false, error: null },
   exitsUI: { window: store.get('ea.window', 25), category: null },
   alongRoute: { categories: [], brand: '', window: 100, results: null },
@@ -46,6 +50,8 @@ const app = {
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
   recentVehicles: store.get('ea.vehicles', []),
+  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), onCall: countPriceCall }),
+  chargers: { routeId: null, projected: [], loading: false, error: null, retryAt: 0 },
   stopQuery: { category: 3, hours: 3, brand: '', results: null },
   sheet: null,
   serviceCache: new Map(),
@@ -95,6 +101,11 @@ const app = {
     const v = this.settings.vehicle;
     if (!v) return null;
     const st = this.settings;
+    if (v.ev) {
+      const rangeMiles = st.mpgBasis === 'custom' && st.customRange > 0 ? st.customRange
+        : st.mpgBasis === 'combined' ? v.rangeMiles : (v.rangeHwyMiles || v.rangeMiles);
+      return { ...v, rangeMiles, mpg: null };
+    }
     const mpg = st.mpgBasis === 'custom' && st.customMpg > 0 ? st.customMpg : st.mpgBasis === 'combined' ? v.comb : v.hwy;
     return { ...v, mpg };
   },
@@ -106,16 +117,36 @@ const app = {
   fuelPlan() {
     if (!this.fuel || !this.plan || !this.snapshot) return null;
     const st = this.settings;
-    const key = `${this.snapshot.t}|${this.fuel.enteredAt}|${st.bufferMiles}|${st.preferredBrands}|${this.plan.route.id}|${this.mode}`;
+    const ev = Boolean(st.vehicle?.ev);
+    const charged = ev && this.chargers.routeId === this.plan.route.id;
+    const key = `${this.snapshot.t}|${this.fuel.enteredAt}|${st.bufferMiles}|${st.favoriteBrands.join()}|${this.plan.route.id}|${this.mode}|${ev}|${charged}`;
     if (this.fuelKey !== key) {
       this.fuelKey = key;
-      this.fuelPlanCache = planFuelStop(this.plan, this.snapshot, this.rangeNow(), {
-        bufferMeters: st.bufferMiles * MILE, servicesFor: (e) => this.servicesFor(e),
-        preferredBrands: st.preferredBrands.split(',').map((b) => b.trim()).filter(Boolean),
-        hasDestination: this.mode === 'trip',
+      const range = this.rangeNow(), d = this.snapshot.progress;
+      const candidates = ev
+        ? (charged ? chargerCandidates(this.chargers.projected, d, range) : [])
+        : gasCandidates(this.plan, d, range, (e) => this.servicesFor(e), st.favoriteBrands);
+      const fp = planStop(this.plan, this.snapshot, range, candidates, {
+        bufferMeters: st.bufferMiles * MILE, hasDestination: this.mode === 'trip', favorites: ev ? [] : st.favoriteBrands,
       });
+      fp.ev = ev;
+      fp.chargersLoading = ev && !charged;
+      this.fuelPlanCache = fp;
     }
     return this.fuelPlanCache;
+  },
+
+  secret(key) { return store.get(key, ''); },
+
+  priceCalls() {
+    const c = store.get('ea.priceCalls', null);
+    return c && c.month === new Date().toISOString().slice(0, 7) ? c.n : 0;
+  },
+
+  /// Gas grade key for prices, from the vehicle's EPA fuel type.
+  gradeCode() {
+    const f = this.settings.vehicle?.fuel;
+    return f === 'P' || f === 'M' || f === 'D' ? f : 'R';
   },
 };
 window.exitAtlas = app; // for debugging from the console
@@ -177,6 +208,12 @@ function applyTheme() {
 
 function openSheet(kind, arg = null) {
   app.sheet = { kind, arg };
+  if (kind === 'exit') loadPrices([app.plan?.exits.find((e) => e.id === arg)]);
+  if (kind === 'fuel') {
+    ensureChargers();
+    const fp = app.fuelPlan();
+    if (fp) loadPrices([fp.recommended, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
+  }
   renderSheet();
   $('#sheet-backdrop').classList.add('open');
   $('#sheet').classList.add('open');
@@ -189,7 +226,11 @@ function renderSheet() {
   if (kind === 'exit') html = V.exitDetail(app, arg);
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
-  else if (kind === 'fuel') html = V.fuelSheet(app);
+  else if (kind === 'fuel') {
+    html = V.fuelSheet(app);
+    const fp = app.fuelPlan();
+    if (fp) loadPrices([fp.recommended, fp.closestToTarget, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
+  }
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   $('#sheet-body').innerHTML = html;
@@ -241,22 +282,95 @@ function considerFuelVoice() {
   const fp = app.fuelPlan();
   if (!fp) return;
   const rec = fp.recommended;
+  const what = (x) => (x.kind === 'charge' ? x.charger.name.replace(/ - Tesla Supercharger$/, ' Supercharger') : exitTitle(x.exit));
   if (rec && fp.status === 'planned') {
     for (const [mi, tag] of [[2, 'near'], [10, 'far']]) {
-      const key = `${rec.exit.id}|${tag}`;
+      const key = `${rec.key}|${tag}`;
       if (rec.ahead <= mi * MILE && rec.ahead > 0.3 * MILE && !app.fuelAnnounced.has(key)) {
         app.fuelAnnounced.add(key);
-        app.fuelAnnounced.add(`${rec.exit.id}|far`);
-        app.announcer.speak(`Fuel stop, ${exitTitle(rec.exit)}, in ${spokenMiles(rec.ahead)}. About ${Math.round(rec.rangeOnArrival / MILE)} miles to empty when you get there.`);
+        app.fuelAnnounced.add(`${rec.key}|far`);
+        app.announcer.speak(`${fp.ev ? 'Charging stop' : 'Fuel stop'}, ${what(rec)}, in ${spokenMiles(rec.ahead)}. About ${Math.round(rec.rangeOnArrival / MILE)} miles of range left when you get there.`);
         return;
       }
     }
   }
   if (fp.status !== 'destination' && fp.range < fp.buffer && !app.fuelAnnounced.has('low')) {
     app.fuelAnnounced.add('low');
-    app.announcer.speak(rec ? `Fuel is low. Nearest gas is ${exitTitle(rec.exit)}, in ${spokenMiles(rec.ahead)}.`
-      : 'Fuel is low, and no gas is listed at interstate exits ahead.');
+    app.announcer.speak(rec ? `${fp.ev ? 'Charge' : 'Fuel'} is low. Nearest ${fp.ev ? 'charger' : 'gas'} is ${what(rec)}, in ${spokenMiles(rec.ahead)}.`
+      : `${fp.ev ? 'Charge' : 'Fuel'} is low, and nothing is listed ahead.`);
   }
+}
+
+// MARK: Saved places
+
+function loadPlaces() {
+  const p = store.get('ea.places', null) ?? { home: null, recent: [] };
+  const legacy = store.get('ea.recent', null);
+  if (legacy?.length && !p.recent.length) p.recent = legacy;
+  return p;
+}
+
+function samePlace(a, b) {
+  return a && b && (a.name === b.name || (Math.abs(a.coordinate.lat - b.coordinate.lat) < 0.001 && Math.abs(a.coordinate.lon - b.coordinate.lon) < 0.001));
+}
+
+function recordPlace(w) {
+  if (!w?.coordinate || w.name === 'Current location') return;
+  app.places.recent = [w, ...app.places.recent.filter((r) => !samePlace(r, w))].slice(0, 10);
+  store.set('ea.places', app.places);
+}
+
+function setHome(w) {
+  app.places.home = { name: w.name, coordinate: w.coordinate };
+  store.set('ea.places', app.places);
+  toast(`Home set: ${w.name}`);
+}
+
+/// Sets the destination from Home or a recent place and finds routes right away.
+function goTo(w) {
+  const p = app.planner;
+  p.to = w;
+  p.results = [];
+  app.tab = 'trip';
+  lastViewHTML = '';
+  window.scrollTo(0, 0);
+  findRoutes();
+}
+
+// MARK: Prices and chargers
+
+function countPriceCall() {
+  const month = new Date().toISOString().slice(0, 7);
+  const c = store.get('ea.priceCalls', { month, n: 0 });
+  store.set('ea.priceCalls', c.month === month ? { month, n: c.n + 1 } : { month, n: 1 });
+}
+
+/// Loads gas prices for exits on screen (gas cars only, with a Google key). Re-renders when they arrive.
+function loadPrices(exits) {
+  if (!app.prices.enabled || app.settings.vehicle?.ev) return;
+  for (const e of exits) {
+    if (!e) continue;
+    const c = app.prices.cache.get(e.id);
+    if (c && (c.pending || Date.now() - c.at < 15 * 60 * 1000)) continue;
+    app.prices.load(e).then(() => { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); });
+  }
+}
+
+/// Loads DC fast chargers along the route once per route (electric vehicles only).
+function ensureChargers() {
+  const c = app.chargers;
+  if (!app.settings.vehicle?.ev || !app.plan || c.loading || c.routeId === app.plan.route.id || Date.now() < c.retryAt) return;
+  const route = app.plan.route;
+  c.loading = true;
+  c.error = null;
+  fetchChargers(route.polyline, { apiKey: store.get('ea.nrelKey', DEMO_KEY), network: app.settings.chargerNetwork })
+    .then((stations) => {
+      if (app.plan?.route !== route) return;
+      c.projected = projectChargers(route.polyline, stations);
+      c.routeId = route.id;
+    })
+    .catch((e) => { c.error = e.message; c.retryAt = Date.now() + 5 * 60 * 1000; })
+    .finally(() => { c.loading = false; lastViewHTML = ''; render(); if (app.sheet) renderSheet(); });
 }
 
 // MARK: Personal pace
@@ -370,6 +484,8 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
   app.lastPersistAt = null;
   app.remainingWaypoints = restoring?.remainingWaypoints ?? [...route.stops.map((s) => s.waypoint), route.destination];
   app.mode = 'trip';
+  if (!simulate) { recordPlace(route.destination); for (const st of route.stops) recordPlace(st.waypoint); }
+  app.chargers = { routeId: null, projected: [], loading: false, error: null, retryAt: 0 };
   app.snapshot = app.session.snapshotAt(now);
   app.tab = 'drive';
   window.scrollTo(0, 0);
@@ -505,6 +621,9 @@ function publish(snap) {
   app.announcer.consider(snap, app.settings);
   considerFuelVoice();
   ensureLimits();
+  ensureChargers();
+  const fp = app.fuelPlan();
+  if (fp?.recommended?.exit) loadPrices([fp.recommended.exit]);
 }
 
 /// Loads posted speed limits for the road just ahead (one request per about 50 miles).
@@ -594,8 +713,8 @@ async function findRoutes() {
     const waypoints = [from, ...p.stops.filter(Boolean), p.to];
     const routes = await fetchRoutes(waypoints, { alternatives: true });
     p.results = routes.map((route) => ({ route, plan: new TripPlan(route, datasets()) }));
-    p.recent = [p.to, ...p.recent.filter((w) => w.name !== p.to.name)].slice(0, 6);
-    store.set('ea.recent', p.recent);
+    recordPlace(p.to);
+    for (const st of p.stops) recordPlace(st);
   } catch (e) {
     p.error = e.name === 'AbortError' ? 'Request cancelled.' : `Could not find a route: ${e.message}`;
   } finally {
@@ -676,7 +795,9 @@ const actions = {
   'reset-from'() { app.planner.from = null; app.planner.results = []; render(); },
   'use-current'() { app.planner.from = null; app.planner.results = []; closeSheet(); render(); },
   'choose-place'(arg) {
-    const place = app.placeSearch.results[Number(arg)];
+    const [src, i] = arg.split(':');
+    const place = src === 'home' ? app.places.home : src === 'recent' ? app.places.recent[Number(i)] : app.placeSearch.results[Number(i)];
+    if (!place) return;
     const ps = app.placeSearch, p = app.planner;
     const w = { name: place.name, coordinate: place.coordinate };
     if (ps.field === 'from') p.from = w;
@@ -687,7 +808,23 @@ const actions = {
     closeSheet();
     render();
   },
-  recent(arg) { app.planner.to = app.planner.recent[Number(arg)]; app.planner.results = []; render(); },
+  'go-to'(arg) { const w = arg === 'home' ? app.places.home : app.places.recent[Number(arg)]; if (w) goTo(w); },
+  'set-home'(arg) {
+    const [src, i] = arg.split(':');
+    const w = src === 'recent' ? app.places.recent[Number(i)] : app.placeSearch.results[Number(i)];
+    if (w) { setHome(w); renderSheet(); lastViewHTML = ''; render(); }
+  },
+  'clear-home'() { app.places.home = null; store.set('ea.places', app.places); lastViewHTML = ''; render(); },
+  'clear-recent'() { app.places.recent = []; store.set('ea.places', app.places); lastViewHTML = ''; render(); },
+  'fav-brand'(arg) {
+    const st = app.settings;
+    st.favoriteBrands = st.favoriteBrands.includes(arg) ? st.favoriteBrands.filter((b) => b !== arg) : [...st.favoriteBrands, arg];
+    store.set('ea.settings', st);
+    lastViewHTML = '';
+    render();
+    if (app.sheet) renderSheet();
+  },
+  'charger-network'(arg) { app.settings.chargerNetwork = arg; store.set('ea.settings', app.settings); app.chargers.routeId = null; lastViewHTML = ''; render(); },
   'find-routes'() { findRoutes(); },
   'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
@@ -701,10 +838,12 @@ const actions = {
   theme(arg) { app.settings.theme = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   'clear-data'() {
     if (!confirm('Erase saved trips, recent destinations and settings on this phone?')) return;
-    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory']) store.remove(k);
+    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles']) store.remove(k);
+    app.places = { home: null, recent: [] };
+    app.fuel = null;
+    app.recentVehicles = [];
     app.settings = { ...DEFAULT_SETTINGS };
     app.history = [];
-    app.planner.recent = [];
     app.resumable = null;
     lastViewHTML = '';
     render();
@@ -732,13 +871,17 @@ const actions = {
     if (tank && tank.gallons.length === 1) { gallons = tank.gallons[0]; basis = 'verified'; }
     else if (tank) { gallons = tank.gallons.includes(Number(vp.tank)) ? Number(vp.tank) : null; basis = 'verified'; }
     else if (Number(vp.tank) > 0) { gallons = Number(vp.tank); basis = 'entered'; }
-    if (tank && tank.gallons.length > 1 && gallons === null) { toast('Choose which tank this one has'); return; }
+    const ev = ver[6] === 'E';
+    if (!ev && tank && tank.gallons.length > 1 && gallons === null) { toast('Choose which tank this one has'); return; }
     useVehicle({
       year: Number(vp.year), make: vp.make, model: vp.model, label: ver[0], city: ver[1], hwy: ver[2], comb: ver[3],
-      epaId: ver[4], tankGallons: gallons, tankBasis: basis, tankSources: tank?.sources ?? [],
+      epaId: ver[4], fuel: ver[6] ?? 'R', ev, rangeMiles: ver[7] || 0, rangeHwyMiles: ver[8] || 0,
+      tankGallons: ev ? null : gallons, tankBasis: ev ? null : basis, tankSources: ev ? [] : tank?.sources ?? [],
     });
+    app.chargers.routeId = null;
     closeSheet();
-    toast(gallons ? `About ${Math.round(gallons * app.vehicleProfile().mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
+    const pv = app.vehicleProfile();
+    toast(ev ? `About ${Math.round(pv.rangeMiles)} mi per charge` : gallons ? `About ${Math.round(gallons * pv.mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
     render();
   },
   'mpg-basis'(arg) { app.settings.mpgBasis = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
@@ -753,14 +896,14 @@ const actions = {
   'fuel-filled'() {
     const full = fullTankRange(app.vehicleProfile());
     if (!full) {
-      app.fuelUI.error = 'Enter the miles to empty your car shows now. Choose your vehicle with its tank size to make this one tap.';
+      app.fuelUI.error = 'Enter the range your car shows now. Choose your vehicle (with its tank size for gas cars) to make this one tap.';
       renderSheet();
       return;
     }
     setFuelRange(full, 'fullTank');
     renderSheet();
     render();
-    toast(`Full tank: about ${Math.round(full / MILE)} mi. Your dashboard reading is more accurate if it differs.`);
+    toast(`${app.settings.vehicle?.ev ? 'Full charge' : 'Full tank'}: about ${Math.round(full / MILE)} mi. Your dashboard reading is more accurate if it differs.`);
   },
 };
 
@@ -806,7 +949,9 @@ document.addEventListener('submit', async (ev) => {
     renderSheet();
   } else if (kind === 'fuel') {
     const v = app.vehicleProfile();
-    if (app.fuelUI.mode === 'gauge' && v?.tankGallons) {
+    if (app.fuelUI.mode === 'gauge' && v?.ev && v.rangeMiles) {
+      setFuelRange((app.fuelUI.batteryTwentieths ?? 10) / 20 * v.rangeMiles * MILE, 'battery');
+    } else if (app.fuelUI.mode === 'gauge' && v?.tankGallons) {
       setFuelRange(app.fuelUI.gaugeEighths / 8 * v.tankGallons * v.mpg * MILE, 'gauge');
     } else {
       const mi = parseFloat(form.dte.value);
@@ -842,6 +987,26 @@ document.addEventListener('change', (ev) => {
     renderSheet();
     return;
   }
+  if (el.dataset?.secret) {
+    const v = el.value.trim();
+    if (v) store.set(el.dataset.secret, v); else store.remove(el.dataset.secret);
+    if (el.dataset.secret === 'ea.nrelKey') app.chargers.retryAt = 0;
+    toast(v ? 'Key saved on this phone' : 'Key removed');
+    lastViewHTML = '';
+    render();
+    return;
+  }
+  if (el.dataset?.brand !== undefined) {
+    const v = el.value.trim();
+    if (v && !app.settings.favoriteBrands.some((b) => b.toLowerCase() === v.toLowerCase())) {
+      app.settings.favoriteBrands = [...app.settings.favoriteBrands, v];
+      store.set('ea.settings', app.settings);
+    }
+    el.value = '';
+    lastViewHTML = '';
+    render();
+    return;
+  }
   const key = el.dataset?.set;
   if (!key) return;
   if (el.type === 'checkbox') app.settings[key] = el.checked;
@@ -859,10 +1024,10 @@ document.addEventListener('change', (ev) => {
 document.addEventListener('input', (ev) => {
   const el = ev.target;
   if (el.matches('[data-gauge]')) {
-    app.fuelUI.gaugeEighths = Number(el.value);
-    const label = $('[data-gauge-label]');
     const v = app.vehicleProfile();
-    if (label && v?.tankGallons) label.textContent = V.gaugeText(app.fuelUI.gaugeEighths, v);
+    if (v?.ev) app.fuelUI.batteryTwentieths = Number(el.value); else app.fuelUI.gaugeEighths = Number(el.value);
+    const label = $('[data-gauge-label]');
+    if (label && v && (v.ev || v.tankGallons)) label.textContent = V.gaugeText(Number(el.value), v);
   } else if (el.matches('[data-stop-hours]')) {
     app.stopQuery.hours = parseFloat(el.value);
     const label = $('[data-stop-hours-label]');
@@ -899,6 +1064,10 @@ async function boot() {
     return;
   }
   app.resumable = loadResumable();
+  if (!app.settings.favoriteBrands.length && app.settings.preferredBrands) {
+    app.settings.favoriteBrands = app.settings.preferredBrands.split(',').map((b) => b.trim()).filter(Boolean);
+    store.set('ea.settings', app.settings);
+  }
   if (app.fuel?.drivenAtEntry > 0 && !app.resumable) rebaseFuel(app.fuel.drivenAtEntry);
   $('#loading').remove();
   const params = new URLSearchParams(location.search);

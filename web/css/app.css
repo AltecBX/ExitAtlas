@@ -315,3 +315,12 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
   .metric .value { font-size: 34px; }
   .title-xl { font-size: 29px; }
 }
+
+/* Prices and charging */
+.price-line { font-size: 14px; margin-top: 3px; }
+.price-line b { font-variant-numeric: tabular-nums; }
+.gattr { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; font-weight: 500; color: var(--text-2); }
+.charge-sign {
+  display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 44px; flex: none;
+  border-radius: 9px; background: #e31937; color: #fff; font-size: 24px;
+}
