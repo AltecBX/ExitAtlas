@@ -4585,6 +4585,704 @@
    "note": "Gas Pacifica (FWD and AWD): 19 gal (71.9 L)."
   },
   {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "from": 2012,
+   "to": 2015,
+   "gallons": [
+    15.3
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/21958-HYUNDAITUCSONIMPROVESFUELECONOMYANDRANGEFOR2012.doc",
+    "https://www.kbb.com/hyundai/tucson/2013/specs/",
+    "https://www.edmunds.com/hyundai/tucson/2013/st-200426224/features-specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/tucson/2015/specs/tucson-awd-4dr-se-372336",
+    "https://www.edmunds.com/hyundai/tucson/2015/suv/st-200705618/features-specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Hyundai: tank grew from 14.5 to 15.3 gal for 2012. All engines, 2WD/AWD. U.S. News 2013 pages still show the old 14.5 (outlier)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "from": 2016,
+   "to": 2021,
+   "gallons": [
+    16.4
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/30723-2018TUCSONSpecificationsTLAPPROVED.pdf",
+    "https://www.hyundainews.com/assets/documents/original/29507-TucsonSpecifications2017.pdf",
+    "https://www.kbb.com/hyundai/tucson/2018/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/tucson/2021/specs/tucson-limited-awd-416057",
+    "https://www.kbb.com/hyundai/tucson/2021/specs/",
+    "https://www.edmunds.com/hyundai/tucson/2021/review/"
+   ],
+   "basis": "manufacturer",
+   "note": "All engines (1.6T, 2.0, 2.4), FWD/AWD."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    14.3
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/47936-2022TucsonProductGuideSpecs072921.pdf",
+    "https://www.hyundainews.com/assets/documents/original/53078-2023TucsonProductSpecifications20221114.pdf",
+    "https://www.hyundainews.com/assets/documents/original/62621-2025TucsonSpecsFeatures071924.pdf",
+    "https://www.kbb.com/hyundai/tucson/2023/specs/",
+    "https://www.kbb.com/hyundai/tucson/2026/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 2.5, FWD/AWD."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    13.7
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/47936-2022TucsonProductGuideSpecs072921.pdf",
+    "https://www.hyundainews.com/assets/documents/original/62621-2025TucsonSpecsFeatures071924.pdf",
+    "https://www.kbb.com/hyundai/tucson-hybrid/2023/specs/",
+    "https://www.kbb.com/hyundai/tucson-hybrid/2026/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Tucson Hybrid (incl. Blue)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": true,
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    11.1
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/47936-2022TucsonProductGuideSpecs072921.pdf",
+    "https://www.hyundainews.com/assets/documents/original/62621-2025TucsonSpecsFeatures071924.pdf",
+    "https://www.kbb.com/hyundai/tucson-plug-in-hybrid/2023/specs/",
+    "https://www.kbb.com/hyundai/tucson-plug-in-hybrid/2026/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Tucson Plug-in Hybrid."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2012,
+   "to": 2012,
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.kbb.com/hyundai/santa-fe/2012/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2012/specs/santa-fe-awd-4dr-v6-gls-337554",
+    "https://www.edmunds.com/hyundai/santa-fe/2012/suv/st-101400982/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "2.4 I4 and 3.5 V6, 2WD/4WD (2011 was 19.8, do not extend backwards)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2013,
+   "to": 2018,
+   "when": {
+    "cylinders": 6
+   },
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.kbb.com/hyundai/santa-fe/2013/specs/",
+    "https://www.kbb.com/hyundai/santa-fe/2016/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2017/specs/santa-fe-limited-ultimate-3-3l-auto-383036",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2018/specs/santa-fe-limited-ultimate-3-3l-auto-awd-396041",
+    "https://www.edmunds.com/hyundai/santa-fe/2017/st-401628711/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Long-wheelbase 3-row Santa Fe (3.3 V6, incl. Ultimate). EPA lists it next to Santa Fe Sport under base model 'Santa Fe'."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2013,
+   "to": 2018,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    17.4
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/29478-SantaFeSportSpecifications2018.pdf",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2013/specs/santa-fe-fwd-4dr-sport-355026",
+    "https://www.edmunds.com/hyundai/santa-fe/2013/st-200430804/features-specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2015/specs/santa-fe-awd-4dr-2-4-373499",
+    "https://www.kbb.com/hyundai/santa-fe-sport/2016/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Santa Fe Sport (2.4 and 2.0T, 4-cyl). KBB 2013 shows 16.4 (outlier)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2019,
+   "to": 2020,
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/35290-2019SantaFeSpecifications11419RRdocx.pdf",
+    "https://www.hyundainews.com/assets/documents/original/34332-2019SantaFeXLSpecificationsPPApproved.pdf",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2019/specs/santa-fe-se-2-4l-auto-fwd-402323",
+    "https://www.edmunds.com/hyundai/santa-fe-xl/2019/trims/",
+    "https://www.kbb.com/hyundai/santa-fe/2020/specs/",
+    "https://www.hyundainews.com/assets/documents/original/39960-2020SantaFeProductGuidespecs010820pptx.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "New Santa Fe (2.4, 2.0T) and the 2019 Santa Fe XL (3.3 V6) are both 18.8 gal."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2021,
+   "to": 2023,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    17.7
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/43638-2021SantaFeSpecs.pdf",
+    "https://www.hyundainews.com/assets/documents/original/48141-2022SantaFeProductGuidespecs090221.pdf",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe-hybrid/2021/specs/santa-fe-hybrid-sel-premium-awd-418726",
+    "https://www.kbb.com/hyundai/santa-fe-hybrid/2022/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe-hybrid/2023/specs/santa-fe-hybrid-sel-premium-awd-433933"
+   ],
+   "basis": "manufacturer",
+   "note": "Santa Fe Hybrid (incl. Blue)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2022,
+   "to": 2023,
+   "when": {
+    "hybrid": true,
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/48141-2022SantaFeProductGuidespecs090221.pdf",
+    "https://www.kbb.com/hyundai/santa-fe-plug-in-hybrid/2022/specs/",
+    "https://www.edmunds.com/hyundai/santa-fe-plug-in-hybrid/2022/trims/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe-plug-in-hybrid/specs/santa-fe-plug-in-hybrid-sel-convenience-awd-433935"
+   ],
+   "basis": "manufacturer",
+   "note": "Santa Fe Plug-in Hybrid."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2022,
+   "to": 2023,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    17.7
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/48141-2022SantaFeProductGuidespecs090221.pdf",
+    "https://www.kbb.com/hyundai/santa-fe/2023/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 2.5/2.5T. Hyundai's 2022 spec guide change log corrected the gas tank to 17.7 (its 2021 guide said 18.8); KBB 2023 agrees. KBB 2022 and U.S. News still show 18.8."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "from": 2024,
+   "to": 2026,
+   "gallons": [
+    17.7
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/58816-2024SantaFeSpecs030524.pdf",
+    "https://www.hyundainews.com/assets/documents/original/67180-2026SantaFeSpecsFeatures20260706.pdf",
+    "https://www.kbb.com/hyundai/santa-fe/2025/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe/2024/specs/santa-fe-xrt-awd-453625",
+    "https://cars.usnews.com/cars-trucks/hyundai/santa-fe-hybrid/2024/specs/santa-fe-hybrid-limited-fwd-453437",
+    "https://www.edmunds.com/hyundai/santa-fe/2024/st-402023871/features-specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "New generation: gas 2.5T (incl. XRT) and Hybrid, FWD/AWD."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelExcludes": "Coupe"
+   },
+   "gallons": [
+    12.8
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2012/specs/elantra-4dr-sdn-auto-gls-(alabama-plant)-334596",
+    "https://www.edmunds.com/hyundai/elantra/2012/sedan/st-101387218/features-specs/",
+    "https://www.edmunds.com/hyundai/elantra-gt/2013/trims/",
+    "https://www.kbb.com/hyundai/elantra/2013/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "1.8 sedan (incl. 2013 Blue) and 2013 Elantra GT 1.8. Excludes the 2013 Elantra Coupe (unverified)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "hybrid": false,
+    "modelContains": "Touring"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra-touring/specs/elantra-touring-4dr-wgn-auto-gls-337383",
+    "https://www.kbb.com/hyundai/elantra/2012/specs/",
+    "https://www.edmunds.com/hyundai/elantra-touring/2012/st-101397019/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Elantra Touring wagon (2.0)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2014,
+   "to": 2016,
+   "gallons": [
+    12.8,
+    13.2
+   ],
+   "sources": [
+    "https://www.edmunds.com/hyundai/elantra/2014/trims/",
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2014/specs/elantra-4dr-sdn-auto-se-(alabama-plant)-365763",
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2014/specs/elantra-4dr-sdn-auto-sport-(ulsan-plant)-365767",
+    "https://www.kbb.com/hyundai/elantra/2014/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Sedan: 12.8 with the 1.8, 13.2 with the 2.0 (Sport). EPA rows are both named 'Elantra' and cannot be told apart by these conditions."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2014,
+   "to": 2016,
+   "when": {
+    "modelContains": "Limited"
+   },
+   "gallons": [
+    12.8
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2014/specs/elantra-4dr-sdn-auto-limited-(ulsan-plant)-365770",
+    "https://www.edmunds.com/hyundai/elantra/2014/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Elantra Limited (1.8)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2014,
+   "to": 2015,
+   "when": {
+    "modelContains": "Coupe"
+   },
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://www.kbb.com/hyundai/elantra/2014/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2014/specs/elantra-2dr-366616",
+    "https://www.edmunds.com/hyundai/elantra-coupe/2014/st-200676053/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Elantra Coupe 2.0."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2014,
+   "to": 2017,
+   "when": {
+    "modelContains": "GT"
+   },
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://www.edmunds.com/hyundai/elantra-gt/2015/hatchback/st-200723537/features-specs/",
+    "https://www.kbb.com/hyundai/elantra-gt/2015/specs/",
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2015/specs/elantra-5dr-hb-man-373622",
+    "https://www.kbb.com/hyundai/elantra-gt/2016/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Elantra GT hatchback 2.0 (first generation GT, sold through 2017)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2017,
+   "to": 2020,
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/29348-ElantraSedanSpecifications2018.pdf",
+    "https://www.hyundainews.com/assets/documents/original/29363-ElantraEcospecifications2018.pdf",
+    "https://www.hyundainews.com/assets/documents/original/29329-ElantraGTSpecifications2018.pdf",
+    "https://www.hyundainews.com/assets/documents/original/35270-2019ElantraGTSpecificationsFinal1918docx.pdf",
+    "https://cars.usnews.com/cars-trucks/hyundai/elantra/2018/specs/elantra-se-2-0l-auto-(alabama)-394713",
+    "https://www.kbb.com/hyundai/elantra/2018/specs/",
+    "https://www.kbb.com/hyundai/elantra-gt/2019/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan (2.0, Eco 1.4T, Sport 1.6T) and 2018-2020 Elantra GT / GT N Line. The 2017 Elantra GT is the older GT (13.2)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/44040-2021ElantraProductGuideSpecs.pdf",
+    "https://www.hyundainews.com/assets/documents/original/57216-2024ElantraSpecs092123A.pdf",
+    "https://www.hyundainews.com/assets/documents/original/67686-2026ElantraSpecsFeatures20250702.pdf",
+    "https://www.kbb.com/hyundai/elantra/2023/specs/",
+    "https://www.kbb.com/hyundai/elantra-n/2023/specs/",
+    "https://www.edmunds.com/hyundai/elantra/2022/trims/"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 2.0, N Line 1.6T and Elantra N (KBB and Edmunds 12.4). U.S. News shows 14 for N Line (outlier)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    11.0
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/44040-2021ElantraProductGuideSpecs.pdf",
+    "https://www.hyundainews.com/assets/documents/original/57216-2024ElantraSpecs092123A.pdf",
+    "https://www.hyundainews.com/assets/documents/original/67686-2026ElantraSpecsFeatures20250702.pdf",
+    "https://www.kbb.com/hyundai/elantra-hybrid/2023/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Elantra Hybrid incl. Blue. U.S. News 2021 Blue and Edmunds 2021 SEL/Limited list 12.4 (gas figure); Hyundai sheets and KBB say 11.0."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Palisade",
+   "from": 2020,
+   "to": 2025,
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/50303-2023PalisadeProductSpecs20220630.pdf",
+    "https://cars.usnews.com/cars-trucks/hyundai/palisade/2020/specs/palisade-limited-awd-407911",
+    "https://www.edmunds.com/hyundai/palisade/2023/st-401941308/features-specs/",
+    "https://www.kbb.com/hyundai/palisade/2022/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "3.8 V6, FWD/AWD."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Palisade",
+   "from": 2026,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    19.0
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/65859-2026PalisadeSpecsandFeatures20250417.pdf",
+    "https://www.kbb.com/hyundai/palisade/2026/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "New generation gas 3.5 V6 incl. XRT PRO."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Palisade",
+   "from": 2026,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    18.2
+   ],
+   "sources": [
+    "https://www.hyundainews.com/assets/documents/original/65859-2026PalisadeSpecsandFeatures20250417.pdf",
+    "https://www.hyundainews.com/assets/documents/original/68201-HyundaiPalisadeHEVAdPressRelease922025FINALsmab.pdf",
+    "https://www.kbb.com/hyundai/palisade-hybrid/2026/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Palisade Hybrid 2.5T, FWD and AWD."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "from": 2012,
+   "to": 2016,
+   "gallons": [
+    15.3
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sportage/2013/specifications",
+    "https://www.kiamedia.com/us/en/models/sportage/2016/specifications",
+    "https://www.kbb.com/kia/sportage/2012/specs/",
+    "https://www.edmunds.com/kia/sportage/2013/st-200432435/features-specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sportage/2014/specs/sportage-2wd-4dr-ex-365396",
+    "https://www.kbb.com/kia/sportage/2014/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4 and 2.0T, 2WD/AWD. U.S. News 2012-2013 pages show 14.5 (outlier)."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "from": 2017,
+   "to": 2022,
+   "gallons": [
+    16.4
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sportage/2017/specifications",
+    "https://cars.usnews.com/cars-trucks/kia/sportage/2017/specs/sportage-lx-awd-383012",
+    "https://www.kbb.com/kia/sportage/2019/specs/",
+    "https://www.edmunds.com/kia/sportage/2022/trims/",
+    "https://cars.usnews.com/cars-trucks/kia/sportage/2022/specs/sportage-sx-turbo-fwd-421211"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4 and 2.0T, FWD/AWD."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "from": 2023,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    14.3
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sportage/2023/specifications",
+    "https://www.kiamedia.com/us/en/models/sportage/2026/specifications",
+    "https://cars.usnews.com/cars-trucks/kia/sportage/2023/specs/sportage-lx-fwd-427011",
+    "https://www.kbb.com/kia/sportage/2024/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sportage/specs/sportage-x-pro-prestige-awd-472875"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 2.5 incl. X-Pro, FWD/AWD."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "from": 2023,
+   "to": 2026,
+   "when": {
+    "hybrid": true,
+    "modelExcludes": "Plug-in"
+   },
+   "gallons": [
+    13.7
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sportage-hev/2023/specifications",
+    "https://www.kiamedia.com/us/en/models/sportage-hev/2026/specifications",
+    "https://www.kbb.com/kia/sportage-hybrid/2023/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sportage-hybrid/specs/sportage-hybrid-s-awd-472879"
+   ],
+   "basis": "manufacturer",
+   "note": "Sportage Hybrid FWD/AWD (plug-in excluded)."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "from": 2023,
+   "to": 2025,
+   "when": {
+    "hybrid": true,
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    11.1
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sportage-phev/2023/specifications",
+    "https://www.kiamedia.com/us/en/models/sportage-phev/2025/specifications",
+    "https://www.kbb.com/kia/sportage-plug-in-hybrid/2023/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sportage-plug-in-hybrid/2025/specs/sportage-plug-in-hybrid-x-line-prestige-awd-454973",
+    "https://www.edmunds.com/kia/sportage-plug-in-hybrid/2025/trims/"
+   ],
+   "basis": "manufacturer",
+   "note": "Sportage Plug-in Hybrid. 2026 PHEV unverified."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "from": 2012,
+   "to": 2013,
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sorento/2013/specifications",
+    "https://www.kbb.com/kia/sorento/2012/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento/2012/specs/sorento-2wd-4dr-i4-gdi-lx-334726",
+    "https://www.edmunds.com/kia/sorento/2013/st-101424412/features-specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4 and 3.5 V6, 2WD/4WD."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "from": 2014,
+   "to": 2015,
+   "gallons": [
+    17.4
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sorento/2014/specifications",
+    "https://www.kiamedia.com/us/en/models/sorento/2015/specifications",
+    "https://www.kbb.com/kia/sorento/2015/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento/2015/specs/sorento-awd-4dr-v6-ex-365911"
+   ],
+   "basis": "manufacturer",
+   "note": "Refreshed 2nd generation; Kia lists 17.43 gal. EPA's 2015 'Sorento AWD/FWD' rows are this generation."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "from": 2016,
+   "to": 2020,
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sorento/2016/specifications",
+    "https://www.kiamedia.com/us/en/models/sorento/2020/specifications",
+    "https://www.kbb.com/kia/sorento/2018/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento/2020/specs/sorento-lx-awd-411342",
+    "https://www.edmunds.com/kia/sorento/2020/st-401830692/features-specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4, 2.0T and 3.3 V6, FWD/AWD."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "from": 2021,
+   "to": 2026,
+   "gallons": [
+    17.7
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/sorento/2021/specifications",
+    "https://www.kiamedia.com/us/en/models/sorento/2026/specifications",
+    "https://www.kbb.com/kia/sorento/2023/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento/2021/specs/sorento-lx-awd-418821",
+    "https://cars.usnews.com/cars-trucks/kia/sorento-hybrid/2021/specs/sorento-hybrid-ex-fwd-419003",
+    "https://www.kbb.com/kia/sorento-hybrid/2021/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento-hybrid/specs/sorento-hybrid-ex-fwd-480775"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 2.5/2.5T and Sorento Hybrid, FWD/AWD. Plug-in hybrid separate."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://www.edmunds.com/kia/sorento-plug-in-hybrid/2022/st-401912887/features-specs/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento-plug-in-hybrid/2023/specs/sorento-plug-in-hybrid-sx-prestige-awd-432146",
+    "https://www.edmunds.com/kia/sorento-plug-in-hybrid/2023/trims/",
+    "https://cars.usnews.com/cars-trucks/kia/sorento-plug-in-hybrid/specs/sorento-plug-in-hybrid-x-line-sx-prestige-awd-480784",
+    "https://www.edmunds.com/kia/sorento-plug-in-hybrid/2026/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Sorento Plug-in Hybrid. Kia's spec tables repeat 17.7 across columns and are not readable for the PHEV; 2022 is from Edmunds only (same vehicle as 2023)."
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Telluride",
+   "from": 2020,
+   "to": 2025,
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.kiamedia.com/us/en/models/telluride/2020/specifications",
+    "https://www.kiamedia.com/us/en/models/telluride/2025/specifications",
+    "https://www.kbb.com/kia/telluride/2022/specs/",
+    "https://cars.usnews.com/cars-trucks/kia/telluride/2024/specs/telluride-lx-awd-443378",
+    "https://cars.usnews.com/cars-trucks/kia/telluride/2025/specs/telluride-ex-fwd-464405"
+   ],
+   "basis": "manufacturer",
+   "note": "3.8 V6, FWD/AWD. EPA file has no 2026 Telluride rows (2027 is the new generation: gas 19.0, hybrid 18.2 per Kia, outside this range)."
+  },
+  {
    "make": "Ford",
    "baseModel": "F150",
    "from": 2018,
@@ -4927,6 +5625,24 @@
    "baseModel": "Mustang",
    "years": "2025-2026",
    "reason": "Mustang GTD (EPA 'Mustang GTD', 8-cyl) not covered by the Mustang owner manual checked; the cylinders=8 entry may match these rows."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "years": "2021",
+   "reason": "Gas 2.5/2.5T: Hyundai's 2021 guide, U.S. News, Edmunds and KBB say 18.8, but Hyundai's July 2021 change log corrected the gas tank of this generation to 17.7 (used for 2022-2023). Hybrid 2021 is covered (17.7)."
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "years": "2013",
+   "reason": "Elantra Coupe 1.8: KBB 12.8, U.S. News 13.2, Edmunds 13.8; sources disagree"
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "years": "2026",
+   "reason": "Plug-in Hybrid: Kia 2026 spec page and KBB list 13.7 (same as the Hybrid) while 2023-2025 PHEV is 11.1 everywhere and an Edmunds owner reports under 12 gal; likely a copied figure"
   }
  ]
 }
