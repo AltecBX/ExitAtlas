@@ -13,7 +13,9 @@ import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
-import { GasPrices } from './prices.js';
+import { GasPrices, GRADES } from './prices.js';
+import { smartStop } from '../engine/smartstop.js';
+import { fuelCandidates, aheadCandidates } from './smartstops.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
@@ -69,6 +71,8 @@ const app = {
   fuel: store.get('ea.fuel', null),
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
   fuelAnnounced: new Set(),
+  /// Stations the driver turned down on this trip ("Not this one"): SmartStop does not offer them again.
+  rejectedStops: [],
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
   prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), onCall: countPriceCall }),
@@ -177,6 +181,38 @@ const app = {
     return this.fuelPlanCache;
   },
 
+  /// What SmartStop needs from the trip.
+  stopContext() {
+    return { plan: this.plan, snapshot: this.snapshot, servicesFor: (e) => this.servicesFor(e), stations: this.data?.stations ?? null, prices: this.prices };
+  },
+
+  /// SmartStop for the fuel stop: gas vehicles with a range reading, when a stop is needed. One
+  /// recommendation and up to two alternatives, with the stop confidence of each.
+  smartStop() {
+    const fp = this.fuelPlan();
+    if (!fp || fp.ev || fp.status === 'destination') return null;
+    const st = this.settings;
+    const priced = [...this.prices.cache.values()].filter((c) => !c.pending).length;
+    const key = `${this.fuelKey}|${this.rejectedStops.join()}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${priced}`;
+    if (this.smartKey !== key) {
+      this.smartKey = key;
+      const candidates = fuelCandidates(this.stopContext(), fp.range, GRADES[this.gradeCode()].key);
+      this.smartCache = smartStop(candidates, this.profile, { context: 'fuel', reserveMeters: st.bufferMiles * MILE, rejected: this.rejectedStops });
+    }
+    return this.smartCache;
+  },
+
+  /// The best stop in the next `miles` (any vehicle; restroom stops add rest areas).
+  bestStopAhead(miles, { restrooms = false } = {}) {
+    if (!this.plan || !this.snapshot) return null;
+    const range = this.settings.vehicle?.ev ? null : this.rangeNow();
+    const candidates = aheadCandidates(this.stopContext(), miles, { rangeLeft: range, gradeKey: GRADES[this.gradeCode()].key, restrooms });
+    const profile = restrooms ? { ...this.profile, fuel: { ...this.profile.fuel, requireRestroom: 'always' } } : this.profile;
+    return smartStop(candidates, profile, {
+      context: 'ahead', purpose: restrooms ? 'restroom' : 'fuel', reserveMeters: this.settings.bufferMiles * MILE, rejected: this.rejectedStops,
+    });
+  },
+
   secret(key) { return store.get(key, ''); },
 
   priceCalls() {
@@ -184,8 +220,9 @@ const app = {
     return c && c.month === new Date().toISOString().slice(0, 7) ? c.n : 0;
   },
 
-  /// Gas grade key for prices, from the vehicle's EPA fuel type.
+  /// Gas grade key for prices: the grade chosen in Settings, else the vehicle's EPA fuel type.
   gradeCode() {
+    if (GRADES[this.settings.fuelGrade]) return this.settings.fuelGrade;
     const f = this.settings.vehicle?.fuel;
     return f === 'P' || f === 'M' || f === 'D' ? f : 'R';
   },
@@ -254,6 +291,7 @@ function openSheet(kind, arg = null) {
     ensureChargers();
     const fp = app.fuelPlan();
     if (fp) loadPrices([fp.recommended, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
+    loadSmartPrices();
   }
   renderSheet();
   $('#sheet-backdrop').classList.add('open');
@@ -274,6 +312,7 @@ function renderSheet() {
     html = V.fuelSheet(app);
     const fp = app.fuelPlan();
     if (fp) loadPrices([fp.recommended, fp.closestToTarget, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
+    loadSmartPrices();
   }
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
@@ -325,8 +364,11 @@ function considerFuelVoice() {
   if (!app.settings.voice || app.snapshot?.match.status !== 'onRoute') return;
   const fp = app.fuelPlan();
   if (!fp) return;
-  const rec = fp.recommended;
-  const what = (x) => (x.kind === 'charge' ? x.charger.name.replace(/ - Tesla Supercharger$/, ' Supercharger') : exitTitle(x.exit));
+  // Gas: the SmartStop pick (station and exit); electric: the charging stop.
+  const sp = app.smartStop()?.primary;
+  const rec = sp ? { key: sp.id, ahead: sp.ahead, rangeOnArrival: sp.rangeOnArrival, smart: sp } : fp.recommended;
+  const what = (x) => (x.smart ? `${x.smart.name}${x.smart.exit ? `, ${exitTitle(x.smart.exit)}` : ''}`
+    : x.kind === 'charge' ? x.charger.name.replace(/ - Tesla Supercharger$/, ' Supercharger') : exitTitle(x.exit));
   if (rec && fp.status === 'planned') {
     for (const [mi, tag] of [[2, 'near'], [10, 'far']]) {
       const key = `${rec.key}|${tag}`;
@@ -447,6 +489,12 @@ function openPlan(t) {
 }
 
 // MARK: Prices and chargers
+
+/// Live prices, hours and restrooms for the SmartStop picks' exits (with a Google key or the proxy).
+function loadSmartPrices() {
+  const sm = app.smartStop();
+  if (sm) loadPrices([sm.primary, ...sm.alternatives].map((x) => x?.exit));
+}
 
 function countPriceCall() {
   const month = new Date().toISOString().slice(0, 7);
@@ -574,6 +622,8 @@ function resetTripState() {
   app.lastError = null;
   app.isRerouting = false;
   app.serviceCache.clear();
+  app.rejectedStops = [];
+  app.smartKey = null;
   app.announcer.reset();
   app.limits = null;
   app.lastSpeed = null;
@@ -744,6 +794,7 @@ function publish(snap) {
   ensureChargers();
   const fp = app.fuelPlan();
   if (fp?.recommended?.exit) loadPrices([fp.recommended.exit]);
+  loadSmartPrices();
 }
 
 /// Loads posted speed limits for the road just ahead (one request per about 50 miles).
@@ -1124,7 +1175,7 @@ const actions = {
   'fuel-grade'(arg) { app.settings.fuelGrade = arg || null; saveProfile(); render(); },
   'require'(arg) { const [key, v] = arg.split(','); app.settings[key] = v; saveProfile(); render(); },
   'detour'(arg) { app.settings.maxDetourMinutes = Number(arg); saveProfile(); render(); },
-  'overnight-mode'(arg) { app.settings.overnightMode = arg; saveProfile(); render(); },
+  'overnight-mode'(arg) { app.settings.overnightMode = arg; saveProfile(); render(); if (app.sheet) renderSheet(); },
   'fav-category'(arg) {
     const c = app.settings.favoriteCategories;
     app.settings.favoriteCategories = c.includes(arg) ? c.filter((x) => x !== arg) : [...c, arg];
@@ -1141,6 +1192,14 @@ const actions = {
   'save-plan'() { savePlan(); },
   'open-plan'(arg) { const t = app.places.plans[Number(arg)]; if (t) openPlan(t); },
   'remove-plan'(arg) { app.places.plans = app.places.plans.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
+  'skip-stop'(arg) {
+    if (!app.rejectedStops.includes(arg)) app.rejectedStops.push(arg);
+    toast('Skipped for this trip');
+    lastViewHTML = '';
+    render();
+    renderSheet();
+  },
+  'unskip-stops'() { app.rejectedStops = []; lastViewHTML = ''; render(); renderSheet(); },
   'remove-saved'(arg) { app.places.saved = app.places.saved.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
   'export-profile'() {
     const blob = new Blob([exportProfile(app.profile)], { type: 'application/json' });

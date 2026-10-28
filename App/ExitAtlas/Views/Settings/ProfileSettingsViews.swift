@@ -77,7 +77,7 @@ struct FuelPreferencesView: View {
                     Text("Premium").tag(String?.some("P"))
                     Text("Diesel").tag(String?.some("D"))
                 }
-                Picker("Open 24 hours", selection: $settings.require24Hours) { WhenOptions() }
+                Picker("Open at arrival", selection: $settings.require24Hours) { WhenOptions() }
                 Picker("Restroom", selection: $settings.requireRestroom) { WhenOptions() }
                 Picker("Longest detour", selection: $settings.maxDetourMinutes) {
                     ForEach([3.0, 5, 8, 12, 20], id: \.self) { Text("\(Int($0)) min").tag($0) }
@@ -86,7 +86,7 @@ struct FuelPreferencesView: View {
             } header: {
                 Text("A good stop")
             } footer: {
-                Text("Open 24 hours and Restroom prefer stops listed that way: overnight only, always, or never. Cheaper fuel applies only when live prices are available.")
+                Text("Open at arrival: stops listed open when you get there rank first, and ones listed closed are never picked. Restroom: stops with a confirmed restroom rank first. Each applies overnight only, always, or never. Cheaper fuel applies only when live prices are available.")
             }
         }
         .navigationTitle("Fuel Stops")

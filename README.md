@@ -17,7 +17,7 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 96 tests pass on Linux, with the web's 83 tests covering the same cases in JavaScript. |
+| Engine (`Sources/ExitAtlasCore`) | 100 tests pass on Linux, with the web's 87 tests covering the same cases in JavaScript. |
 | Key proxy (`infra/worker`) | 7 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
@@ -37,6 +37,9 @@ In both the web version and the iOS app unless marked.
 * Voice for state lines, time zone changes, rest areas, the last gas before a long stretch, fuel stops and exits, each with its own switch.
 
 **Stops**
+* SmartStop: where to stop next for fuel, with one recommendation and up to two alternatives and the reasons for each. It uses your range and reserve, your brands in order (Shell first to start), the routed detour, and the hours and restrooms at your arrival time in that stop's time zone. Stops already passed, ones you skip, ones reported closed at arrival and ones no longer listed as gas stations are never offered, and it says why your first choice brand lost when it does.
+* Stop confidence as labels, never a score: "Verified open at estimated arrival" (Google business hours, with your key), "Reported open, verification limited" (OpenStreetMap, with its check date), "Hours unavailable", "Reported closed at estimated arrival", and for restrooms "confirmed accessible at estimated arrival" (rest areas and plazas with listed hours only), "confirmed available, hours unknown" or "availability unknown". Pumps, store, restroom, restroom hours, plaza hours and parking are shown separately.
+* Overnight Drive Mode: automatic from 12 AM to 4 AM by each stop's local arrival time (adjustable), or on or off by hand. Overnight, stops listed open at arrival and confirmed restrooms rank first, and the app says so when nothing ahead is confirmed.
 * Plan a stop about N hours ahead: ranked by how close it is to your time, the detour, your favorite brands and listed restrooms, with the reasons shown. Rest stops include rest areas on the highway (no detour).
 * Add a suggested stop to the trip and reroute through it (live GPS only).
 
@@ -61,7 +64,7 @@ In both the web version and the iOS app unless marked.
 * Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles.
 * Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once.
 * Fuel stop: enter the miles to empty from your dash. ExitAtlas picks the last exit with gas that you reach with your buffer left, preferring your favorite brands.
-* Gas prices at each exit from Google Maps, with your own key (optional, see below).
+* Gas prices at each exit from Google Maps, with your own key (optional, see below), with the business hours and restroom field from the same request.
 * Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy.
 
 **Trips**

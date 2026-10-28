@@ -328,7 +328,7 @@ final class TripController {
         }
         if let settings, settings.voiceEnabled, settings.announceFuel, let rangePlan = self.rangePlan,
            let text = fuelVoice.message(for: rangePlan, electric: settings.vehicle?.isElectric == true,
-                                         onRoute: snap.match.status == .onRoute, enabled: true) {
+                                         onRoute: snap.match.status == .onRoute, enabled: true, smart: smartStop?.primary) {
             announcer.speak(text)
         }
     }
@@ -392,6 +392,65 @@ final class TripController {
         fuelReading = nil
         rangePlanMemo = nil
         saveFuelReading()
+    }
+
+    // MARK: SmartStop
+
+    /// Stations the driver turned down on this trip ("Not this one"): SmartStop does not offer them again.
+    private(set) var rejectedStops: Set<String> = []
+    @ObservationIgnored private var rejectedTripID: UUID?
+    @ObservationIgnored private var smartMemo: (key: String, result: SmartStop.Result?)?
+
+    func skipStop(_ id: String) {
+        if rejectedTripID != tripID { rejectedStops = []; rejectedTripID = tripID }
+        rejectedStops.insert(id)
+    }
+
+    func offerSkippedStopsAgain() { rejectedStops = [] }
+
+    private var rejectedNow: Set<String> { rejectedTripID == tripID ? rejectedStops : [] }
+
+    /// SmartStop's view of the trip: exits, rest areas, station facts, and Google data already loaded.
+    func stopContext() -> SmartStop.TripContext? {
+        guard let plan, let snapshot, let interstates, let settings else { return nil }
+        return SmartStop.TripContext(plan: plan, snapshot: snapshot, dataset: interstates, stations: data?.stations,
+                                     live: prices.loadedStations, grade: settings.gasGrade)
+    }
+
+    /// SmartStop for the fuel stop: gas vehicles with a range reading, when a stop is needed. One
+    /// recommendation and up to two alternatives, each with its stop confidence.
+    var smartStop: SmartStop.Result? {
+        _ = feedsVersion
+        guard let rangePlan, rangePlan.status != .destination, let settings, settings.vehicle?.isElectric != true,
+              let range = rangeLeft, let ctx = stopContext() else { return nil }
+        let rejected = rejectedNow
+        let key = "\(ctx.plan.route.id)|\(ctx.snapshot.timestamp.timeIntervalSince1970)|\(range)|\(feedsVersion)|\(rejected.sorted())|"
+            + "\(settings.favoriteBrands)|\(settings.maxDetourMinutes)|\(settings.require24Hours)|\(settings.requireRestroom)|"
+            + "\(settings.priceOverBrand)|\(settings.overnightMode)\(settings.overnightStart)\(settings.overnightEnd)|\(settings.bufferMiles)"
+        if let memo = smartMemo, memo.key == key { return memo.result }
+        let result = SmartStop.choose(SmartStop.fuelCandidates(ctx, rangeLeft: range), preferences: SmartStop.Preferences(settings.values),
+                                      context: .fuel, reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected)
+        smartMemo = (key, result)
+        return result
+    }
+
+    /// The best stop in the next `miles` (restroom stops add rest areas and rank the restroom first).
+    func bestStopAhead(miles: Double, restrooms: Bool = false) -> SmartStop.Result? {
+        guard let settings, let ctx = stopContext() else { return nil }
+        var prefs = SmartStop.Preferences(settings.values)
+        if restrooms { prefs.requireRestroom = "always" }
+        let range = settings.vehicle?.isElectric == true ? nil : rangeLeft
+        return SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: miles, rangeLeft: range, restrooms: restrooms), preferences: prefs,
+                                context: .ahead, purpose: restrooms ? .restroom : .fuel,
+                                reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejectedNow)
+    }
+
+    /// Loads Google prices, hours and restrooms for the SmartStop picks' exits (with a key).
+    func loadSmartStopDetails() {
+        guard let key = settings?.googleKey, !key.isEmpty, let sm = smartStop, let plan else { return }
+        for id in ([sm.primary] + sm.alternatives.map { Optional($0) }).compactMap({ $0?.candidate.exitID }) {
+            if let exit = plan.exits.first(where: { $0.id == id }) { prices.load(exit: exit, apiKey: key) }
+        }
     }
 
     /// Where to stop for fuel or a charge, for the current position and range.

@@ -115,6 +115,9 @@ final class GasPriceService {
 
     func entry(for exitID: String) -> Entry? { cache[exitID] }
 
+    /// Stations from every lookup that succeeded, by exit id (for SmartStop's hours and restrooms).
+    var loadedStations: [String: [GasPriceFeed.Station]] { cache.compactMapValues { $0.error == nil ? $0.stations : nil } }
+
     func load(exit: RouteExit, apiKey: String) {
         guard !apiKey.isEmpty, !loading.contains(exit.id) else { return }
         if let e = cache[exit.id], Date().timeIntervalSince(e.loadedAt) < 15 * 60 { return }

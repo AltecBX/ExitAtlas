@@ -8,6 +8,8 @@ struct BundledData: Sendable {
     let datasets: TripDatasets
     let corridors: CorridorDataset
     let interstates: InterstateDataset
+    /// Gas station hours, restroom tags, rebrands and closures from OpenStreetMap (optional).
+    let stations: StationFacts?
 
     enum LoadError: LocalizedError {
         case missing(String)
@@ -33,10 +35,12 @@ struct BundledData: Sendable {
         // Optional: without it the timeline has no rest area rows.
         let restAreas = (try? url("restareas", "json")).flatMap { try? RestAreaDataset(contentsOf: $0) }
         let discover = (try? url("discover", "json")).flatMap { try? DiscoverDataset(contentsOf: $0) }
+        // Optional: without it station hours and restrooms read as unknown.
+        let stations = (try? url("stations", "json")).flatMap { try? StationFacts(contentsOf: $0) }
         return BundledData(
             datasets: TripDatasets(states: states, timeZones: TimeZoneResolver(zones: zones), interstates: interstates,
                                    restAreas: restAreas, discover: discover),
-            corridors: corridors, interstates: interstates)
+            corridors: corridors, interstates: interstates, stations: stations)
     }
 
     /// Provenance lines for the Data Sources screen, read from each file's header.
@@ -52,6 +56,13 @@ struct BundledData: Sendable {
         guard let m = datasets.restAreas?.metadata else { return nil }
         return "\(m.count) rest areas, welcome centers and service plazas from OpenStreetMap (tags checked \(m.tagsFetched ?? "unknown")). "
             + "Truck parking counts from the FHWA Truck Stop Parking survey (2019, public domain). \(m.license). Amenities show only what mappers have tagged."
+    }
+
+    var stationSummary: String? {
+        guard let m = stations?.metadata else { return nil }
+        return "Opening hours for \(m.with_hours ?? 0) and restroom tags for \(m.with_toilets ?? 0) of \(m.count) gas stations from OpenStreetMap "
+            + "(tags checked \(m.tags_fetched ?? "unknown"), \(m.license)); \(m.gone ?? 0) no longer listed as gas stations are never recommended. "
+            + "Hours are as mapped by volunteers and shown as reported, not verified."
     }
 
     var discoverSummary: String? {

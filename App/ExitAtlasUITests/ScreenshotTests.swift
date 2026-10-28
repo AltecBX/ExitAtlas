@@ -29,6 +29,9 @@ final class ScreenshotTests: XCTestCase {
             fuel.tap()
             sleep(2)
             snap("1c Fuel stop", dark)
+            app.swipeUp()
+            sleep(1)
+            snap("1d Fuel stop alternatives", dark)
             app.buttons["Done"].firstMatch.tap()
             sleep(1)
         }

@@ -80,3 +80,42 @@ The license plate game (web and iOS), the Road Trip Passport achievements and th
 | 11. No way to move a profile | Export and import of one file on both platforms; iOS saved trips travel as `plans` | Test S, `testTripPlansRoundTrip` |
 
 Acceptance tests covered here: A, B, C, I, J, K, L, M, N, S. The SmartStop and overnight tests (D to H, O, P), the dashboard (Q) and the removals (R) come with the next pull requests. The iOS screens are checked in CI screenshots on the simulator; nothing here has run on a device.
+
+## 12.7 Priorities 2 and 3: SmartStop, Overnight Drive Mode and stop confidence
+
+**What SmartStop answers.** Where to stop next for fuel: one recommendation and up to two alternatives, each with short reasons, from the gas stations at the exits ahead and the service plazas with fuel on the highway (restroom stops add rest areas and welcome centers). It extends the existing range planner: the candidates are the same exits, now one candidate per station, plus the fuel plazas the planner did not consider. The engine is `web/js/engine/smartstop.js` and `Sources/ExitAtlasCore/Planning/SmartStop.swift`, with the opening hours reader beside each (`openinghours.js`, `OpeningHours.swift`).
+
+**Sources, as evaluated.**
+
+| Source | What it gives | Coverage on interstate exits | Cost and terms | Used as |
+|---|---|---|---|---|
+| OpenStreetMap, current tags from the OSM API (`stations.json`) | opening_hours, toilets, check date, current brand, stations removed or no longer fuel | Hours for 2,295 of 19,679 stations (1,822 of them 24/7); restroom tag on 106; check date on 538 of those with hours; 274 no longer gas stations; 106 rebranded (fetched 2026-10-28) | Free, ODbL 1.0 | "Reported" hours; restroom confirmed when tagged; removed stations never offered |
+| Google Places API (New), Nearby Search | currentOpeningHours (business hours for the coming week, special hours included), restroom (yes or no) | Unknown until used; only exits whose prices were looked up | Enterprise and Enterprise + Atmosphere fields. Google bills a request "at the highest SKU applicable to your request" ([usage and billing](https://developers.google.com/maps/documentation/places/web-service/usage-and-billing)); the price lookup already asks for fuelOptions (Enterprise + Atmosphere), so adding hours and restroom adds no charge. Driver's key or the owner's proxy; not stored | "Verified" store hours; restroom confirmed when listed |
+| Rest areas and service plazas (`restareas.json`, OSM plus FHWA 2019 survey) | Facility hours, toilets tag, truck spaces | Restroom tag on 58% of facilities | Free (ODbL, public domain) | Plaza and rest area hours, restroom, parking |
+| State DOT and turnpike plaza listings | Official plaza hours and closures | Separate per state, no common feed found in this work | Varies | Not used |
+| Commercial POI providers | Station hours and amenities | Not measured | Quote only | Not used |
+
+No source used here lists restroom hours at gas stations (`toilets:opening_hours` appears on none of the 19,679).
+
+**Stop confidence: labels, not a score.** There is no defensible way to turn these sources into a number, so each stop shows statuses with their source and date.
+
+* Hours at the estimated arrival, in the stop's own time zone: "Verified open at estimated arrival" (Google business hours), "Reported open, verification limited" (OpenStreetMap, with its check date), "Reported closed at estimated arrival" (either source closed and none open), "Hours unavailable" (nothing listed, or hours the reader cannot parse: open ends like "18:00+", sunrise, months; 18 of the 2,295).
+* Restroom: "Restroom confirmed accessible at estimated arrival" only at rest areas and service plazas whose listed hours cover the arrival (the restroom is the building). "Restroom confirmed available, hours unknown" when tagged or listed at a station. "Restroom availability unknown" otherwise; "Listed without a restroom" when tagged no. A 24 hour station can lock its restroom overnight, so a station restroom is never shown as open at arrival.
+* Facilities evaluated separately in "What is known at arrival": pumps (OpenStreetMap hours), store (Google hours), restroom, restroom hours, plaza or rest area hours, parking (FHWA truck spaces where surveyed).
+
+**Overnight Drive Mode.** Auto by default from 12:00 AM to 4:00 AM, using each stop's estimated arrival in that stop's time zone (a station across the Central time line is judged by Central time), never the current clock alone. On and Off override it, in Settings and on the fuel screen. When it applies (and the "Open at arrival" and "Restroom" preferences are set to overnight, the default), stops listed open at arrival and stops with a confirmed restroom rank first, and the screen says plainly when no stop ahead has a confirmed restroom or listed hours.
+
+**Ranking, in order (deterministic; ties by station id).**
+1. Never offered: stations already passed, stations the driver skipped on this trip ("Not this one"), stations removed from OpenStreetMap or no longer gas stations, stops reported closed at arrival, stops beyond the range.
+2. Set aside unless nothing else is left: stops below the reserve (fuel), detours measured over the driver's limit, stops listed without a restroom when a restroom is needed. When every stop is below the reserve, the nearest comes first and the reasons say how much range is left on arrival.
+3. Open at arrival (verified, then reported, then unknown) and confirmed restroom (accessible, then available, then unknown), when each applies; for a restroom stop the restroom comes first.
+4. Cheaper fuel, only when "Cheaper fuel over favorite brands" is on and Google prices are loaded.
+5. The favorite brands in the driver's order (Shell first by default).
+6. Fuel stops: the later stop, which uses more of the range (the planner's existing rule). "Best stop ahead": the smaller measured detour, then the nearer stop.
+7. Measured detour.
+
+Alternatives come from other exits first. When the driver's first choice brand is not picked, the screen says why (closed at arrival, out of range, below the reserve, over the detour limit, skipped, or less confirmed hours or restroom). Detours are the routed round trip from the exit data; where the data has no routed time, the screen says "Detour not measured".
+
+**Checked by.** Shared fixtures run by both engines (`Tests/ExitAtlasCoreTests/Fixtures/smartstop`): opening hours (24/7, weekday ranges, past midnight, added rules, holidays, unparseable), local time across zones and the end of daylight saving time, stop confidence (D, E, O), rankings (F, G, H and the overnight, skip, detour, price and alternative rules), and six cases on the real Miami to Manhattan route recorded by the web engine and matched by the Swift engine (P), which also checks that both read stations.json and the route the same way. Web: the demo trip in a browser (fuel card and sheet, overnight on, skip). iOS: CI build and simulator screenshots; nothing on a device.
+
+**Not done here.** Restroom hours at gas stations (no source lists them); official plaza closures; warnings before the last open stop overnight on a long stretch (Priority 4, with the dashboard); Siri commands for SmartStop (Priority 6).

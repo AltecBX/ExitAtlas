@@ -176,6 +176,9 @@ struct DataSourcesView: View {
             if let summary = app.data?.restAreaSummary {
                 Section("Rest areas and service plazas") { Text(summary).font(.subheadline) }
             }
+            if let summary = app.data?.stationSummary {
+                Section("Gas station hours and restrooms") { Text(summary).font(.subheadline) }
+            }
             if let summary = app.data?.discoverSummary {
                 Section("Discover ahead") { Text(summary).font(.subheadline) }
             }

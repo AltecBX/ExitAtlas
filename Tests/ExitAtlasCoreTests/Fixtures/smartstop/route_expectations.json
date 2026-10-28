@@ -1,0 +1,229 @@
+{
+ "comment": "SmartStop on the real Miami to Manhattan route (bundled exits, rest areas, stations.json), from the snapshot time 1793000000. Recorded by web/tests/smartstop.test.js with UPDATE_SMARTSTOP=1 and checked by both engines; a data rebuild changes it.",
+ "cases": [
+  {
+   "name": "Day, mile 100, 300 mi of range, Shell first",
+   "context": "fuel",
+   "atMiles": 100,
+   "rangeMiles": 300,
+   "overnight": "off",
+   "brands": [
+    "Shell"
+   ],
+   "result": {
+    "primary": {
+     "id": "way/349353181",
+     "hours": "unknown",
+     "restroom": "unknown"
+    },
+    "alternatives": [
+     {
+      "id": "node/13738150228",
+      "hours": "unknown",
+      "restroom": "unknown"
+     },
+     {
+      "id": "node/1554950138",
+      "hours": "reported",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 128,
+    "passed": {
+     "Reported closed at arrival": 8,
+     "Out of range": 29,
+     "Below your reserve": 22,
+     "Detour over your limit": 9
+    },
+    "lowRange": false,
+    "notice": null
+   }
+  },
+  {
+   "name": "Overnight on, mile 400, 120 mi of range",
+   "context": "fuel",
+   "atMiles": 400,
+   "rangeMiles": 120,
+   "overnight": "on",
+   "brands": [
+    "Shell",
+    "Wawa"
+   ],
+   "result": {
+    "primary": {
+     "id": "node/11292003153",
+     "hours": "reported",
+     "restroom": "unknown"
+    },
+    "alternatives": [
+     {
+      "id": "node/11337029472",
+      "hours": "reported",
+      "restroom": "unknown"
+     },
+     {
+      "id": "node/10062365265",
+      "hours": "reported",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 86,
+    "passed": {
+     "Out of range": 18,
+     "Reported closed at arrival": 1,
+     "Below your reserve": 26
+    },
+    "lowRange": false,
+    "notice": "No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops."
+   }
+  },
+  {
+   "name": "Day, mile 700, 200 mi of range, Wawa then Shell",
+   "context": "fuel",
+   "atMiles": 700,
+   "rangeMiles": 200,
+   "overnight": "off",
+   "brands": [
+    "Wawa",
+    "Shell"
+   ],
+   "result": {
+    "primary": {
+     "id": "node/12290253818",
+     "hours": "reported",
+     "restroom": "unknown"
+    },
+    "alternatives": [
+     {
+      "id": "node/13104681536",
+      "hours": "unknown",
+      "restroom": "unknown"
+     },
+     {
+      "id": "way/1202789173",
+      "hours": "reported",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 123,
+    "passed": {
+     "Reported closed at arrival": 1,
+     "Out of range": 23,
+     "No longer listed as a gas station": 1,
+     "Below your reserve": 39,
+     "Detour over your limit": 2
+    },
+    "lowRange": false,
+    "notice": null
+   }
+  },
+  {
+   "name": "Low fuel, mile 900, 40 mi of range",
+   "context": "fuel",
+   "atMiles": 900,
+   "rangeMiles": 40,
+   "overnight": "off",
+   "brands": [
+    "Shell"
+   ],
+   "result": {
+    "primary": {
+     "id": "way/1058410889",
+     "hours": "unknown",
+     "restroom": "unknown"
+    },
+    "alternatives": [
+     {
+      "id": "way/781882620",
+      "hours": "unknown",
+      "restroom": "unknown"
+     },
+     {
+      "id": "node/3884270673",
+      "hours": "unknown",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 58,
+    "passed": {
+     "No longer listed as a gas station": 2,
+     "Out of range": 37,
+     "Detour over your limit": 1
+    },
+    "lowRange": true,
+    "notice": null
+   }
+  },
+  {
+   "name": "Best stop in the next 50 miles, mile 300",
+   "context": "ahead",
+   "atMiles": 300,
+   "miles": 50,
+   "restrooms": false,
+   "overnight": "off",
+   "brands": [
+    "Shell"
+   ],
+   "result": {
+    "primary": {
+     "id": "node/13738150228",
+     "hours": "unknown",
+     "restroom": "unknown"
+    },
+    "alternatives": [
+     {
+      "id": "way/349353181",
+      "hours": "unknown",
+      "restroom": "unknown"
+     },
+     {
+      "id": "node/10010420864",
+      "hours": "unknown",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 12,
+    "passed": {},
+    "lowRange": false,
+    "notice": null
+   }
+  },
+  {
+   "name": "Restroom stop in the next 60 miles, overnight, mile 1100",
+   "context": "ahead",
+   "atMiles": 1100,
+   "miles": 60,
+   "restrooms": true,
+   "overnight": "on",
+   "brands": [
+    "Shell"
+   ],
+   "result": {
+    "primary": {
+     "id": "rest-way/257649225",
+     "hours": "unknown",
+     "restroom": "available"
+    },
+    "alternatives": [
+     {
+      "id": "rest-node/2085347964",
+      "hours": "unknown",
+      "restroom": "available"
+     },
+     {
+      "id": "way/1064860182",
+      "hours": "reported",
+      "restroom": "unknown"
+     }
+    ],
+    "considered": 17,
+    "passed": {
+     "Reported closed at arrival": 2,
+     "Detour over your limit": 3
+    },
+    "lowRange": false,
+    "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."
+   }
+  }
+ ]
+}

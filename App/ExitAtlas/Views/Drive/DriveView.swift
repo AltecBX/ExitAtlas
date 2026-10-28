@@ -150,8 +150,9 @@ private struct FuelCard: View {
                 Image(systemName: electric ? "bolt.car.fill" : "fuelpump.fill").font(.title2)
                     .foregroundStyle(color).frame(width: 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    Eyebrow(text: electric ? "Charging" : "Fuel", color: color)
+                    Eyebrow(text: (electric ? "Charging" : "Fuel") + (smart?.overnight == true ? " · Overnight" : ""), color: color)
                     Text(headline).font(.headline).lineLimit(2)
+                    if let pick = smart?.primary { SmartStopConfidence(pick: pick, overnight: smart?.overnight == true) }
                     Text(detail).font(.subheadline).foregroundStyle(Theme.secondaryText).lineLimit(2)
                 }
                 Spacer(minLength: 4)
@@ -164,9 +165,12 @@ private struct FuelCard: View {
     }
 
     private var plan: RangePlan? { trip.rangePlan }
+    /// SmartStop's pick for gas vehicles (nil for electric vehicles or when no stop is needed).
+    private var smart: SmartStop.Result? { trip.smartStop }
 
     private var color: Color {
         guard let plan else { return Theme.secondaryText }
+        if let smart, smart.primary != nil, plan.status != .destination { return smart.lowRange ? Theme.amber : Theme.signGreen }
         switch plan.status {
         case .destination, .planned: return Theme.signGreen
         case .low: return Theme.amber
@@ -177,6 +181,10 @@ private struct FuelCard: View {
     private var headline: String {
         guard let left = trip.rangeLeft else { return "Enter miles to empty" }
         guard let plan else { return "\(Format.miles(left)) of range" }
+        if plan.status != .destination, let p = smart?.primary {
+            let c = p.candidate
+            return (p.brandRank != nil ? "★ " : "") + c.name + (c.exitLabel.map { ", Exit \($0)" } ?? "") + " in \(Format.miles(c.ahead ?? 0))"
+        }
         switch plan.status {
         case .destination: return "No stop needed"
         case .none: return "Nothing listed before empty"
@@ -190,6 +198,9 @@ private struct FuelCard: View {
     private var detail: String {
         guard let left = trip.rangeLeft else {
             return "From your dashboard. ExitAtlas finds the exit where you will have about \(Int(settings.bufferMiles)) mi left."
+        }
+        if plan?.status != .destination, let c = smart?.primary?.candidate, let there = c.rangeOnArrival {
+            return "\(Format.miles(left)) of range now, about \(Format.miles(there)) left there"
         }
         guard let plan, let rec = plan.recommended, plan.status == .planned || plan.status == .low else {
             if let spare = plan?.destinationSpare { return "\(Format.miles(left)) of range, about \(Format.miles(spare)) left at arrival" }

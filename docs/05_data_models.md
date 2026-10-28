@@ -75,7 +75,15 @@ One JSON format for the website (`localStorage` key `ea.profile`), the iOS app (
 
 Every field is checked on its own: a missing or invalid value takes its default and is listed as a problem, unknown keys are kept, and a stored profile that reads cleanly is never rewritten at launch. Before an invalid profile is rewritten, the stored text is kept (`ea.profile.corrupt`, `profile.corrupt-<time>.json`); an unreadable profile falls back to the copy before the last change (`ea.profile.previous`, `profile.previous.json`). API keys are never in the profile: Keychain on iOS, separate browser keys on the web. Exports add `exportedAt`.
 
-## 5.7 Bundled file formats
+## 5.7 SmartStop
+
+| Type | Fields | Notes |
+|---|---|---|
+| Candidate | id (OSM place or rest area id), name, brand, kind (station, plaza, rest), exit, along and ahead (m), arrival (time), time zone, detour (measured minutes or none), range on arrival, price, OSM facts, Google periods and restroom, plaza hours, toilets and truck spaces | Built from the trip by `web/js/app/smartstops.js` and `SmartStopCandidates.swift` |
+| Evaluation | local weekday and minute, overnight, hours {status, source, checked, closesIn, holidays}, restroom status, facilities [{name, status, label, source, checked, closesIn}] | Statuses only (docs/12, 12.7) |
+| Result | primary and up to two alternatives {candidate, evaluation, reasons, nextOption}, considered, passed {reason: count}, relaxed, lowRange, favorite {reason}, notice | Same on both platforms (shared fixtures) |
+
+## 5.8 Bundled file formats
 
 All little endian. Common header: 4 byte magic, `u32` version, `u32` metadata length, JSON metadata (source, license, attribution, build time). Coordinates are `i32` degrees × 1e7.
 
@@ -84,6 +92,7 @@ All little endian. Common header: 4 byte magic, `u32` version, `u32` metadata le
 | `states.eab`, `timezones.eab` | EAB1 | regions: code, name, extra, bbox, polygons, rings, points |
 | `restareas.json` | JSON | `{meta: {kind: "restareas", source, tags_fetched, fhwa_source, license, attribution, count, generated_at}, items: [{id (OSM), lat, lon, kind (rest, welcome, plaza, parking), name, nameSource?, road, bearing? (carriageway served; absent in the median or on an undivided road), amenities? ({toilets, water, picnic, vending, pets, wifi, dump, shower, accessible, trucks, info}: true or false, only when tagged), hours?, truckSpaces?, checked?, fhwa? {id, truckSpaces}, gas?, food?, ev? (names within 300 m of a plaza)}]}` |
 | `manifest.json` | JSON | `{kind: "manifest", schema, version (YYYYMMDDHHMM UTC, never decreases), content (SHA-256 of the sorted "name sha256" lines), generated_at, files: {name: {bytes, sha256, required, role, kind?, source?, license?, attribution?, generated_at?, osm_extract_date?, tags_fetched?, fetched?, data_last_edit?, count?}}}`. Clients load files by hash and fall back to the last set that loaded (docs/11) |
+| `stations.json` | JSON | `{meta: {kind: "stations", source, license, attribution, tags_fetched, data_last_edit, count, with_hours, with_toilets, rebranded, gone, unreadable, generated_at}, items: {"node/123": {h? (opening_hours as written), hc? (check date), t? (toilets true or false), b? (current brand when changed), gone? ("deleted" or "not fuel")}}}`. Only stations with at least one fact; tags are as of `tags_fetched` |
 | `discover.json` | JSON | `{meta: {kind: "discover", version, source, license, attribution, fetched, count, min_score, generated_at}, items: [{id (Wikidata Q id), name, cat (nationalPark, nationalMonument, statePark, waterfall, cave, viewpoint, museum, zoo, amusementPark, historicSite, landmark), lat, lon, sitelinks, score (0 to 100), road (nearest interstate), offMeters (straight line to it), desc?, wiki? (English Wikipedia URL)}]}` |
 | `interstates.eax` | EAX1 | string table; exits (40 bytes: node id, lat, lon, 2 bearings × 10, label, name, highways, link start, link count); places (24 bytes); links (12 bytes: place index, straight m, drive m, drive s, rank, flags) |
 | `corridors.eac` | EAC1 | string table; corridors: highway, direction code, display name, distance, duration, parts of points |

@@ -1,0 +1,36 @@
+{
+  "comment": "Opening hours checks shared by web/tests/smartstop.test.js and SmartStopTests.swift. Days are Mo..Su, times local. closesIn is minutes until closing (null: open around the clock for the next week).",
+  "osm": [
+    {"hours": "24/7", "parses": true, "checks": [["Th", "02:00", true, null]]},
+    {"hours": "Mo-Fr 06:00-22:00; Sa 06:00-20:30; Su 06:00-19:30", "parses": true,
+     "checks": [["Th", "21:30", true, 30], ["Th", "22:00", false, null], ["Sa", "20:45", false, null], ["Su", "06:00", true, 810]]},
+    {"hours": "Fr-Mo 22:00-02:00", "parses": true,
+     "checks": [["Mo", "01:00", true, 60], ["Tu", "01:00", true, 60], ["We", "01:00", false, null], ["Sa", "23:00", true, 180]]},
+    {"hours": "Mo-Fr 06:00-21:30; Sa,Su 07:00-19:00", "parses": true, "checks": [["Su", "18:00", true, 60], ["Sa", "06:30", false, null]]},
+    {"hours": "Mo-Su 06:00-24:00", "parses": true, "checks": [["We", "23:30", true, 30], ["Th", "00:30", false, null]]},
+    {"hours": "Mo-Su 06:00-01:00", "parses": true, "checks": [["Fr", "00:30", true, 30], ["Fr", "01:00", false, null]]},
+    {"hours": "Mo-Su 06:00-24:00; PH off", "parses": true, "holidays": true, "checks": [["Mo", "12:00", true, 720]]},
+    {"hours": "closed", "parses": true, "checks": [["Mo", "12:00", false, null]]},
+    {"hours": "Mo-Fr 08:00-17:00, Sa 09:00-12:00", "parses": true, "checks": [["Sa", "10:00", true, 120], ["Su", "10:00", false, null]]},
+    {"hours": "Mo-Su,PH 00:00-00:00", "parses": true, "checks": [["Th", "03:00", true, null]]},
+    {"hours": "06:00-12:00,13:00-22:00", "parses": true, "checks": [["Tu", "12:30", false, null], ["Tu", "13:30", true, 510]]},
+    {"hours": "Mo-Su 05:00-23:00", "parses": true, "checks": [["Su", "23:30", false, null], ["Mo", "04:59", false, null], ["Mo", "05:00", true, 1080]]},
+    {"hours": "Mo-Su 00:00+", "parses": false},
+    {"hours": "sunrise-sunset", "parses": false},
+    {"hours": "Jan-Mar Mo-Fr 08:00-12:00", "parses": false},
+    {"hours": "unknown", "parses": false},
+    {"hours": "", "parses": false}
+  ],
+  "google": [
+    {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}], "checks": [["We", "03:00", true, null]]},
+    {"periods": [{"open": {"day": 4, "hour": 6, "minute": 0}, "close": {"day": 5, "hour": 1, "minute": 0}}],
+     "checks": [["Fr", "00:30", true, 30], ["Th", "05:00", false, null], ["Th", "23:00", true, 120]]}
+  ],
+  "localTime": [
+    {"at": "2026-10-29T05:30:00Z", "zone": "America/New_York", "day": "Th", "time": "01:30"},
+    {"at": "2026-10-29T05:30:00Z", "zone": "America/Chicago", "day": "Th", "time": "00:30"},
+    {"at": "2026-10-29T04:30:00Z", "zone": "America/Chicago", "day": "We", "time": "23:30"},
+    {"at": "2026-11-01T06:30:00Z", "zone": "America/New_York", "day": "Su", "time": "01:30"},
+    {"at": "2026-10-29T07:00:00Z", "zone": "America/Phoenix", "day": "Th", "time": "00:00"}
+  ]
+}

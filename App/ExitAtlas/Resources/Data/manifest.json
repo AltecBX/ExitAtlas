@@ -1,9 +1,9 @@
 {
  "kind": "manifest",
  "schema": 1,
- "version": 202610281822,
- "content": "33cd122cb0ca558018293373432e1e2630b9c79a7500347dfc8b01504d5416b2",
- "generated_at": "2026-10-28T18:22:16+00:00",
+ "version": 202610282057,
+ "content": "11ce33ff537396d23e2eb9a9a039dc7fb7f48e177b6eae44d21f00b82f16cf59",
+ "generated_at": "2026-10-28T20:57:55+00:00",
  "files": {
   "states.eab": {
    "bytes": 2786240,
@@ -75,6 +75,20 @@
    "generated_at": "2026-10-28T18:16:46+00:00",
    "fetched": "2026-10-28",
    "count": 1620
+  },
+  "stations.json": {
+   "bytes": 104044,
+   "sha256": "84b8e26d217dfce8ca300f047bb0c537217cc08785f81b5af47b6ece0957fe27",
+   "required": false,
+   "role": "Gas station hours and restrooms",
+   "kind": "stations",
+   "source": "OpenStreetMap, current tags from the OSM API for the gas stations in interstates.eax",
+   "license": "ODbL 1.0",
+   "attribution": "© OpenStreetMap contributors",
+   "generated_at": "2026-10-28T20:45:14Z",
+   "tags_fetched": "2026-10-28",
+   "data_last_edit": "2026-10-28",
+   "count": 19679
   },
   "vehicles.json": {
    "bytes": 3102825,
