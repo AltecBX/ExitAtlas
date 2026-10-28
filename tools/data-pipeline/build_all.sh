@@ -6,7 +6,8 @@
 #   npm install --prefix "$WORK" mapshaper@0.6.102
 #
 # Usage: tools/data-pipeline/build_all.sh [work dir]
-# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,vehicles.json,restareas.json}
+# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,vehicles.json,restareas.json,
+#          discover.json,stations.json,manifest.json}
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -69,6 +70,8 @@ python3 build_regions.py tzones "$WORK/timezones_s10.geojson" "$OUT/timezones.ea
 python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.json" "$OUT/restareas.json" "$WORK/rest_area_classes.json"
 python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
+# Gas station hours, restrooms, rebrands and closures: current tags from the live OSM API (cached in the work dir).
+python3 build_stations.py "$OI_CSV" "$WORK/gas_tags.json" "$OUT/stations.json"
 python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicles.json"
 # Discover places come from the live Wikidata query service (cached per category in the work dir).
 mkdir -p "$WORK/wikidata"

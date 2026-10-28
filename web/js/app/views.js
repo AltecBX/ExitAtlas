@@ -356,6 +356,83 @@ function gasGapCard(app, s) {
   return `<div class="card gap-card" role="status"><span class="gap-icon" aria-hidden="true">⛽</span><div><div style="font-weight:800">${title}</div><div class="small">${sub}</div></div></div>`;
 }
 
+// MARK: SmartStop
+
+const CONF_CLASS = { verified: 'ok', reported: 'lim', unknown: 'unk', closed: 'bad', accessible: 'ok', available: 'lim', none: 'bad' };
+
+/// One status line with a colored dot: hours or restroom confidence (labels only, never a score).
+function confLine(status, label) {
+  return `<div class="conf ${CONF_CLASS[status] ?? 'unk'}"><span class="dot" aria-hidden="true"></span>${h(label)}</div>`;
+}
+
+function smartSign(x) {
+  return x.exit ? exitSign(x.exit.label, true) : restSign(x.kind === 'rest' ? 'rest' : 'plaza', true);
+}
+
+/// Distance line (the sign beside it shows the exit number).
+function smartWhere(x) {
+  return `${x.exit ? '' : 'On the highway · '}${milesValue(x.ahead)} mi ahead`;
+}
+
+/// "12:00 AM" from "00:00".
+function clockText(hhmm) {
+  const [hh, mm] = hhmm.split(':').map(Number);
+  return `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`;
+}
+
+/// Hours and restroom lines for a pick: the restroom only when it is known or needed.
+function smartConfidence(x, sm) {
+  const e = x.evaluation;
+  let html = confLine(e.hours.status, e.hours.label);
+  if (e.restroom.status !== 'unknown' || sm.overnight) html += confLine(e.restroom.status, e.restroom.label);
+  return html;
+}
+
+function smartArrival(app, x) {
+  const parts = [`Arrive ${clock(x.arrival, x.timeZone, app.snapshot?.t)}`];
+  if (x.rangeOnArrival != null) parts.push(`about ${miles(x.rangeOnArrival)} left`);
+  return parts.join(' · ');
+}
+
+/// Facility rows: pumps, store, restroom, restroom hours, plaza hours, parking, each with its source.
+function facilityRows(x) {
+  return x.evaluation.facilities.map((f) => `<div class="fac"><span class="fn">${h(f.name)}</span><span class="fv">${confLine(f.status, f.label)}
+    <span class="muted tiny">${f.source ? h(f.source) : 'No source lists it'}${f.checked ? `, checked ${h(f.checked)}` : ''}${f.closesIn != null && f.closesIn <= 120 ? `, closes ${f.closesIn} min after arrival` : ''}</span></span></div>`).join('');
+}
+
+function overnightRow(app) {
+  const st = app.settings;
+  const modes = [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']];
+  return `<div class="field"><span style="flex:1">🌙 Overnight Drive Mode<div class="muted tiny">${st.overnightMode === 'auto' ? `Auto: ${clockText(st.overnightStart)} to ${clockText(st.overnightEnd)}, by each stop's local arrival time` : st.overnightMode === 'on' ? 'On now: open hours and restrooms rank first' : 'Off: hours and restrooms do not change the ranking'}</div></span>
+    <div class="seg" style="width:170px">${modes.map(([k, n]) => `<button class="${st.overnightMode === k ? 'on' : ''}" data-act="overnight-mode" data-arg="${k}">${n}</button>`).join('')}</div></div>`;
+}
+
+/// SmartStop in the fuel sheet: the recommendation, alternatives, why the favorite lost, what was passed.
+function smartSection(app, sm) {
+  const p = sm.primary;
+  const pass = Object.entries(sm.passed);
+  const fav = sm.favorite
+    ? `<p class="small" style="margin:0">${h(sm.favorite.name)}${sm.favorite.exitId ? `, ${h(exitTitle(app.plan.exits.find((e) => e.id === sm.favorite.exitId) ?? {}))}` : ''}: ${h(sm.favorite.reason.charAt(0).toUpperCase() + sm.favorite.reason.slice(1))}.</p>` : '';
+  const alt = (x) => `<div class="item">${smartSign(x)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${h(smartWhere(x))} · ${h(smartArrival(app, x))}</div>
+      ${smartConfidence(x, sm)}<div class="muted tiny">${h(x.reasons.filter((r) => !r.startsWith(x.evaluation.hours.label) && r !== x.evaluation.restroom.label).join(' · '))}</div></div>
+      <button class="btn sm" data-act="skip-stop" data-arg="${h(x.id)}" aria-label="Not this one: ${h(x.name)}">Skip</button></div>`;
+  return `<div class="section-title">${sm.lowRange ? 'Nearest stop, fuel below your reserve' : 'Recommended stop'}</div>
+    ${sm.notice ? `<div class="banner warn" style="margin:0 0 10px">${h(sm.notice)}</div>` : ''}
+    <div class="card smart${sm.lowRange ? ' low' : ''}">
+      <div class="row" style="gap:12px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${p.brandRank !== null ? '★ ' : ''}${h(p.name)}</div>
+        <div class="muted small">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
+      <ul class="smart-reasons">${p.reasons.map((r) => `<li>${h(r)}</li>`).join('')}${p.nextOption != null ? `<li>Next option ${miles(p.nextOption)} later</li>` : ''}</ul>
+      <details class="facilities"><summary>What is known at arrival</summary>${facilityRows(p)}</details>
+      <div class="btn-row">${p.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(p.exit.id)}">Exit details</button>` : p.restArea ? `<button class="btn sm" data-act="rest" data-arg="${h(p.restArea.id)}">Plaza details</button>` : ''}
+        <button class="btn sm" data-act="skip-stop" data-arg="${h(p.id)}">Not this one</button></div>
+      ${fav}
+    </div>
+    ${sm.alternatives.length ? `<div class="section-title">Alternatives</div><div class="list">${sm.alternatives.map(alt).join('')}</div>` : ''}
+    ${pass.length ? `<p class="muted tiny" style="margin:4px 0 0">Passed over: ${h(pass.map(([r, n]) => `${n} ${r.charAt(0).toLowerCase() + r.slice(1)}`).join(', '))}.${app.rejectedStops.length ? ' <button class="linkish" data-act="unskip-stops">Offer skipped stops again</button>' : ''}</p>` : ''}
+    <div class="list" style="margin-top:10px">${overnightRow(app)}</div>
+    <p class="note">Hours: Google Maps business hours when prices load (live), else OpenStreetMap (mapped by volunteers; the check date shows when). A station listed open 24 hours can still lock its restroom overnight, so restrooms show as open at arrival only at rest areas and service plazas with listed hours.</p>`;
+}
+
 function fuelCard(app, s) {
   const fp = app.fuelPlan();
   const ev = Boolean(app.settings.vehicle?.ev);
@@ -371,9 +448,16 @@ function fuelCard(app, s) {
     body = `<div style="font-weight:700">No stop needed</div><div class="muted small">You reach your destination with about ${miles(fp.destinationSpare)} left.</div>`;
   } else if (fp.chargersLoading && !rec) {
     body = `<div class="muted small">${app.chargers.error ? h(`Chargers unavailable: ${app.chargers.error}`) : 'Finding Superchargers along your route…'}</div>`;
-  } else if (fp.status === 'none') {
+  } else if (fp.status === 'none' && !app.smartStop()?.primary) {
     body = ev ? '<div style="font-weight:700;color:var(--danger)">No charger listed before empty</div><div class="muted small">Within 2.5 miles of the route, on the network chosen in Settings.</div>'
       : '<div style="font-weight:700;color:var(--danger)">No interstate gas listed before empty</div><div class="muted small">Leave the highway for gas. Turnpikes and US routes have no exit data yet.</div>';
+  } else if (app.smartStop()?.primary) {
+    const sm = app.smartStop(), p = sm.primary;
+    body = `<div class="row" style="gap:10px;margin-top:2px">${smartSign(p)}<div style="flex:1;min-width:0">
+        <div style="font-weight:700${sm.lowRange ? ';color:var(--amber)' : ''}">${sm.lowRange ? 'Fuel low: nearest' : 'Fuel stop'} · ${h(p.name)} · ${milesValue(p.ahead)} mi${p.brandRank !== null ? ' · ★' : ''}</div>
+        ${smartConfidence(p, sm)}
+        <div class="muted tiny">${h(smartArrival(app, p))}${p.detourMinutes != null ? ` · ${Math.round(p.detourMinutes)} min detour` : ''}</div></div></div>
+        ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}`;
   } else {
     const low = fp.status === 'low';
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);
@@ -384,7 +468,7 @@ function fuelCard(app, s) {
         <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${miles(rec.rangeOnArrival)} left when you get there</div></div></div>`;
   }
   return `<button class="card" style="width:100%;text-align:left;cursor:pointer;display:block" data-act="sheet" data-arg="fuel">
-    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${body}</button>`;
+    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${body}</button>`;
 }
 
 /// Name line for a gas exit or a charger.
@@ -464,7 +548,7 @@ export function exitsView(app) {
       <div class="side"><div class="big">${milesValue(d)}</div><div class="muted tiny">${f.entryTime !== null ? clock(f.entryTime, f.entryTimeZoneID, s.t) : ''}</div></div></div>`;
   };
   const fp = app.fuelPlan();
-  const fuelStopID = fp && fp.status !== 'destination' ? fp.recommended?.exit?.id : null;
+  const fuelStopID = fp && fp.status !== 'destination' ? (app.smartStop()?.primary?.exitId ?? fp.recommended?.exit?.id) : null;
   // Rows in route order: state lines, exits, rest areas and stretches without gas. At the same mile a
   // state line comes first and a gas gap comes after the exit it starts at.
   const events = borders.map((f) => ({ d: f.segment.startDistance, o: 0, html: borderRow(f) }));
@@ -760,6 +844,7 @@ export function settingsView(app) {
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
+      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(`OpenStreetMap, tags checked ${app.data.stations.metadata.tags_fetched}: hours for ${app.data.stations.metadata.with_hours.toLocaleString('en-US')} and restroom tags for ${app.data.stations.metadata.with_toilets} of ${app.data.stations.metadata.count.toLocaleString('en-US')} stations; ${app.data.stations.metadata.gone} no longer listed as gas stations are never recommended`) : 'not loaded'}. Shown as reported, not verified. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
@@ -837,7 +922,10 @@ export function fuelSheet(app) {
     : `<div class="row"><input type="number" name="dte" inputmode="numeric" min="0" max="1500" placeholder="${ev ? 'Miles of range' : 'Miles to empty'}" value="${range !== null ? Math.round(range / 1609.344) : ''}" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card);font-size:20px;font-weight:700"><span class="muted">mi</span></div>
        <p class="muted tiny" style="margin:4px 0 0">The range your dashboard shows. It counts down as you drive; update it any time.</p>`;
   let plan = '';
-  if (fp) {
+  const sm = ev ? null : app.smartStop();
+  if (sm?.primary) {
+    plan = smartSection(app, sm);
+  } else if (fp) {
     const rec = fp.recommended;
     if (fp.status === 'destination') {
       plan = `<div class="card"><div style="font-weight:700">No ${ev ? 'charging' : 'fuel'} stop needed</div><div class="muted small">You reach your destination with about ${miles(fp.destinationSpare)} left.</div></div>`;
@@ -875,6 +963,7 @@ export function fuelSheet(app) {
         <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${x.kind === 'charge' ? 'a' : 'button'}>`).join('')}</div>` : '';
   return `<div class="sheet-head"><h2>${ev ? 'Charging stop' : 'Fuel stop'}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <div class="stack">
+    ${sm?.primary ? plan : ''}
     <div class="card">${vehicleLine}</div>
     <form class="card" data-form="fuel">
       <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now</div>
@@ -886,7 +975,7 @@ export function fuelSheet(app) {
       <div class="section-title">${ev ? 'Charge' : 'Fill up'} with about this much left</div>
       <div class="seg">${[25, 50, 75, 100].map((b) => `<button type="button" class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div>
     </form>
-    ${favs}${plan}${prices}${others}
+    ${favs}${sm?.primary ? '' : plan}${prices}${others}
     <p class="note">${ev ? `DC fast chargers within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center (${st.chargerNetwork === 'Tesla' ? 'Tesla Superchargers' : 'all networks'}). Detours are straight line estimates.` : 'Gas stations linked to interstate exits in OpenStreetMap. Detours count against your range.'}${!ev && !app.prices.enabled ? ' Live prices: add a Google Maps key in Settings.' : ''}</p></div>`;
 }
 
@@ -1048,8 +1137,8 @@ function fuelPreferences(app) {
       <input type="text" data-brand placeholder="Another brand, then return" ${inputStyle.replace('width:100%', 'width:100%;margin-top:10px')}></div>
     <div class="list" style="margin-top:8px">
       <div class="field"><span style="flex:1">Fuel grade<div class="muted tiny">For prices; your vehicle's fuel when not set</div></span>${seg('fuel-grade', [['', 'Vehicle'], ['R', 'Regular'], ['M', 'Mid'], ['P', 'Premium'], ['D', 'Diesel']], st.fuelGrade ?? '', 300)}</div>
-      <div class="field"><span style="flex:1">Open 24 hours<div class="muted tiny">Prefer stations listed open 24 hours</div></span>${seg('require', when.map(([k, n]) => [`require24Hours,${k}`, n]), `require24Hours,${st.require24Hours}`, 230)}</div>
-      <div class="field"><span style="flex:1">Restroom<div class="muted tiny">Prefer stops with a restroom listed</div></span>${seg('require', when.map(([k, n]) => [`requireRestroom,${k}`, n]), `requireRestroom,${st.requireRestroom}`, 230)}</div>
+      <div class="field"><span style="flex:1">Open at arrival<div class="muted tiny">Stops listed open when you get there rank first; listed closed ones are never picked</div></span>${seg('require', when.map(([k, n]) => [`require24Hours,${k}`, n]), `require24Hours,${st.require24Hours}`, 230)}</div>
+      <div class="field"><span style="flex:1">Restroom<div class="muted tiny">Stops with a confirmed restroom rank first; ones listed without one are skipped</div></span>${seg('require', when.map(([k, n]) => [`requireRestroom,${k}`, n]), `requireRestroom,${st.requireRestroom}`, 230)}</div>
       <div class="field"><span style="flex:1">Longest detour<div class="muted tiny">Off the highway and back</div></span>${seg('detour', [[3, '3 min'], [5, '5'], [8, '8'], [12, '12'], [20, '20']].map(([k, n]) => [String(k), n]), String(st.maxDetourMinutes), 240)}</div>
       <label class="field"><span style="flex:1">Cheaper fuel over favorite brands<div class="muted tiny">Only when live prices are available</div></span><input type="checkbox" class="toggle" data-set="priceOverBrand" ${st.priceOverBrand ? 'checked' : ''}></label>
     </div>`;

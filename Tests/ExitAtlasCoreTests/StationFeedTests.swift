@@ -9,7 +9,8 @@ final class StationFeedTests: XCTestCase {
           {"id":"a","displayName":{"text":"Shell"},"location":{"latitude":31.2,"longitude":-81.5},
            "fuelOptions":{"fuelPrices":[
              {"type":"REGULAR_UNLEADED","price":{"currencyCode":"USD","units":"3","nanos":290000000},"updateTime":"2026-10-28T02:00:00Z"},
-             {"type":"PREMIUM","price":{"currencyCode":"USD","units":"4","nanos":90000000},"updateTime":"2026-10-28T02:00:00.123Z"}]}},
+             {"type":"PREMIUM","price":{"currencyCode":"USD","units":"4","nanos":90000000},"updateTime":"2026-10-28T02:00:00.123Z"}]},
+           "currentOpeningHours":{"openNow":true,"periods":[{"open":{"day":0,"hour":0,"minute":0}}]},"restroom":true},
           {"id":"b","displayName":{"text":"Wawa"},"location":{"latitude":31.21,"longitude":-81.5},
            "fuelOptions":{"fuelPrices":[{"type":"REGULAR_UNLEADED","price":{"currencyCode":"USD","units":"3","nanos":150000000},"updateTime":"2026-10-28T01:00:00Z"}]}},
           {"id":"c","displayName":{"text":"No prices"},"location":{"latitude":31.22,"longitude":-81.5}}]}
@@ -18,6 +19,11 @@ final class StationFeedTests: XCTestCase {
         XCTAssertEqual(stations.count, 3)
         XCTAssertEqual(stations[0].prices[.regular]!.dollars, 3.29, accuracy: 1e-9)
         XCTAssertNotNil(stations[0].prices[.premium]?.updated)
+        XCTAssertEqual(stations[0].periods, [GooglePeriod(open: .init(day: 0))])
+        XCTAssertEqual(stations[0].restroom, true)
+        XCTAssertNil(stations[1].periods, "no hours listed: unknown, not closed")
+        XCTAssertNil(stations[1].restroom)
+        XCTAssertTrue(GasPriceFeed.fieldMask.hasSuffix("currentOpeningHours,places.restroom"))
         XCTAssertEqual(GasPriceFeed.priced(stations, grade: .regular).map(\.name), ["Wawa", "Shell"])
         XCTAssertEqual(GasPriceFeed.priced(stations, grade: .diesel).count, 0)
         let body = try JSONSerialization.jsonObject(with: GasPriceFeed.requestBody(near: GeoCoordinate(latitude: 31.2, longitude: -81.5))) as! [String: Any]

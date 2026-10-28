@@ -1,8 +1,9 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// Fuel or charging stop from the range on the dashboard: the last stop reached with the buffer left,
-/// favorites anywhere in range, the last chance before empty, and live prices with the driver's key.
+/// Fuel or charging stop from the range on the dashboard. Gas: SmartStop's recommendation and alternatives
+/// with their stop confidence; electric: the last charger reached with the buffer left. Live prices,
+/// hours and restrooms with the driver's key.
 struct FuelView: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
@@ -44,7 +45,14 @@ struct FuelView: View {
                 } footer: {
                     Text("Range counts down with the miles you drive. ExitAtlas cannot read your fuel gauge; enter the number your car shows.")
                 }
-                if let plan = trip.rangePlan {
+                if !electric, let sm = trip.smartStop, sm.primary != nil {
+                    SmartStopSections(result: sm)
+                    if let plan = trip.rangePlan, !plan.stations.isEmpty {
+                        Section("All gas exits within range (\(plan.stations.count))") {
+                            ForEach(plan.stations.prefix(40), id: \.key) { StopRow(stop: $0) }
+                        }
+                    }
+                } else if let plan = trip.rangePlan {
                     recommendation(plan)
                     if !plan.earlier.isEmpty {
                         Section("Earlier options") { ForEach(plan.earlier, id: \.key) { StopRow(stop: $0) } }
@@ -72,6 +80,7 @@ struct FuelView: View {
                     }
                 }
             }
+            .onAppear { trip.loadSmartStopDetails() }
             .navigationTitle(electric ? "Charging Stop" : "Fuel Stop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

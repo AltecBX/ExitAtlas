@@ -9,7 +9,8 @@
 // Setup and limits: infra/worker/README.md.
 
 const GOOGLE = 'https://places.googleapis.com/v1/places:searchNearby';
-const GOOGLE_FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions';
+// Same fields as the app's own request (web/js/app/prices.js): billed once at the highest SKU.
+const GOOGLE_FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions,places.currentOpeningHours,places.restroom';
 const AFDC = 'https://developer.nlr.gov/api/alt-fuel-stations/v1/nearby-route.json';
 const AFDC_PARAMS = new Set(['route', 'distance', 'fuel_type', 'ev_charging_level', 'status', 'limit', 'ev_network']);
 const MAX_BODY = 64 * 1024;

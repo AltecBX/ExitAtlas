@@ -161,7 +161,8 @@ Each milestone ends in a pull request with tests, screenshots where the interfac
 | 4 | Merged (PR #6) | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
 | 5 | Merged (PR #7) | See below |
 | 6 | Merged (PR #8) | Data manifest with update and rollback (web and iOS), key proxy Worker (tested, not deployed), privacy manifest, release checklist and drafts; details, verification and owner decisions in docs/11 |
-| P1 (profile) | PR open | Permanent profile on both platforms with migration, field checks, recovery, Keychain keys, export and import; docs/12 |
+| P1 (profile) | Merged (PR #9) | Permanent profile on both platforms with migration, field checks, recovery, Keychain keys, export and import; docs/12 |
+| P2 and P3 (SmartStop) | PR open | SmartStop, Overnight Drive Mode and stop confidence on both platforms, station data from OpenStreetMap, Google hours and restrooms with prices; docs/12 (12.7) |
 
 Milestone 3 delivered:
 

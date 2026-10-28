@@ -64,12 +64,14 @@ public enum ChargerFeed {
     }
 }
 
-/// Gas prices near an exit from Google Places API (New) Nearby Search with fuel options, using the
-/// driver's own key (the same request as web/js/app/prices.js). Google's terms: show Google
-/// attribution, never on a non-Google map, and do not store prices.
+/// Gas prices, business hours and restrooms near an exit from Google Places API (New) Nearby Search,
+/// using the driver's own key (the same request as web/js/app/prices.js). Google's terms: show Google
+/// attribution, never on a non-Google map, and do not store prices. Hours and the restroom field ride on
+/// the same request: Google bills a Nearby Search once, at the highest SKU among its fields, and
+/// fuelOptions is already the highest (Enterprise + Atmosphere).
 public enum GasPriceFeed {
     public static let endpoint = URL(string: "https://places.googleapis.com/v1/places:searchNearby")!
-    public static let fieldMask = "places.id,places.displayName,places.location,places.fuelOptions"
+    public static let fieldMask = "places.id,places.displayName,places.location,places.fuelOptions,places.currentOpeningHours,places.restroom"
 
     public enum Grade: String, Sendable, CaseIterable, Codable {
         case regular = "REGULAR_UNLEADED", midgrade = "MIDGRADE", premium = "PREMIUM", diesel = "DIESEL"
@@ -104,6 +106,20 @@ public enum GasPriceFeed {
         public let name: String
         public let coordinate: GeoCoordinate?
         public let prices: [Grade: Price]
+        /// Business hours for the coming week (Google's currentOpeningHours), nil when not listed.
+        public let periods: [GooglePeriod]?
+        /// Google's restroom field, nil when not listed.
+        public let restroom: Bool?
+
+        public init(id: String, name: String, coordinate: GeoCoordinate?, prices: [Grade: Price], periods: [GooglePeriod]? = nil,
+                    restroom: Bool? = nil) {
+            self.id = id
+            self.name = name
+            self.coordinate = coordinate
+            self.prices = prices
+            self.periods = periods
+            self.restroom = restroom
+        }
     }
 
     public static func requestBody(near c: GeoCoordinate, radius: Double = 1600) -> Data {
@@ -130,6 +146,9 @@ public enum GasPriceFeed {
                 let displayName: Name?
                 let location: Location?
                 let fuelOptions: FuelOptions?
+                struct Hours: Decodable { let periods: [GooglePeriod]? }
+                let currentOpeningHours: Hours?
+                let restroom: Bool?
             }
             let places: [Place]?
         }
@@ -147,7 +166,8 @@ public enum GasPriceFeed {
             }
             return Station(id: p.id, name: p.displayName?.text ?? "Gas station",
                            coordinate: p.location.map { GeoCoordinate(latitude: $0.latitude, longitude: $0.longitude) },
-                           prices: prices)
+                           prices: prices, periods: p.currentOpeningHours?.periods.flatMap { $0.isEmpty ? nil : $0 },
+                           restroom: p.restroom)
         } ?? []
     }
 

@@ -31,6 +31,7 @@ FILES = {
     "corridors.eac": (True, "Interstate corridors (discovery mode)"),
     "restareas.json": (False, "Rest areas and service plazas"),
     "discover.json": (False, "Discover ahead places"),
+    "stations.json": (False, "Gas station hours and restrooms"),
     "vehicles.json": (False, "Vehicles, fuel economy and tank sizes"),
 }
 

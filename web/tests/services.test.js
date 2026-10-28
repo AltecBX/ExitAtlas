@@ -11,7 +11,8 @@ const placesJSON = {
     { id: 'a', displayName: { text: 'Shell' }, location: { latitude: 31.2, longitude: -81.5 },
       fuelOptions: { fuelPrices: [
         { type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 290000000 }, updateTime: '2026-10-28T02:00:00Z' },
-        { type: 'PREMIUM', price: { currencyCode: 'USD', units: '4', nanos: 90000000 }, updateTime: '2026-10-28T02:00:00Z' }] } },
+        { type: 'PREMIUM', price: { currencyCode: 'USD', units: '4', nanos: 90000000 }, updateTime: '2026-10-28T02:00:00Z' }] },
+      currentOpeningHours: { openNow: true, periods: [{ open: { day: 0, hour: 0, minute: 0 } }] }, restroom: true },
     { id: 'b', displayName: { text: 'Wawa' }, location: { latitude: 31.21, longitude: -81.5 },
       fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: 150000000 }, updateTime: '2026-10-28T01:00:00Z' }] } },
     { id: 'c', displayName: { text: 'No prices' }, location: { latitude: 31.22, longitude: -81.5 } },
@@ -22,6 +23,10 @@ test('Google Places prices: parsing, grade sort, one request per exit per 15 min
   const stations = parsePlaces(placesJSON);
   assert.equal(stations.length, 3);
   near(stations[0].prices.REGULAR_UNLEADED.value, 3.29);
+  assert.deepEqual(stations[0].periods, [{ open: { day: 0, hour: 0, minute: 0 } }]);
+  assert.equal(stations[0].restroom, true);
+  assert.equal(stations[1].periods, null, 'no hours listed: unknown, not closed');
+  assert.equal(stations[1].restroom, null);
   const regular = pricedForGrade(stations, 'REGULAR_UNLEADED');
   assert.deepEqual(regular.map((s) => s.name), ['Wawa', 'Shell']);
   assert.equal(priceText(regular[0].prices.REGULAR_UNLEADED), '$3.15');
@@ -37,6 +42,7 @@ test('Google Places prices: parsing, grade sort, one request per exit per 15 min
   assert.equal(a.stations.length, 3);
   assert.equal(lastReq.opts.headers['X-Goog-Api-Key'], 'k');
   assert.match(lastReq.opts.headers['X-Goog-FieldMask'], /fuelOptions/);
+  assert.match(lastReq.opts.headers['X-Goog-FieldMask'], /currentOpeningHours,places\.restroom/);
   const body = JSON.parse(lastReq.opts.body);
   assert.deepEqual(body.includedTypes, ['gas_station']);
   assert.equal(body.locationRestriction.circle.radius, 1600);

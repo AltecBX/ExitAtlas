@@ -175,30 +175,34 @@ public struct FuelAnnouncements: Sendable {
     /// Call after the driver enters a new range so the messages can be given again.
     public mutating func reset() { said.removeAll() }
 
-    public mutating func message(for plan: RangePlan, electric: Bool, onRoute: Bool, enabled: Bool) -> String? {
+    /// `smart`: SmartStop's pick for gas vehicles, so the voice names the same station as the screen.
+    public mutating func message(for plan: RangePlan, electric: Bool, onRoute: Bool, enabled: Bool, smart: SmartStop.Pick? = nil) -> String? {
         guard enabled, onRoute else { return nil }
-        func what(_ s: PlannedStop) -> String {
-            if let c = s.candidate.charger {
-                return c.station.name.replacingOccurrences(of: " - Tesla Supercharger", with: " Supercharger")
-            }
-            return s.candidate.exit?.displayTitle ?? "the next stop"
+        struct Stop { let key: String; let name: String; let ahead: Double; let rangeOnArrival: Double }
+        let rec: Stop? = smart.flatMap { p -> Stop? in
+            guard let ahead = p.candidate.ahead, let left = p.candidate.rangeOnArrival else { return nil }
+            return Stop(key: p.candidate.id, name: p.candidate.name + (p.candidate.exitLabel.map { ", exit \($0)" } ?? ""), ahead: ahead, rangeOnArrival: left)
+        } ?? plan.recommended.map { s in
+            let name = s.candidate.charger.map { $0.station.name.replacingOccurrences(of: " - Tesla Supercharger", with: " Supercharger") }
+                ?? s.candidate.exit?.displayTitle ?? "the next stop"
+            return Stop(key: s.key, name: name, ahead: s.ahead, rangeOnArrival: s.rangeOnArrival)
         }
         let mile = Geodesy.metersPerMile
-        if let rec = plan.recommended, plan.status == .planned {
+        if let rec, plan.status == .planned {
             for (miles, tag) in [(2.0, "near"), (10.0, "far")] {
                 let key = "\(rec.key)|\(tag)"
                 if rec.ahead <= miles * mile, rec.ahead > 0.3 * mile, !said.contains(key) {
                     said.insert(key)
                     said.insert("\(rec.key)|far")
-                    return "\(electric ? "Charging stop" : "Fuel stop"), \(what(rec)), in \(VoiceAnnouncements.spokenMiles(rec.ahead)). "
+                    return "\(electric ? "Charging stop" : "Fuel stop"), \(rec.name), in \(VoiceAnnouncements.spokenMiles(rec.ahead)). "
                         + "About \(Int((rec.rangeOnArrival / mile).rounded())) miles of range left when you get there."
                 }
             }
         }
         if plan.status != .destination, plan.range < plan.buffer, !said.contains("low") {
             said.insert("low")
-            if let rec = plan.recommended {
-                return "\(electric ? "Charge" : "Fuel") is low. Nearest \(electric ? "charger" : "gas") is \(what(rec)), in \(VoiceAnnouncements.spokenMiles(rec.ahead))."
+            if let rec {
+                return "\(electric ? "Charge" : "Fuel") is low. Nearest \(electric ? "charger" : "gas") is \(rec.name), in \(VoiceAnnouncements.spokenMiles(rec.ahead))."
             }
             return "\(electric ? "Charge" : "Fuel") is low, and nothing is listed ahead."
         }

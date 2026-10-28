@@ -1,9 +1,11 @@
-// Gas prices near an exit from Google Places API (New) Nearby Search with fuelOptions, using the
+// Gas prices, business hours and restrooms near an exit from Google Places API (New) Nearby Search, using the
 // driver's own API key, or the owner's key proxy (infra/worker) when one is set. Google's terms: show Google attribution where these prices appear without a
 // Google map, never put them on a non-Google map, and do not store them (memory only, 15 minutes).
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
-const FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions';
+// Hours and the restroom field ride on the same request: Google bills a Nearby Search once, at the
+// highest SKU among its fields, and fuelOptions is already the highest (Enterprise + Atmosphere).
+const FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions,places.currentOpeningHours,places.restroom';
 const TTL = 15 * 60 * 1000;
 
 export const GRADES = {
@@ -21,7 +23,11 @@ export function parsePlaces(json) {
       const value = units + nanos / 1e9;
       if (value > 0) prices[fp.type] = { value, currency: fp.price?.currencyCode ?? 'USD', updated: fp.updateTime ? Date.parse(fp.updateTime) : null };
     }
-    return { id: p.id, name: p.displayName?.text ?? 'Gas station', location: p.location, prices };
+    return {
+      id: p.id, name: p.displayName?.text ?? 'Gas station', location: p.location, prices,
+      periods: Array.isArray(p.currentOpeningHours?.periods) && p.currentOpeningHours.periods.length ? p.currentOpeningHours.periods : null,
+      restroom: typeof p.restroom === 'boolean' ? p.restroom : null,
+    };
   });
 }
 
