@@ -223,6 +223,8 @@ private struct ThenStrip: View {
                 ForEach(kinds, id: \.self) { kind in item(kind) }
                 Spacer(minLength: 0)
             }
+            // A container, so the chips keep their own identifiers ("fuelChip") instead of taking this one.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("thenStrip")
         }
     }

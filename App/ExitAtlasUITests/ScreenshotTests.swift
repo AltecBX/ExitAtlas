@@ -25,18 +25,19 @@ final class ScreenshotTests: XCTestCase {
         snap("1b Drive lower", dark)
 
         // The fuel card when fuel is the focus, otherwise the fuel item in the Then strip.
+        // The demo has a range, so one of them must be there.
         var fuel = app.buttons["fuelCard"].firstMatch
         if !fuel.waitForExistence(timeout: 3) { fuel = app.buttons["fuelChip"].firstMatch }
-        if fuel.waitForExistence(timeout: 5) {
-            fuel.tap()
-            sleep(2)
-            snap("1c Fuel stop", dark)
-            app.swipeUp()
-            sleep(1)
-            snap("1d Fuel stop alternatives", dark)
-            app.buttons["Done"].firstMatch.tap()
-            sleep(1)
-        }
+        XCTAssertTrue(fuel.waitForExistence(timeout: 5), "No fuel card or fuel chip on the Drive screen")
+        fuel.tap()
+        XCTAssertTrue(app.navigationBars["Fuel Stop"].waitForExistence(timeout: 10), "Fuel stop sheet did not open")
+        sleep(2)
+        snap("1c Fuel stop", dark)
+        app.swipeUp()
+        sleep(1)
+        snap("1d Fuel stop alternatives", dark)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
 
         app.tabBars.buttons["Ahead"].tap()
         XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
@@ -104,53 +105,35 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         snap("6 Settings", dark)
 
+        // Pages pushed inside the Settings sheet, in list order from the top. Back is tapped only on the
+        // page's own navigation bar, so a missed tap can never hit Done and close the sheet.
+        push(app.buttons["Live Activity preview"].firstMatch, title: "Live Activity", name: "7 Live Activity", app: app, dark: dark)
         // Fuel stop preferences: favorite brands in order and what a stop must have.
-        let fuelStops = app.buttons["fuelStopsLink"].firstMatch
-        if reveal(fuelStops, in: app) {
-            fuelStops.tap()
-            sleep(2)
-            snap("6d Fuel stops", dark)
-            app.navigationBars.buttons.element(boundBy: 0).tap()
-            sleep(1)
-        }
-
-        // The Live Activity views drawn in the app with the demo trip (the Lock Screen itself cannot be captured here).
-        let preview = app.buttons["Live Activity preview"].firstMatch
-        for _ in 0..<4 where !(preview.exists && preview.isHittable) {
-            app.swipeUp()
-            sleep(1)
-        }
-        if preview.exists, preview.isHittable {
-            preview.tap()
-            sleep(2)
-            snap("7 Live Activity", dark)
-            app.navigationBars.buttons.element(boundBy: 0).tap()
-            sleep(1)
-        }
-
+        push(app.buttons["fuelStopsLink"].firstMatch, title: "Fuel Stops", name: "6d Fuel stops", app: app, dark: dark)
         // Travel statistics replace the Road Trip Passport (no achievements).
-        let travels = app.buttons["travelsLink"].firstMatch
-        if reveal(travels, in: app) {
-            travels.tap()
-            sleep(2)
+        push(app.buttons["travelsLink"].firstMatch, title: "Your Travels", name: "6b Your travels", app: app, dark: dark) {
             XCTAssertFalse(app.staticTexts["Next up"].exists)
-            snap("6b Your travels", dark)
-            app.navigationBars.buttons.element(boundBy: 0).tap()
-            sleep(1)
         }
 
         // Where the profile is kept, export and import.
-        let export = app.buttons["Export profile"].firstMatch
-        if reveal(export, in: app) {
-            snap("6e Profile", dark)
-        }
+        XCTAssertTrue(reveal(app.buttons["Export profile"].firstMatch, in: app), "Profile section not found")
+        snap("6e Profile", dark)
 
-        let sources = app.buttons["Data sources and licenses"].firstMatch
-        if reveal(sources, in: app) {
-            sources.tap()
-            sleep(2)
-            snap("6c Data sources", dark)
-        }
+        push(app.buttons["Data sources and licenses"].firstMatch, title: "Data Sources", name: "6c Data sources", app: app, dark: dark)
+    }
+
+    /// Opens a page pushed from Settings, captures it and goes back. Fails when the link or the page is missing.
+    private func push(_ link: XCUIElement, title: String, name: String, app: XCUIApplication, dark: Bool, check: () -> Void = {}) {
+        XCTAssertTrue(reveal(link, in: app), "\(name): link not found")
+        link.tap()
+        let bar = app.navigationBars[title]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "\(name): page did not open")
+        sleep(2)
+        check()
+        snap(name, dark)
+        bar.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "\(name): did not return to Settings")
+        sleep(1)
     }
 
     /// Scrolls up until the element can be tapped.
