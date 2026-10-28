@@ -184,6 +184,7 @@ struct DataSourcesView: View {
 
     var body: some View {
         List {
+            DataVersionSection()
             if let data = app.data {
                 ForEach(data.sourceSummaries, id: \.title) { item in
                     Section(item.title) {
@@ -252,5 +253,56 @@ struct LiveActivityPreview: View {
         }
         .navigationTitle("Live Activity")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// The data set in use, the daily update check and the way back to the app's own data.
+private struct DataVersionSection: View {
+    @Environment(AppModel.self) private var app
+    @Environment(TripController.self) private var trip
+
+    var body: some View {
+        let info = app.dataInfo
+        let updater = app.dataUpdater
+        Section {
+            LabeledContent("Data version", value: info?.manifest.map { String($0.version) } ?? "unknown")
+            LabeledContent("Source", value: info?.isDownloaded == true ? "Downloaded update" : "Included with the app")
+            if let last = updater.lastCheck {
+                LabeledContent("Last checked", value: last.formatted(date: .abbreviated, time: .shortened))
+            }
+            if let text = statusText(updater.status) {
+                Text(text).font(.footnote).foregroundStyle(Theme.secondaryText)
+            }
+            ForEach(info?.failures ?? [], id: \.self) { Text($0).font(.footnote).foregroundStyle(Theme.amber) }
+            Button("Check for data updates") { Task { await app.checkForDataUpdate() } }
+                .disabled(updater.status == .checking || isDownloading(updater.status))
+            if info?.isDownloaded == true {
+                Button("Use the data included with the app", role: .destructive) { Task { await app.useBundledData() } }
+                    .disabled(trip.mode != .idle)
+            }
+        } header: {
+            Text("Offline data")
+        } footer: {
+            Text("ExitAtlas checks once a day on Wi-Fi for newer exit, rest area and Discover data. Each file is checked "
+                 + "against its SHA-256 and the whole set must load before it is used; a trip in progress keeps its data.")
+        }
+    }
+
+    private func isDownloading(_ status: DataUpdater.Status) -> Bool {
+        if case .downloading = status { return true } else { return false }
+    }
+
+    private func statusText(_ status: DataUpdater.Status) -> String? {
+        switch status {
+        case .idle: return nil
+        case .checking: return "Checking for newer data..."
+        case let .downloading(done, total):
+            return "Downloading \(String(format: "%.1f", Double(done) / 1e6)) of \(String(format: "%.1f", Double(total) / 1e6)) MB"
+        case .upToDate: return "Up to date."
+        case let .installed(version):
+            return "Version \(version) downloaded and checked." + (trip.mode == .idle ? "" : " It is used when this trip ends.")
+        case let .ignored(reason): return "Not updated: \(reason)."
+        case let .failed(reason): return "Update failed: \(reason) The data in use is unchanged."
+        }
     }
 }

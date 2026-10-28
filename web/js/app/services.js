@@ -3,16 +3,22 @@ import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } fro
 import { routeFromOSRM } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
 import { DiscoverDataset } from '../engine/discover.js';
+import { chooseManifest, candidates, loadVerified, usedManifest } from '../engine/datamanifest.js';
 import { distance, initialBearing } from '../engine/geo.js';
 
 export const DATA_BASE = new URL('../App/ExitAtlas/Resources/Data/', document.baseURI);
-const DATA_VERSION = '20261028';
+const DEMO_VERSION = '20261028';
+const LAST_GOOD_KEY = 'ea.dataManifest';
 
 // MARK: Data
 
-async function fetchBuffer(name, onProgress) {
-  const res = await fetch(new URL(`${name}?v=${DATA_VERSION}`, DATA_BASE));
-  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+/// What data is in use: the manifest, and files that fell back to the last good version.
+export const dataStatus = { manifest: null, rolledBack: [], failed: [] };
+let dataSet = { manifest: null, fallback: null };
+
+async function fetchBytes(url, onProgress) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const total = Number(res.headers.get('content-length')) || 0;
   if (!res.body || !onProgress) return res.arrayBuffer();
   const reader = res.body.getReader();
@@ -31,47 +37,93 @@ async function fetchBuffer(name, onProgress) {
   return out.buffer;
 }
 
+async function digestHex(buffer) {
+  if (!globalThis.crypto?.subtle) return null;
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', buffer));
+  return Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/// Removes a copy that failed its check from the offline cache, so the next load fetches it again.
+async function dropCached(url) {
+  try {
+    for (const key of await caches.keys()) await (await caches.open(key)).delete(url.href);
+  } catch { /* no cache API */ }
+}
+
+function readLastGood() {
+  try { return JSON.parse(localStorage.getItem(LAST_GOOD_KEY)); } catch { return null; }
+}
+
+/// The data manifest: fetched fresh (the service worker falls back to its copy offline), or the last
+/// manifest that loaded, when the fetched one is missing, unreadable or older.
+async function manifestSet() {
+  if (dataSet.manifest) return dataSet;
+  let fetched = null;
+  try {
+    const res = await fetch(new URL('manifest.json', DATA_BASE), { cache: 'no-store' });
+    if (res.ok) fetched = await res.json();
+  } catch { fetched = null; }
+  const chosen = chooseManifest(fetched, readLastGood());
+  if (!chosen.manifest) throw new Error('The data list (manifest.json) could not be loaded. Check the connection and reload.');
+  dataSet = chosen;
+  dataStatus.manifest = chosen.manifest;
+  return dataSet;
+}
+
+/// One data file, checked against the manifest; the last good version if the new one fails.
+async function loadFile(name, parse, onProgress) {
+  const { manifest, fallback } = await manifestSet();
+  const io = { fetchBytes: (url) => fetchBytes(url, onProgress), digestHex, dropCached };
+  try {
+    const r = await loadVerified(name, candidates(name, manifest, fallback), DATA_BASE, io, parse);
+    if (r.rolledBack) dataStatus.rolledBack.push(name);
+    return r;
+  } catch (e) {
+    dataStatus.failed.push(name);
+    throw e;
+  }
+}
+
 /// Loads states, time zones, exits, rest areas and Discover places. Corridors load later, only for discovery mode.
-/// Rest areas are optional: without them the timeline simply has no rest area rows.
+/// Rest areas and Discover are optional: without them those rows and sections are simply absent.
 export async function loadCoreData(onProgress) {
-  const sizes = { 'states.eab': 2786240, 'timezones.eab': 596473, 'interstates.eax': 11570373, 'restareas.json': 260457, 'discover.json': 442934 };
+  const { manifest } = await manifestSet();
+  const names = ['states.eab', 'timezones.eab', 'interstates.eax', 'restareas.json', 'discover.json'];
+  const total = names.reduce((sum, n) => sum + (manifest.files[n]?.bytes ?? 0), 0) || 1;
   const done = {};
-  const report = () => {
-    const got = Object.values(done).reduce((a, b) => a + b, 0);
-    const total = Object.values(sizes).reduce((a, b) => a + b, 0);
-    onProgress?.(Math.min(1, got / total));
+  const progress = (name) => (n) => {
+    done[name] = n;
+    onProgress?.(Math.min(1, Object.values(done).reduce((a, b) => a + b, 0) / total), total);
   };
-  const get = (name) => fetchBuffer(name, (n) => { done[name] = n; report(); });
-  const [s, z, x, r, d] = await Promise.all([get('states.eab'), get('timezones.eab'), get('interstates.eax'),
-    get('restareas.json').catch(() => null), get('discover.json').catch(() => null)]);
-  const states = new RegionIndex(s);
-  const zones = new RegionIndex(z);
-  const interstates = new InterstateDataset(x);
-  let restAreas = null;
+  const json = (Type) => (bytes) => new Type(JSON.parse(new TextDecoder().decode(bytes)));
+  const [s, z, x, r, d] = await Promise.all([
+    loadFile('states.eab', (b) => new RegionIndex(b), progress('states.eab')),
+    loadFile('timezones.eab', (b) => new RegionIndex(b), progress('timezones.eab')),
+    loadFile('interstates.eax', (b) => new InterstateDataset(b), progress('interstates.eax')),
+    loadFile('restareas.json', json(RestAreaDataset), progress('restareas.json')).catch(() => null),
+    loadFile('discover.json', json(DiscoverDataset), progress('discover.json')).catch(() => null)]);
+  // Everything required loaded: remember these versions as the fallback for the next load.
   try {
-    if (r) restAreas = new RestAreaDataset(JSON.parse(new TextDecoder().decode(r)));
-  } catch { restAreas = null; }
-  let discover = null;
-  try {
-    if (d) discover = new DiscoverDataset(JSON.parse(new TextDecoder().decode(d)));
-  } catch { discover = null; }
-  return { states, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates, restAreas, discover };
+    const used = { 'states.eab': s.entry, 'timezones.eab': z.entry, 'interstates.eax': x.entry,
+      'restareas.json': r?.entry, 'discover.json': d?.entry };
+    localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(usedManifest(manifest, used)));
+  } catch { /* storage full or blocked */ }
+  const zones = z.value;
+  return { states: s.value, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates: x.value,
+    restAreas: r?.value ?? null, discover: d?.value ?? null };
 }
 
 export async function loadCorridors() {
-  return new CorridorDataset(await fetchBuffer('corridors.eac'));
+  return (await loadFile('corridors.eac', (b) => new CorridorDataset(b))).value;
 }
 
 /// EPA vehicle list with verified tank sizes (about 2.5 MB, compressed by the host). Loaded on demand.
 export async function loadVehicles() {
-  const res = await fetch(new URL(`vehicles.json?v=${VEHICLES_VERSION}`, DATA_BASE));
-  if (!res.ok) throw new Error(`vehicle list: HTTP ${res.status}`);
-  return res.json();
+  return (await loadFile('vehicles.json', (b) => JSON.parse(new TextDecoder().decode(b)))).value;
 }
-const VEHICLES_VERSION = '20261028f';
 
 export async function loadDemoRouteJSON() {
-  const res = await fetch(new URL(`demo_miami_manhattan.json?v=${DATA_VERSION}`, DATA_BASE));
+  const res = await fetch(new URL(`demo_miami_manhattan.json?v=${DEMO_VERSION}`, DATA_BASE));
   if (!res.ok) throw new Error(`demo route: HTTP ${res.status}`);
   return res.json();
 }
@@ -80,8 +132,16 @@ export async function loadDemoRouteJSON() {
 
 const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
 
+/// Public services the owner's proxy has switched off for everyone (see proxy.js), set at start.
+export const serviceSwitches = { disabled: [] };
+
+function checkSwitch(service, name) {
+  if (serviceSwitches.disabled.includes(service)) throw new Error(`${name} is switched off on the ExitAtlas server for now`);
+}
+
 /// Routes through the waypoints. Alternatives only exist without stops.
 export async function fetchRoutes(waypoints, { alternatives = true, signal } = {}) {
+  checkSwitch('routing', 'Routing');
   const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
   const params = new URLSearchParams({
     overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
@@ -99,6 +159,7 @@ export async function fetchRoutes(waypoints, { alternatives = true, signal } = {
 
 let lastSearchAt = 0;
 export async function searchPlaces(query, near = null) {
+  checkSwitch('search', 'Place search');
   const wait = 1100 - (Date.now() - lastSearchAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastSearchAt = Date.now();

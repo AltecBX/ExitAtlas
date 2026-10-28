@@ -5,6 +5,7 @@ import SwiftUI
 /// 2000). Tank sizes come from the verified table; any other car asks for its tank size once.
 struct VehiclePickerView: View {
     @Environment(UserSettings.self) private var settings
+    @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     @State private var catalog: VehicleCatalog?
@@ -140,9 +141,11 @@ struct VehiclePickerView: View {
     private func load() async {
         guard catalog == nil else { return }
         do {
+            // From the data set in use (a downloaded update may carry newer EPA data), else the app's own.
+            let directory = app.dataInfo?.directory
             let loaded = try await Task.detached(priority: .userInitiated) { () throws -> VehicleCatalog in
-                guard let url = Bundle.main.url(forResource: "vehicles", withExtension: "json", subdirectory: "Data")
-                    ?? Bundle.main.url(forResource: "vehicles", withExtension: "json") else {
+                let candidates = [directory, DataLocation.bundled].compactMap { $0?.appendingPathComponent("vehicles.json") }
+                guard let url = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
                     throw FeedError("The vehicle list is missing from the app.")
                 }
                 return try VehicleCatalog(contentsOf: url)

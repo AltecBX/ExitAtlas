@@ -1,5 +1,5 @@
 // Gas prices near an exit from Google Places API (New) Nearby Search with fuelOptions, using the
-// driver's own API key. Google's terms: show Google attribution where these prices appear without a
+// driver's own API key, or the owner's key proxy (infra/worker) when one is set. Google's terms: show Google attribution where these prices appear without a
 // Google map, never put them on a non-Google map, and do not store them (memory only, 15 minutes).
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
@@ -26,15 +26,17 @@ export function parsePlaces(json) {
 }
 
 export class GasPrices {
-  constructor({ getKey, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null } = {}) {
+  constructor({ getKey, getProxy = () => null, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null } = {}) {
     this.getKey = getKey;
+    this.getProxy = getProxy;
     this.fetchImpl = fetchImpl;
     this.now = now;
     this.onCall = onCall;
     this.cache = new Map(); // exit id -> {at, stations, error, pending}
   }
 
-  get enabled() { return Boolean(this.getKey()); }
+  /// Prices come through the proxy when it is set and offers them, else with the driver's key.
+  get enabled() { return Boolean(this.getProxy() || this.getKey()); }
 
   /// Cached result for an exit: {stations, error, at} or null when not loaded yet.
   peek(exitId) {
@@ -44,24 +46,30 @@ export class GasPrices {
 
   /// Loads prices for the gas stations within 1.6 km of an exit (one request, then 15 minutes cached).
   async load(exit) {
-    const key = this.getKey();
-    if (!key) return null;
+    const key = this.getKey(), proxy = this.getProxy();
+    if (!key && !proxy) return null;
     const c = this.cache.get(exit.id);
     if (c && (c.pending || this.now() - c.at < TTL)) return c.pending ?? c;
     const pending = (async () => {
       let entry;
       try {
         this.onCall?.();
-        const res = await this.fetchImpl(ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS },
-          body: JSON.stringify({
-            includedTypes: ['gas_station'], maxResultCount: 10, rankPreference: 'DISTANCE',
-            locationRestriction: { circle: { center: { latitude: exit.coordinate.lat, longitude: exit.coordinate.lon }, radius: 1600 } },
-          }),
-        });
+        // The proxy makes the same Google request with the owner's key and answers with Google's JSON.
+        const res = proxy
+          ? await this.fetchImpl(new URL('v1/gas-prices', proxy), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: exit.coordinate.lat, lon: exit.coordinate.lon }),
+          })
+          : await this.fetchImpl(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS },
+            body: JSON.stringify({
+              includedTypes: ['gas_station'], maxResultCount: 10, rankPreference: 'DISTANCE',
+              locationRestriction: { circle: { center: { latitude: exit.coordinate.lat, longitude: exit.coordinate.lon }, radius: 1600 } },
+            }),
+          });
         const json = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
+        if (!res.ok) throw new Error((typeof json?.error === 'string' ? json.error : json?.error?.message) || `HTTP ${res.status}`);
         entry = { at: this.now(), stations: parsePlaces(json ?? {}), error: null };
       } catch (e) {
         entry = { at: this.now(), stations: [], error: e.message };

@@ -124,6 +124,15 @@ final class ScreenshotTests: XCTestCase {
             passport.tap()
             sleep(2)
             snap("6b Passport", dark)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
+
+        let sources = app.buttons["Data sources and licenses"].firstMatch
+        if reveal(sources, in: app) {
+            sources.tap()
+            sleep(2)
+            snap("6c Data sources", dark)
         }
     }
 

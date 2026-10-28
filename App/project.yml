@@ -28,8 +28,11 @@ targets:
       - path: ExitAtlas
         excludes:
           - "Resources/Data/**"
+          - "PrivacyInfo.xcprivacy"
       - path: ExitAtlas/Resources/Data
         type: folder
+        buildPhase: resources
+      - path: ExitAtlas/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: Shared
     dependencies:

@@ -31,6 +31,9 @@ jobs:
       - name: Test the JavaScript engine against the route fixtures
         working-directory: web
         run: npm test
+      - name: Test the key proxy Worker
+        working-directory: infra/worker
+        run: npm test
 
   ios-app:
     name: iOS app build and screenshots (Xcode)
@@ -57,7 +60,15 @@ jobs:
           xcodebuild -project ExitAtlas.xcodeproj -scheme ExitAtlas \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO -quiet test
+      - name: Check the app bundle (privacy manifest, data manifest)
+        run: |
+          APP=$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name ExitAtlas.app -type d | head -1)
+          echo "$APP"
+          plutil -lint "$APP/PrivacyInfo.xcprivacy"
+          test -f "$APP/Data/manifest.json"
+          plutil -p "$APP/Info.plist" | grep -E "ITSAppUsesNonExemptEncryption|NSLocation" 
       - name: Export screenshots
         if: always()
         run: |

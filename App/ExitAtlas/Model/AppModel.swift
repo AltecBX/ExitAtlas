@@ -14,6 +14,9 @@ final class AppModel {
 
     private(set) var loadState: LoadState = .loading
     private(set) var data: BundledData?
+    /// Which data set is loaded (bundled or downloaded) and its manifest.
+    private(set) var dataInfo: DataSetInfo?
+    let dataUpdater = DataUpdater()
     let settings = UserSettings()
     let library = TripLibrary()
     let trip = TripController()
@@ -33,14 +36,51 @@ final class AppModel {
     func start() async {
         guard data == nil else { return }
         do {
-            let loaded = try await Task.detached(priority: .userInitiated) { try BundledData.load() }.value
-            data = loaded
-            trip.attach(data: loaded)
+            let loaded = try await Task.detached(priority: .userInitiated) { try BundledData.loadBest() }.value
+            data = loaded.data
+            dataInfo = loaded.info
+            trip.attach(data: loaded.data)
             loadState = .ready
             startDemoFromLaunchArguments()
+            await refreshDataIfDue()
         } catch {
             loadState = .failed(error.localizedDescription)
         }
+    }
+
+    /// Switches to newly downloaded data when no trip or discovery drive is running (a running trip
+    /// keeps the data it started with). Called after a download and when the app becomes active.
+    func applyDownloadedDataIfIdle() async {
+        guard case .installed = dataUpdater.status, trip.mode == .idle else { return }
+        guard let loaded = try? await Task.detached(priority: .utility, operation: { try BundledData.loadBest() }).value else { return }
+        data = loaded.data
+        dataInfo = loaded.info
+        trip.attach(data: loaded.data)
+    }
+
+    /// Daily data check (Wi-Fi only), then switch to new data if no trip is running. Demos and UI
+    /// screenshots keep the data they were built with.
+    func refreshDataIfDue() async {
+        guard let info = dataInfo, !ProcessInfo.processInfo.arguments.contains("-demoTrip") else { return }
+        await dataUpdater.checkIfDue(using: info)
+        await applyDownloadedDataIfIdle()
+    }
+
+    /// Settings: check for newer data now, on any network.
+    func checkForDataUpdate() async {
+        guard let info = dataInfo else { return }
+        await dataUpdater.check(using: info)
+        await applyDownloadedDataIfIdle()
+    }
+
+    /// Settings: go back to the data bundled with the app.
+    func useBundledData() async {
+        guard trip.mode == .idle else { return }
+        dataUpdater.removeDownloads()
+        guard let loaded = try? await Task.detached(priority: .userInitiated, operation: { try BundledData.loadBest() }).value else { return }
+        data = loaded.data
+        dataInfo = loaded.info
+        trip.attach(data: loaded.data)
     }
 
     func startDemo(atMiles miles: Double = 0, frozen: Bool = false) {

@@ -17,7 +17,8 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 78 tests pass on Linux, with the web's 63 tests covering the same cases in JavaScript. |
+| Engine (`Sources/ExitAtlasCore`) | 82 tests pass on Linux, with the web's 71 tests covering the same cases in JavaScript. |
+| Key proxy (`infra/worker`) | 7 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
 
@@ -61,6 +62,7 @@ In both the web version and the iOS app unless marked.
 * Home and recent places, for one tap routing.
 * The trip is saved every 30 seconds and resumes after a reload (on iOS, resuming needs a connection to recompute the route).
 * State, time zone, exit and rest area data are on the phone; no connection is needed for them.
+* Data updates: each data file is checked against the SHA-256 in `manifest.json` before use, and a bad or unreadable download falls back to the last set that worked. The iOS app checks for newer data once a day on Wi-Fi and never switches data during a trip ([docs/11](docs/11_release_readiness.md)).
 
 Exit and rest area data cover signed interstates only. Turnpikes and US routes without an interstate number show no exits. Rest area coverage depends on OpenStreetMap: some service plazas are missing, and closures are not known.
 
@@ -72,6 +74,7 @@ Entered in Settings and stored only on the phone.
 |---|---|---|
 | Google Maps Platform, Places API (New) | Gas prices per station | Google bills per lookup after a monthly free allowance; ExitAtlas shows its lookup count in Settings. See [web/README.md](web/README.md). |
 | NREL developer key ([developer.nlr.gov](https://developer.nlr.gov/signup/)) | More than 10 charger lookups an hour | Free |
+| ExitAtlas key proxy URL (web) | Prices and charger lookups with the owner's keys and daily limits instead of a key on the phone | Cloudflare Workers Free plan; Google bills price lookups |
 
 ## Layout
 
@@ -82,7 +85,8 @@ Entered in Settings and stored only on the phone.
 | `Tests/ExitAtlasCoreTests` | Engine tests on real routes with independent oracles |
 | `App/` | SwiftUI iOS app (XcodeGen spec, MapKit, Core Location) |
 | `App/ExitAtlas/Resources/Data` | Bundled offline data: state and time zone boundaries, exits and services, interstate corridors, vehicles |
-| `tools/data-pipeline` | Scripts that rebuild the bundled data from pinned public sources |
+| `tools/data-pipeline` | Scripts that rebuild the bundled data from pinned public sources, and `manifest.json` with versions and checksums |
+| `infra/worker` | Optional key proxy for Cloudflare Workers: server side keys, daily budgets, off switches |
 | `docs/` | Research, feature comparison, data sources and licensing, architecture, spec, data models, screens, roadmap, testing ([docs/README.md](docs/README.md)) |
 
 ## Develop

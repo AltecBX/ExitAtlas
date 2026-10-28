@@ -22,13 +22,18 @@ export function parseStations(json) {
   }));
 }
 
-/// Fetches chargers within 2.5 miles of the route. network: 'Tesla' or 'all'.
-export async function fetchChargers(polyline, { apiKey = DEMO_KEY, network = 'Tesla', fetchImpl = (...a) => fetch(...a) } = {}) {
+/// Fetches chargers within 2.5 miles of the route. network: 'Tesla' or 'all'. With `proxy` (the owner's
+/// key proxy, infra/worker) the same search goes through it and no key leaves the phone.
+export async function fetchChargers(polyline, { apiKey = DEMO_KEY, network = 'Tesla', proxy = null, fetchImpl = (...a) => fetch(...a) } = {}) {
   const body = new URLSearchParams({ route: routeWKT(polyline), distance: '2.5', fuel_type: 'ELEC', ev_charging_level: 'dc_fast', status: 'E', limit: 'all' });
   if (network === 'Tesla') body.set('ev_network', 'Tesla');
-  const res = await fetchImpl(`${AFDC}?api_key=${encodeURIComponent(apiKey || DEMO_KEY)}`, { method: 'POST', body });
+  const res = proxy
+    ? await fetchImpl(new URL('v1/chargers', proxy), { method: 'POST', body })
+    : await fetchImpl(`${AFDC}?api_key=${encodeURIComponent(apiKey || DEMO_KEY)}`, { method: 'POST', body });
   const json = await res.json().catch(() => null);
-  if (res.status === 429) throw new Error('charger lookups are rate limited on the demo key; add a free NREL key in Settings');
-  if (!res.ok || !json) throw new Error(json?.errors?.join(', ') || json?.error?.message || `HTTP ${res.status}`);
+  if (res.status === 429) {
+    throw new Error(proxy ? (json?.error ?? 'the daily charger lookup budget is used up') : 'charger lookups are rate limited on the demo key; add a free NREL key in Settings');
+  }
+  if (!res.ok || !json) throw new Error(json?.errors?.join(', ') || (typeof json?.error === 'string' ? json.error : json?.error?.message) || `HTTP ${res.status}`);
   return parseStations(json);
 }

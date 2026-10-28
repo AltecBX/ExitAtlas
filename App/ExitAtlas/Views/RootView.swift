@@ -38,10 +38,13 @@ struct RootView: View {
             .tint(Theme.signGreen)
             .preferredColorScheme(app.forceDark ? .dark : nil)
             .onChange(of: trip.mode) { _, mode in
-                if mode != .idle { tab = .drive }
+                if mode != .idle { tab = .drive } else { Task { await app.applyDownloadedDataIfIdle() } }
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { trip.appBecameActive() }
+                if phase == .active {
+                    trip.appBecameActive()
+                    Task { await app.refreshDataIfDue() }
+                }
             }
         }
     }

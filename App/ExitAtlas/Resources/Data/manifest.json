@@ -1,0 +1,89 @@
+{
+ "kind": "manifest",
+ "schema": 1,
+ "version": 202610281822,
+ "content": "33cd122cb0ca558018293373432e1e2630b9c79a7500347dfc8b01504d5416b2",
+ "generated_at": "2026-10-28T18:22:16+00:00",
+ "files": {
+  "states.eab": {
+   "bytes": 2786240,
+   "sha256": "6e6eba87ea1aab83e90c8ab8dbf545fb3c7257a7823ef0e1b4ad309e546bbd31",
+   "required": true,
+   "role": "State boundaries",
+   "kind": "states",
+   "source": "U.S. Census Bureau TIGER/Line Shapefiles 2026, tl_2026_us_state",
+   "license": "Public domain (U.S. Government work)",
+   "generated_at": "2026-10-27T20:44:03+00:00"
+  },
+  "timezones.eab": {
+   "bytes": 596473,
+   "sha256": "75e1992e308ac57b302e6a0bbb0c65b23887c00f656940f9f64330d30c6d352a",
+   "required": true,
+   "role": "Time zones",
+   "kind": "tzones",
+   "source": "USDOT BTS National Transportation Atlas Database (NTAD) Time Zones",
+   "license": "Public domain. Work of the United States government (17 U.S.C. 101), unrestricted public use",
+   "generated_at": "2026-10-27T20:44:03+00:00",
+   "data_last_edit": "2024-06-28"
+  },
+  "interstates.eax": {
+   "bytes": 11570373,
+   "sha256": "dec1e468421ba7a4a398fb11f3bb4d042a0189bb4006722d846cc213feb76c2c",
+   "required": true,
+   "role": "Exits and services",
+   "kind": "interstates",
+   "source": "OpenInterstate release-2026-07-13-gha-33 + reachability score-20260715-1351876",
+   "license": "ODbL-1.0",
+   "attribution": "© OpenStreetMap contributors. Exit and place data from OpenInterstate (ODbL).",
+   "generated_at": "2026-10-28T17:26:56+00:00",
+   "osm_extract_date": "2026-07-12"
+  },
+  "corridors.eac": {
+   "bytes": 2317441,
+   "sha256": "3a3af7110c7d9ea4d5d7e33c412ba4fdcdb8c3a6bbbee54541811b496347ae23",
+   "required": true,
+   "role": "Interstate corridors (discovery mode)",
+   "kind": "corridors",
+   "source": "OpenInterstate release-2026-07-13-gha-33 + reachability score-20260715-1351876",
+   "license": "ODbL-1.0",
+   "attribution": "© OpenStreetMap contributors. Exit and place data from OpenInterstate (ODbL).",
+   "generated_at": "2026-10-27T20:43:55+00:00",
+   "osm_extract_date": "2026-07-12"
+  },
+  "restareas.json": {
+   "bytes": 260457,
+   "sha256": "22b501f714c98cdfe3faa4c0008e084f2b243203ccb75167caaa7fd1b2ce2445",
+   "required": false,
+   "role": "Rest areas and service plazas",
+   "kind": "restareas",
+   "source": "OpenStreetMap via OpenInterstate release-2026-07-13-gha-33 places, tags from the OSM API",
+   "license": "ODbL-1.0",
+   "attribution": "© OpenStreetMap contributors. Truck parking counts: FHWA (public domain).",
+   "generated_at": "2026-10-28T17:26:49+00:00",
+   "tags_fetched": "2026-10-28",
+   "count": 1332
+  },
+  "discover.json": {
+   "bytes": 442934,
+   "sha256": "7031e293978b278def3d0bb979aea3838295214dfd4b4685005a49a61c967809",
+   "required": false,
+   "role": "Discover ahead places",
+   "kind": "discover",
+   "source": "Wikidata (query.wikidata.org), places within 8 to 16 km of an interstate, scored by Wikimedia site links and designation",
+   "license": "CC0-1.0",
+   "attribution": "Wikidata (CC0). Descriptions from Wikidata.",
+   "generated_at": "2026-10-28T18:16:46+00:00",
+   "fetched": "2026-10-28",
+   "count": 1620
+  },
+  "vehicles.json": {
+   "bytes": 3102825,
+   "sha256": "b1acd2cbed9d50c52a14bc208a466ff7b0841acb28d331c1c97e89c094c767e5",
+   "required": false,
+   "role": "Vehicles, fuel economy and tank sizes",
+   "source": "U.S. EPA and DOE fuel economy data (fueleconomy.gov), vehicles.csv",
+   "license": "Public domain (U.S. Government work)",
+   "generated_at": "2026-10-28T03:25:15+00:00"
+  }
+ }
+}
