@@ -1,7 +1,8 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// "Drive about 3 more hours, then a pet friendly hotel": suggestions near a drive time ahead.
+/// "Drive about 3 more hours, then a hotel": suggestions near a drive time ahead. Pet policies are not
+/// in the data yet, so the view says so instead of filtering on them.
 struct StopPlannerView: View {
     @Environment(TripController.self) private var trip
     @Environment(\.dismiss) private var dismiss

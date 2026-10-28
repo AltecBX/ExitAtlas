@@ -13,14 +13,14 @@ Why native Swift:
 
 | Layer | Contents | Depends on |
 |---|---|---|
-| Data | Bundled binary datasets: `states.eab`, `timezones.eab`, `interstates.eax`, `corridors.eac` | Built offline by `tools/data-pipeline` |
+| Data | Bundled datasets: `states.eab`, `timezones.eab`, `interstates.eax`, `corridors.eac`, `vehicles.json` (read by the web version only so far), `demo_miami_manhattan.json` | Built offline by `tools/data-pipeline` |
 | Engine (`ExitAtlasCore`) | Geodesy, `RoutePolyline`, `RegionIndex`, `RegionSegmenter`, `ExitMatcher`, `RouteProgressTracker`, `TripLedger`, `PaceModel`, `TripPlan`, `TripSnapshot`, `TripSession`, `HighwayDiscovery`, `AlongRouteSearch`, `StopPlanner`, `FuelPlanner`, `GPSSimulator` | Foundation only |
 | Platform services (app) | `LocationService` (Core Location), `MapKitRouteService`, `PlaceSearch`, `Announcer` (AVSpeech), `DriveSimulator` | Apple frameworks |
 | Controllers (app) | `AppModel`, `TripController`, `UserSettings`, `TripLibrary` (Observation framework) | Engine and services |
 | UI (app) | SwiftUI views: Drive, Exits, Trip, Settings, sheets | Controllers |
 | Later: backend | Alerts aggregation (NWS, WZDx, 511), AFDC refresh, dataset publishing, optional Valhalla | Public feeds |
 
-Data flow per GPS fix: `LocationService` emits a `LocationSample`, `TripController` passes it to `TripSession.ingest`, which runs the tracker, updates the ledger and pace, and returns an immutable `TripSnapshot`. SwiftUI renders the snapshot. Nothing in the UI recomputes geometry.
+Data flow per GPS fix: `LocationService` emits a `LocationSample`, `TripController` passes it to `TripSession.ingest`, which runs the tracker, updates the ledger and pace, and returns an immutable `TripSnapshot`. SwiftUI renders the snapshot. Geometry work stays in the engine, with three known exceptions to clean up: the map slices the route polyline (`TripController`), `RouteMap` asks the polyline for the current coordinate, and `FuelView` runs `FuelPlanner` in its body.
 
 ## 3.3 The route, state and exit engine
 

@@ -21,7 +21,7 @@ public struct FuelPriceObservation: Sendable, Codable, Hashable {
     public let pricePerGallon: Double
     /// When the provider says the price was observed or last updated.
     public let observedAt: Date
-    /// Provider name shown next to the price ("OPIS", "iExit", "Entered by you").
+    /// Provider name shown next to the price (for example "OPIS" or "Google Maps").
     public let source: String
 
     public init(placeID: String, grade: FuelGrade, pricePerGallon: Double, observedAt: Date, source: String) {

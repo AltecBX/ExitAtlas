@@ -16,7 +16,8 @@ public struct SegmentForecast: Sendable, Hashable, Identifiable {
     public let exitCount: Int
     /// Exits still ahead inside this segment.
     public let exitsRemaining: Int
-    /// Actual entry time for current and completed segments when tracked, estimated otherwise.
+    /// Estimated entry time for upcoming segments; nil for the current and completed ones (actual
+    /// crossing times are not recorded yet).
     public let entryTime: Date?
     public let exitTime: Date?
     public let entryTimeZoneID: String?
