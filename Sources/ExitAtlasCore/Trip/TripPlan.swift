@@ -6,13 +6,15 @@ public struct TripDatasets: Sendable {
     public let timeZones: TimeZoneResolver?
     public let interstates: InterstateDataset?
     public let restAreas: RestAreaDataset?
+    public let discover: DiscoverDataset?
 
     public init(states: RegionIndex, timeZones: TimeZoneResolver?, interstates: InterstateDataset?,
-                restAreas: RestAreaDataset? = nil) {
+                restAreas: RestAreaDataset? = nil, discover: DiscoverDataset? = nil) {
         self.states = states
         self.timeZones = timeZones
         self.interstates = interstates
         self.restAreas = restAreas
+        self.discover = discover
     }
 }
 
@@ -24,6 +26,8 @@ public struct TripPlan: Sendable {
     public let exits: [RouteExit]
     /// Rest areas and service plazas on the driver's side, in route order.
     public let restAreas: [RouteRestArea]
+    /// Notable places near the route, in route order.
+    public let discover: [RouteDiscovery]
     /// Exit distances along the route, for fast counting.
     private let exitDistances: [Double]
     private let restAreaDistances: [Double]
@@ -47,6 +51,11 @@ public struct TripPlan: Sendable {
             restAreas = []
         }
         restAreaDistances = restAreas.map(\.distanceAlongRoute)
+        if let discoverDataset = datasets.discover {
+            discover = DiscoverAhead.match(route: route.polyline, dataset: discoverDataset, exits: exits)
+        } else {
+            discover = []
+        }
         timeZoneIDs = states.segments.map { seg in
             datasets.timeZones?.identifier(at: seg.entryCoordinate, stateCode: seg.code)
         }

@@ -2,6 +2,7 @@
 import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
 import { routeFromOSRM } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
+import { DiscoverDataset } from '../engine/discover.js';
 import { distance, initialBearing } from '../engine/geo.js';
 
 export const DATA_BASE = new URL('../App/ExitAtlas/Resources/Data/', document.baseURI);
@@ -30,10 +31,10 @@ async function fetchBuffer(name, onProgress) {
   return out.buffer;
 }
 
-/// Loads states, time zones, exits and rest areas. Corridors load later, only for discovery mode.
+/// Loads states, time zones, exits, rest areas and Discover places. Corridors load later, only for discovery mode.
 /// Rest areas are optional: without them the timeline simply has no rest area rows.
 export async function loadCoreData(onProgress) {
-  const sizes = { 'states.eab': 2786240, 'timezones.eab': 596473, 'interstates.eax': 11570373, 'restareas.json': 260457 };
+  const sizes = { 'states.eab': 2786240, 'timezones.eab': 596473, 'interstates.eax': 11570373, 'restareas.json': 260457, 'discover.json': 442941 };
   const done = {};
   const report = () => {
     const got = Object.values(done).reduce((a, b) => a + b, 0);
@@ -41,8 +42,8 @@ export async function loadCoreData(onProgress) {
     onProgress?.(Math.min(1, got / total));
   };
   const get = (name) => fetchBuffer(name, (n) => { done[name] = n; report(); });
-  const [s, z, x, r] = await Promise.all([get('states.eab'), get('timezones.eab'), get('interstates.eax'),
-    get('restareas.json').catch(() => null)]);
+  const [s, z, x, r, d] = await Promise.all([get('states.eab'), get('timezones.eab'), get('interstates.eax'),
+    get('restareas.json').catch(() => null), get('discover.json').catch(() => null)]);
   const states = new RegionIndex(s);
   const zones = new RegionIndex(z);
   const interstates = new InterstateDataset(x);
@@ -50,7 +51,11 @@ export async function loadCoreData(onProgress) {
   try {
     if (r) restAreas = new RestAreaDataset(JSON.parse(new TextDecoder().decode(r)));
   } catch { restAreas = null; }
-  return { states, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates, restAreas };
+  let discover = null;
+  try {
+    if (d) discover = new DiscoverDataset(JSON.parse(new TextDecoder().decode(d)));
+  } catch { discover = null; }
+  return { states, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates, restAreas, discover };
 }
 
 export async function loadCorridors() {

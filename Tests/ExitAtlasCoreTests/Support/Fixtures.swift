@@ -17,6 +17,7 @@ enum Fixtures {
     static let interstates: InterstateDataset = try! InterstateDataset(contentsOf: dataDirectory.appendingPathComponent("interstates.eax"))
     static let corridors: CorridorDataset = try! CorridorDataset(contentsOf: dataDirectory.appendingPathComponent("corridors.eac"))
     static let restAreas: RestAreaDataset = try! RestAreaDataset(contentsOf: dataDirectory.appendingPathComponent("restareas.json"))
+    static let discover: DiscoverDataset = try! DiscoverDataset(contentsOf: dataDirectory.appendingPathComponent("discover.json"))
 
     struct RouteFixture: Decodable {
         struct Step: Decodable {
