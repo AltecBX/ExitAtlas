@@ -55,17 +55,19 @@ struct DriveActivityLockScreenView: View {
             }
             HStack(spacing: 8) {
                 if let next = content.nextStateCode ?? content.nextStateName {
+                    // The state line and arrival keep their full width; the exit count gives way first.
                     Label("\(next) line \(ActivityFormat.miles(content.stateLineMeters))", systemImage: "flag.checkered")
-                        .lineLimit(1)
+                        .lineLimit(1).fixedSize().layoutPriority(2)
                     if let left = content.exitsLeftInState, let here = content.stateCode {
-                        Text("· \(left) \(left == 1 ? "exit" : "exits") left in \(here)").foregroundStyle(.secondary).lineLimit(1)
+                        Text("· \(left) \(left == 1 ? "exit" : "exits") left in \(here)").foregroundStyle(.secondary)
+                            .lineLimit(1).minimumScaleFactor(0.85)
                     }
                 } else if let here = content.stateCode {
                     Label("In \(here), last state", systemImage: "flag.checkered")
                 }
                 Spacer(minLength: 4)
                 if let eta = content.eta {
-                    Text("Arrive \(eta, style: .time)").monospacedDigit().lineLimit(1)
+                    Text("Arrive \(eta, style: .time)").monospacedDigit().lineLimit(1).fixedSize().layoutPriority(2)
                 }
             }
             .font(.footnote.weight(.semibold))
