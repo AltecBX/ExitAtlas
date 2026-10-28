@@ -156,9 +156,9 @@ Each milestone ends in a pull request with tests, screenshots where the interfac
 | Milestone | State | Verified |
 |---|---|---|
 | 1 | Merged (PR #3) | Web and engine tests; web screenshots on 4 sizes |
-| 2 | PR #4 | Engine ports tested against the web cases (66 tests then); iOS builds and its screenshot tests pass in CI; not run on a device |
-| 3 | PR #5 | See below |
-| 4 | Next PR | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
+| 2 | Merged (PR #4) | Engine ports tested against the web cases (66 tests then); iOS builds and its screenshot tests pass in CI; not run on a device |
+| 3 | Merged (PR #5) | See below |
+| 4 | PR #6 | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
 
 Milestone 3 delivered:
 
