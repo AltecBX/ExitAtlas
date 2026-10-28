@@ -14,12 +14,24 @@ final class ScreenshotTests: XCTestCase {
 
     private func capture(dark: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", "370"] + (dark ? ["-forceDark"] : [])
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "180"] + (dark ? ["-forceDark"] : [])
         app.launch()
 
         XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
         sleep(2)
         snap("1 Drive", dark)
+        app.swipeUp()
+        sleep(1)
+        snap("1b Drive lower", dark)
+
+        let fuel = app.buttons["fuelCard"].firstMatch
+        if fuel.waitForExistence(timeout: 5) {
+            fuel.tap()
+            sleep(2)
+            snap("1c Fuel stop", dark)
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
+        }
 
         app.tabBars.buttons["Exits"].tap()
         XCTAssertTrue(app.navigationBars["Exits Ahead"].waitForExistence(timeout: 10))
@@ -40,6 +52,10 @@ final class ScreenshotTests: XCTestCase {
         app.swipeUp()
         sleep(1)
         snap("5 Itinerary", dark)
+
+        app.tabBars.buttons["Settings"].tap()
+        sleep(2)
+        snap("6 Settings", dark)
     }
 
     private func snap(_ name: String, _ dark: Bool) {

@@ -84,3 +84,44 @@ public struct VoiceAnnouncements: Sendable {
         return whole == 1 ? "1 mile" : "\(whole) miles"
     }
 }
+
+/// Spoken fuel and charging stop messages (the same rules as the web version): the recommended stop
+/// at about 10 miles and again at 2 miles, and once when range drops under the buffer.
+public struct FuelAnnouncements: Sendable {
+    private var said = Set<String>()
+
+    public init() {}
+
+    /// Call after the driver enters a new range so the messages can be given again.
+    public mutating func reset() { said.removeAll() }
+
+    public mutating func message(for plan: RangePlan, electric: Bool, onRoute: Bool, enabled: Bool) -> String? {
+        guard enabled, onRoute else { return nil }
+        func what(_ s: PlannedStop) -> String {
+            if let c = s.candidate.charger {
+                return c.station.name.replacingOccurrences(of: " - Tesla Supercharger", with: " Supercharger")
+            }
+            return s.candidate.exit?.displayTitle ?? "the next stop"
+        }
+        let mile = Geodesy.metersPerMile
+        if let rec = plan.recommended, plan.status == .planned {
+            for (miles, tag) in [(2.0, "near"), (10.0, "far")] {
+                let key = "\(rec.key)|\(tag)"
+                if rec.ahead <= miles * mile, rec.ahead > 0.3 * mile, !said.contains(key) {
+                    said.insert(key)
+                    said.insert("\(rec.key)|far")
+                    return "\(electric ? "Charging stop" : "Fuel stop"), \(what(rec)), in \(VoiceAnnouncements.spokenMiles(rec.ahead)). "
+                        + "About \(Int((rec.rangeOnArrival / mile).rounded())) miles of range left when you get there."
+                }
+            }
+        }
+        if plan.status != .destination, plan.range < plan.buffer, !said.contains("low") {
+            said.insert("low")
+            if let rec = plan.recommended {
+                return "\(electric ? "Charge" : "Fuel") is low. Nearest \(electric ? "charger" : "gas") is \(what(rec)), in \(VoiceAnnouncements.spokenMiles(rec.ahead))."
+            }
+            return "\(electric ? "Charge" : "Fuel") is low, and nothing is listed ahead."
+        }
+        return nil
+    }
+}

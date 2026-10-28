@@ -76,36 +76,105 @@ public struct TripLedger: Sendable, Codable, Hashable {
     }
 }
 
-/// Learns how the driver's actual moving pace compares with the provider's travel time model.
+/// Learns the driver's moving pace against the travel time model (the same model as the web version).
 ///
-/// Only intervals with real movement count, so a rest stop delays the ETA by its own length
-/// instead of making the remaining drive look slower. A 30 minute prior keeps early estimates
-/// close to the provider's numbers.
+/// Both estimates are ratios of actual to modeled seconds over moving time only, so stops never
+/// count as slow driving:
+///   * recent pace: about the last 5 minutes of moving time;
+///   * trip pace: everything driven this trip, with a 15 minute prior centered on the driver's
+///     pace from earlier trips (or the model when there is no history).
+/// Predicted time to a target is the integral of the pace over the modeled road ahead: the next
+/// 30 modeled minutes at the recent pace, then shifting to trip pace with a 1 hour time constant.
+/// The prediction always increases with distance, so ETAs along the route stay in order.
 public struct PaceModel: Sendable, Codable, Hashable {
+    /// Seconds of moving time over which recent pace fades (exponential time constant).
+    public static let recentTau: Double = 300
+    /// Modeled seconds ahead that are predicted entirely at the recent pace.
+    public static let recentHorizon: Double = 1800
+    /// Beyond the horizon, the prediction moves from recent to trip pace with this time constant.
+    public static let blendTau: Double = 3600
+
     public private(set) var observedSeconds: Double = 0
     public private(set) var expectedSeconds: Double = 0
-    public var priorSeconds: Double = 1800
+    public var priorSeconds: Double = 900
+    /// The driver's usual pace from earlier trips (1 means the model).
+    public private(set) var priorFactor: Double = 1
+    public private(set) var recentObserved: Double = 0
+    public private(set) var recentExpected: Double = 0
+    public private(set) var recentMeters: Double = 0
 
-    public init() {}
-
-    /// Ratio of actual to expected time. Above 1 means slower than the provider predicted.
-    public var factor: Double {
-        let f = (observedSeconds + priorSeconds) / (expectedSeconds + priorSeconds)
-        return min(max(f, 0.6), 2.0)
+    public init(priorFactor: Double = 1) {
+        self.priorFactor = Self.clamp(priorFactor)
     }
 
-    public mutating func observe(expected: Double, actual: Double) {
+    static func clamp(_ f: Double) -> Double { min(max(f, 0.4), 2.5) }
+
+    /// Trip ratio of actual to modeled time. Below 1 means faster than the model.
+    public var factor: Double {
+        Self.clamp((observedSeconds + priorSeconds * priorFactor) / (expectedSeconds + priorSeconds))
+    }
+
+    /// Ratio over about the last 5 minutes of moving time, or nil with under 2 minutes of data.
+    public var recentFactor: Double? {
+        guard recentObserved >= 120, recentExpected > 0 else { return nil }
+        return Self.clamp(recentObserved / recentExpected)
+    }
+
+    /// Average moving speed over the recent window (m/s), or nil.
+    public var recentSpeed: Double? {
+        recentObserved >= 120 ? recentMeters / recentObserved : nil
+    }
+
+    /// Predicted driving seconds for a stretch the model says takes `modelSeconds`.
+    public func seconds(forModelSeconds modelSeconds: Double) -> Double {
+        let s = max(0, modelSeconds)
+        let trip = factor
+        guard let recent = recentFactor else { return trip * s }
+        // Integral of the weight of recent pace: 1 up to the horizon, then exponential decay.
+        let h = Self.recentHorizon, tau = Self.blendTau
+        let w = s <= h ? s : h + tau * (1 - exp(-(s - h) / tau))
+        return trip * s + (recent - trip) * w
+    }
+
+    /// Average factor over a stretch of `modelSeconds` (predicted seconds / modeled seconds).
+    public func factor(forModelSeconds modelSeconds: Double) -> Double {
+        guard modelSeconds > 0 else { return recentFactor ?? factor }
+        return seconds(forModelSeconds: modelSeconds) / modelSeconds
+    }
+
+    /// Modeled seconds that take `seconds` of predicted driving (inverse of `seconds(forModelSeconds:)`).
+    public func modelSeconds(forSeconds seconds: Double) -> Double {
+        var lo = 0.0, hi = max(1, seconds / 0.4)
+        for _ in 0..<60 {
+            let mid = (lo + hi) / 2
+            if self.seconds(forModelSeconds: mid) < seconds { lo = mid } else { hi = mid }
+        }
+        return (lo + hi) / 2
+    }
+
+    public mutating func observe(expected: Double, actual: Double, meters: Double = 0) {
         guard expected > 0, actual > 0, actual < 600 else { return }
         expectedSeconds += expected
         observedSeconds += actual
+        let decay = exp(-actual / Self.recentTau)
+        recentObserved = recentObserved * decay + actual
+        recentExpected = recentExpected * decay + expected
+        recentMeters = recentMeters * decay + meters
     }
 
-    /// Re-anchors the model to a fresh provider estimate of the remaining drive (for example
-    /// MKDirections.calculateETA with live traffic). The provider number replaces local history.
-    public mutating func calibrate(providerRemainingSeconds: Double, profileRemainingSeconds: Double) {
-        guard providerRemainingSeconds > 0, profileRemainingSeconds > 0 else { return }
-        let ratio = min(max(providerRemainingSeconds / profileRemainingSeconds, 0.6), 2.0)
-        expectedSeconds = priorSeconds * 4
-        observedSeconds = expectedSeconds * ratio + (ratio - 1) * priorSeconds
+    // Records saved by earlier versions have only the first three fields.
+    enum CodingKeys: String, CodingKey {
+        case observedSeconds, expectedSeconds, priorSeconds, priorFactor, recentObserved, recentExpected, recentMeters
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        observedSeconds = try c.decodeIfPresent(Double.self, forKey: .observedSeconds) ?? 0
+        expectedSeconds = try c.decodeIfPresent(Double.self, forKey: .expectedSeconds) ?? 0
+        priorSeconds = try c.decodeIfPresent(Double.self, forKey: .priorSeconds) ?? 900
+        priorFactor = Self.clamp(try c.decodeIfPresent(Double.self, forKey: .priorFactor) ?? 1)
+        recentObserved = try c.decodeIfPresent(Double.self, forKey: .recentObserved) ?? 0
+        recentExpected = try c.decodeIfPresent(Double.self, forKey: .recentExpected) ?? 0
+        recentMeters = try c.decodeIfPresent(Double.self, forKey: .recentMeters) ?? 0
     }
 }

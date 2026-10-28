@@ -51,7 +51,19 @@ final class AppModel {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-demoTrip") else { return }
         let miles = i + 1 < args.count ? Double(args[i + 1]) ?? 0 : 0
+        // -demoVehicle: a 2015 Camry 2.5 L (EPA 34 mpg highway, verified 17 gal tank) for screenshots.
+        if args.contains("-demoVehicle"), let url = Bundle.main.url(forResource: "vehicles", withExtension: "json", subdirectory: "Data"),
+           let catalog = try? VehicleCatalog(contentsOf: url),
+           let camry = catalog.versions(year: 2015, make: "Toyota", model: "Camry").first(where: { $0.label.hasPrefix("4 cyl 2.5 L") }) {
+            settings.vehicle = DriverVehicle(year: 2015, make: "Toyota", model: "Camry", version: camry)
+            settings.favoriteBrands = ["Shell"]
+        }
         startDemo(atMiles: miles, frozen: true)
+        // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
+        // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
+        if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {
+            trip.setRange(miles: range, drivenAtEntry: miles * Geodesy.metersPerMile)
+        }
     }
 
     /// Builds plans for route alternatives off the main thread.

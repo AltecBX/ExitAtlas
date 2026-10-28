@@ -49,6 +49,10 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        UIAppFonts:
+          - Overpass-SemiBold.ttf
+          - Overpass-Bold.ttf
+          - Overpass-ExtraBold.ttf
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

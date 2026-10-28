@@ -2,7 +2,7 @@ import ExitAtlasCore
 import Foundation
 import Observation
 
-/// User preferences, persisted in UserDefaults.
+/// User preferences, persisted in UserDefaults. API keys stay on this device.
 @MainActor
 @Observable
 final class UserSettings {
@@ -12,33 +12,57 @@ final class UserSettings {
     var voiceEnabled: Bool { didSet { defaults.set(voiceEnabled, forKey: "voiceEnabled") } }
     var announceExits: Bool { didSet { defaults.set(announceExits, forKey: "announceExits") } }
     var announceStateLines: Bool { didSet { defaults.set(announceStateLines, forKey: "announceStateLines") } }
+    var announceFuel: Bool { didSet { defaults.set(announceFuel, forKey: "announceFuel") } }
     var avoidTolls: Bool { didSet { defaults.set(avoidTolls, forKey: "avoidTolls") } }
-    var milesPerGallon: Double { didSet { defaults.set(milesPerGallon, forKey: "mpg") } }
-    var tankGallons: Double { didSet { defaults.set(tankGallons, forKey: "tankGallons") } }
-    var fuelGrade: FuelGrade { didSet { defaults.set(fuelGrade.rawValue, forKey: "fuelGrade") } }
-    var preferredBrandsText: String { didSet { defaults.set(preferredBrandsText, forKey: "preferredBrands") } }
+
+    /// The driver's car from the EPA list (nil until chosen).
+    var vehicle: DriverVehicle? { didSet { store(vehicle, "vehicle") } }
+    /// Miles of range to keep when choosing a fuel or charging stop.
+    var bufferMiles: Double { didSet { defaults.set(bufferMiles, forKey: "bufferMiles") } }
+    var favoriteBrands: [String] { didSet { store(favoriteBrands, "favoriteBrands") } }
+    /// Google Maps Platform key for gas prices (Places API New). Empty means prices are off.
+    var googleKey: String { didSet { defaults.set(googleKey, forKey: "googleKey") } }
+    /// NREL developer key for the charger search; empty uses the demo key (10 an hour).
+    var nrelKey: String { didSet { defaults.set(nrelKey, forKey: "nrelKey") } }
+    var teslaOnlyChargers: Bool { didSet { defaults.set(teslaOnlyChargers, forKey: "teslaOnlyChargers") } }
+    /// Red speedometer when over the posted limit by more than this (amber up to it).
+    var speedAlertOver: Double { didSet { defaults.set(speedAlertOver, forKey: "speedAlertOver") } }
 
     init() {
         defaults.register(defaults: [
             "exitLookaheadMiles": 25.0, "voiceEnabled": true, "announceExits": false, "announceStateLines": true,
-            "avoidTolls": false, "mpg": 25.0, "tankGallons": 15.0, "fuelGrade": FuelGrade.regular.rawValue,
-            "preferredBrands": "",
+            "announceFuel": true, "avoidTolls": false, "bufferMiles": 50.0, "googleKey": "", "nrelKey": "",
+            "teslaOnlyChargers": true, "speedAlertOver": 5.0,
         ])
         exitLookaheadMiles = defaults.double(forKey: "exitLookaheadMiles")
         voiceEnabled = defaults.bool(forKey: "voiceEnabled")
         announceExits = defaults.bool(forKey: "announceExits")
         announceStateLines = defaults.bool(forKey: "announceStateLines")
+        announceFuel = defaults.bool(forKey: "announceFuel")
         avoidTolls = defaults.bool(forKey: "avoidTolls")
-        milesPerGallon = defaults.double(forKey: "mpg")
-        tankGallons = defaults.double(forKey: "tankGallons")
-        fuelGrade = FuelGrade(rawValue: defaults.string(forKey: "fuelGrade") ?? "") ?? .regular
-        preferredBrandsText = defaults.string(forKey: "preferredBrands") ?? ""
+        vehicle = Self.load("vehicle", from: defaults)
+        bufferMiles = defaults.double(forKey: "bufferMiles")
+        googleKey = defaults.string(forKey: "googleKey") ?? ""
+        nrelKey = defaults.string(forKey: "nrelKey") ?? ""
+        teslaOnlyChargers = defaults.bool(forKey: "teslaOnlyChargers")
+        speedAlertOver = defaults.double(forKey: "speedAlertOver")
+        // Earlier versions kept favorite brands as comma separated text.
+        favoriteBrands = Self.load("favoriteBrands", from: defaults)
+            ?? (defaults.string(forKey: "preferredBrands") ?? "").split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    var vehicle: VehicleProfile {
-        VehicleProfile(milesPerGallon: max(milesPerGallon, 1), tankGallons: max(tankGallons, 1), reserveGallons: 2,
-                       grade: fuelGrade,
-                       preferredBrands: preferredBrandsText.split(separator: ",")
-                           .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty })
+    var gasGrade: GasPriceFeed.Grade { GasPriceFeed.Grade(vehicle?.fuel ?? .regular) }
+
+    private func store<T: Encodable>(_ value: T?, _ key: String) {
+        if let value, let data = try? JSONEncoder().encode(value) {
+            defaults.set(data, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private static func load<T: Decodable>(_ key: String, from defaults: UserDefaults) -> T? {
+        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
     }
 }

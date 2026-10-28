@@ -50,27 +50,27 @@ struct ShieldShape: Shape {
     }
 }
 
-/// Green exit tab, like the plaque on a highway guide sign.
+/// Exit number tab, as on a guide sign: "EXIT 119" in sign lettering on green with a white border.
 struct ExitSign: View {
     let label: String
     var compact = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Text("EXIT")
-                .font(.system(size: compact ? 8 : 10, weight: .bold, design: .rounded))
-                .tracking(1)
+        HStack(alignment: .firstTextBaseline, spacing: compact ? 4 : 5) {
+            Text("EXIT").font(SignFont.font(compact ? 12 : 13, relativeTo: .caption))
             Text(label.isEmpty ? "—" : label)
-                .font(.system(size: compact ? 16 : 22, weight: .heavy, design: .rounded))
+                .font(SignFont.font(compact ? 18 : 22, weight: .heavy, relativeTo: .title3))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
         }
         .foregroundStyle(.white)
-        .frame(minWidth: compact ? 46 : 60)
-        .padding(.vertical, compact ? 4 : 6)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, compact ? 7 : 9)
+        .padding(.top, compact ? 5 : 6)
+        .padding(.bottom, compact ? 3 : 4)
+        .frame(minWidth: compact ? 64 : nil)
         .background(Theme.signGreen, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.white.opacity(0.9), lineWidth: 1.5).padding(2))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.white.opacity(0.95), lineWidth: 1.5).padding(2))
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(label.isEmpty ? "Unnumbered exit" : "Exit \(label)")
     }
 }
@@ -83,10 +83,11 @@ struct StateBadge: View {
 
     var body: some View {
         Text(code ?? "—")
-            .font(.system(size: compact ? 10 : 13, weight: .heavy, design: .rounded))
+            .font(.system(size: compact ? 12 : 13, weight: .heavy, design: .rounded))
             .foregroundStyle(highlighted ? .white : .primary)
             .frame(width: compact ? 26 : 36, height: compact ? 18 : 26)
             .background(highlighted ? AnyShapeStyle(Theme.signGreen) : AnyShapeStyle(Theme.cardStroke),
                         in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .accessibilityLabel(code.map { "State \($0)" } ?? "No state")
     }
 }

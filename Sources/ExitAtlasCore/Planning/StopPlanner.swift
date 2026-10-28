@@ -42,8 +42,8 @@ public struct StopPlanner: Sendable {
             return (d + range.lowerBound)...(d + range.upperBound)
         case let .timeAhead(seconds, tolerance):
             let profile = plan.route.timeProfile
-            let lo = profile.distance(after: max(0, seconds - tolerance) / pace.factor, from: d)
-            let hi = profile.distance(after: (seconds + tolerance) / pace.factor, from: d)
+            let lo = profile.distance(after: pace.modelSeconds(forSeconds: max(0, seconds - tolerance)), from: d)
+            let hi = profile.distance(after: pace.modelSeconds(forSeconds: seconds + tolerance), from: d)
             return lo...max(lo, hi)
         }
     }
@@ -59,7 +59,8 @@ public struct StopPlanner: Sendable {
         var target: Date?
         if case let .timeAhead(seconds, _) = query.window { target = now.addingTimeInterval(seconds) }
         let suggestions = matches.map { m -> StopSuggestion in
-            let seconds = plan.route.timeProfile.seconds(from: d, to: m.exit.distanceAlongRoute) * pace.factor
+            let seconds = plan.eta(from: d, to: m.exit.distanceAlongRoute, pace: pace, now: snapshot.timestamp)
+                .timeIntervalSince(snapshot.timestamp)
             let eta = now.addingTimeInterval(seconds)
             return StopSuggestion(match: m, distanceAhead: m.exit.distanceAlongRoute - d, eta: eta,
                                   timeFromTarget: target.map { eta.timeIntervalSince($0) })

@@ -148,27 +148,29 @@ struct ExitRow: View {
     let now: Date
 
     var body: some View {
-        HStack(spacing: 12) {
-            ExitSign(label: upcoming.exit.label, compact: true)
-            VStack(alignment: .leading, spacing: 3) {
-                if upcoming.exit.name.isEmpty {
-                    Text(services.isEmpty ? "No services listed" : "Services")
-                        .font(.subheadline).foregroundStyle(Theme.secondaryText)
-                } else {
-                    Text(upcoming.exit.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                ExitSign(label: upcoming.exit.label, compact: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    if !upcoming.exit.name.isEmpty {
+                        Text(upcoming.exit.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                    } else if services.isEmpty {
+                        Text("No services listed").font(.subheadline).foregroundStyle(Theme.secondaryText)
+                    }
+                    if upcoming.exit.confidence == .medium {
+                        Text("Direction not verified in source data").font(.caption).foregroundStyle(Theme.amber)
+                    }
                 }
-                ServiceSummary(services: services)
-                if upcoming.exit.confidence == .medium {
-                    Text("Direction not verified in source data").font(.caption2).foregroundStyle(Theme.amber)
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Format.miles(upcoming.distance)).font(.subheadline.monospacedDigit().weight(.bold))
+                    Text(Format.duration(upcoming.eta.timeIntervalSince(now))).font(.caption).foregroundStyle(Theme.secondaryText)
                 }
             }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Format.miles(upcoming.distance)).font(.subheadline.monospacedDigit().weight(.bold))
-                Text(Format.duration(upcoming.eta.timeIntervalSince(now))).font(.caption).foregroundStyle(Theme.secondaryText)
-            }
+            if !services.isEmpty { ServicePlaques(services: services, compact: true) }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 

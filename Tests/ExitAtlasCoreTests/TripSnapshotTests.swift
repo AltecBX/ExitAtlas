@@ -76,7 +76,8 @@ final class TripSnapshotTests: XCTestCase {
         for _ in 0..<60 { pace.observe(expected: 60, actual: 72) }
         let slower = plan.snapshot(match: match(d), ledger: TripLedger(), pace: pace, now: now)
         XCTAssertGreaterThan(slower.eta, s.eta)
-        XCTAssertEqual(slower.timeRemaining / s.timeRemaining, pace.factor, accuracy: 0.001)
+        let model = plan.route.timeProfile.seconds(from: d, to: plan.route.length)
+        XCTAssertEqual(slower.timeRemaining, pace.seconds(forModelSeconds: model), accuracy: 1)
     }
 
     func testHighwayAndDirection() {
