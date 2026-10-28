@@ -170,7 +170,7 @@ struct TripCardView: View {
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.95), lineWidth: 2.5).padding(5))
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(Int((totalMeters / Geodesy.metersPerMile).rounded()).formatted()).font(.system(size: 64, weight: .heavy, design: .rounded))
-                Text("miles").font(.title2.weight(.bold)).foregroundStyle(.secondary)
+                Text(Int((totalMeters / Geodesy.metersPerMile).rounded()) == 1 ? "mile" : "miles").font(.title2.weight(.bold)).foregroundStyle(.secondary)
             }
             Text("\(states.count) \(states.count == 1 ? "state" : "states")").font(.title3.weight(.bold)).foregroundStyle(.secondary)
             let longest = max(states.map { $0.meters }.max() ?? 1, 1)

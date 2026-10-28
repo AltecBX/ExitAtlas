@@ -857,7 +857,8 @@ const actions = {
     const title = app.mode === 'discovery' ? plan.route.title : `${plan.route.origin.name} to ${plan.route.destination.name}`;
     const canvas = document.createElement('canvas');
     drawTripCard(canvas, { title, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-      totalMeters: s.drivenTotal, states: [...totals.values()], simulated: app.gps === 'simulation' });
+      // The total is the sum of the states shown (the demo starts partway, which is not driving).
+      totalMeters: [...totals.values()].reduce((a, e) => a + e.meters, 0), states: [...totals.values()], simulated: app.gps === 'simulation' });
     try {
       const how = await shareCanvas(canvas, 'exitatlas-trip.png', `${title} on ExitAtlas`);
       if (how === 'downloaded') toast('Trip card saved');

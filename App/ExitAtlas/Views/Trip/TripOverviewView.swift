@@ -29,7 +29,7 @@ struct TripOverviewView: View {
                         Button { showPlates = true } label: { Label("License plate game", systemImage: "car.rear") }
                         ShareLink(item: itineraryText(snapshot)) { Label("Share itinerary", systemImage: "square.and.arrow.up") }
                         Button { showCard = true } label: { Label("Share trip card", systemImage: "photo") }
-                            .disabled(snapshot.drivenTotal < Geodesy.metersPerMile)
+                            .disabled(drivenByState(snapshot).reduce(0) { $0 + $1.meters } < Geodesy.metersPerMile)
                         Button(role: .destructive) { trip.endTrip() } label: { Label("End trip", systemImage: "stop.circle") }
                     }
                     Section { DataAttribution() }.listRowBackground(Color.clear)
@@ -43,7 +43,8 @@ struct TripOverviewView: View {
                 .sheet(isPresented: $showCard) {
                     ShareCardSheet(title: "Trip card", card: TripCardView(
                         title: trip.mode == .discovery ? (plan.route.title ?? "Discovery drive") : "\(plan.route.origin.name) to \(plan.route.destination.name)",
-                        date: Date(), totalMeters: snapshot.drivenTotal, states: drivenByState(snapshot), simulated: trip.isSimulating))
+                        date: Date(), totalMeters: drivenByState(snapshot).reduce(0) { $0 + $1.meters }, states: drivenByState(snapshot),
+                        simulated: trip.isSimulating))
                 }
             } else {
                 ContentUnavailableView("No trip yet", systemImage: "map", description: Text("Plan a trip to see your route by state."))
@@ -51,7 +52,8 @@ struct TripOverviewView: View {
         }
     }
 
-    /// Miles driven in each state so far, in order of first entry (same as the web trip card).
+    /// Miles driven in each state so far, in order of first entry (same as the web trip card). The card's
+    /// total is their sum, so it matches the states shown (the demo starts partway, which is not driving).
     private func drivenByState(_ s: TripSnapshot) -> [(code: String, meters: Double)] {
         var out: [(code: String, meters: Double)] = []
         for st in s.drivenStints where st.meters > 0 {

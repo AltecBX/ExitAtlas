@@ -68,7 +68,7 @@ export function drawTripCard(canvas, { title, date, totalMeters, states, simulat
   const mw = ctx.measureText(miles).width;
   ctx.font = font(700, 48);
   ctx.fillStyle = MUTED;
-  ctx.fillText('miles', 80 + mw, 500);
+  ctx.fillText(miles === '1' ? 'mile' : 'miles', 80 + mw, 500);
   const named = states.filter((s) => s.code && s.meters > 0);
   ctx.fillText(`${named.length} ${named.length === 1 ? 'state' : 'states'}`, 60, 570);
   const max = Math.max(...named.map((s) => s.meters), 1);
