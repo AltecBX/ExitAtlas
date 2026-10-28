@@ -9,7 +9,10 @@ import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
-import { passport, STATE_CODES } from '../engine/passport.js';
+import { travelStats } from '../engine/travels.js';
+import { dashboardFocus } from '../engine/dashboard.js';
+import { localTime } from '../engine/openinghours.js';
+import { inOvernightWindow } from '../engine/profile.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -110,11 +113,11 @@ function gapRow(g, s) {
     <div class="muted small">${where}${next}</div></div><div class="side"><div class="big">${milesValue(Math.max(0, g.from - s.progress))}</div></div></div>`;
 }
 
-function restRow(u, s) {
+function restRow(u, s, rec = '') {
   const r = u.restArea;
   const sub = [r.side === 'both' ? 'Serves both directions' : null, r.road].filter(Boolean).join(' · ');
-  return `<button class="item exit-row ra-row" data-act="rest" data-arg="${h(r.id)}">
-    <div class="er-head">${restSign(r.kind, true)}<div class="main"><div class="t">${h(restAreaTitle(r))}</div><div class="muted small">${h(sub)}</div></div>
+  return `<button class="item exit-row ra-row${rec ? ' rec' : ''}" data-act="rest" data-arg="${h(r.id)}">
+    <div class="er-head">${restSign(r.kind, true)}<div class="main"><div class="t">${h(restAreaTitle(r))}</div><div class="muted small">${h(sub)}</div>${rec}</div>
       <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
     ${amenityChips(r, { max: 4 })}</button>`;
 }
@@ -208,16 +211,20 @@ function quickPlaces(app) {
   return rows.length ? `<div><div class="section-title">Where to?</div><div class="list">${rows.join('')}</div></div>` : '';
 }
 
+/// The Drive screen always has the same cards: instruments, state progress, one focus card chosen by
+/// engine/dashboard.js (fuel, planned stop, gas gap, overnight stop, rest area or next exit), a one line
+/// "Then" strip with the next two items, and the destination.
 function dashboard(app, s) {
   const discovery = app.mode === 'discovery';
-  const parts = [cluster(app, s)];
-  if (s.current) parts.push(borderCard(s));
-  if (s.nextExit) parts.push(nextExitCard(app, s));
-  const gap = gasGapCard(app, s);
-  if (gap) parts.push(gap);
-  if (s.nextRestArea && s.nextRestArea.distance <= 150 * MILE) parts.push(restAreaCard(s));
-  parts.push(fuelCard(app, s));
-  parts.push(destinationCard(app, s, discovery));
+  const f = dashboardFocus(focusSignals(app, s));
+  const focus = focusCard(app, s, f.focus);
+  const strip = f.strip.length ? thenStrip(app, s, f.strip) : '';
+  // Two columns when the phone is sideways (instruments and focus left, state and destination right);
+  // in portrait the columns dissolve and the cards stack in order.
+  const parts = [
+    `<div class="dash-col left">${cluster(app, s)}${focus || strip ? `<div class="dash-focus stack" data-focus="${f.focus}">${focus}${strip}</div>` : ''}</div>`,
+    `<div class="dash-col right">${s.current ? `<div class="dash-border">${borderCard(s)}</div>` : ''}<div class="dash-dest">${destinationCard(app, s, discovery)}</div></div>`,
+  ];
   const extras = [];
   if (s.match.status === 'offRoute' && !app.isRerouting && app.mode === 'trip') {
     extras.push(`<div class="banner warn">You are off the planned route. ${app.gps === 'device' ? 'A new route is requested automatically when online.' : ''}</div>`);
@@ -225,6 +232,97 @@ function dashboard(app, s) {
   if (app.lastError) extras.push(`<p class="amber-text small">${h(app.lastError)}</p>`);
   extras.push(screenNote(app));
   return `<div class="dash">${parts.join('')}<div class="dash-extras">${extras.join('')}</div></div>`;
+}
+
+/// What the focus rule needs from the trip.
+function focusSignals(app, s) {
+  const st = app.settings;
+  const fp = app.fuelPlan();
+  const sm = app.smartStop();
+  const gap = app.gasGapsAhead(s).find((g) => g.to > s.progress) ?? null;
+  let fuel = { reading: false };
+  if (fp) {
+    const needed = fp.status !== 'destination';
+    fuel = {
+      reading: true, range: fp.range, reserve: st.bufferMiles * MILE,
+      stopAhead: needed ? (sm?.primary?.ahead ?? fp.recommended?.ahead ?? null) : null,
+      low: needed && (Boolean(sm?.lowRange) || fp.status === 'low'),
+    };
+  }
+  const zone = app.plan?.timeZoneIDAt(s.progress) ?? 'America/New_York';
+  return {
+    nextExit: s.nextExit ? { distance: s.nextExit.distance } : null,
+    restArea: s.nextRestArea ? { distance: s.nextRestArea.distance } : null,
+    gap: gap ? { startsIn: Math.max(0, gap.from - s.progress), length: gap.to - Math.max(gap.from, s.progress) } : null,
+    plannedStop: s.nextStop ? { distance: s.nextStop.distance } : null,
+    fuel, overnight: inOvernightWindow(app.profile, localTime(s.t, zone).minute),
+  };
+}
+
+function focusCard(app, s, kind) {
+  switch (kind) {
+    case 'fuel': return fuelCard(app, s);
+    case 'stop': return plannedStopCard(app, s);
+    case 'gap': return gasGapCard(app, s);
+    case 'overnight': return app.fuel ? fuelCard(app, s) : overnightCard(app, s);
+    case 'restArea': return restAreaCard(s);
+    case 'exit': return nextExitCard(app, s);
+    default: return '';
+  }
+}
+
+/// Approaching a planned stop: the stop and the exit to leave at.
+function plannedStopCard(app, s) {
+  const ns = s.nextStop;
+  const at = ns.stop.distanceAlongRoute;
+  const exit = app.plan.exits.filter((e) => e.distanceAlongRoute > s.progress)
+    .reduce((best, e) => (!best || Math.abs(e.distanceAlongRoute - at) < Math.abs(best.distanceAlongRoute - at) ? e : best), null);
+  return `<div class="card focus-card"><div class="eyebrow">Planned stop</div>
+    <div class="row" style="gap:12px;margin-top:8px">${exit ? exitSign(exit.label, true) : ''}<div style="flex:1;min-width:0"><div class="title-md">${h(ns.stop.waypoint.name)}</div>
+      <div class="muted small">${clock(ns.eta, app.plan.timeZoneIDAt(at), s.t)}${exit ? ` · leave at ${h(exitTitle(exit))}` : ''}</div></div>
+      <div class="side" style="text-align:right"><div class="num" style="font:800 28px/1 var(--num)">${milesValue(ns.distance)}<span class="muted small"> mi</span></div></div></div></div>`;
+}
+
+/// Overnight without a range reading: the best restroom stop in the next 60 miles, with its confidence.
+function overnightCard(app, s) {
+  const r = app.bestStopAhead(60, { restrooms: true });
+  const p = r?.primary;
+  if (!p) return s.nextRestArea ? restAreaCard(s) : '';
+  const act = p.exit ? `data-act="exit" data-arg="${h(p.exit.id)}"` : p.restArea ? `data-act="rest" data-arg="${h(p.restArea.id)}"` : '';
+  return `<button class="card focus-card" style="width:100%;text-align:left;display:block" ${act}>
+    <div class="eyebrow">🌙 Overnight · restroom stop</div>
+    <div class="row" style="gap:12px;margin-top:8px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${h(p.name)}</div>
+      ${smartConfidence(p, r)}<div class="muted tiny">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
+    ${r.notice ? `<div class="muted tiny" style="margin-top:6px">${h(r.notice)}</div>` : ''}</button>`;
+}
+
+/// Under the focus card: the next two things worth knowing, distance first, each opening its details.
+function thenStrip(app, s, kinds) {
+  const ev = Boolean(app.settings.vehicle?.ev);
+  const chip = (attrs, dist, text) => `<button class="then-item" ${attrs}>${dist ? `<b class="num">${dist}</b> ` : ''}${text}</button>`;
+  const item = (k) => {
+    switch (k) {
+      case 'fuel': {
+        const p = app.smartStop()?.primary;
+        if (p) return chip('data-act="sheet" data-arg="fuel"', `${milesValue(p.ahead)} mi`, `⛽ ${h(p.name)}`);
+        const rec = app.fuelPlan()?.recommended;
+        return rec ? chip('data-act="sheet" data-arg="fuel"', `${milesValue(rec.ahead)} mi`, `${ev ? '⚡' : '⛽'} ${h(stopName(rec))}`) : '';
+      }
+      case 'fuelEntry': return chip('data-act="sheet" data-arg="fuel"', '', ev ? '⚡ Enter range' : '⛽ Enter range');
+      case 'gap': {
+        const g = app.gasGapsAhead(s).find((x) => x.to > s.progress);
+        if (!g) return '';
+        const inside = g.from <= s.progress;
+        return chip('data-act="tab" data-arg="ahead"', inside ? '' : `${milesValue(g.from - s.progress)} mi`, `No gas for ${miles(g.to - Math.max(g.from, s.progress))}${g.open ? '+' : ''}`);
+      }
+      case 'stop': return s.nextStop ? chip('data-act="tab" data-arg="trip"', `${milesValue(s.nextStop.distance)} mi`, `📍 ${h(s.nextStop.stop.waypoint.name)}`) : '';
+      case 'restArea': return s.nextRestArea ? chip(`data-act="rest" data-arg="${h(s.nextRestArea.restArea.id)}"`, `${milesValue(s.nextRestArea.distance)} mi`, h(restAreaTitle(s.nextRestArea.restArea))) : '';
+      case 'exit': return s.nextExit ? chip(`data-act="exit" data-arg="${h(s.nextExit.exit.id)}"`, `${milesValue(s.nextExit.distance)} mi`, h(exitTitle(s.nextExit.exit))) : '';
+      default: return '';
+    }
+  };
+  const items = kinds.map(item).filter(Boolean);
+  return items.length ? `<div class="then-strip" aria-label="Then"><span class="then-label">Then</span>${items.join('')}</div>` : '';
 }
 
 /// The instrument cluster: speedometer, posted limit, highway and state.
@@ -538,7 +636,7 @@ export function exitsView(app) {
   const window = ui.window * MILE;
   const windowSeg = `<div class="seg">${WINDOWS.map((w) => `<button class="${w === ui.window ? 'on' : ''}" data-act="exits-window" data-arg="${w}">${w} mi</button>`).join('')}</div>`;
   const chips = `<div class="chips"><button class="chip${ui.category === null ? ' on' : ''}" data-act="exits-cat" data-arg="">All</button>${FILTER_CATEGORIES.map((c) => `<button class="chip${ui.category === c ? ' on' : ''}" data-act="exits-cat" data-arg="${c}">${CATEGORY_ICONS[c]} ${CATEGORY_NAMES[c]}</button>`).join('')}</div>`;
-  const tools = `<div class="btn-row"><button class="btn sm" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="btn sm" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button></div>`;
+  const tools = `<div class="chips"><button class="chip" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="chip" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button></div>`;
   const rows = [];
   const borders = s.itinerary.filter((f) => f.status === 'upcoming' && f.segment.startDistance - s.progress <= window);
   const borderRow = (f) => {
@@ -548,8 +646,11 @@ export function exitsView(app) {
       <div class="side"><div class="big">${milesValue(d)}</div><div class="muted tiny">${f.entryTime !== null ? clock(f.entryTime, f.entryTimeZoneID, s.t) : ''}</div></div></div>`;
   };
   const fp = app.fuelPlan();
-  const fuelStopID = fp && fp.status !== 'destination' ? (app.smartStop()?.primary?.exitId ?? fp.recommended?.exit?.id) : null;
-  // Rows in route order: state lines, exits, rest areas and stretches without gas. At the same mile a
+  const sm = fp && fp.status !== 'destination' ? app.smartStop() : null;
+  const fuelStopID = fp && fp.status !== 'destination' ? (sm?.primary?.exitId ?? fp.recommended?.exit?.id) : null;
+  // The SmartStop pick, marked where it is on the road with its confidence.
+  const recTag = (p) => `<div class="rec-tag">⛽ Recommended stop: ${h(p.name)}</div>${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}`;
+  // Rows in route order: state lines, exits, rest areas, planned stops and stretches without gas. At the same mile a
   // state line comes first and a gas gap comes after the exit it starts at.
   const events = borders.map((f) => ({ d: f.segment.startDistance, o: 0, html: borderRow(f) }));
   for (const u of s.upcomingExits) {
@@ -557,10 +658,11 @@ export function exitsView(app) {
     const services = app.servicesFor(u.exit);
     if (ui.category !== null && !services.some((x) => x.place.category === ui.category)) continue;
     const fuelStop = fuelStopID === u.exit.id;
-    events.push({ d: u.exit.distanceAlongRoute, o: 1, html: `<button class="item exit-row" data-act="exit" data-arg="${h(u.exit.id)}">
+    const smartHere = sm?.primary?.exitId === u.exit.id;
+    events.push({ d: u.exit.distanceAlongRoute, o: 1, html: `<button class="item exit-row${fuelStop ? ' rec' : ''}" data-act="exit" data-arg="${h(u.exit.id)}">
       <div class="er-head">${exitSign(u.exit.label, true)}<div class="main">${u.exit.name ? `<div class="t">${h(u.exit.name)}</div>` : ''}
         ${services.length ? '' : '<div class="muted small">No services listed</div>'}
-        ${fuelStop ? '<div class="amber-text small">⛽ Planned fuel stop</div>' : ''}
+        ${smartHere ? recTag(sm.primary) : fuelStop ? '<div class="rec-tag">⛽ Planned fuel stop</div>' : ''}
         ${u.exit.confidence === 'medium' ? '<div class="muted small">Direction not verified in source data</div>' : ''}</div>
         <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
       ${servicePlaques(services, { compact: true })}</button>` });
@@ -568,7 +670,18 @@ export function exitsView(app) {
   const restShown = (r) => ui.category === null || ui.category === 4 || (ui.category === 1 && r.gas.length > 0)
     || (ui.category === 2 && r.food.length > 0) || (ui.category === 5 && r.ev.length > 0);
   for (const u of s.upcomingRestAreas) {
-    if (u.distance <= window && restShown(u.restArea)) events.push({ d: u.restArea.distanceAlongRoute, o: 1, html: restRow(u, s) });
+    if (u.distance <= window && restShown(u.restArea)) {
+      const rec = sm?.primary?.restArea?.id === u.restArea.id ? recTag(sm.primary) : '';
+      events.push({ d: u.restArea.distanceAlongRoute, o: 1, html: restRow(u, s, rec) });
+    }
+  }
+  // Planned stops on the route.
+  for (const st of app.plan.route.stops ?? []) {
+    const d = st.distanceAlongRoute - s.progress;
+    if (d <= 0 || d > window || ui.category !== null) continue;
+    events.push({ d: st.distanceAlongRoute, o: 1, html: `<button class="item exit-row stop-row" data-act="tab" data-arg="trip">
+      <div class="er-head"><span class="stop-pin" aria-hidden="true">📍</span><div class="main"><div class="t">${h(st.waypoint.name)}</div><div class="muted small">Planned stop</div></div>
+        <div class="side"><div class="big">${milesValue(d)}</div><div class="muted small">${duration(s.etaTo(st.distanceAlongRoute) - s.t)}</div></div></div></button>` });
   }
   if (ui.category === null || ui.category === 1) {
     for (const g of app.gasGapsAhead(s, window)) events.push({ d: g.from, o: 2, html: gapRow(g, s) });
@@ -577,7 +690,7 @@ export function exitsView(app) {
   for (const e of events) rows.push(e.html);
   const list = rows.length ? `<div class="list">${rows.join('')}</div>`
     : `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${ui.category === null ? 'Try a longer window.' : `No exits or rest areas with ${CATEGORY_NAMES[ui.category]} in this window.`}</div>`;
-  return `<div class="stack">${windowSeg}${chips}${tools}${list}${attribution()}</div>`;
+  return `<div class="stack">${windowSeg}${chips}${list}${tools}${attribution()}</div>`;
 }
 
 export function exitDetail(app, exitId) {
@@ -692,7 +805,7 @@ function tripOverview(app, plan, s) {
   }
   html += discoverSection(plan, s);
   html += `<div class="stack">${app.mode === 'trip' ? '<button class="btn block" data-act="sheet" data-arg="stop">🛏️ Plan a stop ahead</button>' : ''}
-    <div class="btn-row"><button class="btn" data-act="share-card">🖼️ Share trip card</button><button class="btn" data-act="sheet" data-arg="plates">🚗 License plates</button></div>
+    <button class="btn block" data-act="share-card">🖼️ Share trip card</button>
     <button class="btn block" data-act="share">Share itinerary</button>
     <button class="btn danger block" data-act="end">End ${discovery ? 'discovery mode' : 'trip'}</button></div>${attribution()}</div>`;
   return html;
@@ -730,26 +843,15 @@ export function discoverSheet(app, id) {
     <p class="note">From Wikidata (${h(it.id)}, CC0): linked from ${it.sitelinks} Wikimedia sites (Wikipedia editions and sister projects). Hours, fees and closures are not in this data.</p>`;
 }
 
-/// Passenger game: tap the plates you spot. Kept for the current trip on this phone.
-export function platesSheet(app) {
-  const seen = new Set(app.plates.seen);
-  return `<div class="sheet-head"><h2>License plates</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <p class="muted small" style="margin-top:0">For passengers: tap each state's plate when you spot it. <b>${seen.size}</b> of ${STATE_CODES.length} on this trip.</p>
-    <div class="plates">${STATE_CODES.map((c) => `<button class="plate${seen.has(c) ? ' on' : ''}" data-act="plate" data-arg="${c}" aria-pressed="${seen.has(c)}">${c}</button>`).join('')}</div>
-    <button class="btn block" style="margin-top:14px" data-act="plates-reset">Start over</button>`;
-}
-
-/// Road Trip Passport: states and achievements from real GPS trips.
-function passportSection(app) {
-  const p = passport(app.history);
-  const earned = p.achievements.filter((a) => a.earned);
-  const next = p.achievements.filter((a) => !a.earned).sort((a, b) => b.progress - a.progress).slice(0, 3);
-  return `<div class="card"><div class="metrics two">${metric('States driven', String(p.states.size), { caption: `of ${STATE_CODES.length}`, size: 'md' })}${metric('Miles tracked', Math.round(p.totalMeters / MILE).toLocaleString('en-US'), { caption: `${p.tripCount} ${p.tripCount === 1 ? 'trip' : 'trips'}`, size: 'md' })}</div>
-    <div class="plates passport">${STATE_CODES.map((c) => `<span class="plate${p.states.has(c) ? ' on' : ''}" title="${p.states.has(c) ? h(`${p.states.get(c).name}: ${miles(p.states.get(c).meters)}`) : ''}">${c}</span>`).join('')}</div>
-    ${earned.length ? `<div class="section-title">Earned</div>${earned.map((a) => `<div class="ach on">★ ${h(a.title)}</div>`).join('')}` : ''}
-    ${next.length ? `<div class="section-title">Next up</div>${next.map((a) => `<div class="ach"><div class="row"><span style="flex:1">${h(a.title)}</span><span class="muted tiny">${h(a.detail)}</span></div>${progress(a.progress)}</div>`).join('')}` : ''}
-    <button class="btn block" style="margin-top:12px" data-act="share-passport" ${p.tripCount ? '' : 'disabled'}>🖼️ Share passport</button>
-    <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone. Simulated drives and discovery mode are not counted.</p></div>`;
+/// Your travels: miles and trips per state from real GPS trips, and the totals. Statistics only.
+function travelsSection(app) {
+  const t = travelStats(app.history);
+  if (!t.tripCount) {
+    return '<div class="card small muted">Finished trips with live GPS appear here: miles driven in each state and in total. Simulated drives and discovery mode are not counted.</div>';
+  }
+  return `<div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(t.totalMeters / MILE).toLocaleString('en-US'), { caption: `${t.tripCount} ${t.tripCount === 1 ? 'trip' : 'trips'}`, size: 'md' })}${metric('States driven', String(t.states.length), { size: 'md' })}</div>
+    <div class="list" style="margin-top:10px">${t.states.map((x) => `<div class="item">${badge(x.code)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${x.trips} ${x.trips === 1 ? 'trip' : 'trips'}</div></div><div class="side num">${miles(x.meters)}</div></div>`).join('')}</div>
+    <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this device. Simulated drives and discovery mode are not counted.</p></div>`;
 }
 
 function plannerView(app) {
@@ -836,7 +938,7 @@ export function settingsView(app) {
       <div class="field"><span style="flex:1">Recent places<div class="muted tiny">${app.places.recent.length} kept on this device; save the ones you return to</div></span>${app.places.recent.length ? '<button class="btn sm" data-act="clear-recent">Clear</button>' : ''}</div></div></div>
     <div><div class="section-title">Favorite services</div>${favoritesSettings(app)}</div>
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
-    <div><div class="section-title">Road Trip Passport</div>${passportSection(app)}</div>
+    <div><div class="section-title">Your travels</div>${travelsSection(app)}</div>
     <div><div class="section-title">Your profile</div>${profileSection(app)}</div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
       ${dataVersionLine(app.dataStatus)}

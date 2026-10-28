@@ -111,10 +111,10 @@ struct SettingsView: View {
                 }
                 Section("Your trips") {
                     LabeledContent("Lifetime miles", value: Format.miles(library.lifetimeMeters))
-                    NavigationLink { PassportView() } label: {
-                        LabeledContent("Road Trip Passport", value: "\(library.lifetimeStates.count) states")
+                    NavigationLink { TravelsView() } label: {
+                        LabeledContent("Your travels", value: "\(library.lifetimeStates.count) states")
                     }
-                    .accessibilityIdentifier("passportLink")
+                    .accessibilityIdentifier("travelsLink")
                     NavigationLink("Trip history") { HistoryView() }
                 }
                 ProfileSection()
@@ -123,6 +123,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { app.showSettings = false } } }
         }
     }
 

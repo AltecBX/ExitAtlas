@@ -15,9 +15,9 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 
 | Part | State |
 |---|---|
-| Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
+| Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, SmartStop, EV stops, rest areas, the adaptive Drive screen and the newer voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 100 tests pass on Linux, with the web's 87 tests covering the same cases in JavaScript. |
+| Engine (`Sources/ExitAtlasCore`) | 103 tests pass on Linux, with the web's 89 tests covering the same cases in JavaScript. |
 | Key proxy (`infra/worker`) | 7 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
@@ -27,6 +27,9 @@ The full feature inventory, by platform and test coverage, and the prioritized p
 In both the web version and the iOS app unless marked.
 
 **On the road**
+* Three areas: Drive, Ahead and Trip. Settings, vehicles, places and your profile open from the person button at the top of every screen.
+* A Drive screen that adapts without adding cards: speed and highway, state progress, one focus card picked by a fixed priority (fuel below your reserve, a planned stop, a stretch without gas your range may not cover, your fuel stop, overnight stops, a rest area, the next exit), a one line "Then" strip with the next two items, and the destination.
+* Road Ahead: exits, rest areas, state lines, stretches without gas and planned stops in route order, with the SmartStop pick marked.
 * Next exit with its services (gas, food, lodging, EV charging, travel centers), exits ahead with state lines inline, and search along the route.
 * Rest areas, welcome centers and service plazas at their own place on the route, on your side of the highway only, with the amenities OpenStreetMap lists (restrooms, water, pet area and more). Nothing is shown as available unless it is tagged.
 * Stretches without gas: "No gas for 62 mi" in the exits list, and a heads up on the Drive screen before the last exit with gas.
@@ -45,9 +48,8 @@ In both the web version and the iOS app unless marked.
 
 **Discover and keep**
 * Discover ahead: up to five notable places in the next 200 miles (national and state parks, monuments, museums, zoos, waterfalls), 1,620 in all from Wikidata, within 5 miles of the interstate (10 for parks and natural sites). Each shows how far off the highway it is, and "Add to trip" reroutes through it (live GPS only). Hours and closures are not known.
-* Road Trip Passport: states driven and achievements (five states, 1,000 miles, coast to coast and more) from real GPS trips; simulated drives never count.
-* Share cards: an image of the trip (miles and miles per state, marked when simulated) or of the Passport.
-* License plate game for passengers, kept per trip.
+* Your travels (in Settings): miles and trips in each state and in total, from real GPS trips; simulated drives and discovery mode never count. Statistics only, no badges or achievements.
+* Trip history and a share card of the trip (miles and miles per state, marked when simulated).
 
 **Your profile**
 * Saved vehicles (one in use, each with its own MPG or range choice), favorite gas brands in priority order (Shell to start), fuel grade, what a fuel stop must have (open 24 hours, restroom, longest detour), the overnight window, home, saved and recent places, saved trips, favorite services and hotel and restaurant brands, display and voice choices.
@@ -57,7 +59,7 @@ In both the web version and the iOS app unless marked.
 
 **Lock Screen, Siri and the car** *(iOS)*
 * A Live Activity with the next exit, the next state line, the next rest area and your arrival time, on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch.
-* Siri and Shortcuts: "How far to Georgia in ExitAtlas", "Next rest area in ExitAtlas", "Next gas in ExitAtlas" and three more, answered in full sentences.
+* Siri and Shortcuts: "How far to Georgia in ExitAtlas", "Next rest area in ExitAtlas", "Next gas in ExitAtlas", "Find the next Shell in ExitAtlas" (31 brands), "Find an open gas station with a restroom in ExitAtlas", "What is the best stop in the next 50 miles in ExitAtlas" (25, 50 or 100) and three more, answered in full sentences that say when hours or restrooms are not confirmed.
 * A CarPlay app needs Apple's driving task entitlement first; see [docs/10](docs/10_lock_screen_and_carplay.md).
 
 **Fuel and charging**

@@ -1,4 +1,4 @@
-// Share cards: a trip summary or the passport drawn on a canvas as a PNG, shared with the system
+// Share cards: a trip summary drawn on a canvas as a PNG, shared with the system
 // share sheet when the browser can share files, otherwise downloaded.
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 
@@ -97,37 +97,6 @@ export function drawTripCard(canvas, { title, date, totalMeters, states, simulat
     ctx.fillText(`and ${named.length - 9} more`, 60, y);
   }
   footer(ctx, simulated ? `${date} · simulated GPS, not a real drive` : `${date} · miles measured by GPS`);
-}
-
-/// Passport card: states driven on real GPS trips, and earned achievements.
-export function drawPassportCard(canvas, { codes, visited, totalMeters, tripCount, earned }) {
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  frame(ctx, 'Road Trip Passport', `${visited.size} of ${codes.length} states`);
-  const cols = 7, size = 128, gap = 14, x0 = (W - (cols * size + (cols - 1) * gap)) / 2;
-  codes.forEach((code, i) => {
-    const x = x0 + (i % cols) * (size + gap), y = 370 + Math.floor(i / cols) * (82 + gap);
-    const on = visited.has(code);
-    ctx.fillStyle = on ? GREEN : '#DFE3E8';
-    roundRect(ctx, x, y, size, 82, 14);
-    ctx.fill();
-    ctx.fillStyle = on ? '#fff' : MUTED;
-    ctx.font = font(800, 38);
-    ctx.textAlign = 'center';
-    ctx.fillText(code, x + size / 2, y + 55);
-    ctx.textAlign = 'left';
-  });
-  const rows = Math.ceil(codes.length / cols);
-  let y = 370 + rows * (82 + gap) + 60;
-  ctx.fillStyle = INK;
-  ctx.font = font(700, 40);
-  ctx.fillText(`${Math.round(totalMeters / MILE).toLocaleString('en-US')} miles · ${tripCount} ${tripCount === 1 ? 'trip' : 'trips'}`, 60, y);
-  y += 60;
-  ctx.font = font(600, 32);
-  ctx.fillStyle = MUTED;
-  for (const a of earned.slice(0, 4)) { ctx.fillText(`★ ${a.title}`, 60, y); y += 46; }
-  footer(ctx, 'Real GPS trips only');
 }
 
 /// Shares a canvas as a PNG, or downloads it. Returns 'shared', 'downloaded' or 'cancelled'.

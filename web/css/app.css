@@ -42,6 +42,9 @@ a { color: var(--accent); }
 .pill.bad { color: var(--danger); }
 .pill.sim { color: var(--accent); }
 .btn-end { border: 0; background: transparent; color: var(--danger); font-weight: 700; padding: 6px 4px; }
+.icon-btn { border: 0; background: transparent; color: var(--text-2); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; cursor: pointer; flex: none; }
+.icon-btn svg { width: 24px; height: 24px; }
+.icon-btn.on { color: var(--tint); background: color-mix(in srgb, var(--tint) 14%, transparent); }
 .banner {
   margin: 0 16px 10px; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, var(--card));
   color: var(--text); font-size: var(--type-caption); font-weight: 600; display: flex; align-items: center; gap: 8px;
@@ -260,14 +263,14 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 
 /* Tab bar */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr);
   padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   background: color-mix(in srgb, var(--card) 90%, transparent); border-top: 1px solid var(--stroke);
   backdrop-filter: saturate(1.6) blur(14px); -webkit-backdrop-filter: saturate(1.6) blur(14px);
 }
 .tabbar button { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; color: var(--text-2); padding: 4px 0; cursor: pointer; }
 .tabbar button svg { width: 25px; height: 25px; }
-.tabbar button.on { color: var(--sign-green); }
+.tabbar button.on { color: var(--tint); }
 
 /* Sheet */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 40; display: none; }
@@ -297,6 +300,12 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .note { font-size: var(--type-caption); color: var(--text-2); }
 /* Drive dash */
 .dash { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.dash-col { display: contents; }
+.dash .cluster { order: 1; }
+.dash .dash-border { order: 2; }
+.dash .dash-focus { order: 3; gap: 10px; }
+.dash .dash-dest { order: 4; }
+.dash-extras { order: 5; }
 .dash-extras:empty { display: none; }
 .cluster {
   display: grid; grid-template-columns: 136px 70px minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px 16px;
@@ -349,8 +358,10 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
   .appbar h1 { font-size: 17px; }
   main { max-width: none; }
   .dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .dash > .card { padding: 12px 14px; }
-  .dash > .cluster { grid-column: 1; }
+  .dash .card { padding: 12px 14px; }
+  .dash-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .road-name { font-size: 20px; }
+  .road-state .tiny { display: none; }
   .dash-extras { grid-column: 1 / -1; }
   .title-xl { font-size: 28px; }
   .metric .value { font-size: 32px; }
@@ -377,20 +388,9 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
   border-radius: 9px; background: #e31937; color: #fff; font-size: 24px;
 }
 
-/* Discover ahead, license plates, passport */
+/* Discover ahead */
 .disc-icon { font-size: 22px; width: 64px; text-align: center; flex: none; }
 .disc-icon.lg { font-size: 30px; width: auto; }
-.plates { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
-.plate {
-  border: 1px solid var(--stroke); background: var(--card); color: var(--text-2); border-radius: 10px; padding: 10px 0;
-  font: 800 var(--type-callout)/1 var(--num); text-align: center; cursor: pointer;
-}
-.plate.on { background: var(--sign-green); color: var(--sign-ink); border-color: transparent; }
-.plates.passport { margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; }
-.plates.passport .plate { padding: 7px 0; font-size: var(--type-caption); cursor: default; }
-.ach { margin: 6px 0; font-weight: 600; }
-.ach.on { color: var(--success); }
-.ach .progress { margin-top: 4px; }
 .card .warn { color: var(--amber); font-weight: 600; }
 
 /* SmartStop: confidence lines (labels, never scores), reasons and what is known per facility */
@@ -411,3 +411,14 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .fac .fv { flex: 1; min-width: 0; }
 .fac .fv .conf { margin-top: 0; }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* Adaptive Drive screen: one focus card and a one line "Then" strip (never more cards) */
+.then-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 2px 2px; }
+.then-label { font: 700 var(--type-caption)/1 var(--num); letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-2); flex: none; }
+.then-item { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--stroke);
+  background: var(--card); color: var(--text); border-radius: 999px; padding: 8px 12px; font-size: var(--type-caption); font-weight: 650; cursor: pointer; }
+
+/* Road Ahead: the recommended stop marked in place, planned stops */
+.exit-row.rec { box-shadow: inset 4px 0 0 var(--sign-green); }
+.rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--sign-green); margin-top: 2px; }
+.stop-pin { width: 64px; text-align: center; font-size: 22px; flex: none; }

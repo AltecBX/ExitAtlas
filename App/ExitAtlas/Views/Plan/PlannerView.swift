@@ -92,6 +92,7 @@ struct PlannerView: View {
             .navigationTitle("Plan a Trip")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { EditButton() }
+                ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Save") {
                         if let destination {

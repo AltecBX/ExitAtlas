@@ -17,6 +17,7 @@
   --amber-fill: #FFF4D6;
   --danger: #C62828;
   --success: #0E7A43;
+  --tint: #00673D;
   --sign-green: #00673D;
   --sign-blue: #0B4DA2;
   --sign-brown: #6A3E1F;
@@ -66,6 +67,7 @@
     --amber-fill: #2B2412;
     --danger: #FF6B6B;
     --success: #3DD68C;
+    --tint: #3DD68C;
     --sign-green: #0B7A4A;
     --sign-blue: #1A5FC2;
     --sign-brown: #7D4A26;
@@ -95,6 +97,7 @@
   --amber-fill: #2B2412;
   --danger: #FF6B6B;
   --success: #3DD68C;
+  --tint: #3DD68C;
   --sign-green: #0B7A4A;
   --sign-blue: #1A5FC2;
   --sign-brown: #7D4A26;

@@ -6,7 +6,6 @@ import SwiftUI
 struct TripOverviewView: View {
     @Environment(TripController.self) private var trip
     @State private var showStopPlanner = false
-    @State private var showPlates = false
     @State private var showCard = false
 
     var body: some View {
@@ -26,7 +25,6 @@ struct TripOverviewView: View {
                         if trip.mode == .trip {
                             Button { showStopPlanner = true } label: { Label("Plan a stop ahead", systemImage: "bed.double") }
                         }
-                        Button { showPlates = true } label: { Label("License plate game", systemImage: "car.rear") }
                         ShareLink(item: itineraryText(snapshot)) { Label("Share itinerary", systemImage: "square.and.arrow.up") }
                         Button { showCard = true } label: { Label("Share trip card", systemImage: "photo") }
                             .disabled(drivenByState(snapshot).reduce(0) { $0 + $1.meters } < 0.1 * Geodesy.metersPerMile)
@@ -36,10 +34,10 @@ struct TripOverviewView: View {
                 }
                 .simulationBanner(trip.isSimulating)
                 .navigationTitle(trip.mode == .discovery ? (plan.route.title ?? "Discovery") : "Trip")
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
                 .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
                 .navigationDestination(for: RouteDiscovery.self) { DiscoverDetailView(place: $0) }
                 .sheet(isPresented: $showStopPlanner) { StopPlannerView() }
-                .sheet(isPresented: $showPlates) { LicensePlatesView() }
                 .sheet(isPresented: $showCard) {
                     ShareCardSheet(title: "Trip card", card: TripCardView(
                         title: trip.mode == .discovery ? (plan.route.title ?? "Discovery drive") : "\(plan.route.origin.name) to \(plan.route.destination.name)",

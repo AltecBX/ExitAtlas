@@ -24,6 +24,8 @@ enum Tokens {
     static let danger = Color(light: 0xC62828, dark: 0xFF6B6B)
     /// Reachable, verified
     static let success = Color(light: 0x0E7A43, dark: 0x3DD68C)
+    /// Selected tabs, switches and tinted buttons (sign green is too dark for text on dark cards)
+    static let tint = Color(light: 0x00673D, dark: 0x3DD68C)
     /// Guide sign green (exits, destinations); ink is white
     static let signGreen = Color(light: 0x00673D, dark: 0x0B7A4A)
     /// Service sign blue (gas, food, lodging, rest areas); ink is white

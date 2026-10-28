@@ -1,8 +1,8 @@
 import ExitAtlasCore
 import SwiftUI
 
-// Discover ahead, the license plate game, share cards and the Road Trip Passport. Same rules as the
-// web version (web/js/app/views.js, sharecard.js).
+// Discover ahead, the trip share card and travel statistics. Same rules as the web version
+// (web/js/app/views.js, sharecard.js).
 
 /// Up to five notable places in the next 200 miles: the best scored, shown in route order.
 struct DiscoverSection: View {
@@ -100,55 +100,6 @@ struct DiscoverDetailView: View {
     }
 }
 
-/// Passenger game: tap each state's plate when you spot it. Kept for the current trip on this phone.
-struct LicensePlatesView: View {
-    @Environment(TripController.self) private var trip
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("plates") private var stored = ""
-
-    private var seen: Set<String> {
-        let parts = stored.split(separator: "|", maxSplits: 1).map(String.init)
-        guard parts.count == 2, parts[0] == trip.tripKey else { return [] }
-        return Set(parts[1].split(separator: ",").map(String.init))
-    }
-
-    private func save(_ codes: Set<String>) {
-        stored = trip.tripKey + "|" + Passport.stateCodes.filter(codes.contains).joined(separator: ",")
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                Text("For passengers: tap each state's plate when you spot it. **\(seen.count)** of \(Passport.stateCodes.count) on this trip.")
-                    .font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: 6)], spacing: 6) {
-                    ForEach(Passport.stateCodes, id: \.self) { code in
-                        let on = seen.contains(code)
-                        Button {
-                            var s = seen
-                            if on { s.remove(code) } else { s.insert(code) }
-                            save(s)
-                        } label: {
-                            Text(code).font(.system(.callout, design: .rounded).weight(.heavy))
-                                .frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .foregroundStyle(on ? .white : Theme.secondaryText)
-                                .background(on ? AnyShapeStyle(Theme.signGreen) : AnyShapeStyle(Theme.card), in: RoundedRectangle(cornerRadius: 10))
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.cardStroke, lineWidth: on ? 0 : 1))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(on ? .isSelected : [])
-                    }
-                }
-                Button("Start over", role: .destructive) { save([]) }.padding(.top, 12)
-            }
-            .padding()
-            .navigationTitle("License Plates")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
-    }
-}
-
 /// The share card for a trip: miles driven and the miles in each state (GPS measured, or marked simulated).
 struct TripCardView: View {
     let title: String
@@ -235,100 +186,45 @@ struct ShareCardSheet<Card: View>: View {
     }
 }
 
-/// Road Trip Passport: states and achievements from real GPS trips (simulated drives are not saved).
-struct PassportView: View {
+/// Your travels: miles and trips per state from real GPS trips (simulated drives are not saved). Statistics only.
+struct TravelsView: View {
     @Environment(TripLibrary.self) private var library
-    @State private var showShare = false
 
-    private var passport: Passport {
-        Passport(trips: library.history.map { r in
-            Passport.Trip(startedAt: r.startedAt, totalMeters: r.totalMeters, states: r.states.map { ($0.code, $0.name, $0.meters) })
+    private var stats: TravelStats {
+        TravelStats(trips: library.history.map { r in
+            TravelStats.Trip(startedAt: r.startedAt, totalMeters: r.totalMeters, states: r.states.map { ($0.code, $0.name, $0.meters) })
         })
     }
 
     var body: some View {
-        let p = passport
+        let t = stats
         List {
             Section {
                 HStack {
-                    MetricTile(title: "States driven", value: "\(p.stamps.count)", caption: "of \(Passport.stateCodes.count)", valueSize: 26)
-                    MetricTile(title: "Miles tracked", value: Int((p.totalMeters / Geodesy.metersPerMile).rounded()).formatted(),
-                               caption: "\(p.tripCount) \(p.tripCount == 1 ? "trip" : "trips")", valueSize: 26)
+                    MetricTile(title: "Miles tracked", value: Int((t.totalMeters / Geodesy.metersPerMile).rounded()).formatted(),
+                               caption: "\(t.tripCount) \(t.tripCount == 1 ? "trip" : "trips")", valueSize: 26)
+                    MetricTile(title: "States driven", value: "\(t.states.count)", valueSize: 26)
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 4)], spacing: 4) {
-                    ForEach(Passport.stateCodes, id: \.self) { code in
-                        let stamp = p.stamps[code]
-                        Text(code).font(.system(.caption, design: .rounded).weight(.heavy))
-                            .frame(maxWidth: .infinity).padding(.vertical, 7)
-                            .foregroundStyle(stamp != nil ? .white : Theme.secondaryText)
-                            .background(stamp != nil ? AnyShapeStyle(Theme.signGreen) : AnyShapeStyle(Theme.cardStroke.opacity(0.5)),
-                                        in: RoundedRectangle(cornerRadius: 8))
-                            .accessibilityLabel(stamp.map { "\($0.name), \(Format.miles($0.meters))" } ?? "\(code), not yet")
-                    }
-                }
-                .padding(.vertical, 4)
             } footer: {
-                Text("Real GPS trips only, saved on this phone. Simulated drives are not counted.")
+                Text("Real GPS trips only, saved on this iPhone. Simulated drives are not counted.")
             }
-            let earned = p.achievements.filter(\.earned)
-            if !earned.isEmpty {
-                Section("Earned") {
-                    ForEach(earned) { a in Label(a.title, systemImage: "star.fill").foregroundStyle(Theme.success) }
-                }
-            }
-            Section("Next up") {
-                ForEach(p.achievements.filter { !$0.earned }.sorted { $0.progress > $1.progress }.prefix(4)) { a in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack { Text(a.title).font(.subheadline.weight(.semibold)); Spacer(); Text(a.detail).font(.caption).foregroundStyle(Theme.secondaryText) }
-                        ProgressView(value: a.progress).tint(Theme.signGreen)
+            if !t.states.isEmpty {
+                Section("Miles by state") {
+                    ForEach(t.states) { st in
+                        HStack(spacing: 12) {
+                            StateBadge(code: st.code, highlighted: false, compact: true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(st.name).font(.subheadline.weight(.semibold))
+                                Text("\(st.trips) \(st.trips == 1 ? "trip" : "trips")").font(.caption).foregroundStyle(Theme.secondaryText)
+                            }
+                            Spacer()
+                            Text(Format.miles(st.meters)).font(.subheadline.monospacedDigit().weight(.bold))
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
-            Section {
-                Button { showShare = true } label: { Label("Share passport", systemImage: "square.and.arrow.up") }
-                    .disabled(p.tripCount == 0)
-            }
         }
-        .navigationTitle("Road Trip Passport")
-        .sheet(isPresented: $showShare) {
-            ShareCardSheet(title: "Passport", card: PassportCardView(passport: p))
-        }
-    }
-}
-
-private struct PassportCardView: View {
-    let passport: Passport
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("ROAD TRIP PASSPORT").font(SignFont.font(15, weight: .bold))
-                Text("\(passport.stamps.count) of \(Passport.stateCodes.count) states").font(SignFont.font(28, weight: .heavy))
-            }
-            .foregroundStyle(.white)
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Tokens.signGreen, in: RoundedRectangle(cornerRadius: 14))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
-                ForEach(Passport.stateCodes, id: \.self) { code in
-                    let on = passport.stamps[code] != nil
-                    Text(code).font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .frame(maxWidth: .infinity).padding(.vertical, 6)
-                        .foregroundStyle(on ? .white : Color(light: 0x525C69, dark: 0x525C69))
-                        .background(on ? Tokens.signGreen : Color(light: 0xDFE3E8, dark: 0xDFE3E8), in: RoundedRectangle(cornerRadius: 6))
-                }
-            }
-            Text("\(Int((passport.totalMeters / Geodesy.metersPerMile).rounded()).formatted()) miles · \(passport.tripCount) trips")
-                .font(.headline)
-            ForEach(passport.achievements.filter(\.earned).prefix(3)) { a in Text("★ \(a.title)").font(.subheadline) }
-            Spacer(minLength: 0)
-            HStack { Text("Real GPS trips only").font(.caption).foregroundStyle(.secondary); Spacer()
-                Text("ExitAtlas").font(SignFont.font(15, weight: .heavy)).foregroundStyle(Tokens.signGreen) }
-        }
-        .padding(24)
-        .frame(width: 400, height: 500)
-        .background(Color(light: 0xF2F3F5, dark: 0xF2F3F5))
-        .foregroundStyle(Color(light: 0x0E1116, dark: 0x0E1116))
-        .environment(\.colorScheme, .light)
+        .navigationTitle("Your Travels")
     }
 }

@@ -1,11 +1,12 @@
-// Discover ahead on a real route, and the Road Trip Passport from trip history.
+// Discover ahead on a real route, and travel statistics from trip history.
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { data, route } from './support.js';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
 import { TripPlan } from '../js/engine/trip.js';
 import { DISCOVER_CATEGORIES } from '../js/engine/discover.js';
-import { passport, STATE_CODES } from '../js/engine/passport.js';
+import { travelStats } from '../js/engine/travels.js';
 
 test('the Discover dataset is CC0 Wikidata with known categories and scores', () => {
   const d = data.discover;
@@ -30,7 +31,7 @@ test('places near Miami to Manhattan come in route order, near the route, with a
   assert.ok(list.some((x) => x.exit), 'some places have an exit within 5 km along the route');
 });
 
-test('the passport counts states and miles from trips and earns achievements', () => {
+test('travel statistics: miles and trips per state from real trips, no achievements', () => {
   const trips = [
     { title: 'A', startedAt: 100, totalMeters: 620 * MILE,
       states: [{ code: 'FL', name: 'Florida', meters: 374 * MILE }, { code: 'GA', name: 'Georgia', meters: 112 * MILE },
@@ -38,18 +39,27 @@ test('the passport counts states and miles from trips and earns achievements', (
     { title: 'B', startedAt: 200, totalMeters: 60 * MILE,
       states: [{ code: 'GA', name: 'Georgia', meters: 60 * MILE }, { code: null, name: 'Outside', meters: 1 }] },
   ];
-  const p = passport(trips);
-  assert.equal(p.states.size, 3);
-  assert.equal(p.states.get('GA').trips, 2);
-  assert.equal(p.states.get('GA').firstAt, 100);
-  assert.equal(p.states.get('GA').lastAt, 200);
-  assert.ok(Math.abs(p.states.get('GA').meters - 172 * MILE) < 1);
-  const a = Object.fromEntries(p.achievements.map((x) => [x.id, x]));
-  assert.equal(a['first-trip'].earned, true);
-  assert.equal(a['long-haul'].earned, true);
-  assert.equal(a['states-5'].earned, false);
-  assert.ok(Math.abs(a['states-5'].progress - 0.6) < 1e-9);
-  assert.equal(a['coast-to-coast'].progress, 0.5);
-  assert.equal(passport([]).achievements.every((x) => !x.earned), true);
-  assert.equal(STATE_CODES.length, 51);
+  const t = travelStats(trips);
+  assert.deepEqual(t.states.map((x) => x.code), ['FL', 'GA', 'SC'], 'most miles first');
+  const ga = t.states.find((x) => x.code === 'GA');
+  assert.equal(ga.trips, 2);
+  assert.equal(ga.firstAt, 100);
+  assert.equal(ga.lastAt, 200);
+  assert.ok(Math.abs(ga.meters - 172 * MILE) < 1);
+  assert.equal(t.tripCount, 2);
+  assert.ok(Math.abs(t.totalMeters - 680 * MILE) < 1);
+  assert.equal('achievements' in t, false);
+  assert.deepEqual(travelStats([]), { states: [], totalMeters: 0, tripCount: 0 });
+});
+
+test('R. the games and achievements are gone from the website; trip history is kept and still shown', () => {
+  const read = (f) => readFileSync(new URL(`../js/app/${f}`, import.meta.url), 'utf8');
+  const ui = ['main.js', 'views.js', 'sharecard.js'].map(read).join('\n');
+  for (const gone of [/Passport/, /achievement/i, /License plates/, /data-act="plate/, /'plates-reset'/, /share-passport/, /drawPassportCard/]) {
+    assert.doesNotMatch(ui, gone, `${gone} is no longer in the app`);
+  }
+  // History stays where it was saved and feeds the travel statistics and past trips.
+  assert.match(read('main.js'), /history: store\.get\('ea\.history', \[\]\)/);
+  assert.match(read('views.js'), /travelStats\(app\.history\)/);
+  assert.match(read('views.js'), /Past trips/);
 });

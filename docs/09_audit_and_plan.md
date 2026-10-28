@@ -177,6 +177,7 @@ Milestone 5 delivered:
 * **Engine (Swift and JavaScript):** `DiscoverAhead` projects places onto the route with the nearest exit; `Passport` computes states, miles and ten achievements from trip history. Tests on the Miami to Manhattan fixture (173 places, route order, nearest exit) and on achievement thresholds.
 * **Interfaces (web and iOS):** Discover section (top five by score in the next 200 miles, in route order) with a detail screen, directions and "Add to trip"; Road Trip Passport (state grid, achievements, next up); trip and Passport share cards as images (marked when simulated); a per trip license plate game.
 * **Not done or not verifiable here:** opening hours, fees and closures (not in Wikidata in usable form); the score is a notability proxy, so state parks dominate and some local favorites are missing; distances off the highway are straight lines; share cards and the plate game are untested on a device.
+* **Later removed at the owner's request ([docs/12](12_profile_and_smartstop_audit.md), 12.9):** the achievements, the Passport card and the license plate game. Trip history, miles per state and the trip card stay, as "Your travels" in Settings.
 
 ## 9.11 Blockers and external dependencies
 

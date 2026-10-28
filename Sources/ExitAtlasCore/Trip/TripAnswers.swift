@@ -87,6 +87,55 @@ public enum TripAnswers {
         return "You arrive\(place) at about \(clock(s.eta, timeZoneID)), in \(duration(s.timeRemaining)). \(miles(s.remaining)) to go."
     }
 
+    // MARK: SmartStop
+
+    /// "Shell at exit 94, 32 miles ahead, about 30 minutes."
+    static func describe(_ c: SmartStop.Candidate, now: Date) -> String {
+        let place = c.exitLabel.map { "exit \($0)" } ?? (c.kind == .rest ? "the rest area" : "the service plaza")
+        let name = c.kind == .station ? "\(c.name) at \(place)" : c.name
+        return "\(name), \(miles(c.ahead ?? 0)) ahead, about \(duration(c.arrival.timeIntervalSince(now)))."
+    }
+
+    /// The hours (and restroom when it is known or asked for) as spoken labels.
+    static func confidence(_ e: SmartStop.Evaluation, restroom: Bool) -> String {
+        var text = e.hours.label + "."
+        if restroom || e.restroom != .unknown { text += " " + e.restroom.label + "." }
+        return text
+    }
+
+    /// "Find the next Shell": the nearest station of that brand ahead that is still listed. When it is
+    /// reported closed at arrival, says so and gives the next one.
+    public static func nextBrand(_ brand: String, candidates: [SmartStop.Candidate], preferences: SmartStop.Preferences,
+                                 now: Date, window: Double) -> String {
+        let matches = candidates.filter { c in
+            (c.ahead ?? 0) > 0 && c.gone == nil && SmartStop.brandIndex(c, favorites: [brand]) != nil
+        }.sorted { $0.along < $1.along }
+        guard let first = matches.first else { return "No \(brand) is listed in the next \(miles(window)) on your route." }
+        let e = SmartStop.evaluate(first, preferences: preferences)
+        var text = "The next \(brand): " + describe(first, now: now) + " " + confidence(e, restroom: false)
+        if e.hours.status == .closed, let open = matches.dropFirst().first(where: { SmartStop.evaluate($0, preferences: preferences).hours.status != .closed }) {
+            text += " The one after it: " + describe(open, now: now) + " " + confidence(SmartStop.evaluate(open, preferences: preferences), restroom: false)
+        }
+        return text
+    }
+
+    /// "What is the best stop in the next 50 miles" and "find an open gas station with a restroom":
+    /// SmartStop's pick with its reasons, and what is not confirmed.
+    public static func smartStop(_ r: SmartStop.Result?, now: Date, window: Double, restroom: Bool) -> String {
+        guard let r, let p = r.primary else {
+            return "No stop is listed in the next \(miles(window)) on your route."
+        }
+        var text = (restroom ? "The best match: " : "SmartStop picks ") + describe(p.candidate, now: now) + " "
+        if let b = p.brandRank, b == 0 { text += "Your first choice brand. " }
+        // A restroom notice already says what is known about restrooms; say it once.
+        let restroomNotice = r.notice?.localizedCaseInsensitiveContains("restroom") == true
+        text += restroomNotice ? p.evaluation.hours.label + "." : confidence(p.evaluation, restroom: restroom)
+        if let d = p.candidate.detourMinutes, d >= 1 { text += " About a \(Int(d.rounded())) minute detour." }
+        if let notice = r.notice { text += " " + notice }
+        if let alt = r.alternatives.first { text += " Alternative: " + describe(alt.candidate, now: now) }
+        return text
+    }
+
     // MARK: Words
 
     static func miles(_ meters: Double) -> String {
