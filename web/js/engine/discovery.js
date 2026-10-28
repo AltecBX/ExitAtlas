@@ -84,8 +84,8 @@ export class HighwayDiscovery {
 /// Distance window ahead for "about N hours ahead, plus or minus a tolerance", pace adjusted.
 export function timeWindow(plan, d, seconds, tolerance, pace) {
   const profile = plan.route.timeProfile;
-  const lo = profile.distanceAfter(Math.max(0, seconds - tolerance) / pace.factor, d);
-  const hi = profile.distanceAfter((seconds + tolerance) / pace.factor, d);
+  const lo = profile.distanceAfter(pace.modelSecondsFor(Math.max(0, seconds - tolerance)), d);
+  const hi = profile.distanceAfter(pace.modelSecondsFor(seconds + tolerance), d);
   return [lo, Math.max(lo, hi)];
 }
 
@@ -101,7 +101,7 @@ export function stopSuggestions(dataset, plan, snapshot, pace, requirements, win
   }
   const matches = searchAlongRoute(dataset, plan.exits, requirements, range[0], range[1], servicesFor);
   const out = matches.map((m) => {
-    const eta = snapshot.t + plan.route.timeProfile.secondsBetween(d, m.exit.distanceAlongRoute) * pace.factor;
+    const eta = snapshot.etaTo(m.exit.distanceAlongRoute);
     return { match: m, distanceAhead: m.exit.distanceAlongRoute - d, eta, timeFromTarget: target !== null ? eta - target : null };
   });
   if (target !== null) out.sort((a, b) => Math.abs(a.timeFromTarget) - Math.abs(b.timeFromTarget));

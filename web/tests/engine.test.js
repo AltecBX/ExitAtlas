@@ -251,7 +251,51 @@ test('snapshot: ETAs follow the travel time model and pace', () => {
   for (let i = 0; i < 60; i++) pace.observe(60, 72);
   const slower = plan.snapshot(onRoute(d), new TripLedger(), pace, START);
   assert.ok(slower.eta > s.eta);
-  near(slower.timeRemaining / s.timeRemaining, pace.factor, 0.001);
+  const model = plan.route.timeProfile.secondsBetween(d, plan.route.length);
+  near(slower.timeRemaining, pace.secondsFor(model), 1);
+});
+
+test('pace: recent pace drives near targets, trip pace drives far ones', () => {
+  const pace = new PaceModel();
+  assert.equal(pace.recentFactor, null);
+  assert.equal(pace.factorFor(600), 1);
+  // 30 minutes at the model pace, then 10 minutes 50% faster than the model (for example 84 vs 56 mph).
+  for (let i = 0; i < 1800; i++) pace.observe(1, 1, 25);
+  for (let i = 0; i < 600; i++) pace.observe(1.5, 1, 37.5);
+  assert.ok(pace.recentFactor < 0.75, `recent ${pace.recentFactor}`);
+  near(pace.recentSpeed, 37.5 * 0.865 + 25 * 0.135, 1.5);
+  assert.ok(pace.factor > 0.8, `trip ${pace.factor}`);
+  // The inverse used by the stop planner round trips.
+  near(pace.secondsFor(pace.modelSecondsFor(5400)), 5400, 0.01);
+  // A prior from earlier trips starts the trip pace at the driver's usual pace.
+  const usual = new PaceModel(null, { priorFactor: 0.7 });
+  near(usual.factor, 0.7, 1e-9);
+  assert.ok(pace.factorFor(10 * 60) < pace.factorFor(8 * 3600));
+  near(pace.factorFor(0), pace.recentFactor, 1e-9);
+  // Stops do not count: a 10 minute stop is never observed, so nothing changes.
+  const before = pace.factorFor(1800);
+  pace.observe(0, 600);
+  near(pace.factorFor(1800), before, 1e-12);
+});
+
+test('pace: driving 50% faster than the model, the next state line ETA is within 3%', () => {
+  // Atlanta to Nashville: drive 20 minutes at 1.5x the modeled speed, then predict the Tennessee line.
+  const r = route('atlanta_to_nashville');
+  const plan = new TripPlan(r, { states: data.states, timeZones: null, interstates: null });
+  const session = new TripSession(plan, data.states, START);
+  const trace = new GPSSimulator(r, { speedFactor: 1.5, noise: 5 }).trace(20000, null, START);
+  let k = 0, snapshot = null;
+  for (; k < trace.length && trace[k].sample.t < START + 1200; k++) snapshot = session.ingest(trace[k].sample);
+  const border = snapshot.current.segment.endDistance;
+  const predicted = snapshot.current.exitTime;
+  const actual = trace.find((x) => x.truth >= border).sample.t;
+  const ahead = actual - snapshot.t;
+  assert.ok(ahead > 1200, `state line ${ahead} s ahead`);
+  const error = Math.abs(predicted - actual) / ahead;
+  // Model only would be about 50% late here; trip pace alone, with its 30 minute prior, about 25%.
+  const modelOnly = plan.route.timeProfile.secondsBetween(snapshot.progress, border);
+  assert.ok(modelOnly / ahead > 1.4);
+  assert.ok(error < 0.03, `ETA error ${(error * 100).toFixed(1)}%`);
 });
 
 test('snapshot: highway and direction, I-95 N in Georgia', () => {

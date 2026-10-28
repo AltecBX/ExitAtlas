@@ -248,6 +248,27 @@ function considerFuelVoice() {
   }
 }
 
+// MARK: Personal pace
+
+/// Moving time against the routing model, per real GPS trip (OSRM routes only), last 20 trips.
+function paceHistory() { return store.get('ea.paceHistory', {}); }
+
+function recordPace() {
+  if (app.mode !== 'trip' || app.gps !== 'device' || !app.session || app.plan?.route.source !== 'osrm') return;
+  const hist = paceHistory();
+  hist[String(app.tripStartedAt)] = { o: app.session.pace.observedSeconds, e: app.session.pace.expectedSeconds };
+  const keys = Object.keys(hist).sort((a, b) => Number(b) - Number(a)).slice(0, 20);
+  store.set('ea.paceHistory', Object.fromEntries(keys.map((k) => [k, hist[k]])));
+}
+
+/// The driver's usual pace relative to the routing model, from earlier trips; 1 without history.
+function personalPace(excludeKey = String(app.tripStartedAt)) {
+  let o = 0, e = 0;
+  for (const [k, v] of Object.entries(paceHistory())) if (k !== excludeKey) { o += v.o; e += v.e; }
+  return { factor: e >= 1800 ? Math.min(Math.max(o / e, 0.4), 2.5) : 1, hours: o / 3600 };
+}
+app.personalPace = () => personalPace(null);
+
 async function openVehicleSheet() {
   const v = app.settings.vehicle;
   app.vehiclePick = v ? { year: String(v.year), make: v.make, model: v.model, version: null, tank: v.tankGallons } : { year: '', make: '', model: '', version: null, tank: null };
@@ -328,8 +349,9 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
     });
     app.tripStartedAt = restoring.startedAt;
   } else {
-    app.session = new TripSession(plan, app.data.states, now);
     app.tripStartedAt = now;
+    const prior = route.source === 'osrm' && !simulate ? personalPace().factor : 1;
+    app.session = new TripSession(plan, app.data.states, now, { pace: new PaceModel(null, { priorFactor: prior }) });
   }
   app.resumable = null;
   app.lastPersistAt = null;
@@ -349,6 +371,7 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
 }
 
 function endTrip() {
+  recordPace();
   const session = app.session;
   if (app.mode === 'trip' && session && app.gps === 'device' && session.ledger.totalMeters > 0) {
     app.history.unshift({
@@ -517,6 +540,7 @@ function persistIfDue(t, force = false) {
   if (app.mode !== 'trip' || app.gps !== 'device' || !app.session) return;
   if (!force && app.lastPersistAt && t - app.lastPersistAt < 30) return;
   app.lastPersistAt = t;
+  recordPace();
   store.set('ea.active', {
     route: serializeRoute(app.plan.route), ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
     startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(),
@@ -642,6 +666,7 @@ const actions = {
   'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
   'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
+  'reset-pace'() { store.remove('ea.paceHistory'); lastViewHTML = ''; render(); toast('Pace history cleared'); },
   'test-voice'() {
     if (!app.announcer.supported) { toast('Voice is not supported in this browser'); return; }
     app.announcer.speak('Georgia state line in 3 miles. 4 exits remain in Florida.');
@@ -649,7 +674,7 @@ const actions = {
   theme(arg) { app.settings.theme = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   'clear-data'() {
     if (!confirm('Erase saved trips, recent destinations and settings on this phone?')) return;
-    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window']) store.remove(k);
+    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory']) store.remove(k);
     app.settings = { ...DEFAULT_SETTINGS };
     app.history = [];
     app.planner.recent = [];

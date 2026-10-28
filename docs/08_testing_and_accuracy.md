@@ -76,7 +76,8 @@ Web version (`web/tests`, `npm test`, CI job "Web engine tests"): the JavaScript
 ## 8.5 Open risks
 
 1. MapKit route geometry versus OSM exit nodes: the 15 m limit for third party geometry is an estimate that could not be measured here. Plan: log offsets of matched exits on real drives, tighten or adapt per corridor, and move to OSM based routing (Valhalla) where possible.
-2. ETAs on MapKit routes use only total travel time per leg, spread by distance, then corrected by learned pace and a live ETA every 10 minutes. City segments at either end make early state entry times less accurate. Measure on real drives.
-3. Coverage: OpenInterstate covers signed interstates only. Turnpikes and US routes without an interstate designation (for example Florida's Turnpike) show no exits.
-4. Exit names are missing for most exits in the source.
-5. If iOS terminates the app, the trip resumes from saved waypoints and driven miles, but recomputing the route needs a network connection. Offline resume needs storable OSM route geometry (Phase 4).
+2. Web version ETAs (OSRM): OSRM's car profile models roads at speed limit times 0.8, so a driver at the limit or above is faster than the model. The web pace model predicts the next 30 modeled minutes at the recent pace (5 minute moving time memory) and blends into the trip pace (15 minute prior centered on the driver's pace from earlier trips) with a 1 hour time constant. Test: driving 1.5 times the model speed, the next state line ETA after 20 minutes is within 3% (`web/tests/engine.test.js`). To port to the Swift engine.
+3. ETAs on MapKit routes use only total travel time per leg, spread by distance, then corrected by learned pace and a live ETA every 10 minutes. City segments at either end make early state entry times less accurate. Measure on real drives.
+4. Coverage: OpenInterstate covers signed interstates only. Turnpikes and US routes without an interstate designation (for example Florida's Turnpike) show no exits.
+5. Exit names are missing for most exits in the source.
+6. If iOS terminates the app, the trip resumes from saved waypoints and driven miles, but recomputing the route needs a network connection. Offline resume needs storable OSM route geometry (Phase 4).

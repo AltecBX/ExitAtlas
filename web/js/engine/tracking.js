@@ -188,26 +188,94 @@ export class TripLedger {
   }
 }
 
-/// Learns the driver's moving pace against the travel time model, with a 30 minute prior.
+/// Seconds of moving time over which recent pace fades (exponential time constant).
+export const RECENT_PACE_TAU = 300;
+/// Modeled seconds ahead that are predicted entirely at the recent pace.
+export const RECENT_PACE_HORIZON = 1800;
+/// Beyond the horizon, the prediction moves from recent pace to trip pace with this time constant.
+export const PACE_BLEND_TAU = 3600;
+
+const clampFactor = (f) => Math.min(Math.max(f, 0.4), 2.5);
+
+/// Learns the driver's moving pace against the travel time model (OSRM road speeds).
+///
+/// Both estimates are ratios of actual to modeled seconds over moving time only, so stops never
+/// count as slow driving:
+///   * recent pace: about the last 5 minutes of moving time;
+///   * trip pace: everything driven this trip, with a 15 minute prior centered on the driver's
+///     pace from earlier trips (or the model when there is no history).
+/// Predicted time to a target is the integral of the pace over the modeled road ahead: the next
+/// 30 modeled minutes at the recent pace, then shifting to trip pace with a 1 hour time constant.
+/// The prediction always increases with distance, so ETAs along the route stay in order.
 export class PaceModel {
-  constructor(json = null) {
+  constructor(json = null, { priorFactor = 1 } = {}) {
     this.observedSeconds = json?.observedSeconds ?? 0;
     this.expectedSeconds = json?.expectedSeconds ?? 0;
-    this.priorSeconds = json?.priorSeconds ?? 1800;
+    this.priorSeconds = json?.priorSeconds ?? 900;
+    this.priorFactor = clampFactor(json?.priorFactor ?? priorFactor);
+    this.recentObserved = json?.recentObserved ?? 0;
+    this.recentExpected = json?.recentExpected ?? 0;
+    this.recentMeters = json?.recentMeters ?? 0;
   }
 
   toJSON() {
-    return { observedSeconds: this.observedSeconds, expectedSeconds: this.expectedSeconds, priorSeconds: this.priorSeconds };
+    return {
+      observedSeconds: this.observedSeconds, expectedSeconds: this.expectedSeconds, priorSeconds: this.priorSeconds,
+      priorFactor: this.priorFactor, recentObserved: this.recentObserved, recentExpected: this.recentExpected,
+      recentMeters: this.recentMeters,
+    };
   }
 
+  /// Trip ratio of actual to modeled time. Below 1 means faster than the model.
   get factor() {
-    const f = (this.observedSeconds + this.priorSeconds) / (this.expectedSeconds + this.priorSeconds);
-    return Math.min(Math.max(f, 0.6), 2.0);
+    return clampFactor((this.observedSeconds + this.priorSeconds * this.priorFactor) / (this.expectedSeconds + this.priorSeconds));
   }
 
-  observe(expected, actual) {
+  /// Ratio over about the last 5 minutes of moving time, or null with under 2 minutes of data.
+  get recentFactor() {
+    if (this.recentObserved < 120 || !(this.recentExpected > 0)) return null;
+    return clampFactor(this.recentObserved / this.recentExpected);
+  }
+
+  /// Average moving speed over the recent window (m/s), or null.
+  get recentSpeed() {
+    return this.recentObserved >= 120 ? this.recentMeters / this.recentObserved : null;
+  }
+
+  /// Predicted driving seconds for a stretch the model says takes `modelSeconds`.
+  secondsFor(modelSeconds) {
+    const s = Math.max(0, modelSeconds);
+    const trip = this.factor, recent = this.recentFactor;
+    if (recent === null) return trip * s;
+    // Integral of the weight of recent pace: 1 up to the horizon, then exponential decay.
+    const h = RECENT_PACE_HORIZON, tau = PACE_BLEND_TAU;
+    const w = s <= h ? s : h + tau * (1 - Math.exp(-(s - h) / tau));
+    return trip * s + (recent - trip) * w;
+  }
+
+  /// Average factor over a stretch of `modelSeconds` (predicted seconds / modeled seconds).
+  factorFor(modelSeconds) {
+    if (!(modelSeconds > 0)) return this.recentFactor ?? this.factor;
+    return this.secondsFor(modelSeconds) / modelSeconds;
+  }
+
+  /// Modeled seconds that take `seconds` of predicted driving (inverse of secondsFor).
+  modelSecondsFor(seconds) {
+    let lo = 0, hi = Math.max(1, seconds / 0.4);
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (this.secondsFor(mid) < seconds) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  observe(expected, actual, meters = 0) {
     if (!(expected > 0) || !(actual > 0) || !(actual < 600)) return;
     this.expectedSeconds += expected;
     this.observedSeconds += actual;
+    const decay = Math.exp(-actual / RECENT_PACE_TAU);
+    this.recentObserved = this.recentObserved * decay + actual;
+    this.recentExpected = this.recentExpected * decay + expected;
+    this.recentMeters = this.recentMeters * decay + meters;
   }
 }

@@ -29,7 +29,6 @@ export function fullTankRange(vehicle) {
 export function planFuelStop(plan, snapshot, range, { bufferMeters = 50 * MILE, servicesFor, preferredBrands = [], hasDestination = true } = {}) {
   const d = snapshot.progress;
   const remaining = plan.route.length - d;
-  const pace = snapshot.paceFactor ?? 1;
   const brands = preferredBrands.map((b) => b.toLowerCase()).filter(Boolean);
   const stations = [];
   for (const exit of plan.exitsBetween(d, d + range)) {
@@ -43,7 +42,7 @@ export function planFuelStop(plan, snapshot, range, { bufferMeters = 50 * MILE, 
     stations.push({
       exit, ahead, detourMeters: detour, rangeOnArrival, gas,
       preferred: brands.length > 0 && names.some((n) => brands.some((b) => n.includes(b))),
-      eta: snapshot.t + plan.route.timeProfile.secondsBetween(d, exit.distanceAlongRoute) * pace,
+      eta: snapshot.etaTo(exit.distanceAlongRoute),
     });
   }
   const result = {

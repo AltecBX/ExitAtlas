@@ -61,9 +61,8 @@ export class TripPlan {
   snapshot(match, ledger, pace, now, { exitLookahead = 100 * METERS_PER_MILE, maxUpcomingExits = 200 } = {}) {
     const route = this.route;
     const d = Math.min(Math.max(match.distanceAlongRoute, 0), route.length);
-    const factor = pace.factor;
     const eta = (target) => {
-      let seconds = route.timeProfile.secondsBetween(d, target) * factor;
+      let seconds = pace.secondsFor(route.timeProfile.secondsBetween(d, target));
       for (const stop of route.stops) {
         if (stop.distanceAlongRoute > d && stop.distanceAlongRoute < target) seconds += stop.plannedDwell ?? 0;
       }
@@ -125,7 +124,8 @@ export class TripPlan {
     return {
       t: now, match, routeLength: route.length, progress: d, remaining: route.length - d,
       drivenTotal: Math.max(ledger.totalMeters, d), eta: arrival, timeRemaining: arrival - now,
-      paceFactor: factor, highway: route.highwayAt(d), current, next, itinerary,
+      paceFactor: pace.factor, paceRecent: pace.recentFactor, recentSpeed: pace.recentSpeed, etaTo: eta,
+      highway: route.highwayAt(d), current, next, itinerary,
       nextExit: ne ? toUpcoming(ne) : null, upcomingExits,
       borderCrossingsRemaining: ahead.length, statesAhead,
       nextStop: stop ? { stop, distance: stop.distanceAlongRoute - d, eta: eta(stop.distanceAlongRoute) } : null,
@@ -162,7 +162,7 @@ export class TripSession {
       const dt = current.t - previous.t;
       const moved = current.distanceAlongRoute - previous.distanceAlongRoute;
       if (dt > 0 && moved / dt > 2) {
-        this.pace.observe(this.plan.route.timeProfile.secondsBetween(previous.distanceAlongRoute, current.distanceAlongRoute), dt);
+        this.pace.observe(this.plan.route.timeProfile.secondsBetween(previous.distanceAlongRoute, current.distanceAlongRoute), dt, moved);
       }
     } else if (this.hasStartedDriving && current.status !== 'onRoute' && this.lastSample
       && sample.accuracy >= 0 && sample.accuracy <= 100 && sample.t - this.lastSample.t < 120) {

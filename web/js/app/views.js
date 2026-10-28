@@ -113,7 +113,7 @@ function dashboard(app, s) {
   const hw = s.highway;
   const header = `<div class="row" style="padding-top:4px">${shield(hw?.ref)}
     <div class="main" style="flex:1;min-width:0"><div class="title-md">${hw ? `${h(highwayLabel(hw.ref))} ${DIRECTION_WORDS[hw.direction]}` : 'Local roads'}</div>
-    <div class="muted small">${discovery ? 'Discovery mode · no destination' : `Driving in ${h(s.current?.segment.displayName ?? '—')}`}</div></div>
+    <div class="muted small">${discovery ? 'Discovery mode' : `Driving in ${h(s.current?.segment.displayName ?? '—')}`}${s.match.status === 'onRoute' && s.match.speed > 2 ? ` · <b class="num">${Math.round(s.match.speed * 2.23694)} mph</b>` : ''}</div></div>
     ${badge(s.current?.segment.code, true)}</div>`;
   const parts = [header];
   if (s.current) parts.push(borderCard(s));
@@ -208,7 +208,15 @@ function destinationCard(app, s, discovery) {
     ${metric('Destination', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
     ${metric('Arrival', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}
     ${metric('States left', String(s.statesAhead.length), { caption: s.statesAhead.slice(0, 4).join(' · '), size: 'md' })}
-  </div>${stop}</div>`;
+  </div>${stop}${paceNote(app, s)}</div>`;
+}
+
+function paceNote(app, s) {
+  let text;
+  if (s.recentSpeed) text = `Times follow your driving: ${Math.round(s.recentSpeed * 2.23694)} mph average over the last few minutes, blending into your trip pace for later stretches.`;
+  else if (Math.abs(s.paceFactor - 1) > 0.02) text = 'Times use your usual pace from earlier trips until you have driven a few minutes.';
+  else text = 'Times use routing road speeds until you have driven a few minutes, then follow your pace.';
+  return `<p class="muted tiny" style="margin:10px 0 0">${text}</p>`;
 }
 
 // MARK: Exits
@@ -268,7 +276,7 @@ export function exitDetail(app, exitId) {
   }
   const c = exit.coordinate;
   return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || exitTitle(exit))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(plan.route.timeProfile.secondsBetween(s.progress, exit.distanceAlongRoute) * s.paceFactor)} · ` : ''}${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
+    <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(exit.distanceAlongRoute) - s.t)} · ` : ''}${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(exitTitle(exit))}" target="_blank" rel="noopener">Apple Maps</a>
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
@@ -386,6 +394,7 @@ export function settingsView(app) {
       ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
       <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Vehicle and fuel</div>${vehicleSettings(app)}</div>
+    <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
     <div><div class="section-title">Lifetime</div><div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(life.meters / MILE).toLocaleString('en-US'), { size: 'md' })}${metric('States driven', String(life.states.length), { caption: life.states.join(' · '), size: 'md' })}</div>
       <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone.</p></div></div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
@@ -497,6 +506,14 @@ function basisName(st) {
 export function gaugeText(eighths, v) {
   const label = ['Empty', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8', 'Full'][eighths];
   return `${label} · ${Math.round(eighths / 8 * v.tankGallons * v.mpg)} mi`;
+}
+
+function paceSettings(app) {
+  const p = app.personalPace();
+  const learned = p.hours >= 0.5
+    ? `Your usual pace: ${Math.round(Math.abs(1 / p.factor - 1) * 100)}% ${p.factor <= 1 ? 'faster' : 'slower'} than the routing estimates, learned from ${p.hours.toFixed(1)} h of driving. <button class="btn sm" data-act="reset-pace" style="margin-left:6px">Reset</button>`
+    : 'No pace history yet. It builds from real GPS trips.';
+  return `<p style="margin-top:0">Times start from OSRM road speeds (OpenStreetMap speed limits times 0.8, about 56 mph on a 70 mph interstate). While you drive, the next 30 minutes follow your speed over the last few minutes, and later stretches blend into your pace for the trip and from earlier trips. Stops are not counted as slow driving.</p><p style="margin-bottom:0">${learned}</p>`;
 }
 
 function vehicleSettings(app) {
