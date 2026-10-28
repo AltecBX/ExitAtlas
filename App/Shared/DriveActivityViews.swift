@@ -56,8 +56,12 @@ struct DriveActivityLockScreenView: View {
             HStack(spacing: 8) {
                 if let next = content.nextStateCode ?? content.nextStateName {
                     // The state line and arrival keep their full width; the exit count gives way first.
-                    Label("\(next) line \(ActivityFormat.miles(content.stateLineMeters))", systemImage: "flag.checkered")
-                        .lineLimit(1).fixedSize().layoutPriority(2)
+                    // Plain views rather than a Label: a fixed size Label lost its title inside a List row.
+                    HStack(spacing: 5) {
+                        Image(systemName: "flag.checkered")
+                        Text("\(next) line \(ActivityFormat.miles(content.stateLineMeters))").lineLimit(1).fixedSize()
+                    }
+                    .layoutPriority(2)
                     if let left = content.exitsLeftInState, let here = content.stateCode {
                         Text("· \(left) \(left == 1 ? "exit" : "exits") left in \(here)").foregroundStyle(.secondary)
                             .lineLimit(1).minimumScaleFactor(0.85)
