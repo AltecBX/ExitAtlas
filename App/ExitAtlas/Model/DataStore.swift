@@ -30,9 +30,10 @@ struct BundledData: Sendable {
         let corridors = try CorridorDataset(contentsOf: try url("corridors", "eac"))
         // Optional: without it the timeline has no rest area rows.
         let restAreas = (try? url("restareas", "json")).flatMap { try? RestAreaDataset(contentsOf: $0) }
+        let discover = (try? url("discover", "json")).flatMap { try? DiscoverDataset(contentsOf: $0) }
         return BundledData(
             datasets: TripDatasets(states: states, timeZones: TimeZoneResolver(zones: zones), interstates: interstates,
-                                   restAreas: restAreas),
+                                   restAreas: restAreas, discover: discover),
             corridors: corridors, interstates: interstates)
     }
 

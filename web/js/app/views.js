@@ -637,7 +637,7 @@ export function discoverSheet(app, id) {
       <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${it.lat},${it.lon}" target="_blank" rel="noopener">Google Maps</a>
       ${it.wiki ? `<a class="btn sm" href="${h(it.wiki)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}</div>
     ${app.canAddStop() ? `<button class="btn primary block" style="margin-top:12px" data-act="add-place-stop" data-arg="${h(it.id)}">Add to trip</button>` : '<p class="muted tiny">Adding it to the trip reroutes through it, which needs live GPS (not the demo).</p>'}
-    <p class="note">From Wikidata (${h(it.id)}, CC0): ${it.sitelinks} Wikipedia language editions. Hours, fees and closures are not in this data.</p>`;
+    <p class="note">From Wikidata (${h(it.id)}, CC0): linked from ${it.sitelinks} Wikimedia sites (Wikipedia editions and sister projects). Hours, fees and closures are not in this data.</p>`;
 }
 
 /// Passenger game: tap the plates you spot. Kept for the current trip on this phone.

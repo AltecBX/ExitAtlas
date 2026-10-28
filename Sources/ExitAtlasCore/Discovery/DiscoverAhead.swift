@@ -30,7 +30,7 @@ public enum DiscoverCategory: String, Sendable, Codable, Hashable, CaseIterable 
         case .viewpoint: return "binoculars.fill"
         case .museum: return "building.columns"
         case .zoo: return "pawprint.fill"
-        case .amusementPark: return "ferris.wheel"
+        case .amusementPark: return "star.circle.fill"
         case .historicSite: return "clock.arrow.circlepath"
         }
     }

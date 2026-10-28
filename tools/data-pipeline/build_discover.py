@@ -10,7 +10,8 @@ cache dir. Kept only when:
     dissolved, demolished or closed (P576 dissolved/abolished, P3999 closing date, P5817 state of use
     in CLOSED);
   * it belongs to an allowed category (below);
-  * it is notable: Wikipedia articles in enough languages (sitelinks), a quality signal;
+  * it is notable: linked from enough Wikimedia sites (sitelinks: Wikipedia language editions plus
+    sister projects such as Wikivoyage and Commons), a quality signal;
   * it lies near an interstate carriageway, straight line: 16 km (10 mi) for parks and natural
     sites, 8 km (5 mi) for city attractions.
 Score (0 to 100): sitelinks (3 points each, up to 60), +25 for a national park, national monument or
@@ -33,7 +34,7 @@ AGENT = "ExitAtlas-data-pipeline/1.0 (https://github.com/AltecBX/ExitAtlas)"
 MIN_SCORE = 35
 
 # category: (Wikidata classes, include subclasses, minimum sitelinks, designation bonus, near meters)
-# Parks and natural sites rarely have many language editions but are worth a longer detour; city
+# Parks and natural sites rarely have many site links but are worth a longer detour; city
 # attractions need more editions to stand out and must be close to the highway.
 CATEGORIES = {
     "nationalPark": (["Q34918903", "Q46169"], False, 1, True, 16000),
@@ -145,7 +146,7 @@ def main():
     stats.update(collections.Counter(i["cat"] for i in out))
     meta = {
         "kind": "discover", "version": 1,
-        "source": "Wikidata (query.wikidata.org), places within 8 to 16 km of an interstate, scored by Wikipedia language editions and designation",
+        "source": "Wikidata (query.wikidata.org), places within 8 to 16 km of an interstate, scored by Wikimedia site links and designation",
         "license": "CC0-1.0", "attribution": "Wikidata (CC0). Descriptions from Wikidata.",
         "fetched": datetime.date.today().isoformat(), "count": len(out), "min_score": MIN_SCORE,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),

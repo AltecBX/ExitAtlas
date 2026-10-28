@@ -89,7 +89,10 @@ struct SettingsView: View {
                 }
                 Section("Your trips") {
                     LabeledContent("Lifetime miles", value: Format.miles(library.lifetimeMeters))
-                    LabeledContent("States driven", value: "\(library.lifetimeStates.count)")
+                    NavigationLink { PassportView() } label: {
+                        LabeledContent("Road Trip Passport", value: "\(library.lifetimeStates.count) states")
+                    }
+                    .accessibilityIdentifier("passportLink")
                     NavigationLink("Trip history") { HistoryView() }
                 }
                 Section("About the data") {
