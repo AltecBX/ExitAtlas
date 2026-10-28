@@ -1,0 +1,32 @@
+{
+  "kind": "exitatlas-profile",
+  "schema": 2,
+  "updatedAt": "2026-10-28T20:00:00Z",
+  "vehicles": [
+    {"id": "camry", "year": 2015, "make": "Toyota", "model": "Camry", "version": "4 cyl 2.5 L, Automatic (S6)", "epaId": 35000,
+     "fuel": "R", "city": 25, "highway": 35, "combined": 28, "tankGallons": 17, "tankSource": "verified",
+     "evRangeMiles": 0, "evRangeHighwayMiles": 0, "mpgBasis": "custom", "customMpg": 33.5, "customRangeMiles": null},
+    {"id": "model3", "year": 2024, "make": "Tesla", "model": "Model 3", "version": "Long Range AWD", "epaId": 47000,
+     "fuel": "E", "city": 138, "highway": 126, "combined": 132, "tankGallons": null, "tankSource": null,
+     "evRangeMiles": 341, "evRangeHighwayMiles": 310, "mpgBasis": "highway", "customMpg": null, "customRangeMiles": null}
+  ],
+  "defaultVehicleId": "camry",
+  "fuel": {"brands": ["Shell", "Wawa", "Sheetz"], "grade": "P", "reserveMiles": 60, "maxDetourMinutes": 6,
+           "require24Hours": "always", "requireRestroom": "overnight", "priceOverBrand": false, "chargerNetwork": "all"},
+  "overnight": {"mode": "auto", "start": "23:30", "end": "05:00"},
+  "places": {
+    "home": {"name": "Home", "lat": 40.7128, "lon": -74.006},
+    "saved": [{"id": "s1", "name": "Mom", "lat": 33.749, "lon": -84.388}, {"name": "Cabin", "lat": 35.5951, "lon": -82.5515}],
+    "recent": [{"name": "Savannah, GA", "lat": 32.0809, "lon": -81.0912}],
+    "plans": [
+      {"id": "p1", "name": "Florida run", "from": null, "stops": [{"name": "Savannah, GA", "lat": 32.0809, "lon": -81.0912}],
+       "to": {"name": "Orlando, FL", "lat": 28.5384, "lon": -81.3789}},
+      {"name": "To Mom", "from": {"name": "Home", "lat": 40.7128, "lon": -74.006}, "stops": [],
+       "to": {"name": "Mom", "lat": 33.749, "lon": -84.388}}
+    ]
+  },
+  "favorites": {"hotels": ["Hampton Inn"], "restaurants": ["Chick-fil-A", "Wawa"]},
+  "driving": {"speedAlertOver": 7, "exitLookaheadMiles": 50, "gasGapMiles": 60, "favoriteCategories": ["gas", "restArea"],
+              "avoidTolls": true, "keepAwake": true, "liveActivity": false, "theme": "dark"},
+  "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": false, "gasGaps": true, "timeZones": true}
+}

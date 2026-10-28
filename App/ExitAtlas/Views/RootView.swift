@@ -36,7 +36,7 @@ struct RootView: View {
                     .tag(Tab.settings)
             }
             .tint(Theme.signGreen)
-            .preferredColorScheme(app.forceDark ? .dark : nil)
+            .preferredColorScheme(app.forceDark ? .dark : app.settings.theme == "dark" ? .dark : app.settings.theme == "light" ? .light : nil)
             .onChange(of: trip.mode) { _, mode in
                 if mode != .idle { tab = .drive } else { Task { await app.applyDownloadedDataIfIdle() } }
             }

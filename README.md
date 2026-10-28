@@ -17,7 +17,7 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 82 tests pass on Linux, with the web's 71 tests covering the same cases in JavaScript. |
+| Engine (`Sources/ExitAtlasCore`) | 96 tests pass on Linux, with the web's 83 tests covering the same cases in JavaScript. |
 | Key proxy (`infra/worker`) | 7 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
@@ -46,6 +46,12 @@ In both the web version and the iOS app unless marked.
 * Share cards: an image of the trip (miles and miles per state, marked when simulated) or of the Passport.
 * License plate game for passengers, kept per trip.
 
+**Your profile**
+* Saved vehicles (one in use, each with its own MPG or range choice), favorite gas brands in priority order (Shell to start), fuel grade, what a fuel stop must have (open 24 hours, restroom, longest detour), the overnight window, home, saved and recent places, saved trips, favorite services and hotel and restaurant brands, display and voice choices.
+* Saved on every change and restored at launch; there is no Save button and no account. Trips, app and website updates and data updates never reset it. A save the device refuses is shown in Settings, never reported as saved.
+* A damaged value falls back to its default on its own; an unreadable profile falls back to the copy before the last change, and the damaged copy is kept.
+* Export and import as one file, the same format on the web and iOS. The website and the app keep separate profiles: there is no sync, so deleting the app, clearing website data or switching browsers starts fresh unless you import an export. API keys are never exported.
+
 **Lock Screen, Siri and the car** *(iOS)*
 * A Live Activity with the next exit, the next state line, the next rest area and your arrival time, on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch.
 * Siri and Shortcuts: "How far to Georgia in ExitAtlas", "Next rest area in ExitAtlas", "Next gas in ExitAtlas" and three more, answered in full sentences.
@@ -59,7 +65,7 @@ In both the web version and the iOS app unless marked.
 * Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy.
 
 **Trips**
-* Home and recent places, for one tap routing.
+* Home, saved and recent places and saved trips, for one tap routing.
 * The trip is saved every 30 seconds and resumes after a reload (on iOS, resuming needs a connection to recompute the route).
 * State, time zone, exit and rest area data are on the phone; no connection is needed for them.
 * Data updates: each data file is checked against the SHA-256 in `manifest.json` before use, and a bad or unreadable download falls back to the last set that worked. The iOS app checks for newer data once a day on Wi-Fi and never switches data during a trip ([docs/11](docs/11_release_readiness.md)).
@@ -68,7 +74,7 @@ Exit and rest area data cover signed interstates only. Turnpikes and US routes w
 
 ## Optional keys
 
-Entered in Settings and stored only on the phone.
+Entered in Settings and stored only on the device: in the Keychain on iOS, in browser storage on the web (never in profile exports).
 
 | Key | Needed for | Cost |
 |---|---|---|

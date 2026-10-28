@@ -204,6 +204,7 @@ private struct RouteOptionRow: View {
 struct PlaceSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(TripLibrary.self) private var library
+    @Environment(UserSettings.self) private var settings
     @State private var search = PlaceSearch()
     @State private var resolving = false
     let onPick: (Waypoint) -> Void
@@ -225,18 +226,26 @@ struct PlaceSearchSheet: View {
                                 .swipeActions { Button("Clear", role: .destructive) { library.setHome(nil) } }
                         }
                     }
+                    if !settings.savedPlaces.isEmpty {
+                        Section("Saved") {
+                            ForEach(settings.savedPlaces, id: \.self) { place in
+                                Button { pick(place) } label: { Label(place.name, systemImage: "star.fill").lineLimit(1) }
+                            }
+                        }
+                    }
                     if !library.recentPlaces.isEmpty {
                         Section {
                             ForEach(library.recentPlaces, id: \.self) { place in
                                 Button { pick(place) } label: { Label(place.name, systemImage: "clock.arrow.circlepath").lineLimit(1) }
                                     .swipeActions {
                                         Button { library.setHome(place) } label: { Label("Set as Home", systemImage: "house") }.tint(Theme.signGreen)
+                                        Button { settings.savePlace(place) } label: { Label("Save", systemImage: "star") }.tint(Theme.signBlue)
                                     }
                             }
                         } header: {
                             Text("Recent")
                         } footer: {
-                            Text("Swipe a place to set it as Home.")
+                            Text("Swipe a place to set it as Home or save it.")
                         }
                     }
                 }

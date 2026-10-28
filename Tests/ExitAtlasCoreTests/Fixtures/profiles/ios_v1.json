@@ -1,0 +1,16 @@
+{
+  "defaults": {
+    "exitLookaheadMiles": 40, "voiceEnabled": true, "announceExits": false, "announceStateLines": true, "announceFuel": false,
+    "announceRestAreas": true, "announceGasGaps": false, "announceTimeZones": true, "gasGapMiles": 50, "liveActivityEnabled": false,
+    "avoidTolls": true, "bufferMiles": 35, "teslaOnlyChargers": false, "speedAlertOver": 8,
+    "googleKey": "AIza-not-a-real-key", "nrelKey": "",
+    "favoriteBrands": ["Sheetz", "Shell"],
+    "vehicle": {"year": 2015, "make": "Toyota", "model": "Camry", "versionLabel": "4 cyl 2.5 L, Automatic (S6)", "city": 25,
+      "highway": 35, "combined": 28, "fuel": "R", "tankGallons": 17, "tankIsVerified": true, "evRangeMiles": 0,
+      "evRangeHighwayMiles": 0, "basis": "combined", "customMilesPerGallon": null, "customRangeMiles": null}
+  },
+  "places": {
+    "home": {"name": "Home", "coordinate": {"latitude": 40.7128, "longitude": -74.006}},
+    "recent": [{"name": "Savannah, GA", "coordinate": {"latitude": 32.0809, "longitude": -81.0912}}]
+  }
+}

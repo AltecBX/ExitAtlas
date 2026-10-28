@@ -192,10 +192,16 @@ function idleCards(app) {
 }
 
 function quickPlaces(app) {
-  const { home, recent } = app.places;
+  const { home, saved, recent, plans } = app.places;
   const rows = [];
+  plans.slice(0, 3).forEach((t, i) => {
+    rows.push(`<button class="item" data-act="open-plan" data-arg="${i}"><span style="font-size:20px">🗺️</span><div class="main"><div class="t">${h(t.name)}</div><div class="muted tiny">${h(t.from?.name ?? 'Current location')} to ${h(t.to.name)}${t.stops.length ? `, ${t.stops.length} stop${t.stops.length === 1 ? '' : 's'}` : ''}</div></div><span class="chev">›</span></button>`);
+  });
   if (home) rows.push(`<button class="item" data-act="go-to" data-arg="home"><span style="font-size:22px">🏠</span><div class="main"><div class="t">Home</div><div class="muted tiny">${h(home.name)}</div></div><span class="chev">›</span></button>`);
-  recent.filter((r) => !home || r.name !== home.name).slice(0, 3).forEach((r) => {
+  saved.slice(0, 4).forEach((p, i) => {
+    rows.push(`<button class="item" data-act="go-to" data-arg="saved:${i}"><span style="font-size:20px">★</span><div class="main"><div class="t">${h(p.name)}</div></div><span class="chev">›</span></button>`);
+  });
+  recent.filter((r) => (!home || r.name !== home.name) && !saved.some((p) => p.name === r.name)).slice(0, 3).forEach((r) => {
     const i = recent.indexOf(r);
     rows.push(`<button class="item" data-act="go-to" data-arg="${i}"><span style="font-size:20px">🕘</span><div class="main"><div class="t">${h(r.name)}</div></div><span class="chev">›</span></button>`);
   });
@@ -672,7 +678,7 @@ function plannerView(app) {
       ${kind === 'stop' ? `<button class="x" data-act="remove-stop" data-arg="${idx}" aria-label="Remove stop">✕</button>` : kind === 'from' && w ? '<button class="x" data-act="reset-from" aria-label="Use current location">✕</button>' : '<span class="chev">›</span>'}</div>`;
   };
   let html = `<div class="stack"><div class="list">${wp('from', p.from)}${p.stops.map((st, i) => wp('stop', st, i)).join('')}${wp('to', p.to)}</div>
-    <div class="btn-row"><button class="btn sm" data-act="add-stop">＋ Add stop</button><button class="btn sm primary" data-act="find-routes" ${p.to && !p.busy ? '' : 'disabled'}>${p.busy ? 'Finding routes…' : 'Find routes'}</button></div>`;
+    <div class="btn-row"><button class="btn sm" data-act="add-stop">＋ Add stop</button>${p.to ? '<button class="btn sm" data-act="save-plan">Save trip</button>' : ''}<button class="btn sm primary" data-act="find-routes" ${p.to && !p.busy ? '' : 'disabled'}>${p.busy ? 'Finding routes…' : 'Find routes'}</button></div>`;
   if (p.error) html += `<p class="amber-text small">${h(p.error)}</p>`;
   if (p.results.length) {
     html += `<div class="section-title">Routes</div>${p.results.map((r, i) => routeCard(r, i, p.results.length, app)).join('')}
@@ -731,10 +737,8 @@ export function settingsView(app) {
     <div><div class="section-title">Stretches without gas</div><div class="list">
       <div class="field"><span style="flex:1">Warn when the next gas is more than<div class="muted tiny">Counts exits with a gas station listed and service plazas with gas. Shown in Exits and on the Drive screen.</div></span>
         <div class="seg" style="width:190px">${[25, 40, 60, 80].map((v) => `<button class="${st.gasGapMiles === v ? 'on' : ''}" data-act="gas-gap" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
-    <div><div class="section-title">Favorite gas</div><div class="card">
-      <p class="muted tiny" style="margin-top:0">The fuel stop picks the last exit with one of these that you reach with your buffer left, anywhere in range. If none keeps the buffer, it says so and suggests the best exit anyway.</p>
-      <div class="chips" style="flex-wrap:wrap">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div>
-      <input type="text" data-brand placeholder="Another brand, then return" style="margin-top:10px;width:100%;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></div></div>
+    <div><div class="section-title">Favorite gas</div>${fuelPreferences(app)}</div>
+    <div><div class="section-title">Overnight driving</div>${overnightSettings(app)}</div>
     <div><div class="section-title">Gas prices</div><div class="card small">${priceSettings(app)}</div></div>
     <div><div class="section-title">Electric vehicles</div><div class="list">
       <div class="field"><span style="flex:1">Charging stops at</span><div class="seg" style="width:220px">${[['Tesla', 'Superchargers'], ['all', 'All DC fast']].map(([k, n]) => `<button class="${st.chargerNetwork === k ? 'on' : ''}" data-act="charger-network" data-arg="${k}">${n}</button>`).join('')}</div></div>
@@ -742,9 +746,14 @@ export function settingsView(app) {
         <input type="password" autocomplete="off" data-secret="ea.nrelKey" placeholder="DEMO_KEY" value="${h(app.secret('ea.nrelKey'))}" style="width:130px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label></div></div>
     <div><div class="section-title">Places</div><div class="list">
       <div class="field"><span style="flex:1">🏠 Home<div class="muted tiny">${app.places.home ? h(app.places.home.name) : 'Not set. Tap 🏠 next to any place when you search.'}</div></span>${app.places.home ? '<button class="btn sm" data-act="clear-home">Clear</button>' : ''}</div>
-      <div class="field"><span style="flex:1">Recent places<div class="muted tiny">${app.places.recent.length} saved on this phone</div></span>${app.places.recent.length ? '<button class="btn sm" data-act="clear-recent">Clear</button>' : ''}</div></div></div>
+      ${app.places.saved.map((p, i) => `<div class="field"><span style="flex:1">★ ${h(p.name)}</span><button class="btn sm" data-act="remove-saved" data-arg="${i}" aria-label="Remove ${h(p.name)}">✕</button></div>`).join('')}
+      ${app.places.recent.slice(0, 5).filter((r) => !app.places.saved.some((p) => p.name === r.name)).map((r) => `<div class="field"><span style="flex:1" class="muted">${h(r.name)}</span><button class="btn sm" data-act="save-place" data-arg="${app.places.recent.indexOf(r)}">Save</button></div>`).join('')}
+      ${app.places.plans.map((t, i) => `<div class="field"><span style="flex:1">🗺️ ${h(t.name)}<div class="muted tiny">${h(t.from?.name ?? 'Current location')} to ${h(t.to.name)}</div></span><button class="btn sm" data-act="remove-plan" data-arg="${i}" aria-label="Remove ${h(t.name)}">✕</button></div>`).join('')}
+      <div class="field"><span style="flex:1">Recent places<div class="muted tiny">${app.places.recent.length} kept on this device; save the ones you return to</div></span>${app.places.recent.length ? '<button class="btn sm" data-act="clear-recent">Clear</button>' : ''}</div></div></div>
+    <div><div class="section-title">Favorite services</div>${favoritesSettings(app)}</div>
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
     <div><div class="section-title">Road Trip Passport</div>${passportSection(app)}</div>
+    <div><div class="section-title">Your profile</div>${profileSection(app)}</div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
       ${dataVersionLine(app.dataStatus)}
       <p><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
@@ -758,7 +767,7 @@ export function settingsView(app) {
       <p><b>EV chargers:</b> U.S. DOE Alternative Fuels Data Center (developer.nlr.gov).</p>
       <p><b>Speed limits:</b> OpenStreetMap via the FOSSGIS Valhalla server.</p>
       <p style="margin-bottom:0" class="muted">Exit and services data are from July 2026 OpenStreetMap and can be out of date.</p></div></div>
-    <button class="btn danger block" data-act="clear-data">Erase saved trips and settings</button>
+    <button class="btn danger block" data-act="clear-data">Erase profile and trip history</button>
     <p class="note">ExitAtlas web ${h(app.version)}. Not affiliated with iExit or Nexit.</p></div>`;
 }
 
@@ -766,13 +775,14 @@ export function settingsView(app) {
 
 export function placeSearchSheet(app) {
   const ps = app.placeSearch;
-  const { home, recent } = app.places;
+  const { home, recent, saved: starred } = app.places;
   const label = ps.field === 'from' ? 'Start' : ps.field === 'to' ? 'Destination' : 'Stop';
   const homeBtn = (src) => `<button class="btn sm" data-act="set-home" data-arg="${src}" aria-label="Set as Home">🏠</button>`;
   const saved = [];
   if (ps.field === 'from') saved.push('<button class="item" data-act="use-current"><span style="font-size:20px">📍</span><div class="main"><div class="t">Current location</div></div></button>');
   if (home) saved.push(`<button class="item" data-act="choose-place" data-arg="home"><span style="font-size:20px">🏠</span><div class="main"><div class="t">Home</div><div class="muted tiny">${h(home.name)}</div></div></button>`);
-  recent.slice(0, 8).forEach((r, i) => saved.push(`<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="recent:${i}"><div class="t">🕘 ${h(r.name)}</div></button>${home && home.name === r.name ? '' : homeBtn(`recent:${i}`)}</div>`));
+  starred.slice(0, 8).forEach((p, i) => saved.push(`<button class="item" data-act="choose-place" data-arg="saved:${i}"><span style="font-size:20px">★</span><div class="main"><div class="t">${h(p.name)}</div></div></button>`));
+  recent.slice(0, 8).filter((r) => !starred.some((p) => p.name === r.name)).forEach((r) => { const i = recent.indexOf(r); saved.push(`<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="recent:${i}"><div class="t">🕘 ${h(r.name)}</div></button>${home && home.name === r.name ? '' : homeBtn(`recent:${i}`)}</div>`); });
   return `<div class="sheet-head"><h2>${label}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
       <button class="btn primary sm" type="submit" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
@@ -911,12 +921,12 @@ function paceSettings(app) {
 function vehicleSettings(app) {
   const st = app.settings;
   const v = app.vehicleProfile();
-  const recent = app.recentVehicles.filter((r) => !v || r.epaId !== v.epaId).slice(0, 5);
+  const recent = app.garage();
   return `<div class="list">
     <div class="field"><span style="flex:1">${v ? `<b>${h(`${v.year} ${v.make} ${v.model}`)}</b><div class="muted tiny">${h(v.label)}</div>
       <div class="muted tiny">${v.ev ? `Electric · EPA range ${v.rangeMiles} mi used for a full charge · ${v.comb} MPGe` : `EPA ${v.city} city · ${v.hwy} highway · ${v.comb} combined mpg${v.tankGallons ? ` · ${v.tankGallons} gal tank (${v.tankBasis === 'entered' ? 'entered by you' : 'verified'})` : ' · tank size not set'}`}</div>` : 'No vehicle selected'}</span>
       <button class="btn sm${v ? '' : ' primary'}" data-act="vehicle">${v ? 'Change' : 'Choose'}</button></div>
-    ${recent.map((r, i) => `<button class="wp" style="width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left" data-act="vehicle-recent" data-arg="${i}"><span class="name">${h(`${r.year} ${r.make} ${r.model}`)}<div class="muted tiny" style="font-weight:400">${h(r.label)}</div></span><span class="muted small">Switch</span></button>`).join('')}
+    ${recent.map((r, i) => `<div class="field"><span style="flex:1">${h(`${r.year} ${r.make} ${r.model}`)}<div class="muted tiny">${h(r.label)}</div></span><button class="btn sm" data-act="vehicle-recent" data-arg="${i}">Use</button><button class="btn sm" data-act="vehicle-remove" data-arg="${i}" aria-label="Remove ${h(`${r.year} ${r.make} ${r.model}`)}">✕</button></div>`).join('')}
     <div class="field"><span style="flex:1">${v?.ev ? 'Range for a full charge' : 'MPG for range'}</span><div class="seg" style="width:220px">${[['highway', 'Highway'], ['combined', 'Combined'], ['custom', v?.ev ? 'My range' : 'My MPG']].map(([k, n]) => `<button class="${st.mpgBasis === k ? 'on' : ''}" data-act="mpg-basis" data-arg="${k}">${n}</button>`).join('')}</div></div>
     ${st.mpgBasis === 'custom' && !v?.ev ? `<label class="field"><span style="flex:1">My real MPG<div class="muted tiny">Interstate speeds often use more fuel than the EPA highway test</div></span><input type="number" inputmode="decimal" step="0.5" min="1" data-set="customMpg" value="${st.customMpg ?? ''}"></label>` : ''}
     ${st.mpgBasis === 'custom' && v?.ev ? `<label class="field"><span style="flex:1">My real range at 100%<div class="muted tiny">Highway speed and cold weather lower EV range</div></span><input type="number" inputmode="decimal" step="5" min="10" data-set="customRange" value="${st.customRange ?? ''}"></label>` : ''}
@@ -1015,4 +1025,69 @@ function dataVersionLine(status) {
     ? ` <span class="warn">Using the previous version of ${h([...new Set(status.rolledBack)].join(', '))}: the new download did not match its checksum or could not be read.</span>` : '';
   const missing = status.failed.length ? ` Not loaded: ${h([...new Set(status.failed)].join(', '))}.` : '';
   return `<p style="margin-top:0"><b>Data version:</b> ${m.version}${built ? `, built ${h(built)}` : ''}. Each file is checked against its SHA-256 before use.${back}${missing}</p>`;
+}
+
+// MARK: Profile settings
+
+const inputStyle = 'style="width:100%;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"';
+const seg = (act, options, current, width = 230) => `<div class="seg" style="width:${width}px">${options.map(([k, n]) => `<button class="${current === k ? 'on' : ''}" data-act="${act}" data-arg="${h(k)}">${h(n)}</button>`).join('')}</div>`;
+
+/// Favorite brands in priority order, and what a fuel stop must have.
+function fuelPreferences(app) {
+  const st = app.settings;
+  const n = st.favoriteBrands.length;
+  const order = n ? st.favoriteBrands.map((b, i) => `<div class="field"><span style="flex:1"><b>${i + 1}.</b> ${h(b)}</span>
+    <button class="btn sm" data-act="brand-move" data-arg="${i},-1" ${i === 0 ? 'disabled' : ''} aria-label="Move ${h(b)} up">↑</button>
+    <button class="btn sm" data-act="brand-move" data-arg="${i},1" ${i === n - 1 ? 'disabled' : ''} aria-label="Move ${h(b)} down">↓</button>
+    <button class="btn sm" data-act="brand-remove" data-arg="${i}" aria-label="Remove ${h(b)}">✕</button></div>`).join('')
+    : '<div class="field"><span class="muted">No favorite brands. Fuel stops are chosen by distance and hours only.</span></div>';
+  const when = [['overnight', 'Overnight'], ['always', 'Always'], ['off', 'Off']];
+  return `<div class="list">${order}</div>
+    <div class="card" style="margin-top:8px"><div class="muted tiny" style="margin-top:0">Add a brand: tap one, or type it and press return. The first brand that fits your range, hours and restroom needs ranks first.</div>
+      <div class="chips" style="flex-wrap:wrap;margin-top:8px">${TOP_BRANDS.filter((b) => !st.favoriteBrands.includes(b)).map((b) => `<button class="chip" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div>
+      <input type="text" data-brand placeholder="Another brand, then return" ${inputStyle.replace('width:100%', 'width:100%;margin-top:10px')}></div>
+    <div class="list" style="margin-top:8px">
+      <div class="field"><span style="flex:1">Fuel grade<div class="muted tiny">For prices; your vehicle's fuel when not set</div></span>${seg('fuel-grade', [['', 'Vehicle'], ['R', 'Regular'], ['M', 'Mid'], ['P', 'Premium'], ['D', 'Diesel']], st.fuelGrade ?? '', 300)}</div>
+      <div class="field"><span style="flex:1">Open 24 hours<div class="muted tiny">Prefer stations listed open 24 hours</div></span>${seg('require', when.map(([k, n]) => [`require24Hours,${k}`, n]), `require24Hours,${st.require24Hours}`, 230)}</div>
+      <div class="field"><span style="flex:1">Restroom<div class="muted tiny">Prefer stops with a restroom listed</div></span>${seg('require', when.map(([k, n]) => [`requireRestroom,${k}`, n]), `requireRestroom,${st.requireRestroom}`, 230)}</div>
+      <div class="field"><span style="flex:1">Longest detour<div class="muted tiny">Off the highway and back</div></span>${seg('detour', [[3, '3 min'], [5, '5'], [8, '8'], [12, '12'], [20, '20']].map(([k, n]) => [String(k), n]), String(st.maxDetourMinutes), 240)}</div>
+      <label class="field"><span style="flex:1">Cheaper fuel over favorite brands<div class="muted tiny">Only when live prices are available</div></span><input type="checkbox" class="toggle" data-set="priceOverBrand" ${st.priceOverBrand ? 'checked' : ''}></label>
+    </div>`;
+}
+
+function overnightSettings(app) {
+  const st = app.settings;
+  return `<div class="list">
+    <div class="field"><span style="flex:1">Overnight Drive Mode<div class="muted tiny">Auto uses the window below, at your arrival time in the stop's own time zone</div></span>${seg('overnight-mode', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], st.overnightMode, 200)}</div>
+    <label class="field"><span style="flex:1">Starts at</span><input type="time" data-set="overnightStart" value="${h(st.overnightStart)}" ${st.overnightMode !== 'auto' ? 'disabled' : ''}></label>
+    <label class="field"><span style="flex:1">Ends at</span><input type="time" data-set="overnightEnd" value="${h(st.overnightEnd)}" ${st.overnightMode !== 'auto' ? 'disabled' : ''}></label>
+  </div>`;
+}
+
+function favoritesSettings(app) {
+  const st = app.settings;
+  const cats = [['gas', 'Gas'], ['food', 'Food'], ['lodging', 'Lodging'], ['evCharging', 'EV charging'], ['restArea', 'Rest areas'], ['travelCenter', 'Travel centers']];
+  const list = (key, label, placeholder) => `<div class="card" style="margin-top:8px"><div class="muted tiny" style="margin-top:0">${label}</div>
+    <div class="chips" style="flex-wrap:wrap;margin-top:6px">${st[key].map((b, i) => `<button class="chip on" data-act="list-remove" data-arg="${key},${i}" aria-label="Remove ${h(b)}">${h(b)} ✕</button>`).join('') || '<span class="muted tiny">None yet</span>'}</div>
+    <input type="text" data-list="${key}" placeholder="${placeholder}" ${inputStyle.replace('width:100%', 'width:100%;margin-top:8px')}></div>`;
+  return `<div class="card"><div class="muted tiny" style="margin-top:0">Shown first in the exits list</div>
+    <div class="chips" style="flex-wrap:wrap;margin-top:6px">${cats.map(([k, n]) => `<button class="chip${st.favoriteCategories.includes(k) ? ' on' : ''}" data-act="fav-category" data-arg="${k}">${n}</button>`).join('')}</div></div>
+    ${list('favoriteHotels', 'Favorite hotel brands', 'Hotel brand, then return')}
+    ${list('favoriteRestaurants', 'Favorite restaurant brands', 'Restaurant brand, then return')}`;
+}
+
+/// Where the profile is kept, whether the last change was saved, and moving it to another device.
+function profileSection(app) {
+  const ps = app.profileStatus;
+  const updated = app.profile.updatedAt ? new Date(app.profile.updatedAt) : null;
+  const status = ps.saveError
+    ? `<p class="warn" style="margin-top:0">Not saved: ${h(ps.saveError)}. Changes last only until this page is closed.</p>`
+    : `<p style="margin-top:0">Saved on this ${app.standalone ? 'Home Screen app' : 'browser'}${updated ? `, last change ${h(updated.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}` : ''}. Vehicles, favorite brands, places and preferences stay through trips, updates and new data.</p>`;
+  const recovered = ps.problems.length ? `<p class="warn">${ps.problems.length} saved setting${ps.problems.length === 1 ? ' was' : 's were'} unreadable and now ${ps.problems.length === 1 ? 'uses its' : 'use their'} default (${h(ps.problems.slice(0, 4).join(', '))}${ps.problems.length > 4 ? ', ...' : ''}). The unreadable copy is kept.</p>` : '';
+  const safari = app.isIOSSafari && !app.standalone
+    ? '<p class="muted tiny">On iPhone, add ExitAtlas to the Home Screen (Share, Add to Home Screen): Safari deletes a website\'s storage after 7 days of Safari use without a visit to it. A Home Screen web app counts its own days of use, so opening ExitAtlas from there keeps its data.</p>' : '';
+  return `<div class="card small">${status}${recovered}${safari}
+    <p class="muted tiny">The website and the iOS app keep separate profiles. To use the same one, export it here and import it there (or the other way). API keys are never included.</p>
+    <div class="row" style="gap:8px"><button class="btn sm" data-act="export-profile">Export profile</button>
+      <label class="btn sm" style="cursor:pointer">Import profile<input type="file" accept="application/json,.json" data-import hidden></label></div></div>`;
 }

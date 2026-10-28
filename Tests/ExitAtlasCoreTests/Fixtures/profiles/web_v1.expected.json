@@ -1,0 +1,24 @@
+{
+  "kind": "exitatlas-profile",
+  "schema": 2,
+  "updatedAt": null,
+  "vehicles": [
+    {"id": "2015|toyota|camry|4-cyl-2.5-l-automatic-s6-", "year": 2015, "make": "Toyota", "model": "Camry",
+     "version": "4 cyl 2.5 L, Automatic (S6)", "epaId": 35000, "fuel": "R", "city": 25, "highway": 35, "combined": 28,
+     "tankGallons": 17, "tankSource": "verified", "evRangeMiles": 0, "evRangeHighwayMiles": 0,
+     "mpgBasis": "custom", "customMpg": 31, "customRangeMiles": null},
+    {"id": "2019|honda|odyssey|6-cyl-3.5-l", "year": 2019, "make": "Honda", "model": "Odyssey", "version": "6 cyl 3.5 L",
+     "epaId": 40000, "fuel": "R", "city": 19, "highway": 28, "combined": 22, "tankGallons": 19.5, "tankSource": "verified",
+     "evRangeMiles": 0, "evRangeHighwayMiles": 0, "mpgBasis": "highway", "customMpg": null, "customRangeMiles": null}
+  ],
+  "defaultVehicleId": "2015|toyota|camry|4-cyl-2.5-l-automatic-s6-",
+  "fuel": {"brands": ["Wawa", "Shell"], "grade": null, "reserveMiles": 40, "maxDetourMinutes": 8,
+           "require24Hours": "overnight", "requireRestroom": "overnight", "priceOverBrand": false, "chargerNetwork": "Tesla"},
+  "overnight": {"mode": "auto", "start": "00:00", "end": "04:00"},
+  "places": {"home": {"name": "Home", "lat": 40.7128, "lon": -74.006}, "saved": [],
+             "recent": [{"name": "Savannah, GA", "lat": 32.0809, "lon": -81.0912}], "plans": []},
+  "favorites": {"hotels": [], "restaurants": []},
+  "driving": {"speedAlertOver": 10, "exitLookaheadMiles": 50, "gasGapMiles": 60, "favoriteCategories": [],
+              "avoidTolls": false, "keepAwake": false, "liveActivity": true, "theme": "dark"},
+  "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": false, "gasGaps": true, "timeZones": true}
+}

@@ -58,7 +58,24 @@ All types live in `Sources/ExitAtlasCore`. Distances are meters, times are secon
 | `VehicleProfile` | MPG, tank, reserve, grade, preferred brands |
 | `FuelOption`, `FuelPlan` | Reachability, fill gallons, detour gallons, effective price per gallon, cheapest, best value, savings |
 
-## 5.6 Bundled file formats
+## 5.6 Driver profile
+
+One JSON format for the website (`localStorage` key `ea.profile`), the iOS app (`Application Support/Profile/profile.json`) and exported profile files. Rules: `web/js/engine/profile.js` and `Sources/ExitAtlasCore/Profile/ProfileRules.swift`, tested on the same fixtures in `Tests/ExitAtlasCoreTests/Fixtures/profiles`.
+
+| Field | Contents |
+|---|---|
+| `kind`, `schema`, `updatedAt` | `"exitatlas-profile"`, schema 2 (version one was the older separate keys), last write |
+| `vehicles`, `defaultVehicleId` | Up to 10 vehicles: `{id, year, make, model, version, epaId, fuel (R, M, P, D, E), city, highway, combined, tankGallons, tankSource (verified, entered), evRangeMiles, evRangeHighwayMiles, mpgBasis (highway, combined, custom), customMpg, customRangeMiles}`. The id is `year|make|model|version` lowercased with other characters as dashes, the same on both platforms |
+| `fuel` | `brands` (priority order, up to 20; `["Shell"]` for a new profile, never restored once changed), `grade` (null follows the vehicle), `reserveMiles`, `maxDetourMinutes`, `require24Hours` and `requireRestroom` (overnight, always, off), `priceOverBrand`, `chargerNetwork` (Tesla, all) |
+| `overnight` | `mode` (auto, on, off), `start` and `end` as local `"HH:MM"` at the stop (default 00:00 to 04:00; the window may cross midnight) |
+| `places` | `home`, `saved` (up to 50), `recent` (up to 10): `{name, lat, lon, id?}`; `plans` (up to 20): `{name, from (null is the current location), stops, to}`. The iOS app keeps saved trips in `Trips/saved.json` and writes them into exports as `plans` |
+| `favorites` | `hotels`, `restaurants`: brand names |
+| `driving` | `speedAlertOver`, `exitLookaheadMiles`, `gasGapMiles`, `favoriteCategories`, `avoidTolls`, `keepAwake`, `liveActivity`, `theme` (auto, light, dark) |
+| `voice` | `enabled`, `stateLines`, `exits`, `fuel`, `restAreas`, `gasGaps`, `timeZones` |
+
+Every field is checked on its own: a missing or invalid value takes its default and is listed as a problem, unknown keys are kept, and a stored profile that reads cleanly is never rewritten at launch. Before an invalid profile is rewritten, the stored text is kept (`ea.profile.corrupt`, `profile.corrupt-<time>.json`); an unreadable profile falls back to the copy before the last change (`ea.profile.previous`, `profile.previous.json`). API keys are never in the profile: Keychain on iOS, separate browser keys on the web. Exports add `exportedAt`.
+
+## 5.7 Bundled file formats
 
 All little endian. Common header: 4 byte magic, `u32` version, `u32` metadata length, JSON metadata (source, license, attribution, build time). Coordinates are `i32` degrees × 1e7.
 

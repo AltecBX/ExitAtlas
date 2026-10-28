@@ -1,0 +1,30 @@
+{
+  "profile": {
+    "kind": "exitatlas-profile",
+    "schema": 3,
+    "updatedAt": null,
+    "futureSetting": {"keep": "me"},
+    "vehicles": [
+      {"id": "2015|toyota|camry|4-cyl-2.5-l", "year": 2015, "make": "Toyota", "model": "Camry", "version": "4 cyl 2.5 L", "epaId": null,
+       "fuel": "R", "city": 25, "highway": 35, "combined": 28, "tankGallons": null, "tankSource": null,
+       "evRangeMiles": 0, "evRangeHighwayMiles": 0, "mpgBasis": "highway", "customMpg": null, "customRangeMiles": null},
+      {"id": "dup", "year": 2020, "make": "Ford", "model": "F-150", "version": "", "epaId": null,
+       "fuel": "R", "city": 0, "highway": 0, "combined": 0, "tankGallons": 26, "tankSource": "entered",
+       "evRangeMiles": 0, "evRangeHighwayMiles": 0, "mpgBasis": "highway", "customMpg": null, "customRangeMiles": null}
+    ],
+    "defaultVehicleId": "2015|toyota|camry|4-cyl-2.5-l",
+    "fuel": {"brands": ["Shell", "BP"], "grade": null, "reserveMiles": 50, "maxDetourMinutes": 10,
+             "require24Hours": "overnight", "requireRestroom": "overnight", "priceOverBrand": false, "chargerNetwork": "Tesla",
+             "unknownFuelKey": 1},
+    "overnight": {"mode": "on", "start": "00:00", "end": "04:00"},
+    "places": {"home": null, "saved": [{"name": "Ok", "lat": 10, "lon": 20}], "recent": [],
+               "plans": [{"name": "Keep", "from": null, "stops": [{"name": "Stop", "lat": 1, "lon": 2}], "to": {"name": "End", "lat": 3, "lon": 4}}]},
+    "favorites": {"hotels": [], "restaurants": []},
+    "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 25, "gasGapMiles": 40, "favoriteCategories": ["gas"],
+                "avoidTolls": false, "keepAwake": true, "liveActivity": true, "theme": "auto"},
+    "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": true, "gasGaps": true, "timeZones": true}
+  },
+  "problems": ["vehicles[1]", "vehicles[2]", "defaultVehicleId", "fuel.grade", "fuel.reserveMiles", "fuel.require24Hours",
+               "fuel.priceOverBrand", "overnight.start", "places.home", "places.recent", "favorites",
+               "driving.exitLookaheadMiles", "driving.theme", "voice.enabled"]
+}

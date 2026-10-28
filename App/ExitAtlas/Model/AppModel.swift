@@ -30,6 +30,7 @@ final class AppModel {
     init() {
         trip.settings = settings
         trip.library = library
+        library.settings = settings
         AppModel.shared = self
     }
 

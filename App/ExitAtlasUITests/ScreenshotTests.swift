@@ -105,6 +105,16 @@ final class ScreenshotTests: XCTestCase {
         sleep(2)
         snap("6 Settings", dark)
 
+        // Fuel stop preferences: favorite brands in order and what a stop must have.
+        let fuelStops = app.buttons["fuelStopsLink"].firstMatch
+        if reveal(fuelStops, in: app) {
+            fuelStops.tap()
+            sleep(2)
+            snap("6d Fuel stops", dark)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
+
         // The Live Activity views drawn in the app with the demo trip (the Lock Screen itself cannot be captured here).
         let preview = app.buttons["Live Activity preview"].firstMatch
         for _ in 0..<4 where !(preview.exists && preview.isHittable) {
@@ -126,6 +136,12 @@ final class ScreenshotTests: XCTestCase {
             snap("6b Passport", dark)
             app.navigationBars.buttons.element(boundBy: 0).tap()
             sleep(1)
+        }
+
+        // Where the profile is kept, export and import.
+        let export = app.buttons["Export profile"].firstMatch
+        if reveal(export, in: app) {
+            snap("6e Profile", dark)
         }
 
         let sources = app.buttons["Data sources and licenses"].firstMatch

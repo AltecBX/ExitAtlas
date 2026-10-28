@@ -1,0 +1,18 @@
+{
+  "settings": {"voice": true, "announceStateLines": true, "announceExits": true, "keepAwake": false,
+    "announceRestAreas": false, "announceGasGaps": true, "announceTimeZones": true, "gasGapMiles": 60,
+    "theme": "dark", "mpgBasis": "custom", "customMpg": 31, "customRange": null, "bufferMiles": 40,
+    "preferredBrands": "Wawa, Shell", "favoriteBrands": [], "chargerNetwork": "Tesla", "speedAlertOver": 10,
+    "vehicle": {"year": 2015, "make": "Toyota", "model": "Camry", "label": "4 cyl 2.5 L, Automatic (S6)", "city": 25, "hwy": 35,
+      "comb": 28, "epaId": 35000, "fuel": "R", "ev": false, "rangeMiles": 0, "rangeHwyMiles": 0, "tankGallons": 17,
+      "tankBasis": "verified", "tankSources": ["https://example.com"]}},
+  "places": {"home": {"name": "Home", "coordinate": {"lat": 40.7128, "lon": -74.006}},
+    "recent": [{"name": "Savannah, GA", "coordinate": {"lat": 32.0809, "lon": -81.0912}}, {"name": "Broken"}]},
+  "vehicles": [
+    {"year": 2015, "make": "Toyota", "model": "Camry", "label": "4 cyl 2.5 L, Automatic (S6)", "city": 25, "hwy": 35, "comb": 28,
+     "epaId": 35000, "fuel": "R", "tankGallons": 17, "tankBasis": "verified"},
+    {"year": 2019, "make": "Honda", "model": "Odyssey", "label": "6 cyl 3.5 L", "city": 19, "hwy": 28, "comb": 22,
+     "epaId": 40000, "fuel": "R", "tankGallons": 19.5, "tankBasis": "verified"}
+  ],
+  "window": 50
+}

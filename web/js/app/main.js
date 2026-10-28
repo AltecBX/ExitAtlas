@@ -22,16 +22,24 @@ import {
 } from './services.js';
 import { loadProxy, switchedOff } from './proxy.js';
 import * as V from './views.js';
+import {
+  loadProfile, writeProfile, settingsFromProfile, placesFromProfile, applyToProfile, profileVehicle, webVehicle,
+  exportProfile, importProfile, PROFILE_KEY,
+} from './profilestore.js';
+import { defaultProfile } from '../engine/profile.js';
 
 const VERSION = '2026.10.28';
 const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: 'Settings' };
-const DEFAULT_SETTINGS = {
-  voice: true, announceStateLines: true, announceExits: false, keepAwake: true,
-  announceRestAreas: true, announceGasGaps: true, announceTimeZones: true, gasGapMiles: 40,
-  theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, customRange: null, bufferMiles: 50,
-  preferredBrands: '', favoriteBrands: [], chargerNetwork: 'Tesla',
-  speedAlertOver: 5,
-};
+
+// The driver's profile (profilestore.js): loaded once, written on every change and read back. When the
+// browser blocks storage (some private modes) a stand-in keeps the profile for this visit only, and
+// Settings says so.
+const browserStorage = (() => { try { localStorage.getItem(PROFILE_KEY); return localStorage; } catch { return null; } })();
+const profileStorage = browserStorage ?? (() => {
+  const m = new Map();
+  return { getItem: (k) => m.get(k) ?? null, setItem: () => { throw new Error('blocked'); } };
+})();
+const loaded = loadProfile(profileStorage);
 
 const app = {
   version: VERSION,
@@ -42,22 +50,27 @@ const app = {
   isRerouting: false, lastError: null, lastFixAt: null,
   remainingWaypoints: [], tripStartedAt: null,
   lastRerouteAt: null, lastPersistAt: null,
-  settings: { ...DEFAULT_SETTINGS, ...store.get('ea.settings', {}) },
+  profile: loaded.profile,
+  settings: settingsFromProfile(loaded.profile),
+  /// Where the profile came from, fields that could not be read, and the last save error.
+  profileStatus: {
+    source: loaded.source, problems: loaded.problems, persisted: null,
+    saveError: !browserStorage ? 'browser storage is blocked' : loaded.wrote && !loaded.wrote.ok ? loaded.wrote.error : null,
+  },
   history: store.get('ea.history', []),
   /// License plate game for the current trip: {key: trip start, seen: [codes]}.
   plates: store.get('ea.plates', { key: null, seen: [] }),
   resumable: null,
   planner: { from: null, to: null, stops: [], results: [], busy: false, error: null },
-  places: loadPlaces(),
+  places: placesFromProfile(loaded.profile),
   placeSearch: { field: 'to', index: null, query: '', results: [], busy: false, error: null },
-  exitsUI: { window: store.get('ea.window', 25), category: null },
+  exitsUI: { window: loaded.profile.driving.exitLookaheadMiles, category: null },
   alongRoute: { categories: [], brand: '', window: 100, results: null },
   fuel: store.get('ea.fuel', null),
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
   fuelAnnounced: new Set(),
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
-  recentVehicles: store.get('ea.vehicles', []),
   prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), onCall: countPriceCall }),
   /// The owner's key proxy when set in Settings and reachable: { base, prices, chargers, disabled }.
   proxy: null,
@@ -334,12 +347,57 @@ function considerFuelVoice() {
 
 // MARK: Saved places
 
-function loadPlaces() {
-  const p = store.get('ea.places', null) ?? { home: null, recent: [] };
-  const legacy = store.get('ea.recent', null);
-  if (legacy?.length && !p.recent.length) p.recent = legacy;
-  return p;
+// MARK: Profile
+
+/// Writes the settings, places and lookahead into the profile and saves it. Returns false (and says so)
+/// when the browser did not keep the change.
+function saveProfile() {
+  app.profile = applyToProfile(app.profile, app.settings, app.places, app.exitsUI.window);
+  return persistProfile();
 }
+
+/// Saves app.profile as it is and refreshes the settings and places read from it.
+function persistProfile() {
+  const r = writeProfile(profileStorage, app.profile);
+  app.profileStatus.saveError = r.ok ? null : (browserStorage ? r.error : 'browser storage is blocked');
+  app.settings = settingsFromProfile(app.profile);
+  app.places = placesFromProfile(app.profile);
+  if (!r.ok) toast(`Not saved: ${app.profileStatus.saveError}`);
+  else if (app.profileStatus.persisted === null) requestPersistence();
+  lastViewHTML = '';
+  return r.ok;
+}
+
+/// Asks the browser to keep this site's storage under storage pressure (Chrome, Firefox, Edge; Safari
+/// keeps Home Screen web apps' data instead).
+async function requestPersistence() {
+  try {
+    app.profileStatus.persisted = await navigator.storage?.persist?.() ?? false;
+  } catch {
+    app.profileStatus.persisted = false;
+  }
+}
+
+/// Replaces the profile with one from a file (exported here or from the iOS app), after asking.
+async function importProfileFile(file) {
+  try {
+    const { profile, problems } = importProfile(await file.text());
+    const what = `${profile.vehicles.length} vehicle${profile.vehicles.length === 1 ? '' : 's'}, ${profile.fuel.brands.length} favorite brand${profile.fuel.brands.length === 1 ? '' : 's'}, ${profile.places.saved.length + (profile.places.home ? 1 : 0)} saved place${profile.places.saved.length + (profile.places.home ? 1 : 0) === 1 ? '' : 's'}`;
+    if (!confirm(`Replace the profile on this device with this one (${what})?${problems.length ? ` ${problems.length} unreadable field(s) will use defaults.` : ''}`)) return;
+    app.profile = profile;
+    app.exitsUI.window = profile.driving.exitLookaheadMiles;
+    if (persistProfile()) toast('Profile imported');
+    render();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+/// Saved vehicles other than the one in use, most recent first, in the shape the views use.
+function garage() {
+  return app.profile.vehicles.filter((v) => v.id !== app.profile.defaultVehicleId).map(webVehicle);
+}
+app.garage = garage;
 
 function samePlace(a, b) {
   return a && b && (a.name === b.name || (Math.abs(a.coordinate.lat - b.coordinate.lat) < 0.001 && Math.abs(a.coordinate.lon - b.coordinate.lon) < 0.001));
@@ -348,13 +406,12 @@ function samePlace(a, b) {
 function recordPlace(w) {
   if (!w?.coordinate || w.name === 'Current location') return;
   app.places.recent = [w, ...app.places.recent.filter((r) => !samePlace(r, w))].slice(0, 10);
-  store.set('ea.places', app.places);
+  saveProfile();
 }
 
 function setHome(w) {
   app.places.home = { name: w.name, coordinate: w.coordinate };
-  store.set('ea.places', app.places);
-  toast(`Home set: ${w.name}`);
+  if (saveProfile()) toast(`Home set: ${w.name}`);
 }
 
 /// Sets the destination from Home or a recent place and finds routes right away.
@@ -366,6 +423,27 @@ function goTo(w) {
   lastViewHTML = '';
   window.scrollTo(0, 0);
   findRoutes();
+}
+
+/// Saves the planner's places as a trip plan (start, stops, destination) in the profile.
+function savePlan() {
+  const p = app.planner;
+  if (!p.to) return;
+  const stops = p.stops.filter(Boolean);
+  const name = stops.length ? `${p.to.name} via ${stops.map((x) => x.name.split(',')[0]).join(', ')}` : p.to.name;
+  const same = (t) => samePlace(t.to, p.to) && (t.from?.name ?? null) === (p.from?.name ?? null)
+    && t.stops.length === stops.length && t.stops.every((x, i) => samePlace(x, stops[i]));
+  app.places.plans = [{ name: name.slice(0, 80), from: p.from ?? null, stops, to: p.to }, ...app.places.plans.filter((t) => !same(t))].slice(0, 20);
+  if (saveProfile()) toast(`Trip saved: ${name}`);
+  render();
+}
+
+/// Fills the planner from a saved plan and finds routes.
+function openPlan(t) {
+  const p = app.planner;
+  p.from = t.from ?? null;
+  p.stops = [...t.stops];
+  goTo(t.to);
 }
 
 // MARK: Prices and chargers
@@ -424,6 +502,9 @@ function personalPace(excludeKey = String(app.tripStartedAt)) {
   return { factor: e >= 1800 ? Math.min(Math.max(o / e, 0.4), 2.5) : 1, hours: o / 3600 };
 }
 app.personalPace = () => personalPace(null);
+/// Home Screen web app (its storage is kept by Safari) and iPhone Safari (storage removed after 7 idle days).
+app.standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
+app.isIOSSafari = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 async function openVehicleSheet() {
   const v = app.settings.vehicle;
@@ -445,12 +526,18 @@ async function openVehicleSheet() {
   }
 }
 
+/// Makes a vehicle the one in use. Each saved vehicle keeps its own MPG or range choice.
 function useVehicle(v) {
-  app.settings.vehicle = v;
-  store.set('ea.settings', app.settings);
-  app.recentVehicles = [v, ...app.recentVehicles.filter((r) => r.epaId !== v.epaId)].slice(0, 8);
-  store.set('ea.vehicles', app.recentVehicles);
-  lastViewHTML = '';
+  app.profile = applyToProfile(app.profile, app.settings, app.places, app.exitsUI.window);
+  const picked = profileVehicle(v, {});
+  if (!picked) return;
+  // The same car chosen again (same id, or same EPA id) replaces the saved one and keeps its id.
+  const prev = app.profile.vehicles.find((x) => x.id === (v.id ?? picked.id) || (x.epaId && x.epaId === picked.epaId));
+  const keep = prev ? { mpgBasis: prev.mpgBasis, customMpg: prev.customMpg, customRangeMiles: prev.customRangeMiles } : {};
+  const merged = { ...picked, ...keep, id: prev?.id ?? picked.id };
+  app.profile.vehicles = [merged, ...app.profile.vehicles.filter((x) => x.id !== merged.id)].slice(0, 10);
+  app.profile.defaultVehicleId = merged.id;
+  persistProfile();
 }
 
 function beginDriveExtras(spokenStart) {
@@ -891,14 +978,14 @@ const actions = {
       if (how === 'downloaded') toast('Passport card saved');
     } catch (e) { toast(e.message); }
   },
-  'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
+  'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); saveProfile(); render(); },
   sheet(arg) {
     if (arg === 'search') app.alongRoute.results = null;
     if (arg === 'stop') app.stopQuery.results = null;
     openSheet(arg);
   },
   'close-sheet'() { closeSheet(); },
-  'exits-window'(arg) { app.exitsUI.window = Number(arg); store.set('ea.window', app.exitsUI.window); lastExitsRender = 0; render(); },
+  'exits-window'(arg) { app.exitsUI.window = Number(arg); saveProfile(); lastExitsRender = 0; render(); },
   'exits-cat'(arg) { app.exitsUI.category = arg === '' ? null : Number(arg); lastExitsRender = 0; render(); },
   share() {
     const text = itineraryText();
@@ -919,7 +1006,8 @@ const actions = {
   'use-current'() { app.planner.from = null; app.planner.results = []; closeSheet(); render(); },
   'choose-place'(arg) {
     const [src, i] = arg.split(':');
-    const place = src === 'home' ? app.places.home : src === 'recent' ? app.places.recent[Number(i)] : app.placeSearch.results[Number(i)];
+    const place = src === 'home' ? app.places.home : src === 'saved' ? app.places.saved[Number(i)]
+      : src === 'recent' ? app.places.recent[Number(i)] : app.placeSearch.results[Number(i)];
     if (!place) return;
     const ps = app.placeSearch, p = app.planner;
     const w = { name: place.name, coordinate: place.coordinate };
@@ -931,41 +1019,45 @@ const actions = {
     closeSheet();
     render();
   },
-  'go-to'(arg) { const w = arg === 'home' ? app.places.home : app.places.recent[Number(arg)]; if (w) goTo(w); },
+  'go-to'(arg) {
+    const w = arg === 'home' ? app.places.home : arg.startsWith('saved:') ? app.places.saved[Number(arg.slice(6))] : app.places.recent[Number(arg)];
+    if (w) goTo(w);
+  },
   'set-home'(arg) {
     const [src, i] = arg.split(':');
     const w = src === 'recent' ? app.places.recent[Number(i)] : app.placeSearch.results[Number(i)];
     if (w) { setHome(w); renderSheet(); lastViewHTML = ''; render(); }
   },
-  'clear-home'() { app.places.home = null; store.set('ea.places', app.places); lastViewHTML = ''; render(); },
-  'clear-recent'() { app.places.recent = []; store.set('ea.places', app.places); lastViewHTML = ''; render(); },
+  'clear-home'() { app.places.home = null; saveProfile(); render(); },
+  'clear-recent'() { app.places.recent = []; saveProfile(); render(); },
   'fav-brand'(arg) {
     const st = app.settings;
     st.favoriteBrands = st.favoriteBrands.includes(arg) ? st.favoriteBrands.filter((b) => b !== arg) : [...st.favoriteBrands, arg];
-    store.set('ea.settings', st);
-    lastViewHTML = '';
+    saveProfile();
     render();
     if (app.sheet) renderSheet();
   },
-  'charger-network'(arg) { app.settings.chargerNetwork = arg; store.set('ea.settings', app.settings); app.chargers.routeId = null; lastViewHTML = ''; render(); },
+  'charger-network'(arg) { app.settings.chargerNetwork = arg; saveProfile(); app.chargers.routeId = null; render(); },
   'find-routes'() { findRoutes(); },
   'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
   'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
-  'speed-alert'(arg) { app.settings.speedAlertOver = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
+  'speed-alert'(arg) { app.settings.speedAlertOver = Number(arg); saveProfile(); render(); },
   'reset-pace'() { store.remove('ea.paceHistory'); lastViewHTML = ''; render(); toast('Pace history cleared'); },
   'test-voice'() {
     if (!app.announcer.supported) { toast('Voice is not supported in this browser'); return; }
     app.announcer.speak('Georgia state line in 3 miles. 4 exits remain in Florida.');
   },
-  theme(arg) { app.settings.theme = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
+  theme(arg) { app.settings.theme = arg; saveProfile(); render(); },
   'clear-data'() {
-    if (!confirm('Erase saved trips, recent destinations and settings on this phone?')) return;
-    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles', 'ea.plates']) store.remove(k);
-    app.places = { home: null, recent: [] };
+    if (!confirm('Erase your profile (vehicles, preferences, places and saved trips) and trip history on this device? API keys stay.')) return;
+    for (const k of [PROFILE_KEY, `${PROFILE_KEY}.previous`, 'ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window',
+      'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles', 'ea.plates']) store.remove(k);
+    app.profile = defaultProfile();
+    app.settings = settingsFromProfile(app.profile);
+    app.places = placesFromProfile(app.profile);
+    app.exitsUI.window = app.profile.driving.exitLookaheadMiles;
     app.fuel = null;
-    app.recentVehicles = [];
-    app.settings = { ...DEFAULT_SETTINGS };
     app.history = [];
     app.resumable = null;
     lastViewHTML = '';
@@ -980,8 +1072,7 @@ const actions = {
   'stop-cat'(arg) { app.stopQuery.category = Number(arg); renderSheet(); },
   vehicle() { openVehicleSheet(); },
   'vehicle-recent'(arg) {
-    const list = app.recentVehicles.filter((r) => r.epaId !== app.settings.vehicle?.epaId);
-    const v = list[Number(arg)];
+    const v = garage()[Number(arg)];
     if (v) { useVehicle(v); toast(`Using ${v.year} ${v.make} ${v.model}`); render(); }
   },
   'vehicle-tank'(arg) { app.vehiclePick.tank = Number(arg); renderSheet(); },
@@ -1007,10 +1098,61 @@ const actions = {
     toast(ev ? `About ${Math.round(pv.rangeMiles)} mi per charge` : gallons ? `About ${Math.round(gallons * pv.mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
     render();
   },
-  'mpg-basis'(arg) { app.settings.mpgBasis = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
+  'mpg-basis'(arg) { app.settings.mpgBasis = arg; saveProfile(); render(); },
+  'vehicle-remove'(arg) {
+    const v = garage()[Number(arg)];
+    if (!v || !confirm(`Remove ${v.year} ${v.make} ${v.model} from your vehicles?`)) return;
+    app.profile.vehicles = app.profile.vehicles.filter((x) => x.id !== v.id);
+    persistProfile();
+    render();
+  },
+  'brand-move'(arg) {
+    const [i, d] = arg.split(',').map(Number), list = [...app.settings.favoriteBrands];
+    if (i + d < 0 || i + d >= list.length) return;
+    [list[i], list[i + d]] = [list[i + d], list[i]];
+    app.settings.favoriteBrands = list;
+    saveProfile();
+    render();
+  },
+  'brand-remove'(arg) { app.settings.favoriteBrands = app.settings.favoriteBrands.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
+  'list-remove'(arg) {
+    const [key, i] = arg.split(',');
+    app.settings[key] = app.settings[key].filter((_, j) => j !== Number(i));
+    saveProfile();
+    render();
+  },
+  'fuel-grade'(arg) { app.settings.fuelGrade = arg || null; saveProfile(); render(); },
+  'require'(arg) { const [key, v] = arg.split(','); app.settings[key] = v; saveProfile(); render(); },
+  'detour'(arg) { app.settings.maxDetourMinutes = Number(arg); saveProfile(); render(); },
+  'overnight-mode'(arg) { app.settings.overnightMode = arg; saveProfile(); render(); },
+  'fav-category'(arg) {
+    const c = app.settings.favoriteCategories;
+    app.settings.favoriteCategories = c.includes(arg) ? c.filter((x) => x !== arg) : [...c, arg];
+    saveProfile();
+    render();
+  },
+  'save-place'(arg) {
+    const w = app.places.recent[Number(arg)];
+    if (!w) return;
+    app.places.saved = [w, ...app.places.saved.filter((p) => !samePlace(p, w))].slice(0, 50);
+    if (saveProfile()) toast(`Saved: ${w.name}`);
+    render();
+  },
+  'save-plan'() { savePlan(); },
+  'open-plan'(arg) { const t = app.places.plans[Number(arg)]; if (t) openPlan(t); },
+  'remove-plan'(arg) { app.places.plans = app.places.plans.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
+  'remove-saved'(arg) { app.places.saved = app.places.saved.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
+  'export-profile'() {
+    const blob = new Blob([exportProfile(app.profile)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `exitatlas-profile-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
   'fuel-buffer'(arg) {
     app.settings.bufferMiles = Number(arg);
-    store.set('ea.settings', app.settings);
+    saveProfile();
     lastViewHTML = '';
     if (app.sheet) renderSheet();
     render();
@@ -1134,11 +1276,28 @@ document.addEventListener('change', (ev) => {
     render();
     return;
   }
+  if (el.dataset?.import !== undefined) {
+    const file = el.files?.[0];
+    el.value = '';
+    if (file) importProfileFile(file);
+    return;
+  }
+  if (el.dataset?.list) {
+    // Favorite hotel or restaurant brands: one entry per return.
+    const key = el.dataset.list, v = el.value.trim();
+    if (v && !app.settings[key].some((b) => b.toLowerCase() === v.toLowerCase())) {
+      app.settings[key] = [...app.settings[key], v];
+      saveProfile();
+    }
+    el.value = '';
+    render();
+    return;
+  }
   if (el.dataset?.brand !== undefined) {
     const v = el.value.trim();
     if (v && !app.settings.favoriteBrands.some((b) => b.toLowerCase() === v.toLowerCase())) {
       app.settings.favoriteBrands = [...app.settings.favoriteBrands, v];
-      store.set('ea.settings', app.settings);
+      saveProfile();
     }
     el.value = '';
     lastViewHTML = '';
@@ -1148,12 +1307,13 @@ document.addEventListener('change', (ev) => {
   const key = el.dataset?.set;
   if (!key) return;
   if (el.type === 'checkbox') app.settings[key] = el.checked;
+  else if (el.type === 'time') { if (/^\d\d:\d\d$/.test(el.value)) app.settings[key] = el.value; }
   else if (el.dataset.kind === 'text') app.settings[key] = el.value.trim();
   else {
     const v = parseFloat(el.value);
     if (Number.isFinite(v) && v > 0) app.settings[key] = v;
   }
-  store.set('ea.settings', app.settings);
+  saveProfile();
   if (key === 'keepAwake') { if (el.checked && app.mode !== 'idle') app.wake.request(); else if (!el.checked) app.wake.release(); }
   lastViewHTML = '';
   render();
@@ -1204,10 +1364,6 @@ async function boot() {
     return;
   }
   app.resumable = loadResumable();
-  if (!app.settings.favoriteBrands.length && app.settings.preferredBrands) {
-    app.settings.favoriteBrands = app.settings.preferredBrands.split(',').map((b) => b.trim()).filter(Boolean);
-    store.set('ea.settings', app.settings);
-  }
   if (app.fuel?.drivenAtEntry > 0 && !app.resumable) rebaseFuel(app.fuel.drivenAtEntry);
   $('#loading').remove();
   const params = new URLSearchParams(location.search);
