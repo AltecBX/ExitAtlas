@@ -23,7 +23,8 @@ final class AppModel {
     let library = TripLibrary()
     let trip = TripController()
     /// Launch arguments for demos and UI screenshots: -demoTrip <miles> starts the bundled sample
-    /// trip frozen at that mile; -forceDark forces dark mode.
+    /// trip frozen at that mile; -overnight on|off|auto sets Overnight Drive Mode for it; -forceDark
+    /// forces dark mode.
     let forceDark = ProcessInfo.processInfo.arguments.contains("-forceDark")
 
     /// The running app's model, for Siri and Shortcuts intents (they run in this process).
@@ -104,6 +105,9 @@ final class AppModel {
            let camry = catalog.versions(year: 2015, make: "Toyota", model: "Camry").first(where: { $0.label.hasPrefix("4 cyl 2.5 L") }) {
             settings.vehicle = DriverVehicle(year: 2015, make: "Toyota", model: "Camry", version: camry)
             settings.favoriteBrands = ["Shell"]
+        }
+        if let o = args.firstIndex(of: "-overnight"), o + 1 < args.count, ["on", "off", "auto"].contains(args[o + 1]) {
+            settings.overnightMode = args[o + 1]
         }
         startDemo(atMiles: miles, frozen: true)
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.

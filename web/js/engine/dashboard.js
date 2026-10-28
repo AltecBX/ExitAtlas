@@ -26,9 +26,10 @@ export const FOCUS_RULES = Object.freeze({
 ///     fuel: {reading: bool, range, reserve, stopAhead: meters to the recommended stop | null, low: bool} | null,
 ///     plannedStop: {distance} | null,
 ///     overnight: bool,
+///     lastOpen: meters to the last stop listed open before a long overnight stretch | null,
 ///   }
-/// Returns {focus: kind, strip: [kinds], why} with kinds 'fuel', 'stop', 'gap', 'overnight', 'restArea', 'exit',
-/// 'fuelEntry' (no range entered yet; strip only).
+/// Returns {focus: kind, strip: [kinds], why} with kinds 'fuel', 'stop', 'gap', 'lastOpen', 'overnight', 'restArea',
+/// 'exit', 'fuelEntry' (no range entered yet; strip only).
 export function dashboardFocus(signals, rules = FOCUS_RULES) {
   const s = signals;
   const fuel = s.fuel ?? null;
@@ -46,6 +47,7 @@ export function dashboardFocus(signals, rules = FOCUS_RULES) {
   else if (s.plannedStop && s.plannedStop.distance <= rules.stopWithin) { focus = 'stop'; why = 'Approaching your planned stop'; }
   else if (gapRisk) { focus = 'gap'; why = 'A stretch without gas is coming up'; }
   else if (fuelSoon) { focus = 'fuel'; why = 'Your fuel stop is coming up'; }
+  else if (s.lastOpen != null && s.lastOpen <= rules.gapWithin) { focus = 'lastOpen'; why = 'Last stop listed open before a long stretch'; }
   else if (s.overnight && (reading || s.restArea)) { focus = 'overnight'; why = 'Overnight: open stops and restrooms'; }
   else if (restFirst) { focus = 'restArea'; why = 'Rest area before the next exit'; }
   else if (s.nextExit) { focus = 'exit'; why = 'Next exit'; }

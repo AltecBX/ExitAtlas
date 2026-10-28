@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parseOpeningHours, weekFromPeriods, openAt, localTime } from '../js/engine/openinghours.js';
-import { evaluateStop, smartStop } from '../js/engine/smartstop.js';
+import { evaluateStop, smartStop, lastOpenBeforeGap } from '../js/engine/smartstop.js';
 import { defaultProfile } from '../js/engine/profile.js';
 import { TripPlan } from '../js/engine/trip.js';
 import { TripLedger, PaceModel } from '../js/engine/tracking.js';
@@ -102,6 +102,19 @@ test('F, G, H, P. SmartStop rankings on the shared fixtures', () => {
     if (!r.lowRange && r.primary?.rangeOnArrival != null && c.options.context === 'fuel') {
       assert.ok(r.primary.rangeOnArrival >= profile.fuel.reserveMiles * MILE, `${c.name}: reserve kept`);
     }
+  }
+});
+
+test('Overnight: the last stop listed open before a long stretch', () => {
+  const f = load('cases');
+  for (const c of f.lastOpen) {
+    const o = c.options;
+    const r = lastOpenBeforeGap(c.candidates.map((x) => candidate(f, x)), setup(f), {
+      minLength: o.minLengthMiles * MILE, windowEnd: o.windowEndMiles * MILE, rejected: o.rejected ?? [],
+    });
+    const got = r && { stop: r.stop.id, lengthMiles: Math.round(r.length / MILE), unlisted: r.unlisted, openEnded: r.openEnded };
+    assert.deepEqual(got, c.expect, c.name);
+    if (r) assert.ok(['verified', 'reported'].includes(r.evaluation.hours.status), `${c.name}: only a stop listed open is named`);
   }
 });
 

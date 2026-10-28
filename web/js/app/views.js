@@ -256,6 +256,7 @@ function focusSignals(app, s) {
     gap: gap ? { startsIn: Math.max(0, gap.from - s.progress), length: gap.to - Math.max(gap.from, s.progress) } : null,
     plannedStop: s.nextStop ? { distance: s.nextStop.distance } : null,
     fuel, overnight: inOvernightWindow(app.profile, localTime(s.t, zone).minute),
+    lastOpen: app.lastOpenAhead()?.stop.ahead ?? null,
   };
 }
 
@@ -264,6 +265,7 @@ function focusCard(app, s, kind) {
     case 'fuel': return fuelCard(app, s);
     case 'stop': return plannedStopCard(app, s);
     case 'gap': return gasGapCard(app, s);
+    case 'lastOpen': return lastOpenCard(app, s);
     case 'overnight': return app.fuel ? fuelCard(app, s) : overnightCard(app, s);
     case 'restArea': return restAreaCard(s);
     case 'exit': return nextExitCard(app, s);
@@ -294,6 +296,21 @@ function overnightCard(app, s) {
     <div class="row" style="gap:12px;margin-top:8px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${h(p.name)}</div>
       ${smartConfidence(p, r)}<div class="muted tiny">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
     ${r.notice ? `<div class="muted tiny" style="margin-top:6px">${h(r.notice)}</div>` : ''}</button>`;
+}
+
+/// Overnight, before a long stretch where no stop is listed open at its arrival time: the last one that is.
+function lastOpenCard(app, s) {
+  const lo = app.lastOpenAhead();
+  if (!lo) return nextExitCard(app, s);
+  const p = { ...lo.stop, evaluation: lo.evaluation };
+  const act = p.exit ? `data-act="exit" data-arg="${h(p.exit.id)}"` : p.restArea ? `data-act="rest" data-arg="${h(p.restArea.id)}"` : '';
+  const one = lo.unlisted === 1;
+  const after = `${one ? 'The next stop' : `The next ${lo.unlisted} stops`}, ${lo.openEnded ? 'in the next' : 'over'} ${miles(lo.length)}, ${one ? 'has' : 'have'} no hours listed open at your arrival time.`;
+  return `<button class="card focus-card" style="width:100%;text-align:left;display:block" ${act}>
+    <div class="eyebrow">🌙 Last stop listed open for ${miles(lo.length)}${lo.openEnded ? '+' : ''}</div>
+    <div class="row" style="gap:12px;margin-top:8px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${h(p.name)}</div>
+      ${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}<div class="muted tiny">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
+    <div class="muted tiny" style="margin-top:6px">${after}</div></button>`;
 }
 
 /// Under the focus card: the next two things worth knowing, distance first, each opening its details.

@@ -41,15 +41,17 @@ public struct VoiceAnnouncements: Sendable {
     private var lastZone: String?
     private var announcedRest = Set<String>()
     private var announcedGaps = Set<String>()
+    private var announcedOpen = Set<String>()
 
     public init() {}
 
     public mutating func reset() { self = VoiceAnnouncements() }
 
     /// zoneID: the time zone at the driver (`TripPlan.timeZoneID(at:)`). gasGap: the next stretch
-    /// without gas that starts ahead (`GasGaps.find`), or nil.
+    /// without gas that starts ahead (`GasGaps.find`), or nil. lastOpen: overnight, the last stop listed
+    /// open before a long stretch (`SmartStop.lastOpenBeforeGap`), or nil.
     public mutating func message(for s: TripSnapshot, settings: Settings, zoneID: String? = nil,
-                                 gasGap: GasGaps.Gap? = nil) -> String? {
+                                 gasGap: GasGaps.Gap? = nil, lastOpen: SmartStop.LastOpen? = nil) -> String? {
         let state = Self.key(s.current?.segment)
         guard settings.enabled, s.match.status == .onRoute else {
             if let state { lastState = state }
@@ -93,6 +95,15 @@ public struct VoiceAnnouncements: Sendable {
                 announcedGaps.insert(before.key)
                 return "Last gas for \(Self.spokenMiles(gap.length)) is \(before.title), in \(Self.spokenMiles(ahead))."
             }
+        }
+        // Overnight: the last stop listed open before a long stretch, once per stop. Not when it is the same
+        // exit as the last gas just announced.
+        if settings.gasGaps, let lo = lastOpen, let ahead = lo.stop.ahead, ahead > 0, ahead <= Self.gapWarning,
+           !announcedOpen.contains(lo.stop.id), lo.stop.exitID == nil || gasGap?.before?.exit?.id != lo.stop.exitID {
+            announcedOpen.insert(lo.stop.id)
+            let place = lo.stop.exitLabel.map { "\(lo.stop.name) at Exit \($0)" } ?? lo.stop.name
+            return "Overnight, \(place) in \(Self.spokenMiles(ahead)) is the last stop listed open for "
+                + "\(lo.openEnded ? "at least " : "")\(Self.spokenMiles(lo.length))."
         }
         if settings.restAreas, let next = s.nextRestArea, next.distance <= Self.restWarning, next.distance > Self.restMinimum,
            !announcedRest.contains(next.restArea.id) {

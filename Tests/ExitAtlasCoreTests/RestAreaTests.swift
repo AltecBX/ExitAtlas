@@ -109,5 +109,27 @@ final class RestAreaTests: XCTestCase {
                                      gasGap: gap) { said.append(text) }
         }
         XCTAssertEqual(said, ["Last gas for 62 miles is \(exit.displayTitle), in 5 miles."])
+
+        // Overnight: the last stop listed open before a long stretch, once per stop, and not again for the
+        // exit whose last gas was just announced. Same cases as web/tests/announcer.test.js.
+        func lastOpen(_ ahead: Double, id: String = "shell", exitID: String = "x9") -> SmartStop.LastOpen {
+            let c = SmartStop.Candidate(id: id, name: "Shell", exitID: exitID, exitLabel: "94", along: 0, ahead: ahead * mile,
+                                        arrival: start, timeZone: TimeZone(identifier: "America/New_York")!, osmHours: "24/7")
+            return SmartStop.LastOpen(stop: c, evaluation: SmartStop.evaluate(c, preferences: SmartStop.Preferences()),
+                                      length: 74 * mile, unlisted: 3, openEnded: false)
+        }
+        let at = plan.snapshot(match: RouteMatch(status: .onRoute, distanceAlongRoute: 100 * mile, offset: 0, isEstimated: false,
+                                                 timestamp: start, speed: 30), ledger: TripLedger(), pace: PaceModel(), now: start)
+        let quiet = VoiceAnnouncements.Settings(enabled: true, stateLines: false, exits: false, restAreas: false, timeZones: false)
+        var v3 = VoiceAnnouncements()
+        var heard: [String] = []
+        for ahead in [9.0, 5, 4] {
+            if let text = v3.message(for: at, settings: quiet, lastOpen: lastOpen(ahead)) { heard.append(text) }
+        }
+        XCTAssertEqual(heard, ["Overnight, Shell at Exit 94 in 5 miles is the last stop listed open for 74 miles."])
+        var off = quiet
+        off.gasGaps = false
+        XCTAssertNil(v3.message(for: at, settings: off, lastOpen: lastOpen(4, id: "other")))
+        XCTAssertNil(v3.message(for: at, settings: quiet, gasGap: gap, lastOpen: lastOpen(4, id: "third", exitID: exit.id)))
     }
 }

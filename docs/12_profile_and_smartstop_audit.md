@@ -118,7 +118,7 @@ Alternatives come from other exits first. When the driver's first choice brand i
 
 **Checked by.** Shared fixtures run by both engines (`Tests/ExitAtlasCoreTests/Fixtures/smartstop`): opening hours (24/7, weekday ranges, past midnight, added rules, holidays, unparseable), local time across zones and the end of daylight saving time, stop confidence (D, E, O), rankings (F, G, H and the overnight, skip, detour, price and alternative rules), and six cases on the real Miami to Manhattan route recorded by the web engine and matched by the Swift engine (P), which also checks that both read stations.json and the route the same way. Web: the demo trip in a browser (fuel card and sheet, overnight on, skip). iOS: CI build and simulator screenshots; nothing on a device.
 
-**Not done here.** Restroom hours at gas stations (no source lists them); official plaza closures; warnings before the last open stop overnight on a long stretch (Priority 4, with the dashboard); Siri commands for SmartStop (Priority 6).
+**Not done here.** Restroom hours at gas stations (no source lists them); official plaza closures. The warning before the last open stop overnight came later (12.10), and the Siri commands with Priority 6 (12.9).
 
 ## 12.8 Priorities 4 and 5: Road Ahead, adaptive Drive screen, navigation and design
 
@@ -161,3 +161,21 @@ A station restroom is never spoken as open at arrival: only rest areas and plaza
 **Also fixed.** The iOS SmartStop card marked every reason with a checkmark, including "Hours unavailable"; reasons now use a neutral dot, as on the web.
 
 **Checked by.** `SmartStopAnswerTests` (brand, best stop and restroom answers on a real route; the restroom notice is not repeated), `DiscoverTravelTests` and `web/tests/discover.test.js` (statistics from history, simulated trips excluded), a web check that no screen shows the Passport, achievements or plates while the stored history and plate list are unchanged, and the iOS screenshot test, which fails if "License plate game" is reachable. Siri phrases are compiled in CI; speaking them needs a device and was not done.
+
+## 12.10 Overnight: the last stop listed open before a long stretch
+
+The request asked for "warnings before the last known suitable opportunity along a long stretch without services". The gas gap warning (no gas for N miles) already existed; this adds the overnight case, where the stations exist but none is listed open at the time you would reach it.
+
+**Rule** (`lastOpenBeforeGap` in `web/js/engine/smartstop.js` and `SmartStop.swift`, shared fixtures in `Fixtures/smartstop/cases.json`):
+
+* Only a stop listed open at its arrival time (Google business hours or OpenStreetMap hours) can be named.
+* The stretch after it ends at the next stop listed open, at a stop reached after the overnight window that is not reported closed, or 150 miles ahead (the route's end when nearer). Stops already passed, skipped ("Not this one") or no longer listed are left out.
+* It counts when it is at least as long as "Flag stretches without gas over" (40 miles by default; no new setting) and has stops reached overnight in it. A stretch with no stations at all is a gas gap and keeps its own warning; one with no overnight arrivals is not an overnight stretch.
+
+**Shown.** When the stop is within 25 miles, it takes the Drive screen's focus card, after fuel below the reserve, a planned stop, a gas gap the range may not cover and the fuel stop within 30 miles, and before the general overnight card: "Last stop listed open for 53 mi", the stop with its hours label, and how many stops after it have no hours listed open. Nothing is added to the strip.
+
+**Spoken** once per stop, within 6 miles, under the existing "Last gas before a long stretch" switch: "Overnight, Shell at Exit 49 in 5 miles is the last stop listed open for 53 miles." It is not spoken for the exit whose last gas was just announced.
+
+**How often.** On the Miami to Manhattan route, evaluated as if every arrival were overnight, there are 8 such stretches of 40 miles or more in 1,281 miles; an overnight window of four hours covers about 250 miles of driving, so about one or two a night. Most stations have no hours in OpenStreetMap (2,295 of the 19,679 bundled stations do), so these stretches mean "not listed", not "closed"; the card and the voice say "listed open" for that reason.
+
+**Checked by.** Seven shared fixture cases on both engines (the warning, a plain gas gap, the overnight window ending, an open ended stretch, a closed and a skipped stop, a daytime stretch of closed stops, and unknown hours before the first open stop), four dashboard fixture cases (it takes the focus, too far away, the fuel stop and a gas gap outrank it), voice tests on both platforms, the web demo in a browser at mile 400 with Overnight Drive Mode on (light and dark), and an iOS simulator screenshot test that launches the demo at mile 400 with `-overnight on`. Not checked on a real overnight drive.

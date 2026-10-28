@@ -25,6 +25,18 @@
   {"name": "Q. Everything at once: one focus, two strip items", "signals": {"nextExit": 6, "restArea": 4, "plannedStop": 9, "overnight": true,
    "gap": {"startsIn": 5, "length": 80}, "fuel": {"range": 45, "reserve": 50, "stopAhead": 7, "low": true}},
    "expect": {"focus": "fuel", "strip": ["gap", "stop"]}},
+  {"name": "Overnight: the last stop listed open before a long stretch", "signals": {"nextExit": 2, "overnight": true, "lastOpen": 12,
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 120}},
+   "expect": {"focus": "lastOpen", "strip": ["fuel", "exit"]}},
+  {"name": "The last open stop still far: the overnight card", "signals": {"nextExit": 2, "overnight": true, "lastOpen": 40,
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 120}},
+   "expect": {"focus": "overnight", "strip": ["exit"]}},
+  {"name": "The fuel stop near outranks the last open stop", "signals": {"nextExit": 2, "overnight": true, "lastOpen": 12,
+   "fuel": {"range": 200, "reserve": 50, "stopAhead": 20}},
+   "expect": {"focus": "fuel", "strip": ["exit"]}},
+  {"name": "A stretch without gas the range may not cover outranks the last open stop", "signals": {"nextExit": 2, "overnight": true, "lastOpen": 5,
+   "gap": {"startsIn": 15, "length": 62}, "fuel": {"range": 90, "reserve": 50, "stopAhead": 10}},
+   "expect": {"focus": "gap", "strip": ["fuel", "exit"]}},
   {"name": "Nothing ahead on this road", "signals": {},
    "expect": {"focus": "none", "strip": ["fuelEntry"]}}
  ]}

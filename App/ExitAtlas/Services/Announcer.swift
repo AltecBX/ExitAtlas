@@ -20,14 +20,15 @@ final class Announcer: NSObject, AVSpeechSynthesizerDelegate {
 
     /// Compares the new snapshot with what was already said and speaks at most one message.
     /// zoneID: the time zone at the driver. gasGap: the next stretch without gas, when one starts ahead.
-    func consider(_ s: TripSnapshot, settings: UserSettings, zoneID: String?, gasGap: GasGaps.Gap?) {
+    /// lastOpen: overnight, the last stop listed open before a long stretch.
+    func consider(_ s: TripSnapshot, settings: UserSettings, zoneID: String?, gasGap: GasGaps.Gap?, lastOpen: SmartStop.LastOpen? = nil) {
         let voice = VoiceAnnouncements.Settings(enabled: settings.voiceEnabled,
                                                 stateLines: settings.announceStateLines,
                                                 exits: settings.announceExits,
                                                 restAreas: settings.announceRestAreas,
                                                 gasGaps: settings.announceGasGaps,
                                                 timeZones: settings.announceTimeZones)
-        if let text = announcements.message(for: s, settings: voice, zoneID: zoneID, gasGap: gasGap) { speak(text) }
+        if let text = announcements.message(for: s, settings: voice, zoneID: zoneID, gasGap: gasGap, lastOpen: lastOpen) { speak(text) }
     }
 
     func speak(_ text: String) {
