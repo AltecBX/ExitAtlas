@@ -896,7 +896,8 @@ function priceSettings(app) {
   return `<p style="margin-top:0">Live prices per station come from Google Maps (Places API), using your own key. Without a key, ExitAtlas shows stations but no prices.</p>
     <label class="row" style="gap:8px"><span style="flex:1">Google Maps API key</span><input type="password" autocomplete="off" data-secret="ea.googleKey" placeholder="Paste key" value="${h(app.secret('ea.googleKey'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
     <p class="muted tiny">Get one at console.cloud.google.com: create a project, enable "Places API (New)", add billing, create an API key, and restrict it to the website altecbx.github.io and to Places API (New). Google bills each price lookup at $40 per 1,000 after 1,000 free a month (Enterprise + Atmosphere tier). ExitAtlas looks up one exit at a time, at most every 15 minutes per exit. This month: ${calls} lookups.</p>
-    <p class="muted tiny" style="margin-bottom:0">Prices are shown with Google Maps attribution, never on the map, and are not saved.</p>`;
+    <p class="muted tiny">Prices are shown with Google Maps attribution, never on the map, and are not saved.</p>
+    <label class="row" style="gap:8px"><span style="flex:1">ExitAtlas key proxy<div class="muted tiny">${app.proxy ? `Connected: prices ${app.proxy.prices ? 'on' : 'off'}, chargers ${app.proxy.chargers ? 'on' : 'off'}${app.proxy.disabled.length ? `; switched off: ${h(app.proxy.disabled.join(', '))}` : ''}.` : 'Optional. The owner\'s Cloudflare Worker (infra/worker) with its own keys and daily limits.'}</div></span><input type="url" autocomplete="off" data-secret="ea.proxyURL" placeholder="https://" value="${h(app.secret('ea.proxyURL'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>`;
 }
 
 function paceSettings(app) {

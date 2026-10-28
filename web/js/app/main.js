@@ -18,8 +18,9 @@ import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
   loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
-  LocationService, ScreenWake, Announcer, store, dataStatus,
+  LocationService, ScreenWake, Announcer, store, dataStatus, serviceSwitches,
 } from './services.js';
+import { loadProxy, switchedOff } from './proxy.js';
 import * as V from './views.js';
 
 const VERSION = '2026.10.28';
@@ -57,7 +58,9 @@ const app = {
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
   recentVehicles: store.get('ea.vehicles', []),
-  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), onCall: countPriceCall }),
+  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), onCall: countPriceCall }),
+  /// The owner's key proxy when set in Settings and reachable: { base, prices, chargers, disabled }.
+  proxy: null,
   chargers: { routeId: null, projected: [], loading: false, error: null, retryAt: 0 },
   stopQuery: { category: 3, hours: 3, brand: '', results: null },
   sheet: null,
@@ -391,7 +394,7 @@ function ensureChargers() {
   const route = app.plan.route;
   c.loading = true;
   c.error = null;
-  fetchChargers(route.polyline, { apiKey: store.get('ea.nrelKey', DEMO_KEY), network: app.settings.chargerNetwork })
+  fetchChargers(route.polyline, { apiKey: store.get('ea.nrelKey', DEMO_KEY), network: app.settings.chargerNetwork, proxy: proxyFor('chargers') })
     .then((stations) => {
       if (app.plan?.route !== route) return;
       c.projected = projectChargers(route.polyline, stations);
@@ -734,6 +737,20 @@ async function addWaypointStop(waypoint, alongRoute) {
 }
 
 /// The plate game belongs to one trip: a new trip starts a fresh list.
+/// The proxy's base URL for a service it offers and has not switched off, else null.
+function proxyFor(service) {
+  return app.proxy?.[service] && !switchedOff(app.proxy, service) ? app.proxy.base : null;
+}
+
+/// Reads the proxy's switches (Settings URL); without a reachable proxy everything works as before.
+async function refreshProxy() {
+  app.proxy = await loadProxy(store.get('ea.proxyURL', ''));
+  serviceSwitches.disabled = app.proxy?.disabled ?? [];
+  app.chargers.retryAt = 0;
+  lastViewHTML = '';
+  render();
+}
+
 function platesForTrip() {
   if (app.plates.key !== app.tripStartedAt) {
     app.plates = { key: app.tripStartedAt, seen: [] };
@@ -1108,6 +1125,10 @@ document.addEventListener('change', (ev) => {
     const v = el.value.trim();
     if (v) store.set(el.dataset.secret, v); else store.remove(el.dataset.secret);
     if (el.dataset.secret === 'ea.nrelKey') app.chargers.retryAt = 0;
+    if (el.dataset.secret === 'ea.proxyURL') {
+      refreshProxy().then(() => toast(!v ? 'Proxy removed' : app.proxy ? 'Proxy connected' : 'Proxy not reachable; using your own keys'));
+      return;
+    }
     toast(v ? 'Key saved on this phone' : 'Key removed');
     lastViewHTML = '';
     render();
@@ -1177,6 +1198,7 @@ async function boot() {
       label.textContent = `Loading offline data ${(f * total / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
     });
     app.dataStatus = dataStatus;
+    refreshProxy();
   } catch (e) {
     label.innerHTML = `Could not load the offline data: ${e.message}. <button class="btn sm" onclick="location.reload()">Retry</button>`;
     return;

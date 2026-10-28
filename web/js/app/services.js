@@ -132,8 +132,16 @@ export async function loadDemoRouteJSON() {
 
 const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
 
+/// Public services the owner's proxy has switched off for everyone (see proxy.js), set at start.
+export const serviceSwitches = { disabled: [] };
+
+function checkSwitch(service, name) {
+  if (serviceSwitches.disabled.includes(service)) throw new Error(`${name} is switched off on the ExitAtlas server for now`);
+}
+
 /// Routes through the waypoints. Alternatives only exist without stops.
 export async function fetchRoutes(waypoints, { alternatives = true, signal } = {}) {
+  checkSwitch('routing', 'Routing');
   const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
   const params = new URLSearchParams({
     overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
@@ -151,6 +159,7 @@ export async function fetchRoutes(waypoints, { alternatives = true, signal } = {
 
 let lastSearchAt = 0;
 export async function searchPlaces(query, near = null) {
+  checkSwitch('search', 'Place search');
   const wait = 1100 - (Date.now() - lastSearchAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastSearchAt = Date.now();

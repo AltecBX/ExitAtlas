@@ -1,0 +1,9 @@
+{
+  "name": "exitatlas-proxy",
+  "private": true,
+  "type": "module",
+  "description": "ExitAtlas key proxy for Cloudflare Workers. No runtime dependencies.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

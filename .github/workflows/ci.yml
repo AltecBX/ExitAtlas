@@ -31,6 +31,9 @@ jobs:
       - name: Test the JavaScript engine against the route fixtures
         working-directory: web
         run: npm test
+      - name: Test the key proxy Worker
+        working-directory: infra/worker
+        run: npm test
 
   ios-app:
     name: iOS app build and screenshots (Xcode)
