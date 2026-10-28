@@ -930,7 +930,7 @@ export function stopSheet(app) {
           <div class="t">${h(r.match.matchesPerRequirement[0].slice(0, 3).map((x) => placeDisplayName(x.place)).join(', '))}</div>
           <div class="muted tiny">${arrive}</div>${reasons}</div>
           <div class="side"><div class="big">${milesValue(r.distanceAhead)}</div><div class="muted tiny">mi</div></div></button>
-        ${app.canAddStop() ? `<button class="btn sm add-stop" data-act="add-stop" data-arg="${h(`${r.match.exit.id}|${place.id}`)}">Add to trip</button>` : ''}</div>`;
+        ${app.canAddStop() ? `<button class="btn sm add-stop" data-act="add-trip-stop" data-arg="${h(`${r.match.exit.id}|${place.id}`)}">Add to trip</button>` : ''}</div>`;
     };
     results = q.results.length
       ? `<div class="list" style="margin-top:12px">${q.results.slice(0, 12).map(row).join('')}</div>

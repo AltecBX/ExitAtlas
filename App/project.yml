@@ -4,8 +4,10 @@
 name: ExitAtlas
 options:
   bundleIdPrefix: com.cobyconstruction
+  # iOS 18 runs on the same iPhones as iOS 17 (XS, XR and later) and adds the small Live Activity
+  # family used by the CarPlay Dashboard and Apple Watch.
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -29,9 +31,11 @@ targets:
       - path: ExitAtlas/Resources/Data
         type: folder
         buildPhase: resources
+      - path: Shared
     dependencies:
       - package: ExitAtlas
         product: ExitAtlasCore
+      - target: ExitAtlasWidgets
     scheme:
       testTargets:
         - ExitAtlasUITests
@@ -54,6 +58,7 @@ targets:
           - Overpass-Bold.ttf
           - Overpass-ExtraBold.ttf
         UIApplicationSupportsIndirectInputEvents: true
+        NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -68,6 +73,31 @@ targets:
           ExitAtlas keeps tracking your trip progress, state line distances and upcoming exits
           while the screen is off or another app is open.
         ITSAppUsesNonExemptEncryption: false
+  ExitAtlasWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ExitAtlasWidgets
+      - path: Shared
+      - path: ExitAtlas/Design/Tokens.swift
+    dependencies:
+      - package: ExitAtlas
+        product: ExitAtlasCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cobyconstruction.exitatlas.widgets
+        INFOPLIST_FILE: ExitAtlasWidgets/Info.plist
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: ExitAtlasWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: ExitAtlas
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   ExitAtlasUITests:
     type: bundle.ui-testing
     platform: iOS

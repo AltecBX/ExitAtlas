@@ -62,6 +62,9 @@ final class TripController {
     @ObservationIgnored let location = LocationService()
     @ObservationIgnored let simulator = DriveSimulator()
     @ObservationIgnored let announcer = Announcer()
+    @ObservationIgnored let liveActivity = LiveActivityController()
+    /// Start the Live Activity with the next snapshot (set by a tap, so the app is in front).
+    @ObservationIgnored private var activityPending = false
     @ObservationIgnored let routing = MapKitRouteService()
     @ObservationIgnored let limits = SpeedLimitService()
     @ObservationIgnored let chargers = ChargerService()
@@ -115,6 +118,7 @@ final class TripController {
         location.start()
         startRefreshTimer()
         announcer.reset()
+        activityPending = true
     }
 
     /// - Parameters:
@@ -145,6 +149,7 @@ final class TripController {
         mode = .trip
         snapshot = session?.snapshot(at: now)
         announcer.reset()
+        activityPending = true
         startRefreshTimer()
         if simulate {
             gpsSource = .simulation(speedup: 30)
@@ -156,6 +161,8 @@ final class TripController {
     }
 
     func endTrip() {
+        liveActivity.end()
+        activityPending = false
         if mode == .trip, let session, let start = tripStartedAt, session.ledger.totalMeters > 0, !isSimulating {
             let states = session.ledger.totalsByRegion.map { TripRecord.StateMiles(code: $0.code, name: $0.name, meters: $0.meters) }
             library?.record(TripRecord(title: "\(plan?.route.origin.name ?? "Trip") to \(plan?.route.destination.name ?? "")",
@@ -304,6 +311,15 @@ final class TripController {
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
             announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap)
+            if settings.liveActivityEnabled {
+                let content = activityContent(for: snap, gasGap: gap)
+                if activityPending {
+                    activityPending = false
+                    liveActivity.start(title: activityTitle, discovery: mode == .discovery, content: content)
+                } else {
+                    liveActivity.update(content)
+                }
+            }
         }
         limits.reset(for: plan)
         if snap.match.status == .onRoute { limits.ensureAhead(of: snap.progress) }
@@ -314,6 +330,40 @@ final class TripController {
            let text = fuelVoice.message(for: rangePlan, electric: settings.vehicle?.isElectric == true,
                                          onRoute: snap.match.status == .onRoute, enabled: true) {
             announcer.speak(text)
+        }
+    }
+
+    // MARK: Live Activity
+
+    /// What the Live Activity shows for a snapshot.
+    func activityContent(for snap: TripSnapshot, gasGap: GasGaps.Gap? = nil) -> DriveActivityContent {
+        DriveActivityContent(snapshot: snap, services: { self.services(for: $0) }, gasGap: gasGap,
+                             hasDestination: mode == .trip, simulated: isSimulating)
+    }
+
+    private var activityTitle: String {
+        if mode == .discovery { return plan?.route.title ?? "Discovery" }
+        return plan?.route.destination.name ?? "Trip"
+    }
+
+    /// The app came to the front: start a Live Activity that could not start in the background, and
+    /// restart one close to the 8 hour limit.
+    func appBecameActive() {
+        guard mode != .idle, settings?.liveActivityEnabled == true else { return }
+        if liveActivity.isRunning {
+            liveActivity.restartIfOld()
+        } else {
+            activityPending = true
+        }
+    }
+
+    /// Turning the setting off ends the activity; turning it on starts one with the next update.
+    func liveActivitySettingChanged() {
+        if settings?.liveActivityEnabled == true {
+            if mode != .idle { activityPending = true }
+        } else {
+            liveActivity.end(immediately: true)
+            activityPending = false
         }
     }
 

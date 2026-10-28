@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
     @Environment(TripLibrary.self) private var library
 
@@ -18,6 +19,18 @@ struct SettingsView: View {
                     Toggle("Rest areas and service plazas (2 mi before)", isOn: $settings.announceRestAreas).disabled(!settings.voiceEnabled)
                     Toggle("Last gas before a long stretch", isOn: $settings.announceGasGaps).disabled(!settings.voiceEnabled)
                     Toggle("Time zone changes", isOn: $settings.announceTimeZones).disabled(!settings.voiceEnabled)
+                }
+                Section {
+                    Toggle("Live Activity", isOn: $settings.liveActivityEnabled)
+                        .onChange(of: settings.liveActivityEnabled) { trip.liveActivitySettingChanged() }
+                    NavigationLink("Live Activity preview") { LiveActivityPreview() }
+                    if let error = trip.liveActivity.lastError {
+                        Text(error).font(.caption).foregroundStyle(Theme.amber)
+                    }
+                } header: {
+                    Text("Lock Screen and CarPlay")
+                } footer: {
+                    Text("Shows the next exit, the next state line and your arrival time on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch. It starts when a trip starts, and iOS ends it after 8 hours; open ExitAtlas to start a new one.")
                 }
                 Section {
                     NavigationLink {
@@ -201,5 +214,37 @@ struct DataSourcesView: View {
             }
         }
         .navigationTitle("Data Sources")
+    }
+}
+
+/// The Live Activity layouts with the current trip, as they appear on the Lock Screen and on the
+/// CarPlay Dashboard or Apple Watch.
+struct LiveActivityPreview: View {
+    @Environment(TripController.self) private var trip
+
+    var body: some View {
+        List {
+            if let snapshot = trip.snapshot {
+                let content = trip.activityContent(for: snapshot, gasGap: trip.gasGapsAhead().first { ($0.before?.distance ?? 0) > snapshot.progress })
+                Section("Lock Screen") {
+                    DriveActivityLockScreenView(content: content, title: snapshot.highway.map { $0.ref.description } ?? "Trip")
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                }
+                Section("CarPlay Dashboard and Apple Watch") {
+                    DriveActivitySmallView(content: content)
+                        .frame(width: 170, alignment: .leading)
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                Section {
+                    Text("Same views as the Live Activity, drawn here with your current trip. The Live Activity itself updates when the next exit, state or rest area changes, and at most every 15 seconds for distances.")
+                        .font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+            } else {
+                Text("Start a trip or discovery mode to see the Live Activity with your drive.").foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .navigationTitle("Live Activity")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

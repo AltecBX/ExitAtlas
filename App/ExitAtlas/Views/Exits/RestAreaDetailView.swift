@@ -33,7 +33,7 @@ struct RestAreaDetailView: View {
                     Spacer()
                     Button("Google Maps") { open(apple: false) }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
             }
             Section {
                 let badges = r.badges

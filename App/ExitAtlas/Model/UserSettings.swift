@@ -18,6 +18,8 @@ final class UserSettings {
     var announceTimeZones: Bool { didSet { defaults.set(announceTimeZones, forKey: "announceTimeZones") } }
     /// Stretches without gas longer than this many miles are flagged on screen and spoken.
     var gasGapMiles: Double { didSet { defaults.set(gasGapMiles, forKey: "gasGapMiles") } }
+    /// The drive on the Lock Screen, Dynamic Island, CarPlay Dashboard and Apple Watch.
+    var liveActivityEnabled: Bool { didSet { defaults.set(liveActivityEnabled, forKey: "liveActivityEnabled") } }
     var avoidTolls: Bool { didSet { defaults.set(avoidTolls, forKey: "avoidTolls") } }
 
     /// The driver's car from the EPA list (nil until chosen).
@@ -39,6 +41,7 @@ final class UserSettings {
             "announceFuel": true, "avoidTolls": false, "bufferMiles": 50.0, "googleKey": "", "nrelKey": "",
             "teslaOnlyChargers": true, "speedAlertOver": 5.0,
             "announceRestAreas": true, "announceGasGaps": true, "announceTimeZones": true, "gasGapMiles": 40.0,
+            "liveActivityEnabled": true,
         ])
         exitLookaheadMiles = defaults.double(forKey: "exitLookaheadMiles")
         voiceEnabled = defaults.bool(forKey: "voiceEnabled")
@@ -49,6 +52,7 @@ final class UserSettings {
         announceGasGaps = defaults.bool(forKey: "announceGasGaps")
         announceTimeZones = defaults.bool(forKey: "announceTimeZones")
         gasGapMiles = defaults.double(forKey: "gasGapMiles")
+        liveActivityEnabled = defaults.bool(forKey: "liveActivityEnabled")
         avoidTolls = defaults.bool(forKey: "avoidTolls")
         vehicle = Self.load("vehicle", from: defaults)
         bufferMiles = defaults.double(forKey: "bufferMiles")

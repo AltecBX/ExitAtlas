@@ -120,16 +120,13 @@ private struct StopResultRow: View {
                 Text(title).font(.subheadline.weight(.semibold)).lineLimit(2)
                 Text("\(Format.miles(r.distanceAhead)) ahead · arrive \(Format.time(r.eta, relativeTo: now))")
                     .font(.caption).foregroundStyle(Theme.secondaryText)
-                FlowLayout(spacing: 4) {
-                    if best {
-                        Text("Best fit").font(.caption2.weight(.bold)).foregroundStyle(.white)
-                            .padding(.horizontal, 7).padding(.vertical, 2).background(Theme.signGreen, in: Capsule())
-                    }
-                    ForEach(r.reasons, id: \.self) { reason in
-                        Text(reason).font(.caption2.weight(.semibold)).foregroundStyle(Theme.secondaryText)
-                            .padding(.horizontal, 7).padding(.vertical, 2).background(Theme.cardStroke.opacity(0.6), in: Capsule())
-                    }
+                // Plain wrapping text: chips in a flow layout were clipped inside list rows.
+                if best {
+                    Text("Best fit").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 2).background(Theme.signGreen, in: Capsule())
                 }
+                Text(r.reasons.joined(separator: " · ")).font(.caption.weight(.semibold)).foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .combine)
