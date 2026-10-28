@@ -119,6 +119,12 @@ public struct DriverVehicle: Sendable, Codable, Hashable {
     public var basis: Basis = .highway
     public var customMilesPerGallon: Double?
     public var customRangeMiles: Double?
+    /// EPA vehicle id, for vehicles chosen from the EPA list (nil for ones saved before it was kept).
+    public var epaID: Int? = nil
+    /// The id in the driver's profile when it differs from the one formed from year, make, model and version.
+    public var profileID: String? = nil
+    /// Identifies the vehicle among the driver's saved vehicles, the same on iOS and the web.
+    public var id: String { profileID ?? ProfileRules.vehicleId(year: year, make: make, model: model, version: versionLabel) }
 
     public init(year: Int, make: String, model: String, version: VehicleCatalog.Version, tankGallons: Double? = nil) {
         self.year = year
@@ -134,6 +140,46 @@ public struct DriverVehicle: Sendable, Codable, Hashable {
         tankIsVerified = tankGallons == nil ? verified != nil : version.tank?.gallons.contains(tankGallons!) == true
         evRangeMiles = version.evRangeMiles
         evRangeHighwayMiles = version.evRangeHighwayMiles
+        epaID = version.epaID
+    }
+
+    /// A vehicle from the driver's profile (ProfileRules.vehicle format), or nil when it does not check out.
+    public init?(profile raw: JSONValue) {
+        guard let v = ProfileRules.vehicle(raw), let o = v.object,
+              let fuel = o["fuel"]?.string.flatMap(VehicleCatalog.Fuel.init(rawValue:)) else { return nil }
+        func int(_ k: String) -> Int { Int((o[k]?.number ?? 0).rounded()) }
+        year = int("year")
+        make = o["make"]?.string ?? ""
+        model = o["model"]?.string ?? ""
+        versionLabel = o["version"]?.string ?? ""
+        city = int("city")
+        highway = int("highway")
+        combined = int("combined")
+        self.fuel = fuel
+        tankGallons = o["tankGallons"]?.number
+        tankIsVerified = o["tankSource"]?.string == "verified"
+        evRangeMiles = int("evRangeMiles")
+        evRangeHighwayMiles = int("evRangeHighwayMiles")
+        basis = o["mpgBasis"]?.string.flatMap(Basis.init(rawValue:)) ?? .highway
+        customMilesPerGallon = o["customMpg"]?.number
+        customRangeMiles = o["customRangeMiles"]?.number
+        epaID = o["epaId"]?.number.map { Int($0) }
+        let id = o["id"]?.string
+        profileID = id == ProfileRules.vehicleId(year: year, make: make, model: model, version: versionLabel) ? nil : id
+    }
+
+    /// This vehicle in the profile format.
+    public var profileJSON: JSONValue {
+        let opt: (Double?) -> JSONValue = { $0.map { .number($0) } ?? .null }
+        return .object([
+            "id": .string(id), "year": .number(Double(year)), "make": .string(make), "model": .string(model),
+            "version": .string(versionLabel), "epaId": epaID.map { .number(Double($0)) } ?? .null, "fuel": .string(fuel.rawValue),
+            "city": .number(Double(city)), "highway": .number(Double(highway)), "combined": .number(Double(combined)),
+            "tankGallons": isElectric ? .null : opt(tankGallons),
+            "tankSource": isElectric || tankGallons == nil ? .null : .string(tankIsVerified ? "verified" : "entered"),
+            "evRangeMiles": .number(Double(evRangeMiles)), "evRangeHighwayMiles": .number(Double(evRangeHighwayMiles)),
+            "mpgBasis": .string(basis.rawValue), "customMpg": opt(customMilesPerGallon), "customRangeMiles": opt(customRangeMiles),
+        ])
     }
 
     public var isElectric: Bool { fuel == .electric }

@@ -13,6 +13,15 @@ struct SavedTrip: Codable, Identifiable, Hashable {
     var savedAt = Date()
 }
 
+extension SavedTrip {
+    /// The trip as a plan in a profile file (places only).
+    var plan: SavedPlan { SavedPlan(name: name, from: origin, stops: stops, to: destination) }
+
+    init(plan: SavedPlan) {
+        self.init(name: plan.name, origin: plan.from, stops: plan.stops, destination: plan.to)
+    }
+}
+
 /// The trip in progress, saved so it can be resumed if iOS terminates the app.
 /// Holds only the user's waypoints and driving history, never route geometry.
 struct ActiveTripRecord: Codable {
@@ -49,53 +58,31 @@ final class TripLibrary {
     private(set) var history: [TripRecord] = []
     /// Moving pace on earlier device trips against MapKit travel times (prior for new trips).
     private(set) var paceHistory = PaceHistory()
+    /// Records in history.json or saved.json that no longer read (kept in a .corrupt copy, not deleted).
+    private(set) var unreadableRecords = 0
+    /// Home and recent places live in the driver's profile (UserSettings); set by AppModel.
+    @ObservationIgnored weak var settings: UserSettings?
 
-    private var folder: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Trips", isDirectory: true)
-    }
+    private let folder: URL
 
-    init() {
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        saved = load("saved.json") ?? []
-        history = load("history.json") ?? []
+    init(demo: Bool = ProcessInfo.processInfo.arguments.contains("-demoTrip")) {
+        let fm = FileManager.default
+        // Demos and UI tests never read or write the driver's trips.
+        folder = demo ? fm.temporaryDirectory.appendingPathComponent("DemoTrips-\(UUID().uuidString)")
+            : fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Trips", isDirectory: true)
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        saved = loadList("saved.json")
+        history = loadList("history.json")
         paceHistory = load("pace_history.json") ?? PaceHistory()
-        if let places: Places = load("places.json") {
-            home = places.home
-            recentPlaces = places.recent
-        }
     }
 
     /// Home and the last 10 places used, offered first when choosing a start, stop or destination.
-    private(set) var home: Waypoint?
-    private(set) var recentPlaces: [Waypoint] = []
+    var home: Waypoint? { settings?.home }
+    var recentPlaces: [Waypoint] { settings?.recentPlaces ?? [] }
 
-    private struct Places: Codable {
-        var home: Waypoint?
-        var recent: [Waypoint]
-    }
-
-    func setHome(_ place: Waypoint?) {
-        home = place
-        writePlaces()
-    }
-
-    func recordPlace(_ place: Waypoint) {
-        guard place.name != "Current location" else { return }
-        recentPlaces.removeAll { $0 == place || ($0.name == place.name && Geodesy.distance($0.coordinate, place.coordinate) < 100) }
-        recentPlaces.insert(place, at: 0)
-        if recentPlaces.count > 10 { recentPlaces.removeLast(recentPlaces.count - 10) }
-        writePlaces()
-    }
-
-    func clearRecentPlaces() {
-        recentPlaces = []
-        writePlaces()
-    }
-
-    private func writePlaces() {
-        write(Places(home: home, recent: recentPlaces), "places.json")
-    }
+    func setHome(_ place: Waypoint?) { settings?.home = place }
+    func recordPlace(_ place: Waypoint) { settings?.recordPlace(place) }
+    func clearRecentPlaces() { settings?.recentPlaces = [] }
 
     func recordPace(key: String, pace: PaceModel) {
         paceHistory.record(key: key, pace: pace)
@@ -105,6 +92,14 @@ final class TripLibrary {
     func save(_ trip: SavedTrip) {
         saved.removeAll { $0.id == trip.id }
         saved.insert(trip, at: 0)
+        write(saved, "saved.json")
+    }
+
+    /// Adds plans from an imported profile file, skipping ones already saved.
+    func importPlans(_ plans: [SavedPlan]) {
+        let new = plans.filter { p in !saved.contains { $0.plan == p } }.map(SavedTrip.init(plan:))
+        guard !new.isEmpty else { return }
+        saved = new + saved
         write(saved, "saved.json")
     }
 
@@ -144,6 +139,20 @@ final class TripLibrary {
     private func load<T: Decodable>(_ name: String) -> T? {
         guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)) else { return nil }
         return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// A list file read record by record. A record that no longer reads is skipped, and the file as it
+    /// was is copied aside first, so the next save cannot erase anything for good.
+    private func loadList<T: Decodable>(_ name: String) -> [T] {
+        let url = folder.appendingPathComponent(name)
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        let result = TolerantList.decode(T.self, from: data)
+        if result == nil || result!.dropped > 0 {
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            try? data.write(to: folder.appendingPathComponent("\(name).corrupt-\(stamp)"), options: .atomic)
+            unreadableRecords += result?.dropped ?? 1
+        }
+        return result?.items ?? []
     }
 
     private func write<T: Encodable>(_ value: T, _ name: String) {

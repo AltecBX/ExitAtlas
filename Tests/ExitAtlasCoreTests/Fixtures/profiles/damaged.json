@@ -1,0 +1,25 @@
+{
+  "kind": "exitatlas-profile",
+  "schema": 3,
+  "updatedAt": 12345,
+  "futureSetting": {"keep": "me"},
+  "vehicles": [
+    {"year": 2015, "make": "Toyota", "model": "Camry", "version": "4 cyl 2.5 L", "fuel": "R", "city": 25, "highway": 35, "combined": 28,
+     "tankGallons": 900, "mpgBasis": "warp"},
+    {"year": "2016", "make": "Honda", "model": "Civic", "fuel": "R"},
+    "not a vehicle",
+    {"id": "dup", "year": 2020, "make": "Ford", "model": "F-150", "fuel": "R", "tankGallons": 26},
+    {"id": "dup", "year": 2021, "make": "Ford", "model": "F-150", "fuel": "R"}
+  ],
+  "defaultVehicleId": "gone",
+  "fuel": {"brands": ["Shell", " shell ", "", 42, "BP"], "grade": "X", "reserveMiles": -5, "maxDetourMinutes": 10,
+           "require24Hours": "sometimes", "priceOverBrand": "yes", "unknownFuelKey": 1},
+  "overnight": {"mode": "on", "start": "25:00", "end": "04:00"},
+  "places": {"home": {"name": "", "lat": 1, "lon": 2}, "saved": [{"name": "Ok", "lat": 10, "lon": 20}, {"name": "Bad", "lat": 100, "lon": 0}],
+             "recent": "nope",
+             "plans": [{"name": "No destination", "stops": []}, {"name": "Keep", "stops": [{"name": "Bad"}, {"name": "Stop", "lat": 1, "lon": 2}],
+                        "to": {"name": "End", "lat": 3, "lon": 4}, "from": "nowhere"}]},
+  "favorites": [],
+  "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 1000, "favoriteCategories": ["gas", "casino", "gas"], "theme": "neon"},
+  "voice": {"enabled": "loud", "exits": true}
+}
