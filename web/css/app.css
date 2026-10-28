@@ -388,20 +388,9 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
   border-radius: 9px; background: #e31937; color: #fff; font-size: 24px;
 }
 
-/* Discover ahead, license plates, passport */
+/* Discover ahead */
 .disc-icon { font-size: 22px; width: 64px; text-align: center; flex: none; }
 .disc-icon.lg { font-size: 30px; width: auto; }
-.plates { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
-.plate {
-  border: 1px solid var(--stroke); background: var(--card); color: var(--text-2); border-radius: 10px; padding: 10px 0;
-  font: 800 var(--type-callout)/1 var(--num); text-align: center; cursor: pointer;
-}
-.plate.on { background: var(--sign-green); color: var(--sign-ink); border-color: transparent; }
-.plates.passport { margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; }
-.plates.passport .plate { padding: 7px 0; font-size: var(--type-caption); cursor: default; }
-.ach { margin: 6px 0; font-weight: 600; }
-.ach.on { color: var(--success); }
-.ach .progress { margin-top: 4px; }
 .card .warn { color: var(--amber); font-weight: 600; }
 
 /* SmartStop: confidence lines (labels, never scores), reasons and what is known per facility */

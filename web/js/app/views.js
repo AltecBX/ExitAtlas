@@ -9,7 +9,7 @@ import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
-import { passport, STATE_CODES } from '../engine/passport.js';
+import { travelStats } from '../engine/travels.js';
 import { dashboardFocus } from '../engine/dashboard.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
@@ -805,7 +805,7 @@ function tripOverview(app, plan, s) {
   }
   html += discoverSection(plan, s);
   html += `<div class="stack">${app.mode === 'trip' ? '<button class="btn block" data-act="sheet" data-arg="stop">🛏️ Plan a stop ahead</button>' : ''}
-    <div class="btn-row"><button class="btn" data-act="share-card">🖼️ Share trip card</button><button class="btn" data-act="sheet" data-arg="plates">🚗 License plates</button></div>
+    <button class="btn block" data-act="share-card">🖼️ Share trip card</button>
     <button class="btn block" data-act="share">Share itinerary</button>
     <button class="btn danger block" data-act="end">End ${discovery ? 'discovery mode' : 'trip'}</button></div>${attribution()}</div>`;
   return html;
@@ -843,26 +843,15 @@ export function discoverSheet(app, id) {
     <p class="note">From Wikidata (${h(it.id)}, CC0): linked from ${it.sitelinks} Wikimedia sites (Wikipedia editions and sister projects). Hours, fees and closures are not in this data.</p>`;
 }
 
-/// Passenger game: tap the plates you spot. Kept for the current trip on this phone.
-export function platesSheet(app) {
-  const seen = new Set(app.plates.seen);
-  return `<div class="sheet-head"><h2>License plates</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <p class="muted small" style="margin-top:0">For passengers: tap each state's plate when you spot it. <b>${seen.size}</b> of ${STATE_CODES.length} on this trip.</p>
-    <div class="plates">${STATE_CODES.map((c) => `<button class="plate${seen.has(c) ? ' on' : ''}" data-act="plate" data-arg="${c}" aria-pressed="${seen.has(c)}">${c}</button>`).join('')}</div>
-    <button class="btn block" style="margin-top:14px" data-act="plates-reset">Start over</button>`;
-}
-
-/// Road Trip Passport: states and achievements from real GPS trips.
-function passportSection(app) {
-  const p = passport(app.history);
-  const earned = p.achievements.filter((a) => a.earned);
-  const next = p.achievements.filter((a) => !a.earned).sort((a, b) => b.progress - a.progress).slice(0, 3);
-  return `<div class="card"><div class="metrics two">${metric('States driven', String(p.states.size), { caption: `of ${STATE_CODES.length}`, size: 'md' })}${metric('Miles tracked', Math.round(p.totalMeters / MILE).toLocaleString('en-US'), { caption: `${p.tripCount} ${p.tripCount === 1 ? 'trip' : 'trips'}`, size: 'md' })}</div>
-    <div class="plates passport">${STATE_CODES.map((c) => `<span class="plate${p.states.has(c) ? ' on' : ''}" title="${p.states.has(c) ? h(`${p.states.get(c).name}: ${miles(p.states.get(c).meters)}`) : ''}">${c}</span>`).join('')}</div>
-    ${earned.length ? `<div class="section-title">Earned</div>${earned.map((a) => `<div class="ach on">★ ${h(a.title)}</div>`).join('')}` : ''}
-    ${next.length ? `<div class="section-title">Next up</div>${next.map((a) => `<div class="ach"><div class="row"><span style="flex:1">${h(a.title)}</span><span class="muted tiny">${h(a.detail)}</span></div>${progress(a.progress)}</div>`).join('')}` : ''}
-    <button class="btn block" style="margin-top:12px" data-act="share-passport" ${p.tripCount ? '' : 'disabled'}>🖼️ Share passport</button>
-    <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone. Simulated drives and discovery mode are not counted.</p></div>`;
+/// Your travels: miles and trips per state from real GPS trips, and the totals. Statistics only.
+function travelsSection(app) {
+  const t = travelStats(app.history);
+  if (!t.tripCount) {
+    return '<div class="card small muted">Finished trips with live GPS appear here: miles driven in each state and in total. Simulated drives and discovery mode are not counted.</div>';
+  }
+  return `<div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(t.totalMeters / MILE).toLocaleString('en-US'), { caption: `${t.tripCount} ${t.tripCount === 1 ? 'trip' : 'trips'}`, size: 'md' })}${metric('States driven', String(t.states.length), { size: 'md' })}</div>
+    <div class="list" style="margin-top:10px">${t.states.map((x) => `<div class="item">${badge(x.code)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${x.trips} ${x.trips === 1 ? 'trip' : 'trips'}</div></div><div class="side num">${miles(x.meters)}</div></div>`).join('')}</div>
+    <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this device. Simulated drives and discovery mode are not counted.</p></div>`;
 }
 
 function plannerView(app) {
@@ -949,7 +938,7 @@ export function settingsView(app) {
       <div class="field"><span style="flex:1">Recent places<div class="muted tiny">${app.places.recent.length} kept on this device; save the ones you return to</div></span>${app.places.recent.length ? '<button class="btn sm" data-act="clear-recent">Clear</button>' : ''}</div></div></div>
     <div><div class="section-title">Favorite services</div>${favoritesSettings(app)}</div>
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
-    <div><div class="section-title">Road Trip Passport</div>${passportSection(app)}</div>
+    <div><div class="section-title">Your travels</div>${travelsSection(app)}</div>
     <div><div class="section-title">Your profile</div>${profileSection(app)}</div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
       ${dataVersionLine(app.dataStatus)}

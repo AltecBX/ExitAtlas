@@ -85,16 +85,8 @@ final class ScreenshotTests: XCTestCase {
             app.buttons["Done"].firstMatch.tap()
             sleep(1)
         }
-        let plates = app.buttons["License plate game"].firstMatch
-        if reveal(plates, in: app) {
-            plates.tap()
-            sleep(1)
-            for code in ["GA", "FL", "NY", "TX"] { app.buttons[code].firstMatch.tap() }
-            snap("4e License plates", dark)
-            app.buttons["Start over"].firstMatch.tap()
-            app.buttons["Done"].firstMatch.tap()
-            sleep(1)
-        }
+        // The plate game was removed: it must not be reachable from the trip screen.
+        XCTAssertFalse(app.buttons["License plate game"].exists)
         let card = app.buttons["Share trip card"].firstMatch
         if reveal(card, in: app), card.isEnabled {
             card.tap()
@@ -136,11 +128,13 @@ final class ScreenshotTests: XCTestCase {
             sleep(1)
         }
 
-        let passport = app.buttons["passportLink"].firstMatch
-        if reveal(passport, in: app) {
-            passport.tap()
+        // Travel statistics replace the Road Trip Passport (no achievements).
+        let travels = app.buttons["travelsLink"].firstMatch
+        if reveal(travels, in: app) {
+            travels.tap()
             sleep(2)
-            snap("6b Passport", dark)
+            XCTAssertFalse(app.staticTexts["Next up"].exists)
+            snap("6b Your travels", dark)
             app.navigationBars.buttons.element(boundBy: 0).tap()
             sleep(1)
         }

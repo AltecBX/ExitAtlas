@@ -7,8 +7,7 @@ import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft,
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { gasGaps } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
-import { passport, STATE_CODES } from '../engine/passport.js';
-import { drawTripCard, drawPassportCard, shareCanvas } from './sharecard.js';
+import { drawTripCard, shareCanvas } from './sharecard.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
@@ -60,8 +59,6 @@ const app = {
     saveError: !browserStorage ? 'browser storage is blocked' : loaded.wrote && !loaded.wrote.ok ? loaded.wrote.error : null,
   },
   history: store.get('ea.history', []),
-  /// License plate game for the current trip: {key: trip start, seen: [codes]}.
-  plates: store.get('ea.plates', { key: null, seen: [] }),
   resumable: null,
   planner: { from: null, to: null, stops: [], results: [], busy: false, error: null },
   places: placesFromProfile(loaded.profile),
@@ -332,7 +329,6 @@ function renderSheet() {
   if (kind === 'exit') html = V.exitDetail(app, arg);
   else if (kind === 'rest') html = V.restAreaDetail(app, arg);
   else if (kind === 'discover') html = V.discoverSheet(app, arg);
-  else if (kind === 'plates') { platesForTrip(); html = V.platesSheet(app); }
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') {
@@ -901,7 +897,6 @@ async function addWaypointStop(waypoint, alongRoute) {
   await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
 }
 
-/// The plate game belongs to one trip: a new trip starts a fresh list.
 /// The proxy's base URL for a service it offers and has not switched off, else null.
 function proxyFor(service) {
   return app.proxy?.[service] && !switchedOff(app.proxy, service) ? app.proxy.base : null;
@@ -914,13 +909,6 @@ async function refreshProxy() {
   app.chargers.retryAt = 0;
   lastViewHTML = '';
   render();
-}
-
-function platesForTrip() {
-  if (app.plates.key !== app.tripStartedAt) {
-    app.plates = { key: app.tripStartedAt, seen: [] };
-    store.set('ea.plates', app.plates);
-  }
 }
 
 function persistIfDue(t, force = false) {
@@ -1018,15 +1006,6 @@ const actions = {
     const x = app.plan?.discover.find((d) => d.item.id === arg);
     if (x) addWaypointStop({ name: x.item.name, coordinate: x.item.coordinate }, x.distanceAlongRoute);
   },
-  plate(arg) {
-    platesForTrip();
-    const seen = new Set(app.plates.seen);
-    if (seen.has(arg)) seen.delete(arg); else seen.add(arg);
-    app.plates.seen = STATE_CODES.filter((c) => seen.has(c));
-    store.set('ea.plates', app.plates);
-    renderSheet();
-  },
-  'plates-reset'() { app.plates = { key: app.tripStartedAt, seen: [] }; store.set('ea.plates', app.plates); renderSheet(); },
   async 'share-card'() {
     const s = app.snapshot, plan = app.plan;
     if (!s || !plan) return;
@@ -1044,16 +1023,6 @@ const actions = {
     try {
       const how = await shareCanvas(canvas, 'exitatlas-trip.png', `${title} on ExitAtlas`);
       if (how === 'downloaded') toast('Trip card saved');
-    } catch (e) { toast(e.message); }
-  },
-  async 'share-passport'() {
-    const p = passport(app.history);
-    const canvas = document.createElement('canvas');
-    drawPassportCard(canvas, { codes: STATE_CODES, visited: new Set(p.states.keys()), totalMeters: p.totalMeters, tripCount: p.tripCount,
-      earned: p.achievements.filter((a) => a.earned) });
-    try {
-      const how = await shareCanvas(canvas, 'exitatlas-passport.png', 'My ExitAtlas Road Trip Passport');
-      if (how === 'downloaded') toast('Passport card saved');
     } catch (e) { toast(e.message); }
   },
   'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); saveProfile(); render(); },

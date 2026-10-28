@@ -96,6 +96,70 @@ struct ArrivalIntent: AppIntent {
     }
 }
 
+struct NextBrandIntent: AppIntent {
+    static let title: LocalizedStringResource = "Find the next gas brand"
+    static let description = IntentDescription("The next station of a brand on your route, with its hours at your arrival.")
+
+    @Parameter(title: "Brand")
+    var brand: GasBrandOption
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Find the next \(\.$brand)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let text = TripIntentAnswers.answer { s, trip in
+            guard let ctx = trip.stopContext(), let settings = trip.settings else { return TripAnswers.noTrip }
+            let window = 150 * Geodesy.metersPerMile
+            return TripAnswers.nextBrand(brand.rawValue, candidates: SmartStop.aheadCandidates(ctx, miles: 150, rangeLeft: nil),
+                                         preferences: SmartStop.Preferences(settings.values), now: s.timestamp, window: window)
+        }
+        return .result(dialog: "\(text)")
+    }
+}
+
+struct OpenGasWithRestroomIntent: AppIntent {
+    static let title: LocalizedStringResource = "Open gas with a restroom"
+    static let description = IntentDescription("The best gas station in the next 60 miles listed open at your arrival with a restroom, and what is not confirmed.")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let text = TripIntentAnswers.answer { s, trip in
+            guard let ctx = trip.stopContext(), let settings = trip.settings else { return TripAnswers.noTrip }
+            var prefs = SmartStop.Preferences(settings.values)
+            prefs.require24Hours = "always"
+            prefs.requireRestroom = "always"
+            let range = settings.vehicle?.isElectric == true ? nil : trip.rangeLeft
+            let r = SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: 60, rangeLeft: range), preferences: prefs, context: .ahead,
+                                     reserveMeters: settings.bufferMiles * Geodesy.metersPerMile)
+            return TripAnswers.smartStop(r, now: s.timestamp, window: 60 * Geodesy.metersPerMile, restroom: true)
+        }
+        return .result(dialog: "\(text)")
+    }
+}
+
+struct BestStopIntent: AppIntent {
+    static let title: LocalizedStringResource = "Best stop ahead"
+    static let description = IntentDescription("SmartStop's pick in the next 25, 50 or 100 miles, with the reasons.")
+
+    @Parameter(title: "Distance", default: .fifty)
+    var window: StopWindowOption
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Best stop in the next \(\.$window)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let text = TripIntentAnswers.answer { s, trip in
+            let miles = window.miles
+            return TripAnswers.smartStop(trip.bestStopAhead(miles: miles), now: s.timestamp, window: miles * Geodesy.metersPerMile, restroom: false)
+        }
+        return .result(dialog: "\(text)")
+    }
+}
+
 struct ExitAtlasShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: NextStateLineIntent(),
@@ -114,6 +178,15 @@ struct ExitAtlasShortcuts: AppShortcutsProvider {
         AppShortcut(intent: NextGasIntent(),
                     phrases: ["Next gas in \(.applicationName)", "Where is the next gas in \(.applicationName)"],
                     shortTitle: "Next gas", systemImageName: "fuelpump")
+        AppShortcut(intent: NextBrandIntent(),
+                    phrases: ["Find the next \(\.$brand) in \(.applicationName)", "Where is the next \(\.$brand) in \(.applicationName)"],
+                    shortTitle: "Next gas brand", systemImageName: "fuelpump.circle")
+        AppShortcut(intent: OpenGasWithRestroomIntent(),
+                    phrases: ["Find an open gas station with a restroom in \(.applicationName)", "Open gas with a restroom in \(.applicationName)"],
+                    shortTitle: "Open gas with restroom", systemImageName: "toilet.circle")
+        AppShortcut(intent: BestStopIntent(),
+                    phrases: ["What is the best stop in the next \(\.$window) in \(.applicationName)", "Best stop ahead in \(.applicationName)"],
+                    shortTitle: "Best stop ahead", systemImageName: "star.circle")
         AppShortcut(intent: ArrivalIntent(),
                     phrases: ["When do I arrive in \(.applicationName)", "Arrival time in \(.applicationName)"],
                     shortTitle: "Arrival time", systemImageName: "clock")

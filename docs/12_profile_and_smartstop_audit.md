@@ -141,3 +141,23 @@ The strip takes the next two items (the fuel stop or "Enter range", a gas gap, t
 **Design.** A new `tint` token (sign green in light mode, a brighter green in dark mode, 4.5:1 or better on cards and the background, checked by `web/tests/design.test.js`) for tabs, switches and links; buttons with white text keep sign green.
 
 **Checked by.** Shared focus fixtures on both engines; web screenshots in light and dark, portrait and landscape (Playwright); iOS simulator screenshots in CI (Road Ahead and Settings from the person button). Nothing on a device.
+
+## 12.9 Priorities 6 and 7: Siri commands and the removals
+
+**Siri and Shortcuts (iOS).** Three new App Shortcuts, nine in all (Apple allows ten). Each answer is built in the engine (`TripAnswers`, tested on Linux) from the same SmartStop ranking the app shows, and says what is not confirmed:
+
+| Phrase | Answer |
+|---|---|
+| "Find the next Shell in ExitAtlas" (31 brands; any brand works inside the app) | The nearest station of that brand in the next 150 miles that is still listed, with its distance, time and hours label. When it is reported closed at arrival, it says so and gives the next one. |
+| "Find an open gas station with a restroom in ExitAtlas" | SmartStop with "open 24 hours" and "restroom" required, in the next 60 miles, within your range. When nothing ahead is confirmed it says so ("No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops.") rather than naming a station as open. |
+| "What is the best stop in the next 50 miles in ExitAtlas" (25, 50 or 100) | The SmartStop pick with its reasons (first choice brand, hours label, detour) and one alternative. |
+
+A station restroom is never spoken as open at arrival: only rest areas and plazas with listed hours can be (acceptance test E). Example from the test on the Miami to Manhattan route: "The best match: Exxon at exit 363B, 56 miles ahead, about 1 hour 5 minutes. Reported open, verification limited. About a 4 minute detour. No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops. Alternative: Shell at exit 318, 11 miles ahead, about 12 minutes."
+
+**Removed (acceptance test R).** The license plate game, the Road Trip Passport achievements ("Next up", badges) and the Passport share card, on the web and iOS, with their code (`passport.js`, `Passport.swift`, the plate views and actions). Nothing links to them any more.
+
+**Kept.** Trip history, real GPS miles and the trip card. Miles and trips per state now show as plain statistics in Settings, "Your travels" (`travels.js`, `TravelStats.swift`). No stored data is deleted: the trip history file and the old plate list (`ea.plates`, `@AppStorage("plates")`) stay as they were. On the web only "Erase profile and trip history" removes them, as before; the iOS app has no erase action, so they stay until the app is deleted.
+
+**Also fixed.** The iOS SmartStop card marked every reason with a checkmark, including "Hours unavailable"; reasons now use a neutral dot, as on the web.
+
+**Checked by.** `SmartStopAnswerTests` (brand, best stop and restroom answers on a real route; the restroom notice is not repeated), `DiscoverTravelTests` and `web/tests/discover.test.js` (statistics from history, simulated trips excluded), a web check that no screen shows the Passport, achievements or plates while the stored history and plate list are unchanged, and the iOS screenshot test, which fails if "License plate game" is reachable. Siri phrases are compiled in CI; speaking them needs a device and was not done.

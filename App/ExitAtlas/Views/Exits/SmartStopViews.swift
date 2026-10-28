@@ -98,7 +98,11 @@ struct SmartStopSections: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(p.reasons, id: \.self) { Label($0, systemImage: "checkmark").font(.footnote).labelStyle(ReasonLabelStyle()) }
+                    // A neutral dot, not a checkmark: a reason can be "Hours unavailable" or "Detour not measured".
+                    ForEach(p.reasons, id: \.self) { reason in
+                        Label { Text(reason) } icon: { Image(systemName: "circle.fill").font(.system(size: 5)) }
+                            .font(.footnote).labelStyle(ReasonLabelStyle())
+                    }
                     if let next = p.nextOption {
                         Label("Next option \(Format.miles(next)) later", systemImage: "arrow.forward").font(.footnote).labelStyle(ReasonLabelStyle())
                     }
