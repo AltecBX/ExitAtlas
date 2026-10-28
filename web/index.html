@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ExitAtlas</title>
+<meta name="description" content="Interstate road trip companion: state lines, exits and services ahead, miles per state.">
+<meta name="theme-color" content="#f2f3f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0c0f" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ExitAtlas">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="appbar">
+  <h1 id="title">ExitAtlas</h1>
+  <span id="status"></span>
+  <button id="end" class="btn-end" data-act="end" hidden>End</button>
+</header>
+<div id="banner"></div>
+<main>
+  <div id="loading" class="loading">
+    <div class="logo"><span class="exit-sign"><span class="e">EXIT</span><span class="n">EA</span></span><span class="word">ExitAtlas</span></div>
+    <div class="progress thick"><div id="load-bar" style="width:0%"></div></div>
+    <div id="load-label" class="muted small">Loading offline data</div>
+    <p class="note">States, time zones and 38,553 interstate exits load once and are kept on this phone for offline use.</p>
+  </div>
+  <div id="view"></div>
+</main>
+<nav class="tabbar" aria-label="Tabs">
+  <button data-act="tab" data-arg="drive" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Drive</button>
+  <button data-act="tab" data-arg="exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21L9 3"/><path d="M19 21L15 3"/><path d="M12 6v2M12 11v2M12 16v2"/></svg>Exits</button>
+  <button data-act="tab" data-arg="trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Trip</button>
+  <button data-act="tab" data-arg="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--card)"/><circle cx="15" cy="12" r="2" fill="var(--card)"/><circle cx="7" cy="18" r="2" fill="var(--card)"/></svg>Settings</button>
+</nav>
+<div id="sheet-backdrop" class="sheet-backdrop"></div>
+<div id="sheet" class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheet-body"></div></div>
+<div id="toast" class="toast" role="status"></div>
+<script type="module" src="js/app/main.js"></script>
+</body>
+</html>
