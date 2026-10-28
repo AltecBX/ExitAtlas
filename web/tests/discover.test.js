@@ -23,7 +23,8 @@ test('places near Miami to Manhattan come in route order, near the route, with a
   const plan = new TripPlan(route('miami_to_manhattan'),
     { states: data.states, timeZones: null, interstates: data.interstates, discover: data.discover });
   const list = plan.discover;
-  assert.ok(list.length >= 10, `${list.length}`);
+  // Same count as DiscoverPassportTests.swift: the two engines must agree.
+  assert.equal(list.length, 173, list.map((x) => x.item.name).join(', '));
   for (let i = 1; i < list.length; i++) assert.ok(list[i].distanceAlongRoute >= list[i - 1].distanceAlongRoute);
   for (const x of list) assert.ok(x.offMeters <= DISCOVER_CATEGORIES[x.item.cat].near + 1, x.item.name);
   assert.ok(list.some((x) => x.exit), 'some places have an exit within 5 km along the route');

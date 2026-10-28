@@ -145,7 +145,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -750,6 +750,7 @@ export function settingsView(app) {
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
+      <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
       <p><b>Gas prices:</b> Google Maps Places API with your key (Settings, Gas prices). Off without a key.</p>

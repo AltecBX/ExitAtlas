@@ -34,7 +34,7 @@ async function fetchBuffer(name, onProgress) {
 /// Loads states, time zones, exits, rest areas and Discover places. Corridors load later, only for discovery mode.
 /// Rest areas are optional: without them the timeline simply has no rest area rows.
 export async function loadCoreData(onProgress) {
-  const sizes = { 'states.eab': 2786240, 'timezones.eab': 596473, 'interstates.eax': 11570373, 'restareas.json': 260457, 'discover.json': 442941 };
+  const sizes = { 'states.eab': 2786240, 'timezones.eab': 596473, 'interstates.eax': 11570373, 'restareas.json': 260457, 'discover.json': 442934 };
   const done = {};
   const report = () => {
     const got = Object.values(done).reduce((a, b) => a + b, 0);

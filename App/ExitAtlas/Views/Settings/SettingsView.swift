@@ -197,6 +197,9 @@ struct DataSourcesView: View {
             if let summary = app.data?.restAreaSummary {
                 Section("Rest areas and service plazas") { Text(summary).font(.subheadline) }
             }
+            if let summary = app.data?.discoverSummary {
+                Section("Discover ahead") { Text(summary).font(.subheadline) }
+            }
             Section("Maps and routes") {
                 Text("Maps, routes and travel times: Apple Maps (MapKit). Route geometry is kept only for the active trip.")
                     .font(.subheadline)

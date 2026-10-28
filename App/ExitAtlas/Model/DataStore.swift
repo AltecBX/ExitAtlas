@@ -51,4 +51,10 @@ struct BundledData: Sendable {
         return "\(m.count) rest areas, welcome centers and service plazas from OpenStreetMap (tags checked \(m.tagsFetched ?? "unknown")). "
             + "Truck parking counts from the FHWA Truck Stop Parking survey (2019, public domain). \(m.license). Amenities show only what mappers have tagged."
     }
+
+    var discoverSummary: String? {
+        guard let m = datasets.discover?.metadata else { return nil }
+        return "\(m.count) notable places from Wikidata (\(m.license), fetched \(m.fetched ?? "unknown")): parks, museums, monuments and more "
+            + "within 5 to 10 miles of an interstate. Hours, fees and closures are not included."
+    }
 }
