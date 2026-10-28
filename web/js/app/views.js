@@ -110,22 +110,64 @@ function idleCards(app) {
 
 function dashboard(app, s) {
   const discovery = app.mode === 'discovery';
-  const hw = s.highway;
-  const header = `<div class="row" style="padding-top:4px">${shield(hw?.ref)}
-    <div class="main" style="flex:1;min-width:0"><div class="title-md">${hw ? `${h(highwayLabel(hw.ref))} ${DIRECTION_WORDS[hw.direction]}` : 'Local roads'}</div>
-    <div class="muted small">${discovery ? 'Discovery mode' : `Driving in ${h(s.current?.segment.displayName ?? '—')}`}${s.match.status === 'onRoute' && s.match.speed > 2 ? ` · <b class="num">${Math.round(s.match.speed * 2.23694)} mph</b>` : ''}</div></div>
-    ${badge(s.current?.segment.code, true)}</div>`;
-  const parts = [header];
+  const parts = [cluster(app, s)];
   if (s.current) parts.push(borderCard(s));
   if (s.nextExit) parts.push(nextExitCard(app, s));
   parts.push(fuelCard(app, s));
   parts.push(destinationCard(app, s, discovery));
+  const extras = [];
   if (s.match.status === 'offRoute' && !app.isRerouting && app.mode === 'trip') {
-    parts.push(`<div class="banner warn">You are off the planned route. ${app.gps === 'device' ? 'A new route is requested automatically when online.' : ''}</div>`);
+    extras.push(`<div class="banner warn">You are off the planned route. ${app.gps === 'device' ? 'A new route is requested automatically when online.' : ''}</div>`);
   }
-  if (app.lastError) parts.push(`<p class="amber-text small">${h(app.lastError)}</p>`);
-  parts.push(screenNote(app));
-  return `<div class="stack">${parts.join('')}</div>`;
+  if (app.lastError) extras.push(`<p class="amber-text small">${h(app.lastError)}</p>`);
+  extras.push(screenNote(app));
+  return `<div class="dash">${parts.join('')}<div class="dash-extras">${extras.join('')}</div></div>`;
+}
+
+/// The instrument cluster: speedometer, posted limit, highway and state.
+function cluster(app, s) {
+  const mph = app.speedNow();
+  const onRoute = s.match.status === 'onRoute';
+  const limits = app.limits;
+  const limit = onRoute && limits ? limits.at(s.progress) : null;
+  const limitState = !onRoute ? 'unknown' : limits ? limits.state(s.progress) : 'loading';
+  const over = mph !== null && limit !== null ? mph - limit : null;
+  const level = over === null || over <= 0 ? 'ok' : over <= app.settings.speedAlertOver ? 'warn' : 'over';
+  const next = onRoute && limits ? limits.nextChange(s.progress) : null;
+  const hw = s.highway;
+  const sign = limit !== null
+    ? `<div class="limit-sign" aria-label="Speed limit ${limit}"><span class="t">SPEED<br>LIMIT</span><span class="v num">${limit}</span></div>`
+    : `<div class="limit-sign dim" aria-label="Speed limit not available"><span class="t">SPEED<br>LIMIT</span><span class="v num">${limitState === 'loading' ? '…' : '—'}</span></div>`;
+  const nextLine = next ? `<div class="limit-next"><b class="num">${next.mph}</b> in ${miles(next.distance)}</div>`
+    : limit === null && limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : '';
+  return `<section class="card cluster ${level}">
+    ${speedo(mph, limit, level)}
+    <div class="limit-col">${sign}${nextLine}</div>
+    <div class="road-col">${shield(hw?.ref, 46)}
+      <div class="road-name">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
+      <div class="road-dir">${hw ? DIRECTION_WORDS[hw.direction] : 'roads'}</div>
+      <div class="road-state">${badge(s.current?.segment.code, true, true)}<span class="muted tiny">${app.mode === 'discovery' ? 'Discovery' : h(s.current?.segment.displayName ?? '')}</span></div>
+    </div></section>`;
+}
+
+/// Ring speedometer: 270 degree arc, value arc colored by the limit, tick at the posted limit.
+function speedo(mph, limit, level) {
+  const max = mph !== null && mph > 112 ? 140 : 120;
+  const r = 84, c = 2 * Math.PI * r, arc = c * 0.75;
+  const frac = mph === null ? 0 : Math.min(1, mph / max);
+  let tick = '';
+  if (limit !== null) {
+    const a = (135 + 270 * Math.min(1, limit / max)) * Math.PI / 180;
+    const p = (rad) => `${(100 + rad * Math.cos(a)).toFixed(1)} ${(100 + rad * Math.sin(a)).toFixed(1)}`;
+    tick = `<path d="M${p(70)} L${p(98)}" class="speedo-tick"/>`;
+  }
+  return `<div class="speedo ${level}" aria-label="${mph === null ? 'Speed unavailable' : `${mph} miles per hour`}">
+    <svg viewBox="0 0 200 200" aria-hidden="true">
+      <circle cx="100" cy="100" r="${r}" class="speedo-track" stroke-dasharray="${arc.toFixed(1)} ${c.toFixed(1)}" transform="rotate(135 100 100)"/>
+      <circle cx="100" cy="100" r="${r}" class="speedo-value" stroke-dasharray="${(arc * frac).toFixed(1)} ${c.toFixed(1)}" transform="rotate(135 100 100)"/>
+      ${tick}
+    </svg>
+    <div class="speedo-num num">${mph === null ? '—' : mph}</div><div class="speedo-unit">MPH</div></div>`;
 }
 
 function borderCard(s) {
@@ -393,6 +435,9 @@ export function settingsView(app) {
     <div><div class="section-title">Screen</div><div class="list">
       ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
       <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div></div>
+    <div><div class="section-title">Speedometer</div><div class="list">
+      <div class="field"><span style="flex:1">Turn red when over the limit by<div class="muted tiny">Amber from 1 mph over. Limits are OpenStreetMap posted speeds via Valhalla; not every road has one.</div></span>
+        <div class="seg" style="width:190px">${[0, 5, 10, 15].map((v) => `<button class="${st.speedAlertOver === v ? 'on' : ''}" data-act="speed-alert" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Vehicle and fuel</div>${vehicleSettings(app)}</div>
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
     <div><div class="section-title">Lifetime</div><div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(life.meters / MILE).toLocaleString('en-US'), { size: 'md' })}${metric('States driven', String(life.states.length), { caption: life.states.join(' · '), size: 'md' })}</div>

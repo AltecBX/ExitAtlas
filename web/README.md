@@ -12,6 +12,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * Discovery mode: no destination, locks onto the interstate and direction you are driving.
 * Vehicle picker: EPA fuel economy for every gasoline, diesel and hybrid version since 2000 (all makes), tank size where verified, otherwise entered once. Highway, combined or your own MPG.
 * Fuel stop: enter the miles to empty from your dashboard (or the gauge). Range counts down as you drive; ExitAtlas picks the last interstate exit with gas that you reach with about your buffer left (25, 50, 75 or 100 mi), shows earlier options and the last gas before empty, and announces it.
+* Dash: ring speedometer from GPS with the posted speed limit sign beside it (OpenStreetMap `maxspeed` via the public Valhalla server, fetched about every 50 miles), the next limit change within 2 miles, amber when over the limit and red when over by your threshold (Settings). Two column layout when the phone is mounted sideways.
 * Voice for state lines, exits and fuel stops, screen wake lock, light and dark mode.
 * The trip is saved on the phone every 30 seconds and can be resumed after the page reloads, without a network connection.
 * Offline data: states, time zones and 38,553 exits load once (about 15 MB) and are cached by a service worker.
@@ -49,4 +50,4 @@ cd web
 npm test
 ```
 
-36 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery, fuel stop planner.
+41 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery, fuel stop planner, pace blending and ETA accuracy, speed limit loading.

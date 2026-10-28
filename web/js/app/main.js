@@ -8,6 +8,7 @@ import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
+import { SpeedLimits } from './limits.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
   loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
@@ -20,6 +21,7 @@ const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: '
 const DEFAULT_SETTINGS = {
   voice: true, announceStateLines: true, announceExits: false, keepAwake: true,
   theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, bufferMiles: 50, preferredBrands: '',
+  speedAlertOver: 5,
 };
 
 const app = {
@@ -47,6 +49,8 @@ const app = {
   stopQuery: { category: 3, hours: 3, brand: '', results: null },
   sheet: null,
   serviceCache: new Map(),
+  limits: null,
+  lastSpeed: null,
   mapCache: null,
   sim: null,
   location: new LocationService(),
@@ -77,6 +81,13 @@ const app = {
       for (const s of t.states) if (s.code && !states.includes(s.code)) states.push(s.code);
     }
     return { meters, states };
+  },
+
+  /// Current speed in mph from the latest fix, or null when there is no recent fix.
+  speedNow() {
+    if (this.lastSpeed === null) return null;
+    if (this.gps === 'device' && (!this.lastFixAt || Date.now() - this.lastFixAt > 5000)) return null;
+    return Math.max(0, Math.round(this.lastSpeed * 2.23694));
   },
 
   /// The selected vehicle with the MPG used for range (EPA highway, combined, or the driver's own).
@@ -332,6 +343,8 @@ function resetTripState() {
   app.isRerouting = false;
   app.serviceCache.clear();
   app.announcer.reset();
+  app.limits = null;
+  app.lastSpeed = null;
 }
 
 /// Starts a planned trip. options: {simulate, startMeters, restoring}
@@ -360,6 +373,7 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
   app.snapshot = app.session.snapshotAt(now);
   app.tab = 'drive';
   window.scrollTo(0, 0);
+  ensureLimits();
   if (simulate) {
     startSimulation(route, startMeters, 30);
   } else {
@@ -440,6 +454,7 @@ app.location.onError = (message) => {
 
 function handleSample(sample, shouldRender) {
   app.lastFixAt = Date.now();
+  if (sample.speed !== null && sample.speed >= 0) app.lastSpeed = sample.speed;
   if (app.locationError) {
     if (app.lastError === app.locationError) app.lastError = null;
     app.locationError = null;
@@ -489,6 +504,17 @@ function publish(snap) {
   app.snapshot = snap;
   app.announcer.consider(snap, app.settings);
   considerFuelVoice();
+  ensureLimits();
+}
+
+/// Loads posted speed limits for the road just ahead (one request per about 50 miles).
+function ensureLimits() {
+  if (!app.plan || !app.snapshot) return;
+  if (!app.limits || app.limits.route !== app.plan.route) {
+    app.limits = new SpeedLimits(app.plan.route);
+    app.limits.onUpdate = render;
+  }
+  app.limits.ensureAhead(app.snapshot.progress);
 }
 
 /// Keeps the dashboard moving through tunnels and dead zones by dead reckoning.
@@ -666,6 +692,7 @@ const actions = {
   'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
   'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
+  'speed-alert'(arg) { app.settings.speedAlertOver = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   'reset-pace'() { store.remove('ea.paceHistory'); lastViewHTML = ''; render(); toast('Pace history cleared'); },
   'test-voice'() {
     if (!app.announcer.supported) { toast('Voice is not supported in this browser'); return; }
