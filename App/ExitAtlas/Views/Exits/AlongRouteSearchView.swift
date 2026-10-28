@@ -47,7 +47,11 @@ struct AlongRouteSearchView: View {
                 if searched {
                     Section(results.isEmpty ? "No exit matches every requirement" : "\(results.count) matching exits") {
                         ForEach(results) { r in
-                            NavigationLink(value: r.match.exit) { ResultRow(result: r, now: trip.snapshot?.timestamp ?? Date()) }
+                            if let match = r.match {
+                                NavigationLink(value: match.exit) {
+                                    ResultRow(result: r, match: match, now: trip.snapshot?.timestamp ?? Date())
+                                }
+                            }
                         }
                     }
                 }
@@ -75,17 +79,19 @@ struct AlongRouteSearchView: View {
     }
 }
 
+/// An exit matching every requirement (this search never includes rest areas, so `match` is set).
 private struct ResultRow: View {
     let result: StopSuggestion
+    let match: AlongRouteMatch
     let now: Date
 
     var body: some View {
         HStack(spacing: 12) {
-            ExitSign(label: result.match.exit.label, compact: true)
+            ExitSign(label: match.exit.label, compact: true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(result.match.exit.name.isEmpty ? result.match.exit.displayTitle : result.match.exit.name)
+                Text(match.exit.name.isEmpty ? match.exit.displayTitle : match.exit.name)
                     .font(.subheadline.weight(.semibold))
-                Text(result.match.matchesPerRequirement.compactMap { $0.first?.place.displayName }.joined(separator: " + "))
+                Text(match.matchesPerRequirement.compactMap { $0.first?.place.displayName }.joined(separator: " + "))
                     .font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(2)
             }
             Spacer()
