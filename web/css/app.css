@@ -130,6 +130,19 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .plaques.compact .plaque { flex-direction: row; align-items: baseline; gap: 5px; padding: 4px 8px; }
 .plaques.compact .pn { max-width: 14ch; }
 
+/* State ledger ribbon */
+.ribbon { position: relative; margin: 0 0 16px; }
+.ribbon-bar { display: flex; gap: 2px; height: 12px; }
+.rseg { height: 100%; border-radius: 3px; min-width: 2px;
+  background: linear-gradient(90deg, var(--c) var(--done), color-mix(in srgb, var(--c) 28%, var(--chip)) var(--done)); }
+.rseg:first-child { border-radius: 6px 3px 3px 6px; }
+.rseg:last-child { border-radius: 3px 6px 6px 3px; }
+.ribbon-pin { position: absolute; top: -4px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px;
+  background: var(--text); box-shadow: 0 0 0 2px var(--card); }
+.ribbon-labels { display: flex; gap: 2px; margin-top: 4px; }
+.rlab { font: 800 12px/1 var(--num); color: var(--text-2); text-align: center; overflow: hidden; white-space: nowrap; }
+.rlab.current { color: var(--text); }
+
 /* State progress */
 .state-progress { margin-top: 14px; }
 .state-progress .row { margin-bottom: 6px; gap: 8px; }

@@ -216,6 +216,29 @@ function speedo(mph, limit, level) {
     <div class="speedo-num num">${mph === null ? '—' : mph}</div><div class="speedo-unit">MPH</div></div>`;
 }
 
+/// The state ledger: the whole route as one bar split into states in proportion to their miles,
+/// with the driven part filled and a marker where you are. ExitAtlas's signature element.
+function stateRibbon(s) {
+  const items = s.itinerary;
+  const total = items.reduce((t, f) => t + f.segment.length, 0);
+  if (!(total > 0) || items.length < 2) return '';
+  const pos = Math.max(0, Math.min(1, (s.progress - items[0].segment.startDistance) / total));
+  let colorIndex = 0;
+  const parts = items.map((f) => {
+    const seg = f.segment;
+    const w = (seg.length / total) * 100;
+    const color = seg.code ? `var(--seg${colorIndex++ % 4})` : 'var(--map-line)';
+    const done = f.status === 'completed' ? 1 : f.status === 'current' ? Math.max(0, Math.min(1, (s.progress - seg.startDistance) / seg.length)) : 0;
+    return { seg, w, color, done, status: f.status };
+  });
+  const bar = parts.map((p) => `<span class="rseg ${p.status}" style="width:${p.w.toFixed(3)}%;--c:${p.color};--done:${(p.done * 100).toFixed(1)}%"></span>`).join('');
+  const labels = parts.map((p) => `<span class="rlab ${p.status}" style="width:${p.w.toFixed(3)}%">${p.w >= 5 && p.seg.code ? h(p.seg.code) : ''}</span>`).join('');
+  const spoken = parts.filter((p) => p.seg.code).map((p) => `${p.seg.displayName} ${Math.round(p.seg.length / MILE)} miles`).join(', ');
+  return `<div class="ribbon" role="img" aria-label="Route by state: ${h(spoken)}. You are ${Math.round(pos * 100)} percent of the way.">
+    <div class="ribbon-bar">${bar}</div><span class="ribbon-pin" style="left:${(pos * 100).toFixed(2)}%"></span>
+    <div class="ribbon-labels">${labels}</div></div>`;
+}
+
 function borderCard(s) {
   const cur = s.current, next = s.next;
   let body;
@@ -237,7 +260,7 @@ function borderCard(s) {
       ${metric('Exits left', String(cur.exitsRemaining))}</div>`;
   }
   const pct = Math.round(Math.max(0, Math.min(1, cur.fractionComplete)) * 100);
-  return `<div class="card lg state-card">${body}
+  return `<div class="card lg state-card">${stateRibbon(s)}${body}
     <div class="state-progress"><div class="row"><span class="pct num">${pct}%</span><span class="muted small">of ${h(cur.segment.displayName)} driven</span><span class="spacer"></span><span class="muted small num">${miles(cur.drivenMeters)} of ${miles(cur.totalMeters)}</span></div>
     ${progress(cur.fractionComplete)}
     <div class="row muted small" style="margin-top:6px"><span>${miles(cur.remainingMeters)} left in ${h(cur.segment.code ?? cur.segment.displayName)}</span><span class="spacer"></span><span>${cur.exitCount} exits in ${h(cur.segment.code ?? 'state')}</span></div></div></div>`;
