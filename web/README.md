@@ -10,7 +10,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * Trip overview: offline SVG map by state, completed, current and upcoming states with local entry times.
 * Automatic reroute when you leave the route; miles per state survive reroutes.
 * Discovery mode: no destination, locks onto the interstate and direction you are driving.
-* Vehicle picker: EPA fuel economy for every gasoline, diesel and hybrid version since 2000 (all makes), tank size where verified, otherwise entered once. Highway, combined or your own MPG.
+* Vehicle picker: EPA fuel economy for every gasoline, diesel, hybrid and electric version since 2000 (all makes), tank size where verified (20 makes, 6,925 versions), otherwise entered once. Highway, combined or your own MPG.
 * Fuel stop: enter the miles to empty from your dashboard (or the gauge). Range counts down as you drive; ExitAtlas picks the last interstate exit with gas that you reach with about your buffer left (25, 50, 75 or 100 mi), shows earlier options and the last gas before empty, and announces it.
 * Dash: ring speedometer from GPS with the posted speed limit sign beside it (OpenStreetMap `maxspeed` via the public Valhalla server, fetched about every 50 miles), the next limit change within 2 miles, amber when over the limit and red when over by your threshold (Settings). Two column layout when the phone is mounted sideways.
 * Favorite gas brands (Shell, Wawa, Buc-ee's and so on): the fuel stop picks the last exit with one of them that you reach with your buffer left, anywhere in range, and says so when none does.
@@ -27,7 +27,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * GPS stops when the screen locks or Safari is not in front. Keep the screen on (the app requests a wake lock; if that is not available, set Auto Lock to Never). Short gaps are dead reckoned and the trip catches up on return.
 * Travel times start from OSRM road speeds, which are OpenStreetMap speed limits times 0.8 (OSRM car profile `speed_reduction = 0.8`; 90 km/h where no limit is mapped), so about 56 mph on a 70 mph interstate, and no live traffic. While you drive, the next 30 minutes of road follow your speed over the last few minutes (5 minute memory, moving time only), and later stretches blend into your trip pace and your usual pace from earlier trips. In simulation, driving 1.7 times the model speed, the next state line ETA error is 12% after 5 minutes, 8% after 10 and 3% after 20 on a first trip, and under 1% once your pace is learned from an earlier trip.
 * Avoid tolls is not available on the OSRM demo server.
-* No fuel prices: there is no licensed price source.
+* Gas prices need your own Google Maps Platform key (Settings, Gas prices). Without one, exits list their stations without prices.
 * Routing and search need a connection. The demo server is for light personal use.
 
 ## Hosting
