@@ -1,1 +1,1728 @@
-{"entries": [], "unverified": []}
+{
+ "note": "Fuel tank capacities in US gallons. Each entry: manufacturer specification, or two reputable sources that agree. Conditions: hybrid, drive (2WD or 4WD/AWD), cylinders, modelContains (text in the EPA model name).",
+ "researched": "2026-10-28",
+ "entries": [
+  {
+   "make": "Toyota",
+   "baseModel": "RAV4",
+   "from": 2012,
+   "to": 2018,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/rav4/2012/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4/2012/specs/rav4-4wd-4dr-v6-limited-(natl)-338442",
+    "https://www.kbb.com/toyota/rav4/2018/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4/2015/specs/rav4-awd-4dr-limited-(natl)-370550",
+    "https://www.edmunds.com/toyota/rav4/2015/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Gas RAV4 (I4 and 2012 V6, FWD/AWD). KBB 2012/2013/2018, U.S. News 2012/2015, Edmunds 2015 agree."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "RAV4",
+   "from": 2016,
+   "to": 2018,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/rav4-hybrid/2017/specs/",
+    "https://www.kbb.com/toyota/rav4-hybrid/2018/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4-hybrid/2017/specs/rav4-hybrid-xle-awd-(natl)-386174",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4-hybrid/2018/specs/rav4-hybrid-hybrid-xle-awd-(natl)-395354",
+    "https://www.edmunds.com/toyota/rav4-hybrid/2016/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "RAV4 Hybrid has a smaller tank than the gas model (15.9). U.S. News 2016 page shows 12.3 (outlier); KBB and Edmunds 2016 show 14.8."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "RAV4",
+   "from": 2019,
+   "to": 2026,
+   "gallons": [
+    14.5
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/rav4/2019/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4/2019/specs/rav4-le-awd-(natl)-403974",
+    "https://www.kbb.com/toyota/rav4/2025/specs/",
+    "https://www.kbb.com/toyota/rav4-plug-in-hybrid/2025/specs/",
+    "https://www.edmunds.com/toyota/rav4-plug-in-hybrid/2025/trims/",
+    "https://www.kbb.com/toyota/rav4/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/rav4/specs/rav4-le-fwd-(natl)-481722",
+    "https://www.edmunds.com/toyota/rav4/2026/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Same 14.5 gal for gas, Hybrid, 2025 Plug-in Hybrid (EPA 'RAV4 PHEV') and the 2026 hybrid-only generation, FWD and AWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2012,
+   "to": 2017,
+   "gallons": [
+    17.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2012/specs/",
+    "https://www.kbb.com/toyota/camry/2017/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2014/specs/camry-2014-5-4dr-sdn-i4-auto-le-(natl)-365544",
+    "https://www.edmunds.com/toyota/camry-hybrid/2014/trims/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry-hybrid/2014/specs/camry-hybrid-2014.5-4dr-sdn-le-(natl)-365535"
+   ],
+   "basis": "two-sources",
+   "note": "Gas and Hybrid both 17.0 gal."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2018,
+   "to": 2019,
+   "when": {
+    "hybrid": false,
+    "cylinders": 4
+   },
+   "gallons": [
+    14.5
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2018/specs/",
+    "https://www.kbb.com/toyota/camry/2019/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2019/specs/camry-l-auto-(natl)-401558",
+    "https://www.edmunds.com/toyota/camry/2019/sedan/st-401771279/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Base L trim (EPA model 'Camry', 4-cyl, 29/41 mpg) has a smaller tank. 2020 L also 14.5 per KBB but see unverified."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2018,
+   "to": 2019,
+   "when": {
+    "hybrid": false,
+    "cylinders": 4,
+    "modelContains": "LE/SE"
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2018/specs/",
+    "https://www.kbb.com/toyota/camry/2019/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2019/specs/camry-le-auto-(natl)-401541",
+    "https://www.edmunds.com/toyota/camry/2019/sedan/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "LE/SE 4-cyl FWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2018,
+   "to": 2019,
+   "when": {
+    "hybrid": false,
+    "cylinders": 4,
+    "modelContains": "XLE/XSE"
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2018/specs/",
+    "https://www.kbb.com/toyota/camry/2019/specs/",
+    "https://www.edmunds.com/toyota/camry/2019/sedan/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "XLE/XSE 4-cyl FWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2021,
+   "to": 2024,
+   "when": {
+    "hybrid": false,
+    "drive": "2WD"
+   },
+   "gallons": [
+    15.8
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2021/specs/",
+    "https://www.kbb.com/toyota/camry/2022/specs/",
+    "https://www.kbb.com/toyota/camry/2024/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2023/specs/camry-xle-v6-auto-(natl)-428205",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2024/specs/camry-le-auto-(natl)-440174"
+   ],
+   "basis": "two-sources",
+   "note": "All FWD gas Camry incl. V6 and TRD. (2018-2019 sheets say 16.0; 2020 sources disagree.)"
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2020,
+   "to": 2024,
+   "when": {
+    "hybrid": false,
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    14.4
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2021/specs/camry-xse-auto-awd-(natl)-416029",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2023/specs/camry-le-auto-awd-(natl)-428211",
+    "https://www.kbb.com/toyota/camry/2021/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "AWD Camry (2.5 4-cyl) uses a saddle tank; KBB review states 16.0 -> 14.4 gal with AWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2018,
+   "to": 2019,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    13.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry-hybrid/2018/specs/",
+    "https://www.edmunds.com/toyota/camry-hybrid/2018/trims/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry-hybrid/2019/specs/camry-hybrid-hybrid-le-cvt-(natl)-401561"
+   ],
+   "basis": "two-sources",
+   "note": "Camry Hybrid LE and XLE/SE."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2020,
+   "to": 2024,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry-hybrid/2020/specs/",
+    "https://www.kbb.com/toyota/camry-hybrid/2021/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry-hybrid/2020/specs/camry-hybrid-hybrid-le-cvt-(natl)-408126",
+    "https://cars.usnews.com/cars-trucks/toyota/camry-hybrid/2020/specs/camry-hybrid-hybrid-se-cvt-(natl)-408129"
+   ],
+   "basis": "two-sources",
+   "note": "Camry Hybrid all trims (KBB 2024 also 13.2)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "from": 2025,
+   "to": 2026,
+   "gallons": [
+    13.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/camry/2025/specs/",
+    "https://www.kbb.com/toyota/camry/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2025/specs/camry-le-(natl)-453130",
+    "https://cars.usnews.com/cars-trucks/toyota/camry/2025/specs/camry-le-awd-(natl)-453141"
+   ],
+   "basis": "two-sources",
+   "note": "Hybrid-only generation, FWD and AWD both 13 gal."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tacoma",
+   "from": 2012,
+   "to": 2023,
+   "gallons": [
+    21.1
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tacoma-access-cab/2014/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tacoma/2014/specs/tacoma-4wd-double-cab-long-bed-v6-automatic-(natl)-361331",
+    "https://www.edmunds.com/toyota/tacoma/2014/trims/",
+    "https://www.edmunds.com/toyota/tacoma/2016/st-200722300/features-specs/",
+    "https://www.kbb.com/toyota/tacoma/2023/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tacoma/2023/specs/tacoma-2wd-limited-double-cab-5-bed-v6-at-(natl)-429449"
+   ],
+   "basis": "two-sources",
+   "note": "All cabs/beds/engines, 2nd and 3rd generation."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tacoma",
+   "from": 2024,
+   "to": 2026,
+   "gallons": [
+    18.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tacoma-double-cab/2024/specs/",
+    "https://www.kbb.com/toyota/tacoma-xtracab/2024/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tacoma/2025/specs/tacoma-4wd-sr5-double-cab-6-bed-at-(natl)-464117",
+    "https://cars.usnews.com/cars-trucks/toyota/tacoma/2025/specs/tacoma-4wd-trd-pro-hybrid-double-cab-5-bed-at-(natl)-464071",
+    "https://cars.usnews.com/cars-trucks/toyota/tacoma/specs/tacoma-4wd-sr5-double-cab-5-bed-at-(natl)-480237"
+   ],
+   "basis": "two-sources",
+   "note": "4th gen: gas and i-FORCE MAX hybrid, all cabs and beds."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Highlander",
+   "from": 2012,
+   "to": 2019,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    19.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/highlander/2012/specs/",
+    "https://www.kbb.com/toyota/highlander/2016/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/2013/specs/highlander-fwd-4dr-i4-(natl)-351110",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/2015/specs/highlander-fwd-4dr-i4-le-(natl)-368966",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/2019/specs/highlander-xle-v6-awd-(natl)-401724",
+    "https://www.kbb.com/toyota/highlander/2019/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Gas V6 and 2.7 I4."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Highlander",
+   "from": 2012,
+   "to": 2019,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    17.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/highlander/2012/specs/",
+    "https://www.kbb.com/toyota/highlander-hybrid/2017/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/2013/specs/highlander-hybrid-4wd-4dr-limited-(natl)-353835",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/2015/specs/highlander-hybrid-4wd-4dr-limited-platinum-(natl)-369002",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/2019/specs/highlander-hybrid-hybrid-xle-v6-awd-(natl)-401736",
+    "https://www.edmunds.com/toyota/highlander-hybrid/2013/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "V6 Hybrid. Edmunds 2019 LE/XLE Hybrid pages show 19.2 (outlier)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Highlander",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    17.9
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/highlander/2021/specs/",
+    "https://www.kbb.com/toyota/highlander/2025/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/2022/specs/highlander-le-fwd-(natl)-424193",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/2024/specs/highlander-le-awd-(natl)-445482",
+    "https://www.edmunds.com/toyota/highlander/2024/trims/",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander/specs/highlander-platinum-awd-(natl)-479809"
+   ],
+   "basis": "two-sources",
+   "note": "Gas V6 (2020-2022) and 2.4 turbo (2023+), FWD/AWD. Not Grand Highlander."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Highlander",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    17.1
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/highlander-hybrid/2021/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/2022/specs/highlander-hybrid-hybrid-le-fwd-(natl)-424147",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/2022/specs/highlander-hybrid-hybrid-le-awd-(natl)-424159",
+    "https://cars.usnews.com/cars-trucks/toyota/highlander-hybrid/specs/highlander-hybrid-hybrid-xle-awd-(natl)-462036",
+    "https://www.kbb.com/toyota/highlander-hybrid/2026/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Hybrid FWD and AWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Corolla",
+   "from": 2012,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/corolla/2012/specs/",
+    "https://www.kbb.com/toyota/corolla/2016/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla/2013/specs/corolla-4dr-sdn-auto-le-(natl)-351729",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla/2018/specs/corolla-le-cvt-(natl)-393312",
+    "https://www.kbb.com/toyota/corolla/2021/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla/specs/corolla-le-cvt-(natl)-477266",
+    "https://www.kbb.com/toyota/corolla-hatchback/2019/specs/",
+    "https://www.kbb.com/toyota/corolla-hatchback/2026/specs/",
+    "https://www.edmunds.com/toyota/corolla-hatchback/2023/st-401944258/features-specs/",
+    "https://www.kbb.com/toyota/gr-corolla/2024/specs/",
+    "https://www.kbb.com/toyota/gr-corolla/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/gr-corolla/2023/specs/gr-corolla-circuit-edition-manual-(natl)-440111",
+    "https://www.edmunds.com/toyota/corolla/2025/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Gas sedan (incl. LE Eco, FX), Corolla Hatchback and GR Corolla all 13.2 gal."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Corolla",
+   "from": 2017,
+   "to": 2018,
+   "when": {
+    "hybrid": false,
+    "modelContains": "Corolla iM"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/corolla-im/2017/specs/",
+    "https://www.kbb.com/toyota/corolla-im/2018/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla-im/2017/specs/corolla-im-manual-(natl)-386372",
+    "https://www.edmunds.com/toyota/corolla-im/2017/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Corolla iM hatchback (EPA model 'Corolla iM')."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Corolla",
+   "from": 2021,
+   "to": 2022,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    11.4
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/corolla-hybrid/2021/specs/",
+    "https://www.edmunds.com/toyota/corolla-hybrid/2021/trims/",
+    "https://www.kbb.com/toyota/corolla-hybrid/2022/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla-hybrid/2022/specs/corolla-hybrid-hybrid-le-cvt-(natl)-420783"
+   ],
+   "basis": "two-sources",
+   "note": "Corolla Hybrid LE. U.S. News 2021 page shows 13.2 (gas sedan figure, outlier)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Corolla",
+   "from": 2023,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    11.3
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/corolla-hybrid/2023/specs/",
+    "https://www.kbb.com/toyota/corolla-hybrid/2024/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla-hybrid/2023/specs/corolla-hybrid-hybrid-le-awd-(natl)-430794",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla-hybrid/specs/corolla-hybrid-hybrid-se-awd-(natl)-477146",
+    "https://cars.usnews.com/cars-trucks/toyota/corolla-hybrid/specs/corolla-hybrid-hybrid-le-fwd-(natl)-477134",
+    "https://www.kbb.com/toyota/corolla-hybrid/2026/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Corolla Hybrid FWD and AWD. Edmunds lists 11.4 for 2023 (0.1 gal difference)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "4Runner",
+   "from": 2012,
+   "to": 2024,
+   "gallons": [
+    23.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/4runner/2012/specs/",
+    "https://www.kbb.com/toyota/4runner/2014/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/2014/specs/4runner-4wd-4dr-v6-limited-(natl)-362332",
+    "https://www.edmunds.com/toyota/4runner/2014/st-200491450/features-specs/",
+    "https://www.kbb.com/toyota/4runner/2024/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/2024/specs/4runner-limited-4wd-(natl)-445565"
+   ],
+   "basis": "two-sources",
+   "note": "5th generation, all versions."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "4Runner",
+   "from": 2025,
+   "to": 2026,
+   "gallons": [
+    19.0
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/2025/specs/4runner-sr5-4wd-(natl)-461508",
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/specs/4runner-trd-sport-premium-2wd-(natl)-461521",
+    "https://www.kbb.com/toyota/4runner-i-force-max/2025/specs/",
+    "https://www.kbb.com/toyota/4runner/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/specs/4runner-trd-sport-premium-4wd-(natl)-481381",
+    "https://cars.usnews.com/cars-trucks/toyota/4runner/2026/specs/4runner-hybrid-trd-pro-481399"
+   ],
+   "basis": "two-sources",
+   "note": "6th generation gas and i-FORCE MAX hybrid. KBB's 2025 gas spec page still shows the old 23 gal (stale); U.S. News 2025/2026, KBB 2025 hybrid and KBB 2026 show 19."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tundra",
+   "from": 2012,
+   "to": 2015,
+   "gallons": [
+    26.4
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tundra-crewmax/2012/specs/",
+    "https://www.kbb.com/toyota/tundra-crewmax/2015/specs/",
+    "https://www.kbb.com/toyota/tundra-double-cab/2013/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2012/specs/tundra-ltd-332706",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2013/specs/tundra-2wd-regular-cab-long-bed-v6-(natl)-353983"
+   ],
+   "basis": "two-sources",
+   "note": "All cabs, V6/V8, incl. FFV; all trims listed at 26.4 through 2015."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tundra",
+   "from": 2016,
+   "to": 2021,
+   "gallons": [
+    26.4,
+    38.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tundra-crewmax/2016/specs/",
+    "https://www.kbb.com/toyota/tundra-double-cab/2020/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2016/specs/tundra-4wd-double-cab-standard-bed-5-7l-v8-limited-(natl)-378363",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2016/specs/tundra-2wd-double-cab-long-bed-5-7l-v8-sr5-(natl)-378870",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2021/specs/tundra-2wd-1794-edition-crewmax-5-5-bed-5-7l-(natl)-413916",
+    "https://www.edmunds.com/toyota/tundra/2016/crewmax-cab/st-200771539/features-specs/",
+    "https://www.edmunds.com/toyota/tundra/2021/st-401867626/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "26.4 standard (SR/SR5, 4.6 and 5.7); 38.0 on Limited, Platinum, 1794, TRD Pro and some SR5 packages. EPA rows cannot tell trims apart."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tundra",
+   "from": 2022,
+   "to": 2025,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    22.5,
+    32.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tundra-crewmax/2023/specs/",
+    "https://www.kbb.com/toyota/tundra-double-cab/2023/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2022/specs/tundra-4wd-sr-double-cab-8-1-bed-(natl)-425440",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2022/specs/tundra-4wd-sr5-double-cab-8-1-bed-(natl)-425443",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2022/specs/tundra-2wd-1794-edition-crewmax-5-5-bed-(natl)-425615",
+    "https://www.edmunds.com/toyota/tundra/2022/st-401920290/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Gas i-FORCE: 22.5 on SR/most SR5, 32.2 on Limited and above (and some SR5 long-bed/option configs)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tundra",
+   "from": 2022,
+   "to": 2025,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    32.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tundra-hybrid-crewmax/2022/specs/",
+    "https://www.kbb.com/toyota/tundra-hybrid-crewmax/2025/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2022/specs/tundra-2wd-limited-hybrid-crewmax-6-5-bed-3-5l-(natl)-426712",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/2022/specs/tundra-2wd-platinum-hybrid-crewmax-5-5-bed-(natl)-426706"
+   ],
+   "basis": "two-sources",
+   "note": "i-FORCE MAX hybrid."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Tundra",
+   "from": 2026,
+   "to": 2026,
+   "gallons": [
+    32.2
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/tundra-double-cab/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/specs/tundra-4wd-sr-double-cab-6-5-bed-(natl)-476364",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/specs/tundra-2wd-sr5-double-cab-6-5-bed-(natl)-476607",
+    "https://cars.usnews.com/cars-trucks/toyota/tundra/specs/tundra-2wd-limited-hybrid-crewmax-5-5-bed-(natl)-476588"
+   ],
+   "basis": "two-sources",
+   "note": "For 2026 the 22.5 gal tank was dropped; every trim gets 32.2 gal."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Sienna",
+   "from": 2012,
+   "to": 2020,
+   "gallons": [
+    20.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/sienna/2012/specs/",
+    "https://www.kbb.com/toyota/sienna/2016/specs/",
+    "https://www.kbb.com/toyota/sienna/2020/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/sienna/2012/specs/sienna-5dr-7-pass-van-v6-xle-awd-(natl)-336683",
+    "https://cars.usnews.com/cars-trucks/toyota/sienna/2015/specs/sienna-5dr-7-pass-van-xle-awd-(natl)-370402",
+    "https://cars.usnews.com/cars-trucks/toyota/sienna/2015/specs/sienna-5dr-8-pass-van-xle-fwd-(natl)-370384",
+    "https://www.edmunds.com/toyota/sienna/2015/st-200712679/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "FWD and AWD, V6 and 2012 2.7 I4."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Sienna",
+   "from": 2021,
+   "to": 2026,
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/sienna/2022/specs/",
+    "https://www.kbb.com/toyota/sienna/2026/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/sienna/2021/specs/sienna-xle-awd-7-passenger-(natl)-416545",
+    "https://cars.usnews.com/cars-trucks/toyota/sienna/2021/specs/sienna-xle-fwd-7-passenger-(natl)-416551",
+    "https://www.edmunds.com/toyota/sienna/2021/st-401876204/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Hybrid-only generation, FWD and AWD."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2012,
+   "to": 2015,
+   "gallons": [
+    11.9
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius/2013/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2014/specs/prius-5dr-hb-three-(natl)-363003"
+   ],
+   "basis": "two-sources",
+   "note": "3rd generation liftback."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2012,
+   "to": 2015,
+   "when": {
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    10.6
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius-plug-in-hybrid/2014/specs/",
+    "https://www.edmunds.com/toyota/prius-plug-in/2014/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "Prius Plug-in Hybrid (EPA model 'Prius Plug-in Hybrid')."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2016,
+   "to": 2022,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    11.3
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius/2017/specs/",
+    "https://www.kbb.com/toyota/prius/2021/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2020/specs/prius-l-eco-(natl)-408108",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2020/specs/prius-le-(natl)-408111",
+    "https://www.edmunds.com/toyota/prius/2020/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "FWD Prius incl. Eco trims."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2019,
+   "to": 2022,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    10.6
+   ],
+   "sources": [
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2020/specs/prius-xle-awd-e-(natl)-408123",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2020/specs/prius-le-awd-e-(natl)-408120",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2022/specs/prius-xle-awd-e-(natl)-420578",
+    "https://www.edmunds.com/toyota/prius/2021/st-401861950/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "Prius AWD-e has a smaller tank."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2020,
+   "to": 2020,
+   "when": {
+    "drive": "2WD",
+    "modelContains": "Prius c"
+   },
+   "gallons": [
+    9.5
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius-c/2019/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/prius-c/specs/prius-c-l-(natl)-401509",
+    "https://www.edmunds.com/toyota/prius-c/2019/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "EPA lists a 2020 'Prius c' row under base model Prius; Prius c tank is 9.5 gal (sources are 2019, final U.S. Prius c year)."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2023,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    11.3
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius/2024/specs/",
+    "https://www.kbb.com/toyota/prius/2025/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/prius/2023/specs/prius-xle-(natl)-433301",
+    "https://www.edmunds.com/toyota/prius/2023/trims/",
+    "https://www.edmunds.com/toyota/prius/2024/st-402012898/features-specs/"
+   ],
+   "basis": "two-sources",
+   "note": "5th generation FWD only; AWD is unverified."
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "from": 2025,
+   "to": 2025,
+   "when": {
+    "drive": "2WD",
+    "modelContains": "PHEV"
+   },
+   "gallons": [
+    10.6
+   ],
+   "sources": [
+    "https://www.kbb.com/toyota/prius-plug-in-hybrid/2025/specs/",
+    "https://cars.usnews.com/cars-trucks/toyota/prius-plug-in-hybrid/2025/specs/prius-plug-in-hybrid-se-(natl)-465010",
+    "https://www.edmunds.com/toyota/prius-plug-in-hybrid/2025/trims/"
+   ],
+   "basis": "two-sources",
+   "note": "2025 Prius Plug-in Hybrid (EPA model 'Prius PHEV')."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "CR-V",
+   "from": 2012,
+   "to": 2016,
+   "gallons": [
+    15.3
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-9009ab8525424169981cae7ff8d848db-2012-honda-cr-v-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-b57d76deca504f07942fc001b9bf590a-2014-honda-cr-v-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-d45ae5802b7845b0bae05db35bc0cc45-2015-cr-v-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims, FWD and AWD."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "CR-V",
+   "from": 2017,
+   "to": 2024,
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-54f22367b7254cfbb14771b4caa5a654-2019-cr-v-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-47ef5ef525f391ae783334075a01030f-2020-cr-v-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-ca54ead83e3667d0b2045585b01eb428-2022-honda-cr-v-hybrid-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-74895511bca6e7abc42504d7581990ac-2023-honda-cr-v-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-13f25e90cfe47cd58453f1f710054868-2024-honda-cr-v-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas (1.5T and 2017-2019 2.4) and Hybrid, FWD/AWD."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "CR-V",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "modelContains": "AWD"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-f43bcac5ded8efe77b071fcb0c097416-2025-honda-cr-v-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-2ecca7d29f72bf212c56033cca000993-2026-honda-cr-v-specifications-features-updated"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas and hybrid incl. TrailSport. Split by modelContains 'AWD' only so the hydrogen CR-V e:FCEV row (atvType eFCV, not skipped by the builder) gets no gasoline tank."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "CR-V",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "modelContains": "FWD"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-f43bcac5ded8efe77b071fcb0c097416-2025-honda-cr-v-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-2ecca7d29f72bf212c56033cca000993-2026-honda-cr-v-specifications-features-updated"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas and hybrid incl. TrailSport. Split by modelContains 'FWD' only so the hydrogen CR-V e:FCEV row (atvType eFCV, not skipped by the builder) gets no gasoline tank."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Civic",
+   "from": 2012,
+   "to": 2015,
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-7173188f2d454403afef996afa921a2d-2012-honda-civic-sedan-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-2cfa87fb4cc34bdf9f49e2a633372a2f-2012-honda-civic-hybrid-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-ae0181ece9064907b67ccdd9baebbca2-2012-honda-civic-si-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-371514b891434858b7cbacd8f9f4e109-2015-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-effec58ddd6f42d094e10221f4b2e60e-2015-honda-civic-hybrid-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-f1bee6892c014e2582c6dfaf6461f989-2015-civic-si-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan, coupe, HF, Si and Civic Hybrid all 13.2 gal (Civic Natural Gas is CNG and skipped)."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Civic",
+   "from": 2016,
+   "to": 2021,
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-a0b13952fb564f87a2ff62a578cab50a-2016-honda-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-14c1878e52a64178a35a66ad6c277c11-2017-honda-civic-hatchback-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-dda03e0c69c6476cbf2e0c544555aeef-2017-civic-type-r-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-4f88c507e72a4e7630685979cb02598a-2021-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-0105593f978caa92e9791e015d0300cc-2021-civic-hatchback-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-0105593f978caa92e9791e015d009911-2021-civic-type-r-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan, coupe, hatchback, Si and Type R (Honda lists 12.39 gal)."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Civic",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-53541be6030b25a47a2899aba12a8f7a-2022-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-cb177600e922c8a5fcfa01b9b80149e2-2022-honda-civic-hatchback-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-bc2bc74408027960dba69cafec0b7e38-2022-civic-si-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-1503019bd8a757ea08267d79440f3aae-2023-honda-civic-type-r-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-c28e8d1efb94e520fef21ff3f800cb30-2025-honda-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-395467bf3b280929feeb74845f000cdf-2026-honda-civic-hatchback-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas sedan, hatchback, Si and Type R."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Civic",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    10.6
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-c28e8d1efb94e520fef21ff3f800cb30-2025-honda-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-395467bf3b280929feeb74845f0060f5-2026-honda-civic-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-395467bf3b280929feeb74845f000cdf-2026-honda-civic-hatchback-specifications-features",
+    "https://cars.usnews.com/cars-trucks/honda/civic-hybrid/2025/specs/civic-hybrid-sport-touring-cvt-hatchback-459736",
+    "https://www.kbb.com/honda/civic-hybrid/2025/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Civic Hybrid sedan and hatchback. Honda's 2025 hatchback sheet shows 12.4 for the hybrids by ditto mark; Edmunds' long-term test reports that was an error, and Honda's 2026 hatchback sheet, U.S. News and KBB give 10.6."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2012,
+   "to": 2012,
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-80257493feb74cd4ab285c9b444306f4-2012-honda-accord-specifications-and-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan and coupe, I4 and V6."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2013,
+   "to": 2017,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    17.2
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-9a5303528ee94832b3fd52bf3761eefd-2013-honda-accord-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-ad1ba6743b664cdfa8fcc3fed284745b-2016-honda-accord-sedan-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-c9534892f8de4c4fac77a32058e175d8-2016-honda-accord-coupe-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas sedan and coupe, I4 and V6."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2014,
+   "to": 2017,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    15.8
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-2dc6760f0bc3484681deddc04a5bb9d0-2014-honda-accord-hybrid-specifications",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-9b66557cf89e45e895a5dcf122efbfcb-2017-accord-hybrid-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Accord Hybrid (not sold for 2016)."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2014,
+   "to": 2014,
+   "when": {
+    "hybrid": true,
+    "modelContains": "Plug-in"
+   },
+   "gallons": [
+    12.2
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-96c5ebd4eba44b15b0ac401e71b83fd3-2014-honda-accord-plug-in-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Accord Plug-In Hybrid."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-05333a38042c488186870d08d4a26678-2018-accord-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-a18d207a1ed1c6988f80a6de970138ed-2021-honda-accord-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-4e58b4e0fcd795affa5685a66a387e28-2023-honda-accord-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-c26685400737027f7d053958c3096f21-2026-honda-accord-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas 1.5T and 2.0T."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Accord",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    12.8
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-05333a38042c488186870d08d4a26678-2018-accord-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-9966c01b392f59faacdd98d1520077cb-2020-accord-hybrid-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-4e58b4e0fcd795affa5685a66a387e28-2023-honda-accord-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-c26685400737027f7d053958c3096f21-2026-honda-accord-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "Accord Hybrid."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Pilot",
+   "from": 2012,
+   "to": 2015,
+   "gallons": [
+    21.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-4509ac20f72a429d892191934c064ecc-2012-honda-pilot-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-198e762c92504a2fb3bedb889d9653ab-2015-honda-pilot-specifications-and-features"
+   ],
+   "basis": "manufacturer",
+   "note": "2WD and 4WD."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Pilot",
+   "from": 2016,
+   "to": 2022,
+   "gallons": [
+    19.5
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-15b0c1766f454753a1f02db004937d1f-2016-honda-pilot-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-84197a508e1244bda90703a9fe913733-2020-honda-pilot-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-f8bfb43dd94cc82c09a8314c0b1422af-2022-honda-pilot-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims incl. 2022 TrailSport."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Pilot",
+   "from": 2023,
+   "to": 2026,
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-4e58b4e0fcd795affa5685a66a1953ae-2023-honda-pilot-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-16f7afa1eda16f08561d54be9a01e83e-2025-honda-pilot-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-14c469388b7fed5af247fc02e2009aa7-2026-honda-pilot-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims incl. TrailSport."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Odyssey",
+   "from": 2012,
+   "to": 2017,
+   "gallons": [
+    21.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-0250133beb854f82a8e5c37c478f1aa5-2012-honda-odyssey-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-1267ee1d741b4207924b585d98cf5a56-2014-honda-odyssey-specifications-and-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-2d8e759f2fa44e748d4b937e140ea905-2017-odyssey-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "Odyssey",
+   "from": 2018,
+   "to": 2026,
+   "gallons": [
+    19.5
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-0768583a802044d9b9b1d7f1849f5fb1-2018-honda-odyssey-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-410d07897fdd63d8043cb72750011124-2025-honda-odyssey-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-5f9c753ac34573a2867fe50f480e53b1-2026-honda-odyssey-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "HR-V",
+   "from": 2016,
+   "to": 2022,
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-fad4d519ffce4a6fb3e4e9a225b4aa11-2016-honda-hr-v-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-f8bfb43dd94cc82c09a8314c0b0c930a-2022-hr-v-specifications-features"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD and AWD."
+  },
+  {
+   "make": "Honda",
+   "baseModel": "HR-V",
+   "from": 2023,
+   "to": 2026,
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-db2492147c55da663fd32edfea06d888-2023-honda-hr-v-specifications-features",
+    "https://hondanews.com/en-US/honda-automobiles/releases/release-6f8b202ddb1c7f26ecd92774bb014b0c-2026-honda-hr-v-specifications-and-features"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD and AWD."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Rogue",
+   "from": 2012,
+   "to": 2013,
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/release-bb6bb9cf991c4cdc880564acbd2c4770-US-2012-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/release-1ccd5516f9c047ee885e840e51bb0731-us-2013-nissan-rogue-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD and AWD."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Rogue",
+   "from": 2014,
+   "to": 2020,
+   "gallons": [
+    14.5
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/2015-nissan-rogue-specifications",
+    "https://usa.nissannews.com/en-US/releases/us-2016-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2018-nissan-rogue-hybrid-specifications",
+    "https://usa.nissannews.com/en-US/releases/us-2017-nissan-rogue-sport-press-kit",
+    "https://usa.nissannews.com/en-US/releases/release-e61c63da532e8cd0620fcceff400d46b-2020-nissan-rogue-specifications"
+   ],
+   "basis": "manufacturer",
+   "note": "Rogue FWD/AWD, Rogue Hybrid (2017-2019) and the 2017-2018 Rogue Sport (listed under base model Rogue by EPA) all 14.5 gal."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Rogue",
+   "from": 2014,
+   "to": 2015,
+   "when": {
+    "modelContains": "Select"
+   },
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2014-nissan-rogue-select-press-kit",
+    "https://www.kbb.com/nissan/rogue-select/2014/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Rogue Select (previous-generation Rogue sold alongside the new one)."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Rogue",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    14.5
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/2021-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2023-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2024-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2025-nissan-rogue-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2026-nissan-rogue-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "2.5 (2021) and 1.5 VC-Turbo, FWD/AWD incl. Rock Creek. Not the 2026 Rogue Plug-in Hybrid."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Altima",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "modelExcludes": "Coupe"
+   },
+   "gallons": [
+    20.0
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2012-nissan-altima-sedan-press-kit",
+    "https://www.kbb.com/nissan/altima/2012/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan only verified. CAUTION: EPA 'Altima Coupe' rows also match this entry (coupe tank unverified). Sedan only; the 2012 to 2013 coupe is unverified."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Altima",
+   "from": 2013,
+   "to": 2018,
+   "when": {
+    "modelExcludes": "Coupe"
+   },
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.kbb.com/nissan/altima/2013/specs/",
+    "https://usa.nissannews.com/en-US/releases/us-2015-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2018-nissan-altima-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "Sedan 2.5 and 3.5. CAUTION: EPA 2013 'Altima Coupe' rows (older generation coupe) also match this entry; coupe tank unverified. Sedan only; the 2012 to 2013 coupe is unverified."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Altima",
+   "from": 2019,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    16.2
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2019-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2023-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2025-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2026-nissan-altima-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD 2.5 and 2.0 VC-Turbo."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Altima",
+   "from": 2019,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2019-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2023-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2025-nissan-altima-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2026-nissan-altima-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Sentra",
+   "from": 2012,
+   "to": 2012,
+   "gallons": [
+    14.5
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2012-nissan-sentra-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "2.0 and SE-R 2.5."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Sentra",
+   "from": 2013,
+   "to": 2019,
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2013-nissan-sentra-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2016-nissan-sentra-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2019-nissan-sentra-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "All incl. FE, SR Turbo and NISMO."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Sentra",
+   "from": 2020,
+   "to": 2026,
+   "gallons": [
+    12.4
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/2020-nissan-sentra-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2025-nissan-sentra-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2026-nissan-sentra-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Pathfinder",
+   "from": 2012,
+   "to": 2012,
+   "gallons": [
+    21.1
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2012-nissan-pathfinder-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "Body-on-frame V6 and V8."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Pathfinder",
+   "from": 2013,
+   "to": 2020,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    19.5
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/us-2013-nissan-pathfinder-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2014-nissan-pathfinder-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2015-nissan-pathfinder-press-kit",
+    "https://usa.nissannews.com/en-US/releases/us-2020-nissan-pathfinder-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "V6 2WD/4WD. Pathfinder Hybrid (2014-2015) unverified."
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Pathfinder",
+   "from": 2022,
+   "to": 2026,
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://usa.nissannews.com/en-US/releases/2022-nissan-pathfinder-press-kit",
+    "https://usa.nissannews.com/en-US/releases/2026-nissan-pathfinder-press-kit"
+   ],
+   "basis": "manufacturer",
+   "note": "All trims (no 2021 model year)."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Forester",
+   "from": 2014,
+   "to": 2018,
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=999",
+    "https://www.kbb.com/subaru/forester/2014/specs/",
+    "https://www.kbb.com/subaru/forester/2018/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Subaru 2017 Forester spec sheet (2.5i and 2.0XT); KBB 2014 and 2018 agree for the rest of the generation."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Forester",
+   "from": 2019,
+   "to": 2024,
+   "gallons": [
+    16.6
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=1958",
+    "https://www.kbb.com/subaru/forester/2019/specs/",
+    "https://www.kbb.com/subaru/forester/2022/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Subaru 2023 spec sheet; KBB 2019 and 2022 agree. Incl. Wilderness."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Forester",
+   "from": 2025,
+   "to": 2026,
+   "gallons": [
+    16.6
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=2160",
+    "https://media.subaru.com/download.do?id=2362",
+    "https://media.subaru.com/download.do?id=2423"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas (incl. Wilderness) and Forester Hybrid."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Legacy/Outback",
+   "from": 2012,
+   "to": 2014,
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=201",
+    "https://media.subaru.com/download.do?id=208",
+    "https://www.kbb.com/subaru/legacy/2012/specs/",
+    "https://www.kbb.com/subaru/outback/2012/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Legacy and Outback, 2.5 and 3.6 (Subaru 2013 Legacy and Outback spec sheets; KBB 2012 agrees)."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Legacy/Outback",
+   "from": 2015,
+   "to": 2017,
+   "when": {
+    "modelContains": "Legacy"
+   },
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=1000",
+    "https://www.kbb.com/subaru/legacy/2015/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Legacy sedan only (Subaru 2017 Legacy spec sheet; KBB 2015). Outback 2015-2017 unverified."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Outback",
+   "from": 2020,
+   "to": 2025,
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=1899",
+    "https://media.subaru.com/download.do?id=2232",
+    "https://www.kbb.com/subaru/outback/2020/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "2.5 and 2.4 turbo incl. Wilderness (Subaru 2023 and 2025 spec sheets; KBB 2020 agrees)."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Outback",
+   "from": 2026,
+   "to": 2026,
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=2355"
+   ],
+   "basis": "manufacturer",
+   "note": "New generation; Subaru 2026 spec sheet says 18 gal."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "from": 2018,
+   "to": 2023,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    16.6
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=1924",
+    "https://www.kbb.com/subaru/crosstrek/2018/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "2.0 and 2.5 gas (Subaru 2023 spec sheet 'all'; KBB 2018 agrees). Plug-in hybrid separate."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "from": 2023,
+   "to": 2023,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    13.2
+   ],
+   "sources": [
+    "https://media.subaru.com/view-spec.do?bFileId=38059"
+   ],
+   "basis": "manufacturer",
+   "note": "Crosstrek Hybrid plug-in (Subaru 2023 Crosstrek Hybrid spec sheet)."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "from": 2024,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    16.6
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=2050",
+    "https://media.subaru.com/download.do?id=2337"
+   ],
+   "basis": "manufacturer",
+   "note": "All gas trims incl. Wilderness."
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "from": 2026,
+   "to": 2026,
+   "when": {
+    "hybrid": true
+   },
+   "gallons": [
+    16.6
+   ],
+   "sources": [
+    "https://media.subaru.com/download.do?id=2338"
+   ],
+   "basis": "manufacturer",
+   "note": "2026 Crosstrek Hybrid (full hybrid)."
+  },
+  {
+   "make": "Mazda",
+   "baseModel": "CX-5",
+   "from": 2013,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://news.mazdausa.com/download/2013-CX-5-Specifications.pdf",
+    "https://news.mazdausa.com/download/2014-CX-5-Specifications.pdf",
+    "https://news.mazdausa.com/download/2017-CX-5-Spec-Deck-revised.pdf",
+    "https://news.mazdausa.com/download/2019-Mazda-CX-5-Press-Kit-Spec-Deck.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD (sold through 2021)."
+  },
+  {
+   "make": "Mazda",
+   "baseModel": "CX-5",
+   "from": 2013,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    15.3
+   ],
+   "sources": [
+    "https://news.mazdausa.com/download/2013-CX-5-Specifications.pdf",
+    "https://news.mazdausa.com/download/2017-CX-5-Spec-Deck-revised.pdf",
+    "https://news.mazdausa.com/download/2019-Mazda-CX-5-Press-Kit-Spec-Deck.pdf",
+    "https://news.mazdausa.com/download/2022+CX-5+Spec+Deck.pdf",
+    "https://news.mazdausa.com/download/26MY+CX5+Spec+Deck+FINAL.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD, 2.5 and 2.5 turbo. CAUTION: 2018-2019 diesel rows also match (diesel not covered by the spec decks)."
+  }
+ ],
+ "unverified": [
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "years": "2020",
+   "reason": "Gas FWD (L, LE/SE, XLE/XSE, V6, TRD): KBB 15.8 (L 14.5) vs U.S. News 16.0; sources disagree"
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Camry",
+   "years": "2018-2019",
+   "reason": "V6 (XLE V6, XSE V6): no source found that lists the V6 separately for these years (4-cyl is 16.0)"
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Corolla",
+   "years": "2020",
+   "reason": "Corolla Hybrid: KBB and U.S. News list 13.2 (gas sedan figure) but the same car is 11.4 in 2021-2022; likely data error"
+  },
+  {
+   "make": "Toyota",
+   "baseModel": "Prius",
+   "years": "2023-2026",
+   "reason": "AWD: U.S. News 10.5 vs KBB/cars.com not distinguishing AWD (11.3/11); no second source for AWD"
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Altima",
+   "years": "2012-2013",
+   "reason": "Altima Coupe: Nissan coupe press kits omit tank size, KBB has no coupe data. Note: coupe rows still match the sedan entries (builder cannot exclude them)"
+  },
+  {
+   "make": "Nissan",
+   "baseModel": "Pathfinder",
+   "years": "2014-2015",
+   "reason": "Pathfinder Hybrid: only KBB (19.5); Nissan press kits do not list the hybrid separately"
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Forester",
+   "years": "2012-2013",
+   "reason": "Only KBB found (16.9); Subaru spec sheet not reachable and web search budget exhausted"
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Legacy/Outback",
+   "years": "2015-2017",
+   "reason": "Outback only (Legacy verified): only KBB (18.5) for this Outback generation"
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Outback",
+   "years": "2018-2019",
+   "reason": "Only KBB (18.5); no Subaru Outback spec sheet for this generation found"
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "years": "2013-2017",
+   "reason": "XV Crosstrek/Crosstrek gas: only KBB (15.9); XV Crosstrek Hybrid 2014-2016: only KBB (15.9, same as gas, doubtful)"
+  },
+  {
+   "make": "Subaru",
+   "baseModel": "Crosstrek",
+   "years": "2019-2022",
+   "reason": "Crosstrek Hybrid (plug-in): Subaru 2023 sheet says 13.2 but earlier years not independently checked"
+  },
+  {
+   "make": "Mazda",
+   "baseModel": "CX-5",
+   "years": "2018-2019",
+   "reason": "Diesel (Skyactiv-D) rows: tank not in Mazda spec decks; rows will still match the AWD/FWD entries"
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Tucson",
+   "years": "2012-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2013 15.3, 2018 16.4, 2023 gas 14.3, 2023 Hybrid 13.7, 2023 Plug-in 11.1"
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Santa Fe",
+   "years": "2012-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2012 18.0; 2016 Santa Fe (LWB) 18.8; 2016 Santa Fe Sport 17.4 (EPA lists Sport and 2019 XL under 'Santa Fe'); 2020 18.8; 2022 Hybrid 17.7; 2025 17.7; Plug-in not checked"
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Elantra",
+   "years": "2012-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2014 12.8 (1.8) / 13.2 (2.0 Sport); 2016 Elantra GT 13.2; 2018 14.0; 2023 12.4; 2023 Hybrid 11.0; Elantra Coupe/Touring/N not checked"
+  },
+  {
+   "make": "Hyundai",
+   "baseModel": "Palisade",
+   "years": "2020-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2022 18.8; 2026 gas 19.0; 2026 Hybrid not checked"
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sportage",
+   "years": "2012-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2013 15.3, 2019 16.4, 2024 gas 14.3; Hybrid and Plug-in not checked"
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Sorento",
+   "years": "2012-2026",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2013 18.0, 2018 18.8, 2023 gas 17.7; Hybrid and Plug-in not checked"
+  },
+  {
+   "make": "Kia",
+   "baseModel": "Telluride",
+   "years": "2020-2025",
+   "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2022 18.8 (EPA file has no 2026 Telluride rows)"
+  }
+ ]
+}

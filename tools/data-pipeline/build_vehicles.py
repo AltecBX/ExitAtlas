@@ -62,6 +62,9 @@ def matches(entry, r):
     if not entry["from"] <= y <= entry["to"]:
         return False
     w = entry.get("when", {})
+    # Diesel versions often have a different tank: they match only entries that say so.
+    if w.get("diesel", False) != (r["atvType"] == "Diesel" or r["fuelType"] == "Diesel"):
+        return False
     if "hybrid" in w and w["hybrid"] != (r["atvType"] in ("Hybrid", "Plug-in Hybrid")):
         return False
     if "drive" in w and (w["drive"] == "2WD") != (r["drive"] in TWO_WHEEL):
@@ -69,6 +72,8 @@ def matches(entry, r):
     if "cylinders" in w and str(w["cylinders"]) != r["cylinders"]:
         return False
     if "modelContains" in w and w["modelContains"].lower() not in r["model"].lower():
+        return False
+    if "modelExcludes" in w and w["modelExcludes"].lower() in r["model"].lower():
         return False
     return True
 
