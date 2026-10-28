@@ -7,8 +7,9 @@ import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js
 import { renderRouteMap } from './map.js';
 import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
 import { matchesFavorite } from '../engine/fuel.js';
+import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 
-export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾'];
+export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
 export const WINDOWS = [5, 10, 25, 50, 100];
 
@@ -34,8 +35,9 @@ export function exitSign(label, compact = false) {
 }
 
 /// Sign words per service category. Blue for motorist services, brown for parks (as on real signs).
-const PLAQUE_WORDS = { 1: 'GAS', 2: 'FOOD', 3: 'LODGING', 5: 'EV', 4: 'REST AREA', 6: 'PARK', 7: 'DOG PARK' };
-const PLAQUE_ORDER = [1, 2, 3, 5, 4, 6, 7];
+const PLAQUE_WORDS = { 1: 'GAS', 2: 'FOOD', 3: 'LODGING', 5: 'EV', 4: 'REST AREA', 6: 'PARK', 7: 'DOG PARK', 8: 'TRAVEL CENTER' };
+const PLAQUE_ORDER = [1, 2, 3, 5, 8, 4, 6, 7];
+const BROWN = new Set([6, 7]);
 
 /// Service plaques: one tile per category with the nearest named places. Text only (no brand logos).
 export function servicePlaques(services, { names = 2, compact = false } = {}) {
@@ -51,7 +53,7 @@ export function servicePlaques(services, { names = 2, compact = false } = {}) {
     const body = compact
       ? `${shown.length ? `<span class="pn">${h(shown[0])}</span>` : ''}${more > 0 ? `<span class="pm">${shown.length ? '+' : ''}${more}</span>` : ''}`
       : `${shown.map((n) => `<span class="pn">${h(n)}</span>`).join('')}${more > 0 ? `<span class="pm">${shown.length ? `+${more} more` : `${more}`}</span>` : ''}`;
-    tiles.push(`<span class="plaque ${cat >= 6 ? 'brown' : 'blue'}" aria-label="${h(label)}"><b>${word}</b>${body}</span>`);
+    tiles.push(`<span class="plaque ${BROWN.has(cat) ? 'brown' : 'blue'}" aria-label="${h(label)}"><b>${word}</b>${body}</span>`);
   }
   return tiles.length ? `<div class="plaques${compact ? ' compact' : ''}">${tiles.join('')}</div>` : '';
 }
@@ -69,6 +71,50 @@ function guideSign(exit, distance, seconds, services = []) {
     <div class="gsign-name">${h(name)}</div>
     <div class="gsign-dist"><span class="v">${value}</span><span class="u">${value === '1.0' ? 'MILE' : 'MILES'}</span><span class="t">${duration(seconds)}</span></div>
   </div>`;
+}
+
+/// Rest area sign: blue with white lettering, as on the road. Two lines so it matches the exit tab width.
+const REST_WORDS = { rest: ['REST', 'AREA'], welcome: ['WELCOME', 'CENTER'], plaza: ['SERVICE', 'PLAZA'], parking: ['PARKING', 'AREA'] };
+
+export function restSign(kind, compact = false) {
+  const [a, b] = REST_WORDS[kind] ?? REST_WORDS.rest;
+  return `<span class="ra-sign${compact ? ' compact' : ''}" role="img" aria-label="${h(KIND_TITLES[kind] ?? 'Rest Area')}"><span>${a}</span><span>${b}</span></span>`;
+}
+
+const AMENITY_ICONS = {
+  hours: '🕐', toilets: '🚻', accessible: '♿', water: '🚰', vending: '🥤', picnic: '🧺', pets: '🐾',
+  wifi: '📶', info: 'ℹ️', shower: '🚿', dump: '🚐', trucks: '🚛',
+};
+
+/// Verified amenity chips. A "no" reads "No restrooms". Plazas list their gas and food by name.
+function amenityChips(r, { max = 6 } = {}) {
+  const chips = amenityBadges(r).map((b) => `<span class="am${b.value ? '' : ' no'}">${AMENITY_ICONS[b.key] ?? ''} ${b.value ? h(b.label) : `No ${h(b.label.toLowerCase())}`}</span>`);
+  const named = (icon, list) => (list.length ? `<span class="am">${icon} ${h(list.slice(0, 2).join(', '))}${list.length > 2 ? ` +${list.length - 2}` : ''}</span>` : '');
+  const plaza = r.kind === 'plaza' ? [named('⛽', r.gas), named('🍴', r.food), named('⚡', r.ev)].filter(Boolean) : [];
+  const all = [...plaza, ...chips];
+  if (!all.length) return '<div class="muted tiny ra-unknown">Amenities not listed in OpenStreetMap</div>';
+  return `<div class="ams">${all.slice(0, max).join('')}${all.length > max ? `<span class="am more">+${all.length - max}</span>` : ''}</div>`;
+}
+
+/// Short title for a gas stop: "Exit 12" or the plaza name.
+function gasStopTitle(stop) {
+  return stop.exit ? exitTitle(stop.exit) : restAreaTitle(stop.restArea);
+}
+
+function gapRow(g, s) {
+  const where = g.before ? `After ${h(gasStopTitle(g.before))}` : 'From here';
+  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', and none listed beyond' : ', and none before your destination';
+  return `<div class="item gap-row"><span class="gap-icon" aria-hidden="true">⛽</span><div class="main"><div class="t">No gas for ${miles(g.length)}${g.open ? '+' : ''}</div>
+    <div class="muted small">${where}${next}</div></div><div class="side"><div class="big">${milesValue(Math.max(0, g.from - s.progress))}</div></div></div>`;
+}
+
+function restRow(u, s) {
+  const r = u.restArea;
+  const sub = [r.side === 'both' ? 'Serves both directions' : null, r.road].filter(Boolean).join(' · ');
+  return `<button class="item exit-row ra-row" data-act="rest" data-arg="${h(r.id)}">
+    <div class="er-head">${restSign(r.kind, true)}<div class="main"><div class="t">${h(restAreaTitle(r))}</div><div class="muted small">${h(sub)}</div></div>
+      <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
+    ${amenityChips(r, { max: 4 })}</button>`;
 }
 
 export function badge(code, on = false, sm = false) {
@@ -97,7 +143,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -159,6 +205,9 @@ function dashboard(app, s) {
   const parts = [cluster(app, s)];
   if (s.current) parts.push(borderCard(s));
   if (s.nextExit) parts.push(nextExitCard(app, s));
+  const gap = gasGapCard(app, s);
+  if (gap) parts.push(gap);
+  if (s.nextRestArea && s.nextRestArea.distance <= 150 * MILE) parts.push(restAreaCard(s));
   parts.push(fuelCard(app, s));
   parts.push(destinationCard(app, s, discovery));
   const extras = [];
@@ -275,6 +324,30 @@ function nextExitCard(app, s) {
     ${servicePlaques(services)}</button>`;
 }
 
+function restAreaCard(s) {
+  const u = s.nextRestArea, r = u.restArea;
+  const then = s.upcomingRestAreas.find((x) => x.restArea.id !== r.id);
+  return `<button class="card exit-card ra-card" data-act="rest" data-arg="${h(r.id)}">
+    <div class="eyebrow">Next ${h((KIND_TITLES[r.kind] ?? 'rest area').toLowerCase())}</div>
+    <div class="row" style="gap:12px;margin-top:8px">${restSign(r.kind)}<div style="flex:1;min-width:0"><div class="title-md">${h(restAreaTitle(r))}</div>
+      <div class="muted small">${r.side === 'both' ? 'Serves both directions · ' : ''}${h(r.road)}</div></div>
+      <div class="side" style="text-align:right"><div class="num" style="font:800 28px/1 var(--num)">${milesValue(u.distance)}<span class="muted small"> mi</span></div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
+    ${amenityChips(r)}
+    ${then ? `<div class="muted tiny" style="margin-top:8px">Then ${h(restAreaTitle(then.restArea))}, ${miles(then.distance)}</div>` : ''}</button>`;
+}
+
+/// Amber card when the next stretch without gas starts within 25 miles, or the driver is in one.
+function gasGapCard(app, s) {
+  const g = app.gasGapsAhead(s).find((x) => x.from - s.progress <= 25 * MILE);
+  if (!g) return '';
+  const inside = !g.before || g.before.distance <= s.progress;
+  const title = inside ? `No gas for the next ${miles(g.to - s.progress)}${g.open ? '+' : ''}`
+    : `Last gas for ${miles(g.length)}${g.open ? '+' : ''}: ${h(gasStopTitle(g.before))}`;
+  const sub = inside ? (g.after ? `Next gas at ${h(gasStopTitle(g.after))}` : 'None listed ahead on this route')
+    : `In ${miles(g.before.distance - s.progress)}${g.after ? `, then next gas at ${h(gasStopTitle(g.after))}` : ''}`;
+  return `<div class="card gap-card" role="status"><span class="gap-icon" aria-hidden="true">⛽</span><div><div style="font-weight:800">${title}</div><div class="small">${sub}</div></div></div>`;
+}
+
 function fuelCard(app, s) {
   const fp = app.fuelPlan();
   const ev = Boolean(app.settings.vehicle?.ev);
@@ -376,7 +449,6 @@ export function exitsView(app) {
   const tools = `<div class="btn-row"><button class="btn sm" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="btn sm" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button></div>`;
   const rows = [];
   const borders = s.itinerary.filter((f) => f.status === 'upcoming' && f.segment.startDistance - s.progress <= window);
-  let bi = 0;
   const borderRow = (f) => {
     const d = f.segment.startDistance - s.progress;
     return `<div class="item border-row">${badge(f.segment.code, true)}<div class="main"><div class="t">Entering ${h(f.segment.displayName)}${f.segment.visit > 1 ? ' (again)' : ''}</div>
@@ -384,24 +456,35 @@ export function exitsView(app) {
       <div class="side"><div class="big">${milesValue(d)}</div><div class="muted tiny">${f.entryTime !== null ? clock(f.entryTime, f.entryTimeZoneID, s.t) : ''}</div></div></div>`;
   };
   const fp = app.fuelPlan();
-  const fuelStopID = fp && fp.status !== 'destination' ? fp.recommended?.exit.id : null;
+  const fuelStopID = fp && fp.status !== 'destination' ? fp.recommended?.exit?.id : null;
+  // Rows in route order: state lines, exits, rest areas and stretches without gas. At the same mile a
+  // state line comes first and a gas gap comes after the exit it starts at.
+  const events = borders.map((f) => ({ d: f.segment.startDistance, o: 0, html: borderRow(f) }));
   for (const u of s.upcomingExits) {
     if (u.distance > window) break;
-    while (bi < borders.length && borders[bi].segment.startDistance <= u.exit.distanceAlongRoute) rows.push(borderRow(borders[bi++]));
     const services = app.servicesFor(u.exit);
     if (ui.category !== null && !services.some((x) => x.place.category === ui.category)) continue;
     const fuelStop = fuelStopID === u.exit.id;
-    rows.push(`<button class="item exit-row" data-act="exit" data-arg="${h(u.exit.id)}">
+    events.push({ d: u.exit.distanceAlongRoute, o: 1, html: `<button class="item exit-row" data-act="exit" data-arg="${h(u.exit.id)}">
       <div class="er-head">${exitSign(u.exit.label, true)}<div class="main">${u.exit.name ? `<div class="t">${h(u.exit.name)}</div>` : ''}
         ${services.length ? '' : '<div class="muted small">No services listed</div>'}
         ${fuelStop ? '<div class="amber-text small">⛽ Planned fuel stop</div>' : ''}
         ${u.exit.confidence === 'medium' ? '<div class="muted small">Direction not verified in source data</div>' : ''}</div>
         <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
-      ${servicePlaques(services, { compact: true })}</button>`);
+      ${servicePlaques(services, { compact: true })}</button>` });
   }
-  while (bi < borders.length) rows.push(borderRow(borders[bi++]));
+  const restShown = (r) => ui.category === null || ui.category === 4 || (ui.category === 1 && r.gas.length > 0)
+    || (ui.category === 2 && r.food.length > 0) || (ui.category === 5 && r.ev.length > 0);
+  for (const u of s.upcomingRestAreas) {
+    if (u.distance <= window && restShown(u.restArea)) events.push({ d: u.restArea.distanceAlongRoute, o: 1, html: restRow(u, s) });
+  }
+  if (ui.category === null || ui.category === 1) {
+    for (const g of app.gasGapsAhead(s, window)) events.push({ d: g.from, o: 2, html: gapRow(g, s) });
+  }
+  events.sort((x, y) => x.d - y.d || x.o - y.o);
+  for (const e of events) rows.push(e.html);
   const list = rows.length ? `<div class="list">${rows.join('')}</div>`
-    : `<div class="card empty"><div class="t">No exits in the next ${ui.window} miles</div>${ui.category === null ? 'Try a longer window.' : `No exits with ${CATEGORY_NAMES[ui.category]} in this window.`}</div>`;
+    : `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${ui.category === null ? 'Try a longer window.' : `No exits or rest areas with ${CATEGORY_NAMES[ui.category]} in this window.`}</div>`;
   return `<div class="stack">${windowSeg}${chips}${tools}${list}${attribution()}</div>`;
 }
 
@@ -416,7 +499,7 @@ export function exitDetail(app, exitId) {
   for (let cat = 1; cat < CATEGORY_NAMES.length; cat++) {
     const items = services.filter((x) => x.place.category === cat);
     if (!items.length) continue;
-    groups += `<div class="section-title"><span class="plaque ${cat >= 6 ? 'brown' : 'blue'} tag"><b>${PLAQUE_WORDS[cat] ?? CATEGORY_NAMES[cat].toUpperCase()}</b></span> ${items.length}</div><div class="list">${items.map((x) => serviceRow(x)).join('')}</div>`;
+    groups += `<div class="section-title"><span class="plaque ${BROWN.has(cat) ? 'brown' : 'blue'} tag"><b>${PLAQUE_WORDS[cat] ?? CATEGORY_NAMES[cat].toUpperCase()}</b></span> ${items.length}</div><div class="list">${items.map((x) => serviceRow(x)).join('')}</div>`;
   }
   const c = exit.coordinate;
   return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || (exit.label ? 'Exit services' : exitTitle(exit)))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
@@ -426,6 +509,32 @@ export function exitDetail(app, exitId) {
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
     <p class="note">Detours are round trip estimates from the exit. Routed values come from OpenStreetMap drive times (OpenInterstate reachability); others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
+}
+
+export function restAreaDetail(app, id) {
+  const r = app.plan?.restAreas.find((x) => x.id === id);
+  if (!r) return '<div class="empty">Rest area not found on this route.</div>';
+  const s = app.snapshot;
+  const ahead = s ? r.distanceAlongRoute - s.progress : null;
+  const c = r.coordinate;
+  const badges = amenityBadges(r);
+  const am = badges.length
+    ? `<div class="list">${badges.map((b) => `<div class="item"><span style="font-size:20px">${AMENITY_ICONS[b.key] ?? ''}</span><div class="main"><div class="t">${b.value ? h(b.label) : `No ${h(b.label.toLowerCase())}`}</div></div></div>`).join('')}</div>`
+    : '<div class="card small">No amenities are tagged for this place in OpenStreetMap. That does not mean it has none.</div>';
+  const hours = hoursText(r);
+  const names = (title, icon, list) => (list.length ? `<div class="section-title">${icon} ${title}</div><div class="card small">${list.map(h).join(', ')}</div>` : '');
+  const trucks = r.truckSpaces != null ? `${r.truckSpaces} truck spaces (OpenStreetMap)`
+    : r.fhwaTruckSpaces != null ? `${r.fhwaTruckSpaces} truck spaces (FHWA survey, 2019)` : null;
+  const osm = r.records.map((x) => `<a href="https://www.openstreetmap.org/${h(x.id)}" target="_blank" rel="noopener">${h(x.id)}</a>`).join(', ');
+  return `<div class="sheet-head">${restSign(r.kind)}<h2>${h(restAreaTitle(r))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(r.distanceAlongRoute) - s.t)} · ` : ''}${h(r.road)} · ${r.side === 'both' ? 'In the median or on an undivided road: serves both directions' : 'On your side of the highway'}</p>
+    <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(restAreaTitle(r))}" target="_blank" rel="noopener">Apple Maps</a>
+      <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
+    <div class="section-title">Amenities listed</div>${am}
+    ${hours ? `<div class="section-title">🕐 Hours</div><div class="card small">${h(hours)}</div>` : ''}
+    ${names('Gas', '⛽', r.gas)}${names('Food', '🍴', r.food)}${names('EV charging', '⚡', r.ev)}
+    ${trucks ? `<div class="section-title">🚛 Truck parking</div><div class="card small">${h(trucks)}</div>` : ''}
+    <p class="note">Source: OpenStreetMap ${osm}${r.checked ? `, last checked by a mapper ${h(r.checked)}` : ''}${r.nameSource === 'fhwa' ? '. Name from the FHWA truck parking survey' : ''}. ExitAtlas cannot see closures; check state DOT notices for long trips.</p>${attribution()}`;
 }
 
 function priceSection(app, exit) {
@@ -468,7 +577,7 @@ function tripOverview(app, plan, s) {
   const summary = `<div class="metrics">${metric('Driven', milesValue(s.drivenTotal), { unit: 'mi', size: 'md' })}
     ${metric(discovery ? 'Ahead' : 'Remaining', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
     ${discovery ? '' : metric('Arrive', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}</div>
-    ${discovery ? '' : `<div class="muted small" style="margin-top:10px">Total trip ${miles(s.drivenTotal + s.remaining)} · ${plural(new Set(plan.states.segments.filter((x) => x.code).map((x) => x.code)).size, 'state')} on the route</div>`}`;
+    ${discovery ? '' : `<div class="muted small" style="margin-top:10px">Total trip ${miles(s.drivenTotal + s.remaining)} · ${plural(new Set(plan.states.segments.filter((x) => x.code).map((x) => x.code)).size, 'state')} on the route${plan.restAreas.length ? ` · ${plural(plan.restAreasBetween(s.progress, plan.route.length).length, 'rest stop')} ahead on the highway` : ''}</div>`}`;
   const completed = s.drivenStints.slice(0, -1);
   let html = `<div class="stack"><div class="card" style="padding:8px">${map}</div><div class="card">${summary}</div>`;
   if (completed.length) {
@@ -551,6 +660,9 @@ export function settingsView(app) {
       ${toggle('voice', 'Spoken announcements', app.announcer.supported ? '' : 'Not supported in this browser')}
       ${toggle('announceStateLines', 'State lines', '5 miles before, and on entry')}
       ${toggle('announceExits', 'Exits', '1 mile before each exit')}
+      ${toggle('announceRestAreas', 'Rest areas and service plazas', 'About 2 miles before, with listed amenities')}
+      ${toggle('announceGasGaps', 'Last gas before a long stretch', 'About 5 miles before the last exit with gas')}
+      ${toggle('announceTimeZones', 'Time zone changes', 'When the clock changes on your route')}
       <div class="field"><span style="flex:1">Test the voice</span><button class="btn sm" data-act="test-voice">Speak</button></div></div></div>
     <div><div class="section-title">Screen</div><div class="list">
       ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
@@ -559,6 +671,9 @@ export function settingsView(app) {
       <div class="field"><span style="flex:1">Turn red when over the limit by<div class="muted tiny">Amber from 1 mph over. Limits are OpenStreetMap posted speeds via Valhalla; not every road has one.</div></span>
         <div class="seg" style="width:190px">${[0, 5, 10, 15].map((v) => `<button class="${st.speedAlertOver === v ? 'on' : ''}" data-act="speed-alert" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Vehicle and fuel</div>${vehicleSettings(app)}</div>
+    <div><div class="section-title">Stretches without gas</div><div class="list">
+      <div class="field"><span style="flex:1">Warn when the next gas is more than<div class="muted tiny">Counts exits with a gas station listed and service plazas with gas. Shown in Exits and on the Drive screen.</div></span>
+        <div class="seg" style="width:190px">${[25, 40, 60, 80].map((v) => `<button class="${st.gasGapMiles === v ? 'on' : ''}" data-act="gas-gap" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Favorite gas</div><div class="card">
       <p class="muted tiny" style="margin-top:0">The fuel stop picks the last exit with one of these that you reach with your buffer left, anywhere in range. If none keeps the buffer, it says so and suggests the best exit anyway.</p>
       <div class="chips" style="flex-wrap:wrap">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div>
@@ -578,6 +693,7 @@ export function settingsView(app) {
       <p style="margin-top:0"><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
+      <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
       <p><b>Gas prices:</b> Google Maps Places API with your key (Settings, Gas prices). Off without a key.</p>
@@ -797,14 +913,28 @@ export function vehicleSheet(app) {
 
 export function stopSheet(app) {
   const q = app.stopQuery;
-  const kinds = [[3, 'Hotel'], [2, 'Food'], [1, 'Gas'], [4, 'Rest area'], [5, 'EV charging']];
+  const kinds = [[3, 'Hotel'], [2, 'Food'], [1, 'Gas'], [4, 'Rest stop'], [5, 'EV charging']];
   let results = '';
   if (q.results) {
-    results = q.results.length
-      ? `<div class="list" style="margin-top:12px">${q.results.slice(0, 12).map((r) => `<button class="item" data-act="exit" data-arg="${h(r.match.exit.id)}">${exitSign(r.match.exit.label, true)}<div class="main">
+    const row = (r, i) => {
+      const along = r.restArea ? r.restArea.distanceAlongRoute : r.match.exit.distanceAlongRoute;
+      const arrive = `Arrive ${clock(r.eta, app.plan.timeZoneIDAt(along), app.snapshot.t)}`;
+      const reasons = `<div class="reasons">${i === 0 ? '<span class="reason best">Best fit</span>' : ''}${r.reasons.map((x) => `<span class="reason">${h(x)}</span>`).join('')}</div>`;
+      if (r.restArea) {
+        return `<button class="item" data-act="rest" data-arg="${h(r.restArea.id)}">${restSign(r.restArea.kind, true)}<div class="main">
+          <div class="t">${h(restAreaTitle(r.restArea))}</div><div class="muted tiny">${arrive}</div>${reasons}</div>
+          <div class="side"><div class="big">${milesValue(r.distanceAhead)}</div><div class="muted tiny">mi</div></div></button>`;
+      }
+      const place = r.match.matchesPerRequirement[0][0].place;
+      return `<div class="item stop-result"><button class="stop-main" data-act="exit" data-arg="${h(r.match.exit.id)}">${exitSign(r.match.exit.label, true)}<div class="main">
           <div class="t">${h(r.match.matchesPerRequirement[0].slice(0, 3).map((x) => placeDisplayName(x.place)).join(', '))}</div>
-          <div class="muted tiny">Arrive ${clock(r.eta, app.plan.timeZoneIDAt(r.match.exit.distanceAlongRoute), app.snapshot.t)} · ${r.match.exit.highways.join(' ') || ''}</div></div>
-          <div class="side"><div class="big">${milesValue(r.distanceAhead)}</div><div class="muted tiny">mi</div></div></button>`).join('')}</div>`
+          <div class="muted tiny">${arrive}</div>${reasons}</div>
+          <div class="side"><div class="big">${milesValue(r.distanceAhead)}</div><div class="muted tiny">mi</div></div></button>
+        ${app.canAddStop() ? `<button class="btn sm add-stop" data-act="add-stop" data-arg="${h(`${r.match.exit.id}|${place.id}`)}">Add to trip</button>` : ''}</div>`;
+    };
+    results = q.results.length
+      ? `<div class="list" style="margin-top:12px">${q.results.slice(0, 12).map(row).join('')}</div>
+        ${app.canAddStop() ? '' : '<p class="muted tiny">Adding a stop reroutes the trip, which needs live GPS (not the demo).</p>'}`
       : '<div class="card empty" style="margin-top:12px"><div class="t">Nothing in that window</div>Try another time or remove the brand.</div>';
   }
   return `<div class="sheet-head"><h2>Plan a stop</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>

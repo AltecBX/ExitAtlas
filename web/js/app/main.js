@@ -5,6 +5,8 @@ import { TripPlan, TripSession } from '../engine/trip.js';
 import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
+import { gasGaps } from '../engine/restareas.js';
+import { placeDisplayName } from '../engine/datasets.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
@@ -22,6 +24,7 @@ const VERSION = '2026.10.28';
 const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: 'Settings' };
 const DEFAULT_SETTINGS = {
   voice: true, announceStateLines: true, announceExits: false, keepAwake: true,
+  announceRestAreas: true, announceGasGaps: true, announceTimeZones: true, gasGapMiles: 40,
   theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, customRange: null, bufferMiles: 50,
   preferredBrands: '', favoriteBrands: [], chargerNetwork: 'Tesla',
   speedAlertOver: 5,
@@ -62,6 +65,33 @@ const app = {
   location: new LocationService(),
   wake: new ScreenWake(),
   announcer: new Announcer(),
+
+  /// Gas along the route in order: exits with a gas station and service plazas that list one.
+  gasStops(plan = this.plan) {
+    if (!plan) return [];
+    if (this.gasStopCache?.id !== plan.route.id) {
+      const stops = [];
+      for (const e of plan.exits) {
+        if (this.servicesFor(e).some((x) => x.place.category === 1)) stops.push({ distance: e.distanceAlongRoute, exit: e });
+      }
+      for (const r of plan.restAreas) if (r.gas.length) stops.push({ distance: r.distanceAlongRoute, restArea: r });
+      stops.sort((a, b) => a.distance - b.distance);
+      this.gasStopCache = { id: plan.route.id, stops };
+    }
+    return this.gasStopCache.stops;
+  },
+
+  /// Stretches without gas in the next `window` meters, longer than the driver's setting. None for EVs.
+  gasGapsAhead(s, window = 150 * MILE) {
+    if (!this.plan || !s || this.settings.vehicle?.ev) return [];
+    const end = Math.min(this.plan.route.length, s.progress + window);
+    return gasGaps(this.gasStops(), s.progress, end, this.settings.gasGapMiles * MILE, this.plan.route.length);
+  },
+
+  /// A stop can be added mid-trip when a reroute is possible: a planned trip on live GPS.
+  canAddStop() {
+    return this.mode === 'trip' && this.gps === 'device' && Boolean(this.lastSample) && this.remainingWaypoints.length > 0;
+  },
 
   servicesFor(exit) {
     let s = this.serviceCache.get(exit.id);
@@ -224,6 +254,7 @@ function renderSheet() {
   const { kind, arg } = app.sheet;
   let html = '';
   if (kind === 'exit') html = V.exitDetail(app, arg);
+  else if (kind === 'rest') html = V.restAreaDetail(app, arg);
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') {
@@ -255,7 +286,7 @@ function toast(text) {
 // MARK: Modes
 
 function datasets() {
-  return { states: app.data.states, timeZones: app.data.timeZones, interstates: app.data.interstates };
+  return { states: app.data.states, timeZones: app.data.timeZones, interstates: app.data.interstates, restAreas: app.data.restAreas };
 }
 
 function nowSeconds() { return Date.now() / 1000; }
@@ -570,6 +601,7 @@ app.location.onError = (message) => {
 
 function handleSample(sample, shouldRender) {
   app.lastFixAt = Date.now();
+  app.lastSample = sample;
   if (sample.speed !== null && sample.speed >= 0) app.lastSpeed = sample.speed;
   if (app.locationError) {
     if (app.lastError === app.locationError) app.lastError = null;
@@ -618,7 +650,8 @@ function handleDiscovery(sample) {
 
 function publish(snap) {
   app.snapshot = snap;
-  app.announcer.consider(snap, app.settings);
+  const gap = app.gasGapsAhead(snap).find((g) => g.before && g.before.distance > snap.progress) ?? null;
+  app.announcer.consider(snap, app.settings, { zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap });
   considerFuelVoice();
   ensureLimits();
   ensureChargers();
@@ -654,9 +687,9 @@ function remainingWaypoints() {
   return app.remainingWaypoints.filter((w) => !passed.includes(w.name));
 }
 
-async function reroute(sample) {
+async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') return;
-  if (app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return;
+  if (!force && app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return;
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
   render();
@@ -672,13 +705,31 @@ async function reroute(sample) {
     app.serviceCache.clear();
     app.remainingWaypoints = waypoints;
     app.lastError = null;
-    if (app.settings.voice) app.announcer.speak('New route.');
+    if (app.settings.voice && spoken) app.announcer.speak(spoken);
   } catch (e) {
     app.lastError = `Reroute failed: ${e.message}. Will retry.`;
   } finally {
     app.isRerouting = false;
     render();
   }
+}
+
+/// Adds a place as the next stop and reroutes through it. Stops already on the trip keep their order;
+/// the new one goes before the first remaining stop that lies farther along the current route.
+async function addStop(exitID, placeID) {
+  if (!app.canAddStop()) { toast('Adding a stop needs live GPS'); return; }
+  const exit = app.plan.exits.find((e) => e.id === exitID);
+  const place = exit && app.servicesFor(exit).find((x) => x.place.id === placeID)?.place;
+  if (!place) return;
+  const waypoint = { name: placeDisplayName(place), coordinate: place.coordinate };
+  const along = (w) => app.plan.route.stops.find((st) => st.waypoint.name === w.name)?.distanceAlongRoute ?? Infinity;
+  const list = remainingWaypoints();
+  const at = list.findIndex((w) => along(w) > exit.distanceAlongRoute);
+  list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
+  app.remainingWaypoints = list;
+  closeSheet();
+  toast(`Adding ${waypoint.name}`);
+  await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
 }
 
 function persistIfDue(t, force = false) {
@@ -769,6 +820,9 @@ const actions = {
   },
   'discard-resume'() { rebaseFuel(app.resumable?.drivenMeters ?? 0); app.resumable = null; store.remove('ea.active'); render(); },
   exit(arg) { openSheet('exit', arg); },
+  rest(arg) { openSheet('rest', arg); },
+  'add-stop'(arg) { const [exitID, placeID] = arg.split('|'); addStop(exitID, placeID); },
+  'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   sheet(arg) {
     if (arg === 'search') app.alongRoute.results = null;
     if (arg === 'stop') app.stopQuery.results = null;
@@ -964,10 +1018,21 @@ document.addEventListener('submit', async (ev) => {
   } else if (kind === 'stop') {
     const q = app.stopQuery;
     q.brand = form.brand.value.trim();
-    const req = { category: q.category };
-    if (q.brand) req.nameOrBrand = q.brand;
-    q.results = stopSuggestions(app.data.interstates, app.plan, app.snapshot, app.session.pace, [req],
-      { kind: 'time', seconds: q.hours * 3600, tolerance: 1800 }, (e) => app.servicesFor(e));
+    // Rest stops: rest areas and plazas on the highway, plus rest areas and travel centers at exits.
+    const rest = q.category === 4;
+    const reqs = rest ? [{ category: 4 }, { category: 8 }] : [{ category: q.category }];
+    if (q.brand) for (const r of reqs) r.nameOrBrand = q.brand;
+    const win = { kind: 'time', seconds: q.hours * 3600, tolerance: 1800 };
+    const opts = { favorites: app.settings.favoriteBrands };
+    const lists = reqs.map((r, i) => stopSuggestions(app.data.interstates, app.plan, app.snapshot, app.session.pace, [r], win,
+      (e) => app.servicesFor(e), { ...opts, restAreas: rest && i === 0 }));
+    const seen = new Set();
+    q.results = lists.flat().sort((a, b) => a.score - b.score).filter((x) => {
+      const key = x.restArea?.id ?? x.match.exit.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     renderSheet();
   }
 });

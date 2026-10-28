@@ -46,11 +46,11 @@ This is the starting point for the next generation of ExitAtlas: what exists tod
 
 | Area | Today | Gap |
 |---|---|---|
-| Rest areas | A service category linked to exits (`Rest Area`, category 4) | Not placed at their own route position; no amenities, hours, parking or closures; some "rest areas" in the source are travel plazas |
+| Rest areas | Milestone 3: timeline items on the driver's side with amenities as tagged, hours, truck parking (9.10) | Closures and open status unknown; amenity tags missing for 37%; some plazas missing from the source |
 | Exit names | Shown when present | Empty for about 92% of exits in the source data |
 | Coverage | Signed interstates | Turnpikes and US routes without an interstate number show no exits (Florida's Turnpike) |
-| Voice | State lines, exits, fuel (web) | Three toggles only; no time zone change, last gas before a gap, rest area or planned stop messages |
-| Stop planner | Suggestions near a time ahead | A suggestion cannot be added to the trip mid drive (web or iOS); no ranking by price, hours or preferences |
+| Voice | State lines, exits, fuel, rest areas, last gas before a gap, time zone changes (milestone 3) | No planned stop message; untested on a real drive |
+| Stop planner | Ranked by time, detour, favorite brand and listed restrooms, with reasons; "Add to trip" reroutes (milestone 3) | No price, hours, pets or EV compatibility in the ranking (no data yet) |
 | Speed limits | OSM data through the public FOSSGIS Valhalla server | Coverage gaps show "No limit data"; fair use server |
 | Gas prices | Driver's own Google key, one exit at a time | Not tested with a real key; cannot be cached or ranked across a shared feed (Google terms) |
 | EV chargers | DOE AFDC with `DEMO_KEY` | The demo key allows 30 requests an hour and 50 a day per IP; carrier NAT can exhaust it |
@@ -151,7 +151,22 @@ Each milestone ends in a pull request with tests, screenshots where the interfac
 | **5. Discovery and history** | Discover Ahead with a quality filter; Road Trip Passport; shareable summaries; one passenger feature after the core is stable | Data quality checks; snapshot tests of the share card |
 | **6. Infrastructure and release** | Data refresh pipeline with versions and provenance; Worker for keys and budgets; production routing and search; App Store readiness (privacy strings, review risks, AASHTO letter) | Update and rollback tests; budget tests; a real device drive |
 
-## 9.10 Blockers and external dependencies
+## 9.10 Milestone status
+
+| Milestone | State | Verified |
+|---|---|---|
+| 1 | Merged (PR #3) | Web and engine tests; web screenshots on 4 sizes |
+| 2 | PR #4 | Engine ports tested against the web cases (66 tests then); iOS builds and its screenshot tests pass in CI; not run on a device |
+| 3 | This milestone | See below |
+
+Milestone 3 delivered:
+
+* **Data:** `tools/data-pipeline/build_rest_areas.py` builds `restareas.json`: 1,332 mainline facilities (1,054 rest areas, 136 welcome centers, 94 service plazas, 48 parking areas) from OpenStreetMap with current tags, conflated with the FHWA Truck Stop Parking survey (1,055 matched). Side of road comes from the nearest carriageway; it agrees with direction words in OSM names for 414 of 418 named rest areas. Branded `highway=services` (Love's, Pilot, TA...) are now a Travel Center category at their exit instead of "Rest Area"; mainline facilities no longer appear as an exit's service.
+* **Engine (Swift and JavaScript):** rest area matching (driver's side only, median facilities both ways, nothing on non interstate roads), gas gaps, ranked stop suggestions with reasons, voice for rest areas, the last gas before a long stretch and time zone changes. Tests: placement on the Miami to Manhattan and Richmond to New York fixtures in both directions, gas gaps, ranking order, voice on Atlanta to Nashville (Eastern to Central once).
+* **Interfaces (web and iOS):** rest area rows and a Drive card with verified amenity chips, a rest area detail screen with OSM links, "No gas for N mi" rows and a Drive heads up, settings for each voice message and the gap length, ranked stops with "Add to trip" (reroutes through the stop; live GPS only).
+* **Not done or not verifiable here:** amenity coverage is what mappers tagged (58% of facilities have a restrooms tag, 37% have none of the tracked tags); closures and open status need state DOT feeds; some plazas and their gas stations are missing from the source (Maryland House; Chesapeake House shows no gas); "Add to trip" and the new voice messages are untested on a real drive.
+
+## 9.11 Blockers and external dependencies
 
 * A real drive with the iOS app (needs Jerry's iPhone with a development build).
 * CarPlay entitlement from Apple (weeks to months, not guaranteed).

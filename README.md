@@ -15,39 +15,45 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 
 | Part | State |
 |---|---|
-| Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; the fuel, gas price and EV features have not yet. The web version is ahead of the iOS app. |
-| iOS app (`App/`) | Builds and passes two screenshot UI tests in CI (latest macOS runner and Xcode, the last available iPhone simulator). Not yet run on a device. Has the state dashboard, exits, services, planner, reroute and voice; the features marked "web only" below are not in it yet. |
-| Engine (`Sources/ExitAtlasCore`) | 47 tests pass on Linux. Its pace model and fuel planner are older designs than the web's; charging stops and vehicle data are not in it yet. |
+| Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
+| iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
+| Engine (`Sources/ExitAtlasCore`) | 72 tests pass on Linux, with the web's 58 tests covering the same cases in JavaScript. |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
 
 ## Features
 
-Everything below is in the web version. Items marked *(web only)* are not in the iOS app yet.
+In both the web version and the iOS app unless marked.
 
 **On the road**
-* Next exit with its services (gas, food, lodging, EV charging), exits ahead with state lines inline, and search along the route.
+* Next exit with its services (gas, food, lodging, EV charging, travel centers), exits ahead with state lines inline, and search along the route.
+* Rest areas, welcome centers and service plazas at their own place on the route, on your side of the highway only, with the amenities OpenStreetMap lists (restrooms, water, pet area and more). Nothing is shown as available unless it is tagged.
+* Stretches without gas: "No gas for 62 mi" in the exits list, and a heads up on the Drive screen before the last exit with gas.
 * State line card: next state, miles to the line, exits left, and the crossing time in local time.
-* Arrival and border times that follow your actual pace, not the routing estimate (the iOS app uses an older pace model).
-* Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin *(web only)*.
+* Arrival and border times that follow your actual pace, with a personal prior from earlier trips.
+* Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin.
 * Automatic reroute (miles per state survive it), and discovery mode when there is no destination.
-* Voice for state lines and exits; fuel stops too *(web only)*.
+* Voice for state lines, time zone changes, rest areas, the last gas before a long stretch, fuel stops and exits, each with its own switch.
+
+**Stops**
+* Plan a stop about N hours ahead: ranked by how close it is to your time, the detour, your favorite brands and listed restrooms, with the reasons shown. Rest stops include rest areas on the highway (no detour).
+* Add a suggested stop to the trip and reroute through it (live GPS only).
 
 **Fuel and charging**
-* Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles *(web only)*.
-* Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once *(web only; iOS bundles the data but does not read it yet)*.
-* Fuel stop: enter the miles to empty from your dash. ExitAtlas picks the last exit with gas that you reach with your buffer left, preferring your favorite brands *(web only; iOS has a simpler tank level slider)*.
-* Gas prices at each exit from Google Maps, with your own key (optional, see below) *(web only)*.
-* Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy *(web only)*.
+* Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles.
+* Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once.
+* Fuel stop: enter the miles to empty from your dash. ExitAtlas picks the last exit with gas that you reach with your buffer left, preferring your favorite brands.
+* Gas prices at each exit from Google Maps, with your own key (optional, see below).
+* Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy.
 
 **Trips**
-* Home and recent places, for one tap routing *(web only; iOS saves whole trips)*.
-* The trip is saved every 30 seconds and resumes after a reload, even offline (on iOS, resuming needs a connection to recompute the route).
-* State, time zone and exit data are cached on the phone after the first load.
+* Home and recent places, for one tap routing.
+* The trip is saved every 30 seconds and resumes after a reload (on iOS, resuming needs a connection to recompute the route).
+* State, time zone, exit and rest area data are on the phone; no connection is needed for them.
 
-Exit data covers signed interstates only. Turnpikes and US routes without an interstate number show no exits.
+Exit and rest area data cover signed interstates only. Turnpikes and US routes without an interstate number show no exits. Rest area coverage depends on OpenStreetMap: some service plazas are missing, and closures are not known.
 
-## Optional keys (web)
+## Optional keys
 
 Entered in Settings and stored only on the phone.
 
@@ -104,7 +110,8 @@ Select your team under Signing, then run on an iPhone (iOS 17+). Use **Simulate*
 
 ## Data and licenses
 
-* **Exits and places:** OpenStreetMap contributors via [OpenInterstate](https://openinterstate.org/), ODbL 1.0. The derived databases (`interstates.eax`, `corridors.eac`) are available under the ODbL, and `tools/data-pipeline` rebuilds them.
+* **Exits and places:** OpenStreetMap contributors via [OpenInterstate](https://openinterstate.org/), ODbL 1.0. The derived databases (`interstates.eax`, `corridors.eac`, `restareas.json`) are available under the ODbL, and `tools/data-pipeline` rebuilds them.
+* **Rest area truck parking:** FHWA Truck Stop Parking survey (NTAD, 2019), public domain.
 * **State boundaries:** U.S. Census Bureau TIGER/Line 2026 (public domain).
 * **Time zones:** USDOT BTS NTAD Time Zones (public domain).
 * **Fuel economy and EV range:** U.S. EPA and DOE, fueleconomy.gov (public domain).

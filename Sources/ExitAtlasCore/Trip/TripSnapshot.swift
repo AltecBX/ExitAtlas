@@ -43,6 +43,14 @@ public struct UpcomingExit: Sendable, Hashable, Identifiable {
     public var id: String { exit.id }
 }
 
+/// A rest area or service plaza ahead of the driver.
+public struct UpcomingRestArea: Sendable, Hashable, Identifiable {
+    public let restArea: RouteRestArea
+    public let distance: Double
+    public let eta: Date
+    public var id: String { restArea.id }
+}
+
 /// Everything the dashboard shows at one moment. Pure data, recomputed on every location update.
 public struct TripSnapshot: Sendable {
     public let timestamp: Date
@@ -65,6 +73,9 @@ public struct TripSnapshot: Sendable {
     public let itinerary: [SegmentForecast]
     public let nextExit: UpcomingExit?
     public let upcomingExits: [UpcomingExit]
+    public let nextRestArea: UpcomingRestArea?
+    /// Rest areas within the exit lookahead.
+    public let upcomingRestAreas: [UpcomingRestArea]
     /// State line crossings left on the route.
     public let borderCrossingsRemaining: Int
     /// Distinct states ahead that are different from the current one.
@@ -146,6 +157,9 @@ public extension TripPlan {
             UpcomingExit(exit: e, distance: e.distanceAlongRoute - d, eta: eta(to: e.distanceAlongRoute),
                          stateCode: states.segment(at: e.distanceAlongRoute)?.code)
         }
+        func upcomingRest(_ r: RouteRestArea) -> UpcomingRestArea {
+            UpcomingRestArea(restArea: r, distance: r.distanceAlongRoute - d, eta: eta(to: r.distanceAlongRoute))
+        }
         let ahead = itinerary.filter { $0.status == .upcoming }
         var statesAhead: [String] = []
         for f in ahead {
@@ -162,6 +176,8 @@ public extension TripPlan {
             drivenTotal: max(ledger.totalMeters, d), eta: arrival, timeRemaining: arrival.timeIntervalSince(now),
             paceFactor: pace.factor, pace: pace, highway: route.highway(at: d), current: current, next: next, itinerary: itinerary,
             nextExit: nextExitRecord, upcomingExits: Array(upcoming),
+            nextRestArea: nextRestArea(after: d).map(upcomingRest),
+            upcomingRestAreas: restAreas(after: d, upTo: d + exitLookahead).map(upcomingRest),
             borderCrossingsRemaining: ahead.count, statesAhead: statesAhead, nextStop: nextStop,
             drivenStints: ledger.stints)
     }

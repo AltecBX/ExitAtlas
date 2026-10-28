@@ -16,6 +16,7 @@ enum Fixtures {
     static let timeZones: RegionIndex = try! RegionIndex(contentsOf: dataDirectory.appendingPathComponent("timezones.eab"))
     static let interstates: InterstateDataset = try! InterstateDataset(contentsOf: dataDirectory.appendingPathComponent("interstates.eax"))
     static let corridors: CorridorDataset = try! CorridorDataset(contentsOf: dataDirectory.appendingPathComponent("corridors.eac"))
+    static let restAreas: RestAreaDataset = try! RestAreaDataset(contentsOf: dataDirectory.appendingPathComponent("restareas.json"))
 
     struct RouteFixture: Decodable {
         struct Step: Decodable {

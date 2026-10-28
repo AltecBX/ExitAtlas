@@ -13,6 +13,11 @@ final class UserSettings {
     var announceExits: Bool { didSet { defaults.set(announceExits, forKey: "announceExits") } }
     var announceStateLines: Bool { didSet { defaults.set(announceStateLines, forKey: "announceStateLines") } }
     var announceFuel: Bool { didSet { defaults.set(announceFuel, forKey: "announceFuel") } }
+    var announceRestAreas: Bool { didSet { defaults.set(announceRestAreas, forKey: "announceRestAreas") } }
+    var announceGasGaps: Bool { didSet { defaults.set(announceGasGaps, forKey: "announceGasGaps") } }
+    var announceTimeZones: Bool { didSet { defaults.set(announceTimeZones, forKey: "announceTimeZones") } }
+    /// Stretches without gas longer than this many miles are flagged on screen and spoken.
+    var gasGapMiles: Double { didSet { defaults.set(gasGapMiles, forKey: "gasGapMiles") } }
     var avoidTolls: Bool { didSet { defaults.set(avoidTolls, forKey: "avoidTolls") } }
 
     /// The driver's car from the EPA list (nil until chosen).
@@ -33,12 +38,17 @@ final class UserSettings {
             "exitLookaheadMiles": 25.0, "voiceEnabled": true, "announceExits": false, "announceStateLines": true,
             "announceFuel": true, "avoidTolls": false, "bufferMiles": 50.0, "googleKey": "", "nrelKey": "",
             "teslaOnlyChargers": true, "speedAlertOver": 5.0,
+            "announceRestAreas": true, "announceGasGaps": true, "announceTimeZones": true, "gasGapMiles": 40.0,
         ])
         exitLookaheadMiles = defaults.double(forKey: "exitLookaheadMiles")
         voiceEnabled = defaults.bool(forKey: "voiceEnabled")
         announceExits = defaults.bool(forKey: "announceExits")
         announceStateLines = defaults.bool(forKey: "announceStateLines")
         announceFuel = defaults.bool(forKey: "announceFuel")
+        announceRestAreas = defaults.bool(forKey: "announceRestAreas")
+        announceGasGaps = defaults.bool(forKey: "announceGasGaps")
+        announceTimeZones = defaults.bool(forKey: "announceTimeZones")
+        gasGapMiles = defaults.double(forKey: "gasGapMiles")
         avoidTolls = defaults.bool(forKey: "avoidTolls")
         vehicle = Self.load("vehicle", from: defaults)
         bufferMiles = defaults.double(forKey: "bufferMiles")

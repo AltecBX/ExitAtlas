@@ -5,22 +5,28 @@ public struct TripDatasets: Sendable {
     public let states: RegionIndex
     public let timeZones: TimeZoneResolver?
     public let interstates: InterstateDataset?
+    public let restAreas: RestAreaDataset?
 
-    public init(states: RegionIndex, timeZones: TimeZoneResolver?, interstates: InterstateDataset?) {
+    public init(states: RegionIndex, timeZones: TimeZoneResolver?, interstates: InterstateDataset?,
+                restAreas: RestAreaDataset? = nil) {
         self.states = states
         self.timeZones = timeZones
         self.interstates = interstates
+        self.restAreas = restAreas
     }
 }
 
-/// Everything derived from one selected route: ordered state segments, time zones and exits.
+/// Everything derived from one selected route: ordered state segments, time zones, exits and rest areas.
 /// Rebuilt whenever the route changes (reroute, stop added, alternative chosen).
 public struct TripPlan: Sendable {
     public let route: PlannedRoute
     public let states: RegionProfile
     public let exits: [RouteExit]
+    /// Rest areas and service plazas on the driver's side, in route order.
+    public let restAreas: [RouteRestArea]
     /// Exit distances along the route, for fast counting.
     private let exitDistances: [Double]
+    private let restAreaDistances: [Double]
     private let timeZoneIDs: [String?]  // per state segment, at its start
 
     public init(route: PlannedRoute, datasets: TripDatasets,
@@ -34,6 +40,13 @@ public struct TripPlan: Sendable {
             exits = []
         }
         exitDistances = exits.map(\.distanceAlongRoute)
+        if let restDataset = datasets.restAreas {
+            let route = route
+            restAreas = RestAreaMatcher().match(route: route.polyline, dataset: restDataset) { route.step(at: $0)?.highways ?? [] }
+        } else {
+            restAreas = []
+        }
+        restAreaDistances = restAreas.map(\.distanceAlongRoute)
         timeZoneIDs = states.segments.map { seg in
             datasets.timeZones?.identifier(at: seg.entryCoordinate, stateCode: seg.code)
         }
@@ -57,6 +70,17 @@ public struct TripPlan: Sendable {
     public func nextExit(after distance: Double) -> RouteExit? {
         let i = upperBound(exitDistances, distance)
         return i < exits.count ? exits[i] : nil
+    }
+
+    /// Rest areas strictly after `start` up to `end`.
+    public func restAreas(after start: Double, upTo end: Double) -> ArraySlice<RouteRestArea> {
+        let lo = upperBound(restAreaDistances, start), hi = upperBound(restAreaDistances, end)
+        return lo < hi ? restAreas[lo..<hi] : []
+    }
+
+    public func nextRestArea(after distance: Double) -> RouteRestArea? {
+        let i = upperBound(restAreaDistances, distance)
+        return i < restAreas.count ? restAreas[i] : nil
     }
 
     /// IANA time zone at a distance along the route.
