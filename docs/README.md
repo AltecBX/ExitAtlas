@@ -1,6 +1,6 @@
 # ExitAtlas documentation
 
-Research date for every external fact: 2026-10-27. Facts carry source links. Items marked UNVERIFIED could not be confirmed from a primary source. Interpretations are labeled as such.
+Research date for external facts: 2026-10-27 (documents 1 to 8) and 2026-10-28 (document 9 and research notes). Facts carry source links. Items marked UNVERIFIED could not be confirmed from a primary source. Interpretations are labeled as such.
 
 | # | Document | Covers |
 |---|---|---|
@@ -12,3 +12,5 @@ Research date for every external fact: 2026-10-27. Facts carry source links. Ite
 | 6 | [Screens](06_screens.md) | Drive, Exits, Trip Overview, planner, CarPlay |
 | 7 | [Roadmap](07_roadmap.md) | Phases, what is done, what is next |
 | 8 | [Testing and accuracy](08_testing_and_accuracy.md) | Oracles, fixtures, results, open risks |
+| 9 | [Product audit and plan](09_audit_and_plan.md) | Verified feature inventory by platform, defects, competitor, Apple, data and legal findings, design system, milestones (2026-10-28) |
+| | [Research notes](research/) | Competitors, Apple platform, infrastructure and legal, with sources (2026-10-28) |
