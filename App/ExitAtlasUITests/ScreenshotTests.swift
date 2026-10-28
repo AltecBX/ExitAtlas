@@ -77,6 +77,18 @@ final class ScreenshotTests: XCTestCase {
         app.tabBars.buttons["Settings"].tap()
         sleep(2)
         snap("6 Settings", dark)
+
+        // The Live Activity views drawn in the app with the demo trip (the Lock Screen itself cannot be captured here).
+        let preview = app.buttons["Live Activity preview"].firstMatch
+        for _ in 0..<4 where !(preview.exists && preview.isHittable) {
+            app.swipeUp()
+            sleep(1)
+        }
+        if preview.exists, preview.isHittable {
+            preview.tap()
+            sleep(2)
+            snap("7 Live Activity", dark)
+        }
     }
 
     private func snap(_ name: String, _ dark: Bool) {

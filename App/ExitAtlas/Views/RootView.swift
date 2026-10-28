@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(TripController.self) private var trip
+    @Environment(\.scenePhase) private var scenePhase
 
     enum Tab: Hashable {
         case drive, exits, trip, settings
@@ -38,6 +39,9 @@ struct RootView: View {
             .preferredColorScheme(app.forceDark ? .dark : nil)
             .onChange(of: trip.mode) { _, mode in
                 if mode != .idle { tab = .drive }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { trip.appBecameActive() }
             }
         }
     }

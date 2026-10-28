@@ -21,9 +21,13 @@ final class AppModel {
     /// trip frozen at that mile; -forceDark forces dark mode.
     let forceDark = ProcessInfo.processInfo.arguments.contains("-forceDark")
 
+    /// The running app's model, for Siri and Shortcuts intents (they run in this process).
+    static weak var shared: AppModel?
+
     init() {
         trip.settings = settings
         trip.library = library
+        AppModel.shared = self
     }
 
     func start() async {

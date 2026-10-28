@@ -13,4 +13,5 @@ Research date for external facts: 2026-10-27 (documents 1 to 8) and 2026-10-28 (
 | 7 | [Roadmap](07_roadmap.md) | Phases, what is done, what is next |
 | 8 | [Testing and accuracy](08_testing_and_accuracy.md) | Oracles, fixtures, results, open risks |
 | 9 | [Product audit and plan](09_audit_and_plan.md) | Verified feature inventory by platform, defects, competitor, Apple, data and legal findings, design system, milestones (2026-10-28) |
+| 10 | [Lock Screen, Siri and CarPlay](10_lock_screen_and_carplay.md) | Live Activity content and update rules, App Shortcuts and their answers, CarPlay app steps that need Apple's entitlement |
 | | [Research notes](research/) | Competitors, Apple platform, infrastructure and legal, with sources (2026-10-28) |

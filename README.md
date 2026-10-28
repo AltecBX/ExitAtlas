@@ -39,6 +39,11 @@ In both the web version and the iOS app unless marked.
 * Plan a stop about N hours ahead: ranked by how close it is to your time, the detour, your favorite brands and listed restrooms, with the reasons shown. Rest stops include rest areas on the highway (no detour).
 * Add a suggested stop to the trip and reroute through it (live GPS only).
 
+**Lock Screen, Siri and the car** *(iOS)*
+* A Live Activity with the next exit, the next state line, the next rest area and your arrival time, on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch.
+* Siri and Shortcuts: "How far to Georgia in ExitAtlas", "Next rest area in ExitAtlas", "Next gas in ExitAtlas" and three more, answered in full sentences.
+* A CarPlay app needs Apple's driving task entitlement first; see [docs/10](docs/10_lock_screen_and_carplay.md).
+
 **Fuel and charging**
 * Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles.
 * Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once.
