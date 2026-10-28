@@ -58,7 +58,7 @@ export async function loadVehicles() {
   if (!res.ok) throw new Error(`vehicle list: HTTP ${res.status}`);
   return res.json();
 }
-const VEHICLES_VERSION = '20261028e';
+const VEHICLES_VERSION = '20261028f';
 
 export async function loadDemoRouteJSON() {
   const res = await fetch(new URL(`demo_miami_manhattan.json?v=${DATA_VERSION}`, DATA_BASE));

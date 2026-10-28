@@ -81,3 +81,25 @@ Web version (`web/tests`, `npm test`, CI job "Web engine tests"): the JavaScript
 4. Coverage: OpenInterstate covers signed interstates only. Turnpikes and US routes without an interstate designation (for example Florida's Turnpike) show no exits.
 5. Exit names are missing for most exits in the source.
 6. If iOS terminates the app, the trip resumes from saved waypoints and driven miles, but recomputing the route needs a network connection. Offline resume needs storable OSM route geometry (Phase 4).
+
+## 8.6 Vehicle tank sizes
+
+`tools/data-pipeline/fuel_tanks.json` has 440 entries. 6,925 of the 31,821 EPA versions since 2000 get a tank size; every other version asks the driver once.
+* **Makes covered:** Toyota, Honda, Nissan, Subaru, Mazda, Ford, Chevrolet, GMC, Ram, Dodge, Jeep, Chrysler, Hyundai, Kia, BMW, Mercedes-Benz, Porsche, Audi, Lexus and Acura, for model years 2012 to 2026.
+* **Each entry:** cites a manufacturer specification, or two reputable sources that agree.
+* **Gaps:** model years that were researched but could not be verified are listed under `unverified` with the reason. Examples are the older Audi, Mercedes and Porsche generations, and conflicts such as the front drive Audi A4, 54 L per Audi versus 15.3 gal per KBB.
+* **Validation:** the merge script checks the following before an entry is written:
+  * the EPA base model and years exist
+  * gallons are plausible
+  * sources are https and no content farms
+  * the basis is stated
+  * no two entries conflict for the same versions
+* **Matching rules:**
+  * diesel versions match only entries marked diesel
+  * the most specific entry wins
+  * where a model came with two tanks, both are offered and the driver picks
+* **Spot check (luxury batch, 2026-10-28):** 8 cited values were read from the primary documents: Acura MDX 2022+, BMW 3 Series G20, 3 Series Sports Wagon and X5 G05, Mercedes GLE 350 2020 and S 500 2021, Audi Q7 4M and Porsche Macan 2020. All 8 match the table after liter to gallon rounding.
+* **Known soft spots:**
+  * Audi A6 C8 uses 19.3 gal for US cars. KBB lists it for every US trim, while Audi Europe also lists a 63 L (16.6 gal) standard tank.
+  * The 2017 to 2019 Porsche 911 Carrera 4, Targa and Turbo use Porsche's 17.9 gal, where KBB shows 17.6.
+  * Model year 2027 is not covered yet.
