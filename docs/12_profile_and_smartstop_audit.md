@@ -119,3 +119,25 @@ Alternatives come from other exits first. When the driver's first choice brand i
 **Checked by.** Shared fixtures run by both engines (`Tests/ExitAtlasCoreTests/Fixtures/smartstop`): opening hours (24/7, weekday ranges, past midnight, added rules, holidays, unparseable), local time across zones and the end of daylight saving time, stop confidence (D, E, O), rankings (F, G, H and the overnight, skip, detour, price and alternative rules), and six cases on the real Miami to Manhattan route recorded by the web engine and matched by the Swift engine (P), which also checks that both read stations.json and the route the same way. Web: the demo trip in a browser (fuel card and sheet, overnight on, skip). iOS: CI build and simulator screenshots; nothing on a device.
 
 **Not done here.** Restroom hours at gas stations (no source lists them); official plaza closures; warnings before the last open stop overnight on a long stretch (Priority 4, with the dashboard); Siri commands for SmartStop (Priority 6).
+
+## 12.8 Priorities 4 and 5: Road Ahead, adaptive Drive screen, navigation and design
+
+**Navigation.** Three areas: Drive, Ahead and Trip. Settings, vehicles, places and the profile open from the person button at the top of every screen (a sheet on iOS, a view on the web), so nothing moved out of reach and no tab was added. Every setting that existed before is still there.
+
+**Adaptive Drive screen (acceptance test Q).** The screen always has the same cards: instruments (speed, posted limit, highway), state progress (the signature card), one focus card, a one line "Then" strip with the next two items, and the destination. A fixed priority picks the focus card (`web/js/engine/dashboard.js`, `Sources/ExitAtlasCore/Trip/DashboardFocus.swift`, shared fixtures in `Tests/ExitAtlasCoreTests/Fixtures/dashboard`):
+
+1. Fuel below the reserve.
+2. A planned stop within 15 miles (with the exit to leave at).
+3. A stretch without gas within 25 miles that the range may not cover.
+4. The fuel stop within 30 miles.
+5. Overnight Drive Mode: the SmartStop pick with its hours and restroom confidence, or without a range reading, the best restroom stop in the next 60 miles.
+6. A rest area before the next exit within 10 miles.
+7. The next exit.
+
+The strip takes the next two items (the fuel stop or "Enter range", a gas gap, the planned stop, the rest area, the next exit), never repeating the focus. More alerts replace less urgent ones; they never add cards. Landscape shows two columns (instruments and focus left, state progress and destination right).
+
+**Road Ahead.** The Exits screen becomes Road Ahead: exits, rest areas, state lines, stretches without gas and now planned stops in route order, the SmartStop pick marked on its row with its hours confidence, the distance window, and category filters in one scrolling row. Exit and rest area details open on tap. Not added: road alerts (no verified source is integrated).
+
+**Design.** A new `tint` token (sign green in light mode, a brighter green in dark mode, 4.5:1 or better on cards and the background, checked by `web/tests/design.test.js`) for tabs, switches and links; buttons with white text keep sign green.
+
+**Checked by.** Shared focus fixtures on both engines; web screenshots in light and dark, portrait and landscape (Playwright); iOS simulator screenshots in CI (Road Ahead and Settings from the person button). Nothing on a device.

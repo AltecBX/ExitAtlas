@@ -637,11 +637,40 @@ final class TripController {
     }
 
     /// Stretches without gas in the next `window` meters, longer than the driver's setting. None for EVs.
+    /// Stations no longer listed, and stops reported closed at the arrival time, do not count as gas.
     func gasGapsAhead(window: Double = 150 * Geodesy.metersPerMile) -> [GasGaps.Gap] {
         guard let plan, let snapshot, let settings, settings.vehicle?.isElectric != true else { return [] }
         let end = min(plan.route.length, snapshot.progress + window)
-        return GasGaps.find(stops: gasStops(), from: snapshot.progress, to: end,
-                            minimum: settings.gasGapMiles * Geodesy.metersPerMile, routeLength: plan.route.length)
+        let key = "\(plan.route.id)|\(snapshot.timestamp.timeIntervalSince1970)|\(snapshot.progress)|\(end)|\(settings.gasGapMiles)"
+        if let memo = gapMemo, memo.key == key { return memo.gaps }
+        let prefs = SmartStop.Preferences(settings.values)
+        let stops = gasStops().filter { $0.distance <= snapshot.progress || $0.distance > end || gasStopUsable($0, plan: plan, snapshot: snapshot, prefs: prefs) }
+        let gaps = GasGaps.find(stops: stops, from: snapshot.progress, to: end,
+                                minimum: settings.gasGapMiles * Geodesy.metersPerMile, routeLength: plan.route.length)
+        gapMemo = (key, gaps)
+        return gaps
+    }
+
+    @ObservationIgnored private var gapMemo: (key: String, gaps: [GasGaps.Gap])?
+
+    /// A gas stop counts unless every station there is no longer listed or reported closed when the driver gets there.
+    private func gasStopUsable(_ stop: GasGaps.Stop, plan: TripPlan, snapshot: TripSnapshot, prefs: SmartStop.Preferences) -> Bool {
+        let zone = plan.timeZoneID(at: stop.distance).flatMap(TimeZone.init(identifier:)) ?? TimeZone(identifier: "America/New_York")!
+        let arrival = plan.eta(from: snapshot.progress, to: stop.distance, pace: snapshot.pace, now: snapshot.timestamp)
+        if let r = stop.restArea {
+            let c = SmartStop.Candidate(id: r.id, name: r.title, kind: .plaza, along: stop.distance, arrival: arrival, timeZone: zone, plazaHours: r.hours)
+            return SmartStop.evaluate(c, preferences: prefs).hours.status != .closed
+        }
+        guard let exit = stop.exit else { return true }
+        return services(for: exit).contains { g in
+            guard g.place.category == .gas else { return false }
+            let fact = data?.stations?[g.place.id]
+            if fact?.gone != nil { return false }
+            guard let hours = fact?.h else { return true }
+            let c = SmartStop.Candidate(id: g.place.id, name: g.place.displayName, along: stop.distance,
+                                        arrival: arrival.addingTimeInterval((g.detourSeconds ?? 0) / 2), timeZone: zone, osmHours: hours)
+            return SmartStop.evaluate(c, preferences: prefs).hours.status != .closed
+        }
     }
 
     func stopSuggestions(_ query: StopQuery) -> [StopSuggestion] {

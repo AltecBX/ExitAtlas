@@ -24,7 +24,9 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
         snap("1b Drive lower", dark)
 
-        let fuel = app.buttons["fuelCard"].firstMatch
+        // The fuel card when fuel is the focus, otherwise the fuel item in the Then strip.
+        var fuel = app.buttons["fuelCard"].firstMatch
+        if !fuel.waitForExistence(timeout: 3) { fuel = app.buttons["fuelChip"].firstMatch }
         if fuel.waitForExistence(timeout: 5) {
             fuel.tap()
             sleep(2)
@@ -36,10 +38,10 @@ final class ScreenshotTests: XCTestCase {
             sleep(1)
         }
 
-        app.tabBars.buttons["Exits"].tap()
-        XCTAssertTrue(app.navigationBars["Exits Ahead"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Ahead"].tap()
+        XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
         sleep(1)
-        snap("2 Exits", dark)
+        snap("2 Road Ahead", dark)
 
         let row = app.buttons["exitRow"].firstMatch
         if row.waitForExistence(timeout: 5) {
@@ -104,7 +106,9 @@ final class ScreenshotTests: XCTestCase {
             }
         }
 
-        app.tabBars.buttons["Settings"].tap()
+        // Settings open from the person button in the navigation bar.
+        app.buttons["settingsButton"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         sleep(2)
         snap("6 Settings", dark)
 

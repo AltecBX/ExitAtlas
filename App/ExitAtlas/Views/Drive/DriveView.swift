@@ -1,7 +1,7 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// Minimal dashboard for active driving: state line, next exit, destination.
+/// The Drive screen: instruments, state progress, one focus card, the Then strip and the destination.
 struct DriveView: View {
     @Environment(TripController.self) private var trip
     @Binding var selectedTab: RootView.Tab
@@ -11,7 +11,7 @@ struct DriveView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     if let snapshot = trip.snapshot {
-                        DriveDashboard(snapshot: snapshot)
+                        DriveDashboard(selectedTab: $selectedTab, snapshot: snapshot)
                     } else if trip.mode == .discovery {
                         DiscoveryWaitingCard(status: trip.discoveryStatus)
                     } else {
@@ -35,32 +35,39 @@ struct DriveView: View {
                         Button("End", role: .destructive) { trip.endTrip() }
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
 
+/// The Drive screen always has the same cards: instruments, state progress, one focus card chosen by
+/// DashboardFocus (fuel, planned stop, gas gap, overnight stop, rest area or next exit), a "Then" strip
+/// with the next two items, and the destination. Relevant items replace less urgent ones; nothing is added.
 private struct DriveDashboard: View {
     @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showFuel = false
     @State private var shownRestArea: RouteRestArea?
+    @Binding var selectedTab: RootView.Tab
     let snapshot: TripSnapshot
 
     var body: some View {
         let discovery = trip.mode == .discovery
+        let focus = DashboardFocus.choose(signals)
         Group {
             if verticalSizeClass == .compact {
-                // Phone mounted sideways: two columns, the most important cards on the left.
+                // Phone mounted sideways: two columns, the instruments and state progress on the left.
                 HStack(alignment: .top, spacing: 14) {
                     VStack(spacing: 14) {
                         InstrumentCluster(snapshot: snapshot, discovery: discovery)
                         if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
                     }
                     VStack(spacing: 14) {
-                        nextExit
-                        FuelCard { showFuel = true }
+                        focusCard(focus.focus)
+                        ThenStrip(kinds: focus.strip, snapshot: snapshot, showFuel: $showFuel, shownRestArea: $shownRestArea, selectedTab: $selectedTab)
                         DestinationRow(snapshot: snapshot, discovery: discovery)
                     }
                 }
@@ -68,8 +75,8 @@ private struct DriveDashboard: View {
                 VStack(spacing: 14) {
                     InstrumentCluster(snapshot: snapshot, discovery: discovery)
                     if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
-                    nextExit
-                    FuelCard { showFuel = true }
+                    focusCard(focus.focus)
+                    ThenStrip(kinds: focus.strip, snapshot: snapshot, showFuel: $showFuel, shownRestArea: $shownRestArea, selectedTab: $selectedTab)
                     DestinationRow(snapshot: snapshot, discovery: discovery)
                 }
             }
@@ -81,22 +88,191 @@ private struct DriveDashboard: View {
         }
     }
 
-    /// Next exit, then a stretch without gas starting soon, then the next rest area.
+    /// What the focus rule needs from the trip.
+    private var signals: DashboardFocus.Signals {
+        let progress = snapshot.progress
+        let gap = trip.gasGapsAhead().first { $0.to > progress }
+        var fuel: DashboardFocus.Signals.Fuel?
+        if let plan = trip.rangePlan {
+            let needed = plan.status != .destination
+            let smart = needed ? trip.smartStop : nil
+            fuel = .init(range: plan.range, reserve: settings.bufferMiles * Geodesy.metersPerMile,
+                         stopAhead: needed ? (smart?.primary?.candidate.ahead ?? plan.recommended?.ahead) : nil,
+                         low: needed && ((smart?.lowRange ?? false) || plan.status == .low))
+        }
+        let zone = trip.plan?.timeZoneID(at: progress).flatMap(TimeZone.init(identifier:)) ?? .current
+        let minute = OpeningHours.localTime(snapshot.timestamp, in: zone).minute
+        return DashboardFocus.Signals(
+            nextExit: snapshot.nextExit?.distance, restArea: snapshot.nextRestArea?.distance,
+            gap: gap.map { (startsIn: max(0, $0.from - progress), length: $0.to - max($0.from, progress)) },
+            plannedStop: snapshot.nextStop?.distance, fuel: fuel,
+            overnight: SmartStop.Preferences(settings.values).overnight(atMinute: minute))
+    }
+
     @ViewBuilder
-    private var nextExit: some View {
-        if let next = snapshot.nextExit {
-            NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
-        }
-        if let gap = trip.gasGapsAhead().first(where: { $0.from - snapshot.progress <= 25 * Geodesy.metersPerMile }) {
-            GasGapCard(gap: gap, progress: snapshot.progress)
-        }
-        if let rest = snapshot.nextRestArea, rest.distance <= 150 * Geodesy.metersPerMile {
-            Button { shownRestArea = rest.restArea } label: {
-                RestAreaCard(upcoming: rest, then: snapshot.upcomingRestAreas.first { $0.id != rest.id }, now: snapshot.timestamp)
+    private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
+        switch kind {
+        case .fuel:
+            FuelCard { showFuel = true }
+        case .stop:
+            if let next = snapshot.nextStop { PlannedStopCard(stop: next.stop, distance: next.distance, eta: next.eta, now: snapshot.timestamp) }
+        case .gap:
+            if let gap = trip.gasGapsAhead().first(where: { $0.to > snapshot.progress }) { GasGapCard(gap: gap, progress: snapshot.progress) }
+        case .overnight:
+            if trip.rangeLeft != nil {
+                FuelCard { showFuel = true }
+            } else {
+                OvernightRestroomCard(now: snapshot.timestamp) { shownRestArea = $0 }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("restAreaCard")
+        case .restArea:
+            if let rest = snapshot.nextRestArea {
+                Button { shownRestArea = rest.restArea } label: {
+                    RestAreaCard(upcoming: rest, then: snapshot.upcomingRestAreas.first { $0.id != rest.id }, now: snapshot.timestamp)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("restAreaCard")
+            }
+        case .exit:
+            if let next = snapshot.nextExit {
+                NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
+            }
+        case .none, .fuelEntry:
+            EmptyView()
         }
+    }
+}
+
+/// Approaching a planned stop: the stop, its arrival time and the exit to leave at.
+private struct PlannedStopCard: View {
+    @Environment(TripController.self) private var trip
+    let stop: RouteStop
+    let distance: Double
+    let eta: Date
+    let now: Date
+
+    var body: some View {
+        let at = stop.distanceAlongRoute
+        let exit = trip.plan?.exits.filter { $0.distanceAlongRoute > (trip.snapshot?.progress ?? 0) }
+            .min { abs($0.distanceAlongRoute - at) < abs($1.distanceAlongRoute - at) }
+        VStack(alignment: .leading, spacing: 8) {
+            Eyebrow(text: "Planned stop")
+            HStack(spacing: 12) {
+                if let exit { ExitSign(label: exit.label, compact: true) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stop.waypoint.name).font(.headline).lineLimit(2)
+                    Text(Format.time(eta, timeZoneID: trip.plan?.timeZoneID(at: at), relativeTo: now) + (exit.map { " · leave at \($0.displayTitle)" } ?? ""))
+                        .font(.subheadline).foregroundStyle(Theme.secondaryText)
+                }
+                Spacer(minLength: 4)
+                Text(Format.milesValue(distance)).font(Theme.number(28, weight: .heavy)) + Text(" mi").font(.caption).foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("plannedStopCard")
+    }
+}
+
+/// Overnight without a range reading: the best restroom stop in the next 60 miles, with its confidence.
+private struct OvernightRestroomCard: View {
+    @Environment(TripController.self) private var trip
+    let now: Date
+    let openRestArea: (RouteRestArea) -> Void
+
+    var body: some View {
+        if let r = trip.bestStopAhead(miles: 60, restrooms: true), let p = r.primary {
+            VStack(alignment: .leading, spacing: 8) {
+                Eyebrow(text: "Overnight · restroom stop")
+                HStack(alignment: .top, spacing: 12) {
+                    SmartStopSign(candidate: p.candidate)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(p.candidate.name).font(.headline).lineLimit(2)
+                        SmartStopConfidence(pick: p, overnight: true)
+                        Text(SmartStopText.whereLine(p.candidate) + " · " + SmartStopText.arrival(p.candidate, now: now))
+                            .font(.caption).foregroundStyle(Theme.secondaryText)
+                    }
+                }
+                if let notice = r.notice { Text(notice).font(.caption).foregroundStyle(Theme.secondaryText) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+            .onTapGesture {
+                if let id = p.candidate.id.hasPrefix("rest-") ? p.candidate.id : nil,
+                   let rest = trip.plan?.restAreas.first(where: { $0.id == id }) { openRestArea(rest) }
+            }
+            .accessibilityIdentifier("overnightCard")
+        }
+    }
+}
+
+/// Under the focus card: the next two things worth knowing, distance first, each opening its details.
+private struct ThenStrip: View {
+    @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
+    let kinds: [DashboardFocus.Kind]
+    let snapshot: TripSnapshot
+    @Binding var showFuel: Bool
+    @Binding var shownRestArea: RouteRestArea?
+    @Binding var selectedTab: RootView.Tab
+
+    var body: some View {
+        if !kinds.isEmpty {
+            HStack(spacing: 8) {
+                Text("THEN").font(.caption2.weight(.bold)).foregroundStyle(Theme.secondaryText)
+                ForEach(kinds, id: \.self) { kind in item(kind) }
+                Spacer(minLength: 0)
+            }
+            .accessibilityIdentifier("thenStrip")
+        }
+    }
+
+    @ViewBuilder
+    private func item(_ kind: DashboardFocus.Kind) -> some View {
+        switch kind {
+        case .fuel:
+            if let p = trip.smartStop?.primary {
+                chip(Format.milesValue(p.candidate.ahead ?? 0) + " mi", "⛽ " + p.candidate.name) { showFuel = true }
+                    .accessibilityIdentifier("fuelChip")
+            } else if let rec = trip.rangePlan?.recommended {
+                chip(Format.milesValue(rec.ahead) + " mi", (rec.candidate.charger != nil ? "⚡ " : "⛽ ") + (rec.candidate.exit?.displayTitle ?? rec.candidate.charger?.station.name ?? "Stop")) { showFuel = true }
+                    .accessibilityIdentifier("fuelChip")
+            }
+        case .fuelEntry:
+            chip(nil, settings.vehicle?.isElectric == true ? "⚡ Enter range" : "⛽ Enter range") { showFuel = true }
+                .accessibilityIdentifier("fuelChip")
+        case .gap:
+            if let g = trip.gasGapsAhead().first(where: { $0.to > snapshot.progress }) {
+                let inside = g.from <= snapshot.progress
+                chip(inside ? nil : Format.milesValue(g.from - snapshot.progress) + " mi",
+                     "No gas for \(Format.miles(g.to - max(g.from, snapshot.progress)))\(g.open ? "+" : "")") { selectedTab = .ahead }
+            }
+        case .stop:
+            if let next = snapshot.nextStop {
+                chip(Format.milesValue(next.distance) + " mi", "📍 " + next.stop.waypoint.name) { selectedTab = .trip }
+            }
+        case .restArea:
+            if let rest = snapshot.nextRestArea {
+                chip(Format.milesValue(rest.distance) + " mi", rest.restArea.title) { shownRestArea = rest.restArea }
+            }
+        case .exit:
+            if let next = snapshot.nextExit {
+                chip(Format.milesValue(next.distance) + " mi", next.exit.displayTitle) { selectedTab = .ahead }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func chip(_ distance: String?, _ text: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            (Text(distance.map { "\($0) " } ?? "").font(.caption.weight(.heavy).monospacedDigit()) + Text(text).font(.caption.weight(.semibold)))
+                .lineLimit(1)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Theme.card, in: Capsule())
+                .overlay(Capsule().stroke(Theme.cardStroke, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -13,6 +13,8 @@ final class AppModel {
     }
 
     private(set) var loadState: LoadState = .loading
+    /// Settings and the profile open as a sheet from the person button on every tab.
+    var showSettings = false
     private(set) var data: BundledData?
     /// Which data set is loaded (bundled or downloaded) and its manifest.
     private(set) var dataInfo: DataSetInfo?

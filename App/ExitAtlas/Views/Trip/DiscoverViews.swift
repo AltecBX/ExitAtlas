@@ -280,7 +280,7 @@ struct PassportView: View {
                 ForEach(p.achievements.filter { !$0.earned }.sorted { $0.progress > $1.progress }.prefix(4)) { a in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack { Text(a.title).font(.subheadline.weight(.semibold)); Spacer(); Text(a.detail).font(.caption).foregroundStyle(Theme.secondaryText) }
-                        ProgressView(value: a.progress).tint(Theme.signGreen)
+                        ProgressView(value: a.progress).tint(Theme.tint)
                     }
                 }
             }

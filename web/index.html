@@ -23,6 +23,7 @@
   <h1 id="title">ExitAtlas</h1>
   <span id="status"></span>
   <button id="end" class="btn-end" data-act="end" hidden>End</button>
+  <button id="settings-btn" class="icon-btn" data-act="tab" data-arg="settings" aria-label="Settings and profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
 </header>
 <div id="banner"></div>
 <main>
@@ -36,9 +37,8 @@
 </main>
 <nav class="tabbar" aria-label="Tabs">
   <button data-act="tab" data-arg="drive" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Drive</button>
-  <button data-act="tab" data-arg="exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21L9 3"/><path d="M19 21L15 3"/><path d="M12 6v2M12 11v2M12 16v2"/></svg>Exits</button>
+  <button data-act="tab" data-arg="ahead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21L9 3"/><path d="M19 21L15 3"/><path d="M12 6v2M12 11v2M12 16v2"/></svg>Ahead</button>
   <button data-act="tab" data-arg="trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Trip</button>
-  <button data-act="tab" data-arg="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--card)"/><circle cx="15" cy="12" r="2" fill="var(--card)"/><circle cx="7" cy="18" r="2" fill="var(--card)"/></svg>Settings</button>
 </nav>
 <div id="sheet-backdrop" class="sheet-backdrop"></div>
 <div id="sheet" class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheet-body"></div></div>

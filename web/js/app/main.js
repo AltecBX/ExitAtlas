@@ -14,7 +14,7 @@ import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
 import { GasPrices, GRADES } from './prices.js';
-import { smartStop } from '../engine/smartstop.js';
+import { smartStop, evaluateStop } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates } from './smartstops.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -31,7 +31,7 @@ import {
 import { defaultProfile } from '../engine/profile.js';
 
 const VERSION = '2026.10.28';
-const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: 'Settings' };
+const TITLES = { drive: 'Drive', ahead: 'Road Ahead', trip: 'Trip', settings: 'Settings' };
 
 // The driver's profile (profilestore.js): loaded once, written on every change and read back. When the
 // browser blocks storage (some private modes) a stand-in keeps the profile for this visit only, and
@@ -106,10 +106,36 @@ const app = {
   },
 
   /// Stretches without gas in the next `window` meters, longer than the driver's setting. None for EVs.
+  /// Stations no longer listed, and stops reported closed at the arrival time, do not count as gas.
   gasGapsAhead(s, window = 150 * MILE) {
     if (!this.plan || !s || this.settings.vehicle?.ev) return [];
     const end = Math.min(this.plan.route.length, s.progress + window);
-    return gasGaps(this.gasStops(), s.progress, end, this.settings.gasGapMiles * MILE, this.plan.route.length);
+    const key = `${this.plan.route.id}|${s.t}|${s.progress}|${end}|${this.settings.gasGapMiles}`;
+    if (this.gapKey !== key) {
+      this.gapKey = key;
+      const stops = this.gasStops().filter((st) => st.distance <= s.progress || st.distance > end || this.gasStopUsable(st, s));
+      this.gapCache = gasGaps(stops, s.progress, end, this.settings.gasGapMiles * MILE, this.plan.route.length);
+    }
+    return this.gapCache;
+  },
+
+  /// A gas stop counts unless every station there is no longer listed or reported closed when the driver gets there.
+  gasStopUsable(stop, s) {
+    const zone = this.plan.timeZoneIDAt(stop.distance) ?? 'America/New_York';
+    const arrival = s.etaTo(stop.distance);
+    if (stop.restArea) {
+      const c = { id: stop.restArea.id, kind: 'plaza', arrival, timeZone: zone, plaza: { hours: stop.restArea.hours ?? null, toilets: null } };
+      return evaluateStop(c, this.profile).hours.status !== 'closed';
+    }
+    const stations = this.data?.stations;
+    return this.servicesFor(stop.exit).some((g) => {
+      if (g.place.category !== 1) return false;
+      const f = stations?.get(g.place.id);
+      if (f?.gone) return false;
+      if (!f?.h) return true;
+      const c = { id: g.place.id, kind: 'station', arrival: arrival + (g.detourSeconds ?? 0) / 2, timeZone: zone, osm: { hours: f.h } };
+      return evaluateStop(c, this.profile).hours.status !== 'closed';
+    });
   },
 
   /// A stop can be added mid-trip when a reroute is possible: a planned trip on live GPS.
@@ -255,8 +281,9 @@ function renderNow() {
     ? `<div class="banner">▶︎ Simulated drive at ${app.sim?.speedup ?? 30}× · sample route, not your GPS
         <span class="spacer"></span><button class="btn sm" data-act="sim-speed">${app.sim?.speedup === 120 ? '30×' : '120×'}</button></div>` : '';
   for (const b of document.querySelectorAll('.tabbar button')) b.classList.toggle('on', b.dataset.arg === app.tab);
+  $('#settings-btn').classList.toggle('on', app.tab === 'settings');
   if (!app.data) return;
-  if (app.tab === 'exits' && app.mode !== 'idle') {
+  if (app.tab === 'ahead' && app.mode !== 'idle') {
     // The exits list is long: refresh it at most every 1.5 s so scrolling stays smooth.
     const now = performance.now();
     if (now - lastExitsRender < 1500 && lastViewHTML) {
@@ -267,7 +294,7 @@ function renderNow() {
   }
   let html;
   switch (app.tab) {
-    case 'exits': html = V.exitsView(app); break;
+    case 'ahead': html = V.exitsView(app); break;
     case 'trip': html = V.tripView(app); break;
     case 'settings': html = V.settingsView(app); break;
     default: html = V.driveView(app);
@@ -969,7 +996,7 @@ function itineraryText() {
 // MARK: Events
 
 const actions = {
-  tab(arg) { app.tab = arg; lastViewHTML = ''; window.scrollTo(0, 0); render(); },
+  tab(arg) { app.tab = arg === 'exits' ? 'ahead' : arg; lastViewHTML = ''; window.scrollTo(0, 0); render(); },
   discovery() { startDiscovery(); },
   demo() { runDemo(); },
   end() { endTrip(); },

@@ -6,6 +6,8 @@ import UIKit
 enum Theme {
     // Colors come from design/tokens.json through the generated Tokens.swift (shared with the web).
     static let signGreen = Tokens.signGreen
+    /// Tabs, switches and tinted buttons: sign green in light mode, a brighter green that reads on dark cards.
+    static let tint = Tokens.tint
     static let signBlue = Tokens.signBlue
     static let signBrown = Tokens.signBrown
     static let shieldBlue = Tokens.shieldBlue

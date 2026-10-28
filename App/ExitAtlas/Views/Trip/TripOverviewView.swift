@@ -36,6 +36,7 @@ struct TripOverviewView: View {
                 }
                 .simulationBanner(trip.isSimulating)
                 .navigationTitle(trip.mode == .discovery ? (plan.route.title ?? "Discovery") : "Trip")
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsButton() } }
                 .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
                 .navigationDestination(for: RouteDiscovery.self) { DiscoverDetailView(place: $0) }
                 .sheet(isPresented: $showStopPlanner) { StopPlannerView() }

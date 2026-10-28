@@ -1,8 +1,8 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// Upcoming exits in route order with services, state lines, rest areas and stretches without gas
-/// inline, and a lookahead window.
+/// Road Ahead: upcoming exits in route order with services, state lines, rest areas, planned stops and
+/// stretches without gas inline, the SmartStop pick marked where it is, and a lookahead window.
 struct ExitsView: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
@@ -17,6 +17,7 @@ struct ExitsView: View {
         case border(SegmentForecast, distance: Double)
         case rest(UpcomingRestArea)
         case gap(GasGaps.Gap)
+        case stop(RouteStop, distance: Double)
 
         var id: String {
             switch self {
@@ -24,6 +25,7 @@ struct ExitsView: View {
             case let .border(f, _): return "border-\(f.segment.index)"
             case let .rest(r): return r.id
             case let .gap(g): return "gap-\(g.from)"
+            case let .stop(st, _): return "stop-\(st.id)"
             }
         }
     }
@@ -50,22 +52,41 @@ struct ExitsView: View {
                                                    systemImage: "road.lanes",
                                                    description: Text(category == nil ? "Try a longer window." : "No exits or rest areas with \(category!.displayName) in this window."))
                         }
+                        let smart = trip.smartStop?.primary
                         ForEach(items) { row in
                             switch row {
                             case let .exit(upcoming):
                                 NavigationLink(value: upcoming.exit) {
-                                    ExitRow(upcoming: upcoming, services: trip.services(for: upcoming.exit), now: snapshot.timestamp)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        ExitRow(upcoming: upcoming, services: trip.services(for: upcoming.exit), now: snapshot.timestamp)
+                                        if let smart, smart.candidate.exitID == upcoming.exit.id { RecommendedTag(pick: smart) }
+                                    }
                                 }
+                                .listRowBackground(smart?.candidate.exitID == upcoming.exit.id ? RecommendedBackground() : nil)
                                 .accessibilityIdentifier("exitRow")
                             case let .border(forecast, distance):
                                 BorderRow(forecast: forecast, distance: distance, now: snapshot.timestamp)
                             case let .rest(upcoming):
                                 NavigationLink(value: upcoming.restArea) {
-                                    RestAreaRow(upcoming: upcoming, now: snapshot.timestamp)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        RestAreaRow(upcoming: upcoming, now: snapshot.timestamp)
+                                        if let smart, smart.candidate.id == upcoming.restArea.id { RecommendedTag(pick: smart) }
+                                    }
                                 }
                                 .accessibilityIdentifier("restAreaRow")
                             case let .gap(gap):
                                 GasGapRow(gap: gap, progress: snapshot.progress)
+                            case let .stop(stop, distance):
+                                HStack(spacing: 12) {
+                                    Image(systemName: "mappin.circle.fill").font(.title2).foregroundStyle(Theme.signGreen).frame(width: 64)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(stop.waypoint.name).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                        Text("Planned stop").font(.caption).foregroundStyle(Theme.secondaryText)
+                                    }
+                                    Spacer(minLength: 4)
+                                    Text(Format.miles(distance)).font(.subheadline.monospacedDigit().weight(.bold))
+                                }
+                                .accessibilityElement(children: .combine)
                             }
                         }
                         Section {
@@ -80,7 +101,7 @@ struct ExitsView: View {
                                            description: Text("Plan a trip or start discovery mode to see the exits ahead."))
                 }
             }
-            .navigationTitle("Exits Ahead")
+            .navigationTitle("Road Ahead")
             .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
             .navigationDestination(for: RouteRestArea.self) { RestAreaDetailView(restArea: $0) }
             .toolbar {
@@ -92,6 +113,7 @@ struct ExitsView: View {
                     Button { showFuel = true } label: { Label("Fuel", systemImage: "fuelpump") }
                         .disabled(trip.snapshot == nil)
                 }
+                ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .sheet(isPresented: $showSearch) { AlongRouteSearchView() }
             .sheet(isPresented: $showFuel) { FuelView() }
@@ -114,6 +136,12 @@ struct ExitsView: View {
         }
         if category == nil || category == .gas {
             for gap in trip.gasGapsAhead(window: window) { events.append((gap.from, 2, .gap(gap))) }
+        }
+        if category == nil, let stops = trip.plan?.route.stops {
+            for stop in stops {
+                let d = stop.distanceAlongRoute - snapshot.progress
+                if d > 0, d <= window { events.append((stop.distanceAlongRoute, 1, .stop(stop, distance: d))) }
+            }
         }
         return events.sorted { ($0.distance, $0.order) < ($1.distance, $1.order) }.map { $0.row }
     }
@@ -274,5 +302,29 @@ struct GasGapRow: View {
         }
         .listRowBackground(Theme.amber.opacity(0.12))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The SmartStop pick, marked on its row with its hours confidence.
+struct RecommendedTag: View {
+    let pick: SmartStop.Pick
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label("Recommended stop: \(pick.candidate.name)", systemImage: "fuelpump.fill")
+                .font(.caption.weight(.heavy)).foregroundStyle(Theme.success)
+            ConfidenceLine(status: pick.evaluation.hours.status.rawValue, label: pick.evaluation.hours.label)
+        }
+        .accessibilityIdentifier("recommendedTag")
+    }
+}
+
+/// A green edge on the recommended stop's row.
+struct RecommendedBackground: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Rectangle().fill(Theme.success).frame(width: 4)
+            Rectangle().fill(Theme.card)
+        }
     }
 }

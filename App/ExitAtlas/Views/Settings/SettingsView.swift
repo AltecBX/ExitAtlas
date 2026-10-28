@@ -123,6 +123,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { app.showSettings = false } } }
         }
     }
 

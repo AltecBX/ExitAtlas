@@ -6,8 +6,9 @@ struct RootView: View {
     @Environment(TripController.self) private var trip
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Three areas; settings and the profile open from the person button (SettingsButton) on each.
     enum Tab: Hashable {
-        case drive, exits, trip, settings
+        case drive, ahead, trip
     }
 
     @State private var tab: Tab = .drive
@@ -19,23 +20,22 @@ struct RootView: View {
         case let .failed(message):
             ContentUnavailableView("Data failed to load", systemImage: "exclamationmark.triangle", description: Text(message))
         case .ready:
+            @Bindable var app = app
             TabView(selection: $tab) {
                 DriveView(selectedTab: $tab)
                     .tabItem { Label("Drive", systemImage: "gauge.with.dots.needle.67percent") }
                     .tag(Tab.drive)
                 ExitsView()
-                    .tabItem { Label("Exits", systemImage: "arrow.up.right.square") }
-                    .tag(Tab.exits)
+                    .tabItem { Label("Ahead", systemImage: "road.lanes") }
+                    .tag(Tab.ahead)
                 Group {
                     if trip.mode == .idle { PlannerView() } else { TripOverviewView() }
                 }
                 .tabItem { Label("Trip", systemImage: "map") }
                 .tag(Tab.trip)
-                SettingsView()
-                    .tabItem { Label("Settings", systemImage: "gearshape") }
-                    .tag(Tab.settings)
             }
-            .tint(Theme.signGreen)
+            .sheet(isPresented: $app.showSettings) { SettingsView() }
+            .tint(Theme.tint)
             .preferredColorScheme(app.forceDark ? .dark : app.settings.theme == "dark" ? .dark : app.settings.theme == "light" ? .light : nil)
             .onChange(of: trip.mode) { _, mode in
                 if mode != .idle { tab = .drive } else { Task { await app.applyDownloadedDataIfIdle() } }
@@ -47,5 +47,15 @@ struct RootView: View {
                 }
             }
         }
+    }
+}
+
+/// The person button on each tab: settings, vehicles, places and the profile.
+struct SettingsButton: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Button { app.showSettings = true } label: { Label("Settings", systemImage: "person.crop.circle") }
+            .accessibilityIdentifier("settingsButton")
     }
 }
