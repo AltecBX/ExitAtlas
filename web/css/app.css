@@ -391,3 +391,4 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .ach { margin: 6px 0; font-weight: 600; }
 .ach.on { color: var(--success); }
 .ach .progress { margin-top: 4px; }
+.card .warn { color: var(--amber); font-weight: 600; }

@@ -73,4 +73,6 @@ python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicle
 # Discover places come from the live Wikidata query service (cached per category in the work dir).
 mkdir -p "$WORK/wikidata"
 python3 build_discover.py "$OI_CSV" "$WORK/wikidata" "$OUT/discover.json"
+# Last: versions, sizes, hashes and provenance of everything above, for app data updates.
+python3 build_manifest.py "$OUT"
 echo "Full resolution states for oracle fixtures: $WORK/states_full.geojson"

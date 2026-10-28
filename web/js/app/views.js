@@ -746,7 +746,8 @@ export function settingsView(app) {
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
     <div><div class="section-title">Road Trip Passport</div>${passportSection(app)}</div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
-      <p style="margin-top:0"><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
+      ${dataVersionLine(app.dataStatus)}
+      <p><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
@@ -1002,4 +1003,15 @@ export function stopSheet(app) {
       <div class="section-title">Brand (optional)</div>
       <input type="search" name="brand" value="${h(q.brand)}" placeholder="Hampton Inn, Waffle House" style="width:100%;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)">
       <button class="btn primary block" type="submit" style="margin-top:14px">Find stops</button></form>${results}`;
+}
+
+/// The data set in use, and any file that fell back to the previous version.
+function dataVersionLine(status) {
+  const m = status?.manifest;
+  if (!m) return '<p style="margin-top:0"><b>Data version:</b> unknown</p>';
+  const built = m.generated_at ? new Date(m.generated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const back = status.rolledBack.length
+    ? ` <span class="warn">Using the previous version of ${h([...new Set(status.rolledBack)].join(', '))}: the new download did not match its checksum or could not be read.</span>` : '';
+  const missing = status.failed.length ? ` Not loaded: ${h([...new Set(status.failed)].join(', '))}.` : '';
+  return `<p style="margin-top:0"><b>Data version:</b> ${m.version}${built ? `, built ${h(built)}` : ''}. Each file is checked against its SHA-256 before use.${back}${missing}</p>`;
 }

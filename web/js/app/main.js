@@ -18,7 +18,7 @@ import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
   loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
-  LocationService, ScreenWake, Announcer, store,
+  LocationService, ScreenWake, Announcer, store, dataStatus,
 } from './services.js';
 import * as V from './views.js';
 
@@ -1172,10 +1172,11 @@ async function boot() {
   applyTheme();
   const bar = $('#load-bar'), label = $('#load-label');
   try {
-    app.data = await loadCoreData((f) => {
+    app.data = await loadCoreData((f, total) => {
       bar.style.width = `${(f * 100).toFixed(0)}%`;
-      label.textContent = `Loading offline data ${(f * 15).toFixed(1)} of 15.0 MB`;
+      label.textContent = `Loading offline data ${(f * total / 1e6).toFixed(1)} of ${(total / 1e6).toFixed(1)} MB`;
     });
+    app.dataStatus = dataStatus;
   } catch (e) {
     label.innerHTML = `Could not load the offline data: ${e.message}. <button class="btn sm" onclick="location.reload()">Retry</button>`;
     return;

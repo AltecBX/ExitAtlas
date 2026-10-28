@@ -1,8 +1,9 @@
 import ExitAtlasCore
 import Foundation
 
-/// Loads the bundled offline datasets (state and time zone boundaries, exits and services, rest
-/// areas, interstate corridors). Everything here works without a network connection.
+/// The offline datasets (state and time zone boundaries, exits and services, rest areas, Discover
+/// places, interstate corridors), from the app bundle or a newer downloaded set (DataUpdater).
+/// Everything here works without a network connection.
 struct BundledData: Sendable {
     let datasets: TripDatasets
     let corridors: CorridorDataset
@@ -13,16 +14,17 @@ struct BundledData: Sendable {
 
         var errorDescription: String? {
             switch self {
-            case let .missing(name): return "Bundled dataset \(name) is missing from the app."
+            case let .missing(name): return "Dataset \(name) is missing."
             }
         }
     }
 
-    static func load(from bundle: Bundle = .main) throws -> BundledData {
+    /// Loads one complete data set from a folder: the app's own Data folder or a downloaded set.
+    static func load(directory: URL) throws -> BundledData {
         func url(_ name: String, _ ext: String) throws -> URL {
-            if let u = bundle.url(forResource: name, withExtension: ext, subdirectory: "Data") { return u }
-            if let u = bundle.url(forResource: name, withExtension: ext) { return u }
-            throw LoadError.missing("\(name).\(ext)")
+            let u = directory.appendingPathComponent("\(name).\(ext)")
+            guard FileManager.default.fileExists(atPath: u.path) else { throw LoadError.missing("\(name).\(ext)") }
+            return u
         }
         let states = try RegionIndex(contentsOf: try url("states", "eab"))
         let zones = try RegionIndex(contentsOf: try url("timezones", "eab"))
@@ -56,5 +58,51 @@ struct BundledData: Sendable {
         guard let m = datasets.discover?.metadata else { return nil }
         return "\(m.count) notable places from Wikidata (\(m.license), fetched \(m.fetched ?? "unknown")): parks, museums, monuments and more "
             + "within 5 to 10 miles of an interstate. Hours, fees and closures are not included."
+    }
+}
+
+/// Where data sets live: the app's own Data folder, and up to two downloaded sets ("current" and
+/// "previous") in Application Support.
+enum DataLocation {
+    static var root: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Data", isDirectory: true)
+    }
+    static func installed(_ id: String) -> URL { root.appendingPathComponent(id, isDirectory: true) }
+    static var bundled: URL? { Bundle.main.url(forResource: "Data", withExtension: nil) }
+    static func directory(for id: String) -> URL? { id == "bundled" ? bundled : installed(id) }
+}
+
+/// The data set in use: where it came from, its manifest, and any newer set that failed to load.
+struct DataSetInfo: Sendable {
+    let id: String
+    let directory: URL
+    let manifest: DataManifest?
+    let failures: [String]
+
+    var isDownloaded: Bool { id != "bundled" }
+}
+
+extension BundledData {
+    /// Loads the newest data set that works: a downloaded set newer than the app's own data first, then
+    /// the one before it, then the data bundled with the app. A downloaded set that fails is deleted.
+    static func loadBest() throws -> (data: BundledData, info: DataSetInfo) {
+        guard let bundledDir = DataLocation.bundled else { throw LoadError.missing("Data folder") }
+        let manifest = { (dir: URL) in try? DataManifest(contentsOf: dir.appendingPathComponent("manifest.json")) }
+        let bundledManifest = manifest(bundledDir)
+        let installed = ["current", "previous"].map { (id: $0, manifest: manifest(DataLocation.installed($0))) }
+        let order = bundledManifest.map { DataUpdate.launchOrder(bundled: $0, installed: installed) } ?? ["bundled"]
+        var failures: [String] = []
+        for id in order {
+            guard let dir = DataLocation.directory(for: id) else { continue }
+            do {
+                let data = try load(directory: dir)
+                return (data, DataSetInfo(id: id, directory: dir, manifest: manifest(dir), failures: failures))
+            } catch {
+                if id == "bundled" { throw error }
+                failures.append("Downloaded data \(manifest(dir).map { String($0.version) } ?? id) did not load: \(error.localizedDescription)")
+                try? FileManager.default.removeItem(at: dir)
+            }
+        }
+        throw LoadError.missing("Data folder")
     }
 }
