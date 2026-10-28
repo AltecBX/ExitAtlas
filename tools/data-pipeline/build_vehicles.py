@@ -89,7 +89,8 @@ def main():
         hits = [e for e in entries if matches(e, r)]
         if not hits:
             return -1
-        best = max(hits, key=lambda e: len(e.get("when", {})))  # most specific entry wins
+        # Most specific entry wins: more conditions, then the longer model name match; ties keep file order.
+        best = max(hits, key=lambda e: (len(e.get("when", {})), len(e.get("when", {}).get("modelContains", ""))))
         key = json.dumps([best["gallons"], best["sources"]])
         if key not in tank_index:
             tank_index[key] = len(tank_list)

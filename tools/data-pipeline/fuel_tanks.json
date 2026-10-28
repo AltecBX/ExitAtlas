@@ -1607,6 +1607,3192 @@
    ],
    "basis": "manufacturer",
    "note": "AWD, 2.5 and 2.5 turbo. CAUTION: 2018-2019 diesel rows also match (diesel not covered by the spec decks)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2012,
+   "to": 2014,
+   "when": {
+    "modelContains": "Raptor"
+   },
+   "gallons": [
+    26.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12f12og3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13f12om3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Ford-Ford-F-150-Owners-Manual-version-3_om_EN-US_03_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12f12rp1e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13f12rp1e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Raptor rows (EPA \"F150 Raptor Pickup 4WD\"): SVT Raptor supplements list SuperCab 26 gal, SuperCrew 36 gal; 2012 supplement lists only 26 gal, main 2012 manual shows SuperCrew 5.5 ft box 26 std / 36 optional. Listed here as 26 or 36."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2017,
+   "to": 2020,
+   "when": {
+    "modelContains": "RAPTOR"
+   },
+   "gallons": [
+    26.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-F-150-Raptor-Supplement-version-1_su_EN-US-EN-US_10_2016.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-F-150-Raptor-Supplement-version-3_su_EN-US_06_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-F-150-Raptor-Supplement-version-1_su_EN-US_8_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Raptor supplement: SuperCab 26.0 gal, SuperCrew 36.0 gal (2018 supplement not read; 2017/2019/2020 agree)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2021,
+   "to": 2021,
+   "when": {
+    "modelContains": "RAPTOR"
+   },
+   "gallons": [
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-F-150-Owners-Manual-version-2_om_EN-US_10_2021.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Owner manual section \"Fuel Tank Capacity - Raptor\": 36.0 gal (all)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2022,
+   "to": 2022,
+   "when": {
+    "modelContains": "RAPTOR"
+   },
+   "gallons": [
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-F-150-Owners-Manual-version-1_om_EN-US_10_2021.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Owner manual section \"Fuel Tank Capacity - Raptor\": 36.0 gal (all). Includes Raptor 37."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2023,
+   "to": 2026,
+   "when": {
+    "modelContains": "RAPTOR"
+   },
+   "gallons": [
+    36.0
+   ],
+   "sources": [
+    "https://www.kbb.com/ford/f150-supercrew-cab/2023/specs",
+    "https://www.kbb.com/ford/f150-supercrew-cab/2024/specs",
+    "https://www.kbb.com/ford/f150-supercrew-cab/2026/specs",
+    "https://www.cars.com/research/ford-f_150-2024/specs/448787/"
+   ],
+   "basis": "two-sources",
+   "note": "Raptor/Raptor R not in 2023+ F-150 owner manual; KBB (2023, 2024, 2026: Raptor and Raptor R 36 gal) and cars.com (2024 Raptor 36 gal) agree; matches 2021-2022 Ford manual Raptor 36.0."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "modelContains": "HEV"
+   },
+   "gallons": [
+    30.6
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-F-150-Owners-Manual-version-2_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-F-150-Owners-Manual-version-1_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_F150_P702_OM_ENGLISH_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026_F-150_OM_enUSA_V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "PowerBoost full hybrid: 30.6 gal (115.8 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    23.0,
+    26.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-F-150-Owners-Manual-version-2_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-F-150-Owners-Manual-version-1_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_F150_P702_OM_ENGLISH_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026_F-150_OM_enUSA_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9043&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10802&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "Gasoline excl. hybrid: Regular cab 23.0, SuperCab 23.0, SuperCrew 26.0, optional 36.0; 2021 3.0L diesel 26.0. Raptor has its own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2012,
+   "to": 2014,
+   "when": {},
+   "gallons": [
+    26.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12f12og3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13f12om3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Ford-Ford-F-150-Owners-Manual-version-3_om_EN-US_03_2014.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Ford owner guide: 26.0 gal standard, 36.0 gal optional (all cab/box combos list 26 std / 36 opt). More specific Raptor entry should take precedence."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2015,
+   "to": 2017,
+   "when": {},
+   "gallons": [
+    23.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-F-150-Owners-Manual-version-4_om_EN-US_08_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-F150-Owner-Manual-version-3_om_EN-US_02_2017.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-F-150-Owners-Manual-version-2_om_EN-US-EN-CA_12_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Owner manual (all engines): 23.0 gal standard, 36.0 gal optional. Manual does not list a 26 gal tank for 2015-2017. Raptor (2017) has its own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2018,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    23.0,
+    26.0,
+    36.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-F-150-Owners-Manual-version-5_om_EN-US_09_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-F150-Owners-Manual-version-3_om_EN-US_04_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-F-150-Owners-Manual-version3_om_EN-US_04_2020.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Owner manual: Regular Cab/SuperCab 23.0, SuperCrew 26.0, optional 36.0; 3.0L Power Stroke diesel 26.0. Raptor has its own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Explorer",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "modelContains": "HEV"
+   },
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Explorer-Gas-Hev-Owners-Manual-version-3_om_EN-US_03_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022_Ford_Explorer_Owner_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Explorer_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_Explorer_U625_Owner_Manual_enUSA_v1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Explorer-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "3.3L hybrid (HEV/FHEV): 18.0 gal (68.1 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Explorer",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "cylinders": 4
+   },
+   "gallons": [
+    17.9
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Explorer-Gas-Hev-Owners-Manual-version-3_om_EN-US_03_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022_Ford_Explorer_Owner_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Explorer_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_Explorer_U625_Owner_Manual_enUSA_v1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Explorer-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.3L EcoBoost: 17.9 gal (67.8 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Explorer",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "cylinders": 6
+   },
+   "gallons": [
+    20.2
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Explorer-Gas-Hev-Owners-Manual-version-3_om_EN-US_03_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022_Ford_Explorer_Owner_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Explorer_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_Explorer_U625_Owner_Manual_enUSA_v1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Explorer-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "3.0L EcoBoost V6 and 3.3L gas V6: 20.2 gal (76.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Explorer",
+   "from": 2012,
+   "to": 2019,
+   "when": {},
+   "gallons": [
+    18.6
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12expog2e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13expom4e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Explorer-Owners-Manual-version-3_om_EN-US_02_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Explorer-Owners-Manual-version-3_OM_EN-US_02_2016.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Explorer-Owners-Manual-version-2_om-EN-US_09_2018.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "18.6 gal (70.4 L) for all engines (2.3L, 2.0L, 3.5L, 3.5L EcoBoost)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "modelContains": "FWD HEV"
+   },
+   "gallons": [
+    14.3
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "2.5L full hybrid (EPA \"FWD HEV\"): 14.3 gal (54.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "modelContains": "AWD HEV"
+   },
+   "gallons": [
+    14.3
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "2.5L full hybrid (EPA \"AWD HEV\"): 14.3 gal (54.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    15.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12hevog1e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Escape Hybrid owner guide: 15 gal."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2020,
+   "when": {
+    "modelContains": "PHEV"
+   },
+   "gallons": [
+    11.2
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Plug-in hybrid: 11.2 gal (42.3 L) in 2020 manual."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "modelContains": "PHEV"
+   },
+   "gallons": [
+    11.1
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "Plug-in hybrid: 11.1 gal (42 L). 2023/2025/2026 from Ford digital owner manual."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "drive": "2WD",
+    "cylinders": 3
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "1.5L EcoBoost (3-cyl) front-wheel drive: 14.8 gal (56.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    15.7
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "1.5L EcoBoost all-wheel drive: 15.7 gal (59.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2020,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "cylinders": 4
+   },
+   "gallons": [
+    15.7
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Escape-Gas-HEV-PHEV-Owners-Manual-version-3_om_EN_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Escape-Owners-Manual-version-1_om_EN-US_11_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Escape-Owners-Manual-version-1_om_EN-USA_09.2-2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Escape_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9048&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10278&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=11123&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "2.0L EcoBoost (4-cyl), FWD or AWD: 15.7 gal (59.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12204og2e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Escape (previous generation) owner guide: 17.5 gal (66.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2013,
+   "to": 2016,
+   "when": {},
+   "gallons": [
+    15.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13204om4e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Escape-Owners-Manual-version-4_om_EN-US_04_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Escape-Owners-Manual-version-2_om_EN-US_04_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Escape-Owners-Manual-version-2_om_EN-US_11_2015.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "15.5 gal for all engines (1.6L, 2.0L EcoBoost, 2.5L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2017,
+   "to": 2017,
+   "when": {},
+   "gallons": [
+    15.7,
+    16.2
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Escape-Owners-Manual-version-3_om_EN-US_EN-CA_12_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2017 manual: 1.5L and 2.0L EcoBoost 16.2 gal; 2.5L 15.7 gal (all 4-cyl, so EPA rows cannot be split)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Escape",
+   "from": 2018,
+   "to": 2019,
+   "when": {},
+   "gallons": [
+    15.7
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Escape-Owners-Manual-version-4a_OM_EN-US_07_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Escape-Owners-Manual-version-2_OM_EN-US_03_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "15.7 gal (59.4 L) for 1.5L, 2.0L and 2.5L."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Edge",
+   "from": 2012,
+   "to": 2014,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    18.3
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12edgog1e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13edgom4e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Edge-Owners-Manual-version-2_om_EN-US_03_2014.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Front-wheel drive: 18.3 gal (69.3 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Edge",
+   "from": 2012,
+   "to": 2014,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    19.2
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12edgog1e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13edgom4e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Edge-Owners-Manual-version-2_om_EN-US_03_2014.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "All-wheel drive: 19.2 gal (72.7 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Edge",
+   "from": 2015,
+   "to": 2024,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    18.4
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Edge-Owner-Manual-version-2_om_EN-US_06_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Edge-Owners-Manual-version-3_om_EN-US_06_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Edge-Owners-Manual-version-3_om_EN-US_09_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Edge-Owners-Manual-version-1_om_EN-USA_09_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Edge_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Front-wheel drive: 18.4 gal (69.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Edge",
+   "from": 2015,
+   "to": 2024,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Edge-Owner-Manual-version-2_om_EN-US_06_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Edge-Owners-Manual-version-3_om_EN-US_06_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Edge-Owners-Manual-version-3_om_EN-US_09_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Edge-Owners-Manual-version-1_om_EN-USA_09_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Edge_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "All-wheel drive (incl. 2.7L Sport/ST): 18.5 gal (70 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2018,
+   "to": 2021,
+   "when": {
+    "modelContains": "MAX"
+   },
+   "gallons": [
+    27.8
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Expedition-Owners-Manual-version-3_om_EN-US_08_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Expedition-Owners-Manual-version-2_om_EN_04_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Expedition-Owners-Manual-version-3_om_EN-US_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Expedition-Owners-Manual-version-1_om_EN-US_10_2020.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Expedition MAX: 27.8 gal (105.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2015,
+   "to": 2017,
+   "when": {
+    "modelContains": "EL"
+   },
+   "gallons": [
+    33.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Expedition-Owners-Manual-version-1_om_EN-US_07_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Expedition-Owners-Manual-version-2_om_EN-US_11_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Expedition-Owners-Manual-version-3_om_EN-US-EN-CA_12_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Expedition EL: 33.5 gal (126.8 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2012,
+   "to": 2014,
+   "when": {},
+   "gallons": [
+    28.0,
+    33.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12exdog3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13exdom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Expedition-Owners-Manual-version-3_om_EN-USA_04_2014.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Standard wheelbase 28.0 gal; Expedition EL 33.5 gal. EPA rows for these years do not separate EL."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2015,
+   "to": 2017,
+   "when": {},
+   "gallons": [
+    28.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Expedition-Owners-Manual-version-1_om_EN-US_07_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Expedition-Owners-Manual-version-2_om_EN-US_11_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Expedition-Owners-Manual-version-3_om_EN-US-EN-CA_12_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Standard wheelbase: 28.0 gal (106 L). EL rows have their own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2018,
+   "to": 2019,
+   "when": {},
+   "gallons": [
+    23.6
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Expedition-Owners-Manual-version-3_om_EN-US_08_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Expedition-Owners-Manual-version-2_om_EN_04_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Standard wheelbase: 23.6 gal (89.3 L). MAX rows have their own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2020,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    23.2,
+    23.6
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Expedition-Owners-Manual-version-3_om_EN-US_08_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Expedition-Owners-Manual-version-1_om_EN-US_09_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Standard wheelbase: 2020 manual v1 says 23.6 gal, v2/v3 say 23.2 gal (87.8 L); both listed. MAX rows have their own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2021,
+   "to": 2021,
+   "when": {},
+   "gallons": [
+    23.6
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Expedition-Owners-Manual-version-1_om_EN-US_10_2020.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Standard wheelbase: 23.6 gal (89.3 L). MAX rows have their own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Expedition",
+   "from": 2022,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    23.6,
+    27.8
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Expedition-Owners-Manual-version-1_om_EN-US_11_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_Expedition_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Expedition_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/25_U717_Expedition_OM_ENG_V2.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Expedition-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Base 23.6 gal, Expedition MAX 27.8 gal; EPA rows for these years do not separate MAX."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Bronco Sport",
+   "from": 2021,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    15.7
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Bronco-Sport-Owners-Manual-version-2_om_EN-US_01_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Bronco-Sport-Owners-Manual-version-1_om_EN-US_09_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Bronco_Sport_Owners_Manual_version_2_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Bronco_Sport_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_Bronco_Sport_OM_ENGLISH_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026_Bronco_Sport_OM_EN-US_v1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "15.7 gal (59.5 L) for all (1.5L and 2.0L); manual notes 16.9 gal including reserve."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Ranger",
+   "from": 2024,
+   "to": 2026,
+   "when": {
+    "modelContains": "RAPTOR"
+   },
+   "gallons": [
+    20.34
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_P703_Ranger_TRD_OM_ENG.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ranger_P703_TRD_OM_ENG_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10912&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "Ranger Raptor 3.0L: 20.34 gal (77 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Ranger",
+   "from": 2019,
+   "to": 2023,
+   "when": {},
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Ranger-Owners-Manual-version-4_om_EN-US_06_2019-1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Ranger-Owners-Manual-version-2_om_EN-US_03_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Ranger-Owners-Manual-version-1_om_EN-US_10_2020.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Ranger-Owners-Manual-version-1_om_EN-US_11_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_Ranger_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.3L EcoBoost: 18.8 gal (71.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Ranger",
+   "from": 2024,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    18.76
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_P703_Ranger_TRD_OM_ENG.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ranger_P703_TRD_OM_ENG_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10912&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "2.3L and 2.7L: 18.76 gal (71 L). Raptor has its own entry."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Maverick",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "modelContains": "HEV"
+   },
+   "gallons": [
+    13.8
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Maverick-P758-Owners-Manual-version-1_om_EN-US_07_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Maverick_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Maverick_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_P758_Maverick_OM_USCAN_enUSA.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Maverick-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.5L hybrid: 13.8 gal (52.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Maverick",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    16.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Maverick-P758-Owners-Manual-version-1_om_EN-US_07_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Maverick_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Maverick_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_P758_Maverick_OM_USCAN_enUSA.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Maverick-OM-enUSA-V1.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.0L EcoBoost: 16.5 gal (62.4-62.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2013,
+   "to": 2016,
+   "when": {
+    "modelContains": "Hybrid FWD"
+   },
+   "gallons": [
+    13.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13fhyom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-fusion-hybrid-OwnerManual-version-2_OM_EN-US_11_2013.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Fusion-Hybrid-Energi-Owners-Manual-version-2_om_EN-US_11_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Fusion-Hybrid-Energi-Owners-Manual-version-2_om_EN-US_11_2015.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Fusion Hybrid: 13.5 gal (51.1 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2017,
+   "to": 2020,
+   "when": {
+    "modelContains": "Hybrid FWD"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Fusion-Hybrid-Owner-Manual-version-3_OM_EN-US_02_2017.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Fusion-Hybrid-Energi-Owner-Manual-version-2_om_EN-US_12_2017.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Fusion-Hybrid-Energi-Owners-Manual-version-1_om-EN-US_06_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Fusion-Hybrid-Energi-Owners-Manual-version-2_om_EN-US_12_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Fusion Hybrid: 14.0 gal (53 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12fhyog1e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Fusion Hybrid owner guide: 17.5 gal (66.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2013,
+   "to": 2020,
+   "when": {
+    "modelContains": "Energi"
+   },
+   "gallons": [
+    14.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13fhyom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Fusion-Hybrid-Energi-Owners-Manual-version-2_om_EN-US_11_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Fusion-Hybrid-Energi-Owners-Manual-version-1_om-EN-US_06_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Fusion-Hybrid-Energi-Owners-Manual-version-2_om_EN-US_12_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Fusion Energi plug-in hybrid: 14.0 gal (53 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "hybrid": false,
+    "drive": "2WD"
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12fsnog3e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Fusion (previous gen) FWD: 17.5 gal (66.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2012,
+   "to": 2012,
+   "when": {
+    "hybrid": false,
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    16.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12fsnog3e.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Fusion AWD: 16.5 gal (62.4 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2013,
+   "to": 2020,
+   "when": {
+    "hybrid": false,
+    "drive": "2WD"
+   },
+   "gallons": [
+    16.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13fsnom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Fusion-Owners-Manual-version-3_om_EN-US_02_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Fusion-Owners-Manual-version-2_om_EN-US_01_2016.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Fusion-Owners-manual-version-2_om_EN-US-EN-CA_01_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Fusion-Owners-Manual-version-2_om_EN_US_11_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas front-wheel drive (1.5L/1.6L/2.0L/2.5L): 16.5 gal (62.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2013,
+   "to": 2016,
+   "when": {
+    "hybrid": false,
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13fsnom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Fusion-Owners-Manual-version-3_om_EN-US_02_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Fusion-Owner-Manual-version-2_om_EN-US_10_2014.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Fusion-Owners-Manual-version-2_om_EN-US_01_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas all-wheel drive: 17.5 gal (66.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Fusion",
+   "from": 2017,
+   "to": 2020,
+   "when": {
+    "hybrid": false,
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    18.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Fusion-Owner-Manual-version-2_OM_EN-US_4_2017.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Fusion-Owners-manual-version-2_om_EN-US-EN-CA_01_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Fusion-Owners_Manual-version-2_OM_EN-US_03_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Fusion-Owners-Manual-version-2_om_EN_US_11_2019.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas all-wheel drive (2.0L EcoBoost AWD and 2.7L Sport): 18.0 gal (68.1 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2016,
+   "to": 2022,
+   "when": {
+    "modelContains": "Shelby"
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Mustang-Owners-Manual-version-2_om_EN-US_11_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-Mustang-Owners-Manual-version-3_om_EN-US_03_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Mustang-Owners-Manual-version-2_om_EN-US_12_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-Mustang-Owners-Manual-version-1_om_EN-US_11_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-2016-Mustang-Shelby-GT350-Supplement-version-1_su_EN-US_07_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-Mustang-Shelby-GT500-Supplement-version-2_su_EN-US_03_2020.pdf",
+    "https://www.cars.com/research/ford-shelby_gt350-2018/specs/",
+    "https://www.cars.com/research/ford-shelby_gt500-2021/specs/"
+   ],
+   "basis": "manufacturer",
+   "note": "Shelby GT350/GT500 (EPA baseModel Mustang): Shelby supplements list no separate tank, base manual gives 16.0 gal; cars.com lists 16 gal for GT350 (2018) and GT500 (2021)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2015,
+   "to": 2023,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    15.5
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Mustang-Owners-Manual-version-3_om_EN-US_03_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Mustang-Owners-Manual-version-2_om_EN-US_EN-CA_12_2016.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Mustang-Owners-Manual-version-2_om_EN-US_01_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Mustang-Owners-Manual-version-2_om_EN-US_03_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_Mustang_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.3L EcoBoost: 15.5 gal."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2015,
+   "to": 2017,
+   "when": {
+    "cylinders": 6
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Mustang-Owners-Manual-version-3_om_EN-US_03_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2016-Mustang-Owners-Manual-version-2_om_EN-US_11_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Mustang-Owners-Manual-version-2_om_EN-US_EN-CA_12_2016.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "3.7L V6: 16.0 gal (60.6 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2015,
+   "to": 2023,
+   "when": {
+    "cylinders": 8
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2015-Mustang-Owners-Manual-version-3_om_EN-US_03_2015.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2017-Ford-Mustang-Owners-Manual-version-2_om_EN-US_EN-CA_12_2016.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-Mustang-Owners-Manual-version-2_om_EN-US_01_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-Mustang-Owners-Manual-version-2_om_EN-US_03_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_Mustang_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "5.0L V8 (incl. Bullitt, Mach 1): 16.0 gal (60.6 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2024,
+   "to": 2024,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Mustang_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.3L EcoBoost: 15.9 gal (60.2 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2024,
+   "to": 2024,
+   "when": {
+    "cylinders": 8
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_Mustang_Owners_Manual_version_1_om_EN-US.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "5.0L V8 (incl. Dark Horse): manual says 15.98 gal (60.5 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_MustangS650_OM_ENG_version1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Mustang-OM-enUSA-V2.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "16 gal (60.5 L), all variants in owner manual (not verified for Mustang GTD)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "cylinders": 8
+   },
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_MustangS650_OM_ENG_version1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026-Mustang-OM-enUSA-V2.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "16 gal (60.5 L), all variants in owner manual (not verified for Mustang GTD)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "from": 2012,
+   "to": 2014,
+   "when": {},
+   "gallons": [
+    16.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/12musog3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/catalog/owner_guides/13musom3e.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2014-Mustang-Owners-Manual-version-3_om_EN-US_02_2014.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "16.0 gal (60.6 L), single value in owner guide."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12silvsierrahy3196522718117171487.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13silvsierrahy5541847700014805132.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Two-mode hybrid (EPA \"15 Hybrid\"): 26.0 gal (98.4 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2019,
+   "to": 2019,
+   "when": {
+    "modelContains": "LD"
+   },
+   "gallons": [
+    26.0,
+    34.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Silverado_LD_1500_Silverado_2500_3500_OM_en_US_U_84161700B_2018AUG03_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2019 Silverado LD (carryover K2): 1500 standard/short box 26.0 gal, long box 34.0 gal."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    22.0,
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Silverado_1500_OM_en_US_U_23400204D_2019MAR01_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Silverado_OM_en_US_U_84186886C_2020JAN30_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2WD: standard/short box 24.0 gal (22.0 gal with 2WD 3.0L diesel); long box 28.0 gal."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Silverado_1500_OM_en_US_U_23400204D_2019MAR01_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Silverado_OM_en_US_U_84186886C_2020JAN30_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "4WD: standard/short box 24.0 gal (gas and diesel); long box 28.0 gal."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    22.0,
+    24.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Silverado_1500_OM_en_US_U_84550389E_2025MAY09_5P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_CHEV_Silverado_1500_OM_en_US_U_84719634D_2025MAY16_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Silverado_1500_OM_en_US_U_85516379D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/silverado_1500/26_CHEV_Silverado_1500_OM_en_US_U_86595939C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2WD: standard/short box 24.0 gal (22.0 gal with 2WD diesel); long box 28.3 gal (107.1 L). Same in 2022 LTD manual."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    24.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Silverado_1500_OM_en_US_U_84550389E_2025MAY09_5P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_CHEV_Silverado_1500_OM_en_US_U_84719634D_2025MAY16_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Silverado_1500_OM_en_US_U_85516379D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/silverado_1500/26_CHEV_Silverado_1500_OM_en_US_U_86595939C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "4WD: standard/short box 24.0 gal; long box 28.3 gal (107.1 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2012,
+   "to": 2018,
+   "when": {},
+   "gallons": [
+    26.0,
+    34.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12silverado-8816435321555273325.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14silverado3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16silverado3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Silverado_OM_en_US_U_84016520C_2018MAR05_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "1500 standard and short box 26.0 gal (98.4 L); 1500 long box 34.0 gal (128.7 L). Includes 2016-2018 eAssist \"15 Hybrid\" rows."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12silvsierrahy3196522718117171487.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13silvsierrahy5541847700014805132.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Two-mode hybrid (EPA \"15 Hybrid\"): 26.0 gal (98.4 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2019,
+   "to": 2019,
+   "when": {
+    "modelContains": "LTD"
+   },
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://www.kbb.com/gmc/sierra-1500-limited-double-cab/2019/specs",
+    "https://www.cars.com/research/gmc-sierra_1500_limited-2019/specs/"
+   ],
+   "basis": "two-sources",
+   "note": "2019 Sierra 1500 Limited (carryover K2, Double Cab 6.5 ft box only per KBB/cars.com): 26 gal. No 2019 GMC owner manual for the Limited found."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    22.0,
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_GMC_Sierra_Sierra_Denali_OM_en_US_U_23400205D_2019MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Sierra_OM_en_US_U_84186890A_2019APR11.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2WD: standard/short box 24.0 gal (22.0 gal with 2WD 3.0L diesel); long box 28.0 gal."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_GMC_Sierra_Sierra_Denali_OM_en_US_U_23400205D_2019MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Sierra_OM_en_US_U_84186890A_2019APR11.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "4WD: standard/short box 24.0 gal (gas and diesel); long box 28.0 gal."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    22.0,
+    24.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Sierra_Sierra_Denali_OM_en_US_U_84550392D_2025MAY12_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_84719636D_2025MAY15_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Sierra_Sierra_Denali_OM_en_US_U_85516381C_2025JUN26_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/sierra_1500/26_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_86595943C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2WD: standard/short box 24.0 gal (22.0 gal with 2WD diesel); long box 28.3 gal (107.1 L). Same in 2022 LTD manual."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    24.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Sierra_Sierra_Denali_OM_en_US_U_84550392D_2025MAY12_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_84719636D_2025MAY15_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Sierra_Sierra_Denali_OM_en_US_U_85516381C_2025JUN26_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/sierra_1500/26_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_86595943C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "4WD: standard/short box 24.0 gal; long box 28.3 gal (107.1 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2012,
+   "to": 2018,
+   "when": {},
+   "gallons": [
+    26.0,
+    34.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12sierra-2946201801207699803.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14sierra_23188200C-2.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16sierra2ndPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_GMC_Sierra_OM_U_en_US_84016542B_2017OCT18_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "1500 standard and short box 26.0 gal (98.4 L); 1500 long box 34.0 gal (128.7 L). Includes 2016-2018 eAssist \"15 Hybrid\" rows."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Equinox",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12equinoxOM-7862310624010030137.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14equinox2ndPrint-7279487851704651747.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17equinox2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4L L4: 18.8 gal (71.1 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Equinox",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "cylinders": 6
+   },
+   "gallons": [
+    20.9
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12equinoxOM-7862310624010030137.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14equinox2ndPrint-7279487851704651747.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17equinox2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "3.0L/3.6L V6: 20.9 gal (79.1 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Equinox",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Equinox_OM_U_en_US_23143657D_2017AUG18_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Equinox_OM_en_US_U_84443532C_2021FEB23_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Equinox_OM_en_US_U_85150510B_2023JUL27_2P_INS1.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/chevrolet/equinox/25_CHEV_Equinox_OM_en_US_U_18110620B_2024AUG29_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/equinox/26_CHEV_Equinox_OM_en_US_U_18951079B_2025JUN20_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD: 14.8 gal (56.0 L). 2025+ is the new generation, same capacities."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Equinox",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    15.6
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Equinox_OM_U_en_US_23143657D_2017AUG18_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Equinox_OM_en_US_U_84443532C_2021FEB23_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Equinox_OM_en_US_U_85150510B_2023JUL27_2P_INS1.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/chevrolet/equinox/25_CHEV_Equinox_OM_en_US_U_18110620B_2024AUG29_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/equinox/26_CHEV_Equinox_OM_en_US_U_18951079B_2025JUN20_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD: 15.6 gal (59.0 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Terrain",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "cylinders": 4
+   },
+   "gallons": [
+    18.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12terrain1011-911743126728428387.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14terrainden2ndPrint-7262187792056962361.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17terrain2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2.4L L4: 18.8 gal (71.1 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Terrain",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "cylinders": 6
+   },
+   "gallons": [
+    20.9
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12terrain1011-911743126728428387.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14terrainden2ndPrint-7262187792056962361.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17terrain2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "3.0L/3.6L V6: 20.9 gal (79.1 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Terrain",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    14.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_GMC_Terrain_OM_U_en_US_23194369B_2017Aug28_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Terrain_Terrain_Denali_OM_en_US_U_84443536B_2020NOV25_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Terrain_Terrain_Denali_OM_en_US_U_85150511B_2023JUL27_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/gmc/terrain/25_GMC_Terrain_Terrain_Denali_OM_en_US_U_18552429B_2025FEB18_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/terrain/26_GMC_Terrain_Terrain_Denali_OM_en_US_U_19167359B_2025JUN20_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD: 14.8 gal (56.0 L). 2025+ is the new generation, same capacities."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Terrain",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    15.6
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_GMC_Terrain_OM_U_en_US_23194369B_2017Aug28_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Terrain_Terrain_Denali_OM_en_US_U_84443536B_2020NOV25_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Terrain_Terrain_Denali_OM_en_US_U_85150511B_2023JUL27_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/gmc/terrain/25_GMC_Terrain_Terrain_Denali_OM_en_US_U_18552429B_2025FEB18_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/terrain/26_GMC_Terrain_Terrain_Denali_OM_en_US_U_19167359B_2025JUN20_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD: 15.6 gal (59.0 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Traverse",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    19.4
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Traverse_OM_en_US_U_23168733C_2018FEB02_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Traverse_OM_en_US_U_84415997C_2021APR01_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Traverse_OM_en_US_U_84999704B_2022AUG09_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Traverse_OM_en_US_U_17442647D_2024OCT10_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/traverse/26_CHEV_Traverse_OM_en_US_U_19356103A_2025JUN13.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD: 19.4 gal (73.4/73.0 L). Includes 2024 Traverse Limited (manual 19.4)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Traverse",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    21.7
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Traverse_OM_en_US_U_23168733C_2018FEB02_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Traverse_OM_en_US_U_84415997C_2021APR01_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Traverse_OM_en_US_U_84999704B_2022AUG09_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Traverse_OM_en_US_U_17442647D_2024OCT10_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/traverse/26_CHEV_Traverse_OM_en_US_U_19356103A_2025JUN13.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD: 21.7 gal (82.1/82.0 L). Includes 2024 Traverse Limited."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Traverse",
+   "from": 2012,
+   "to": 2017,
+   "when": {},
+   "gallons": [
+    22.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12traverse1634068113371763783.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14traverse2ndprint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17traverse2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "22.0 gal (83.3 L), FWD and AWD."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Acadia",
+   "from": 2017,
+   "to": 2017,
+   "when": {
+    "modelContains": "Limited"
+   },
+   "gallons": [
+    22.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17acadialimited1stPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2017 Acadia Limited (previous body): 22.0 gal."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Acadia",
+   "from": 2017,
+   "to": 2026,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    19.4
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17acadia2ndPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Acadia_Acadia_Denali_OM_en_US_U_84289158B_2019OCT29_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_GMC_Acadia_Acadia_Denali_OM_en_US_U_85004213B_2022AUG09_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Acadia_Acadia_Denali_OM_en_US_U_17955620D_2024OCT10_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/acadia/26_GMC_Acadia_Acadia_Denali_OM_en_US_U_19344914A_2025JUN13.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "FWD: 19.4 gal. 2024+ new generation, same capacities."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Acadia",
+   "from": 2017,
+   "to": 2026,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    21.7
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/2k17acadia2ndPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Acadia_Acadia_Denali_OM_en_US_U_84289158B_2019OCT29_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_GMC_Acadia_Acadia_Denali_OM_en_US_U_85004213B_2022AUG09_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Acadia_Acadia_Denali_OM_en_US_U_17955620D_2024OCT10_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/acadia/26_GMC_Acadia_Acadia_Denali_OM_en_US_U_19344914A_2025JUN13.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "AWD: 21.7 gal."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Acadia",
+   "from": 2012,
+   "to": 2016,
+   "when": {},
+   "gallons": [
+    22.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12acadia8557931287091870758.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14acadia2ndprint5311620378138415010.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16acadia2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "22.0 gal (83.3 L), FWD and AWD."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Tahoe",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    24.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12tahyukdenhy-288077807538964.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13tahyukdenhy552037067559372710.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Tahoe Hybrid: 24.5 gal (92.7 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Tahoe",
+   "from": 2012,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12tahsub7171565781760447481.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14tahoe2ndPrint6532638687750467561.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2015/2k15i_tahoesub3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Tahoe_Suburban_OM_U_en_US_84016523B_2017NOV15_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Tahoe_Suburban_OM_en_US_U_84367240B_2019AUG05_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Regular/short wheelbase: 26.0 gal (98.4 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Tahoe",
+   "from": 2021,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    24.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Tahoe_Suburban_OM_en_US_U_84266975C_2025MAY12_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Tahoe_Suburban_OM_en_US_U_84979315D_2025MAY19_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Tahoe_Suburban_OM_en_US_U_85657847D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/26_CHEV_Tahoe_Suburban_OM_en_US_U_19431973C_2026JUN08_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Short wheelbase: 24.0 gal (90.8 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Suburban",
+   "from": 2012,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    31.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12tahsub7171565781760447481.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14tahoe2ndPrint6532638687750467561.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2015/2k15i_tahoesub3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Tahoe_Suburban_OM_U_en_US_84016523B_2017NOV15_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Tahoe_Suburban_OM_en_US_U_84367240B_2019AUG05_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Extended/long wheelbase 1500: 31.5 gal (119.2 L). (2500 Series 39.0 gal is not EPA-rated.)"
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Suburban",
+   "from": 2021,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Tahoe_Suburban_OM_en_US_U_84266975C_2025MAY12_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Tahoe_Suburban_OM_en_US_U_84979315D_2025MAY19_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Tahoe_Suburban_OM_en_US_U_85657847D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/26_CHEV_Tahoe_Suburban_OM_en_US_U_19431973C_2026JUN08_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Long wheelbase: 28.0 gal (106.0 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Yukon",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    24.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12tahyukdenhy-288077807538964.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13tahyukdenhy552037067559372710.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Yukon / Yukon Denali Hybrid: 24.5 gal (92.7 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Yukon",
+   "from": 2012,
+   "to": 2020,
+   "when": {
+    "modelContains": "XL"
+   },
+   "gallons": [
+    31.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12yukondenxl-5503337004422668518.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14yukonxl5936397536428403918.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16yukon3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_GMC_Yukon_OM_U_en_US_84016524C_2018MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Yukon_YukonXL_Denali_OM_en_US_U_84367243B_2019AUG05_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Yukon XL (1500): 31.5 gal (119.2 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Yukon",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "modelContains": "XL"
+   },
+   "gallons": [
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_84266976D_2025MAY13_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_16417394D_2025MAY20_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Yukon_Yukon_Denali_XL_OM_en_US_U_17746371D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/yukon/26_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_19431985C_2026JUN08_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Yukon XL: 28.0 gal (106.0 L)."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Yukon",
+   "from": 2012,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12yukondenxl-5503337004422668518.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14yukonxl5936397536428403918.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16yukon3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_GMC_Yukon_OM_U_en_US_84016524C_2018MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Yukon_YukonXL_Denali_OM_en_US_U_84367243B_2019AUG05_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Yukon (short wheelbase): 26.0 gal (98.4 L). XL rows have their own entry."
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Yukon",
+   "from": 2021,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    24.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_84266976D_2025MAY13_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_16417394D_2025MAY20_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Yukon_Yukon_Denali_XL_OM_en_US_U_17746371D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/yukon/26_GMC_Yukon_Yukon_XL_Denali_OM_en_US_U_19431985C_2026JUN08_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Yukon (short wheelbase): 24.0 gal (90.8 L). XL rows have their own entry."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2013,
+   "to": 2014,
+   "when": {
+    "modelContains": "eAssist"
+   },
+   "gallons": [
+    15.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13malibu.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14malibu2ndPrint6686695039808422788.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "LT/LTZ with eAssist: 15.8 gal (59.7 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2016,
+   "to": 2016,
+   "when": {
+    "modelContains": "Limited"
+   },
+   "gallons": [
+    16.6,
+    18.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16malibulim2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2016 Malibu Limited (previous body): base 16.6 gal, LT/LTZ 18.5 gal."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2016,
+   "to": 2019,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    13.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16malibu2ndPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/17_CHEV_Malibu_OM_en_US_23461930B_2016OCT18_LO_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Malibu_OM_U_en_US_23378946A_2017MAY03.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Malibu_OM_en_US_U_84074155B_2018DEC18_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Malibu Hybrid (1.8L): 13.0 gal (49.2 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2013,
+   "to": 2015,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    15.8,
+    18.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2013/2k13malibu.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2014/2k14malibu2ndPrint6686695039808422788.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2015/2k15malibu2ndPrint.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Base model 15.8 gal; LT/LTZ (without eAssist) 18.5 gal (70.0 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2016,
+   "to": 2017,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    13.0,
+    15.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16malibu2ndPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/17_CHEV_Malibu_OM_en_US_23461930B_2016OCT18_LO_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "1.5L turbo 13.0 gal (49.2 L); 2.0L turbo 15.8 gal (59.8 L); both 4-cyl so EPA rows cannot be split."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2018,
+   "to": 2025,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    15.8
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Malibu_OM_U_en_US_23378946A_2017MAY03.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Malibu_OM_en_US_U_84074155B_2018DEC18_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Malibu_OM_en_US_U_84313268C_2020JAN21_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Malibu_OM_en_US_U_84523389B_2020NOV19_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Malibu_OM_en_US_U_84922138B_2022OCT10_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/chevrolet/malibu/25_CHEV_Malibu_OM_en_US_U_85650750A_2024MAY14.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "1.5L and 2.0L: 15.8 gal (59.8 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Malibu",
+   "from": 2012,
+   "to": 2012,
+   "when": {},
+   "gallons": [
+    16.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12malibu1960651914236810573.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 Malibu (previous gen): 16.3 gal (61.7 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Colorado",
+   "from": 2012,
+   "to": 2012,
+   "when": {},
+   "gallons": [
+    19.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2012/2k12colorado-7559245570593648756.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2012 (previous gen): 19.5 gal (74 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Colorado",
+   "from": 2015,
+   "to": 2018,
+   "when": {},
+   "gallons": [
+    21.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2015/2k15colorado3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2016/2k16colorado3rdPrint.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2017/17_CHEV_Colorado_OM_U_en_US_84172366B_2017FEB17_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2018/18_CHEV_Colorado_OM_U_en_US_23396590B_2017OCT17_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "21 gal (80 L) per owner manual."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Colorado",
+   "from": 2019,
+   "to": 2019,
+   "when": {},
+   "gallons": [
+    20.6
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19i_CHEV_Colorado_OM_en_US_U_84605368B_2018OCT11_2P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "2019 owner manual lists 20.6 gal (78 L) (2018 manual: 21 gal / 80 L; 2020: 21.1 gal / 79.9 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Colorado",
+   "from": 2020,
+   "to": 2022,
+   "when": {},
+   "gallons": [
+    21.1
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Colorado_OM_en_US_U_84354075B_2019OCT08_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Colorado_OM_en_US_U_84426903D_2021JUN22_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_CHEV_Colorado_OM_en_US_U_84754496C_2022JUL14_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "21.1 gal (79.9 L)."
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Colorado",
+   "from": 2023,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    21.5
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2023/23_CHEV_Colorado_OM_en_US_U_16510626B_2023MAY09_2P_INS1.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Colorado_OM_en_US_U_17725379B_2024MAR05_2P_INS1.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2025/chevrolet/colorado/25_CHEV_Colorado_OM_en_US_U_18508130B_2025FEB18_2P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/colorado/26_CHEV_Colorado_OM_en_US_U_19451149A_2025JUN06.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "21.5 gal (81.4 L)."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2019,
+   "to": 2024,
+   "when": {
+    "modelContains": "Classic"
+   },
+   "gallons": [
+    26.0,
+    32.0
+   ],
+   "sources": [
+    "https://www.kbb.com/ram/1500-classic-regular-cab/2021/specs",
+    "https://www.kbb.com/ram/1500-classic-crew-cab/2020/specs",
+    "https://www.kbb.com/ram/1500-classic-quad-cab/2023/specs",
+    "https://www.cars.com/research/ram-1500_classic-2020/specs/",
+    "https://www.cars.com/research/ram-1500_classic-2020/specs/408060/",
+    "https://www.cars.com/research/ram-1500_classic-2020/specs/407263/"
+   ],
+   "basis": "two-sources",
+   "note": "Ram 1500 Classic (carryover DS): KBB and cars.com both show 26 gal (Reg Cab 6 ft 4 in) and 32 gal (Reg Cab 8 ft); for Quad/Crew KBB shows 32, cars.com 26, consistent with 2018 DS spec (26 std / 32 opt)."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2021,
+   "to": 2024,
+   "when": {
+    "modelContains": "TRX"
+   },
+   "gallons": [
+    33.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21971",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24023",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25267"
+   ],
+   "basis": "manufacturer",
+   "note": "TRX: 33 gal standard (2021 TRX spec; 2023/2024 Ram 1500 specs \"standard on TRX\")."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2025,
+   "to": 2026,
+   "when": {
+    "modelContains": "RHO"
+   },
+   "gallons": [
+    33.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25689",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27013"
+   ],
+   "basis": "manufacturer",
+   "note": "RHO: 33 gal standard."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2013,
+   "to": 2018,
+   "when": {},
+   "gallons": [
+    26.0,
+    32.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=12162",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=14458",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17681",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18389"
+   ],
+   "basis": "manufacturer",
+   "note": "26 gal standard (32 gal standard on Regular Cab 8 ft box); 32 gal optional on Quad/Crew Cab. Spec sheets 2013, 2014, 2017, 2018."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2019,
+   "to": 2024,
+   "when": {},
+   "gallons": [
+    23.0,
+    26.0,
+    33.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18750",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21942",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24023",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25267"
+   ],
+   "basis": "manufacturer",
+   "note": "DT: 23 gal and 26 gal standard depending on configuration, 33 gal optional. Classic and TRX have their own entries."
+  },
+  {
+   "make": "Ram",
+   "baseModel": "1500",
+   "from": 2025,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    26.0,
+    33.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25689",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27013"
+   ],
+   "basis": "manufacturer",
+   "note": "26 gal standard, 33 gal optional (standard on Longhorn/Limited/Tungsten). RHO has its own entry."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Durango",
+   "from": 2012,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    24.6
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11323",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13050",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=16661",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20051",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21820",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24422",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26414",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27428"
+   ],
+   "basis": "manufacturer",
+   "note": "24.6 gal (93.1 L) every year checked (2012, 2013, 2016, 2019, 2021, 2023, 2025, 2026), incl. SRT."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Grand Caravan",
+   "from": 2012,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    20.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11326",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13036",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=16677",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20998"
+   ],
+   "basis": "manufacturer",
+   "note": "20 gal (76 L); 2012 from feature availability sheet."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Charger",
+   "from": 2012,
+   "to": 2013,
+   "when": {
+    "modelContains": "SRT8"
+   },
+   "gallons": [
+    19.1
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11138",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13054"
+   ],
+   "basis": "manufacturer",
+   "note": "SRT8: 19.1 gal (72.2 L)."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Charger",
+   "from": 2014,
+   "to": 2014,
+   "when": {
+    "modelContains": "SRT8"
+   },
+   "gallons": [
+    19.4
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=14781"
+   ],
+   "basis": "manufacturer",
+   "note": "2014 Charger SRT spec sheet: 19.4 gal (73.4 L)."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Charger",
+   "from": 2026,
+   "to": 2026,
+   "when": {
+    "cylinders": 6
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26962"
+   ],
+   "basis": "manufacturer",
+   "note": "2026 Charger with 3.0L SIXPACK I6 (R/T, Scat Pack AWD): 17.5 gal. Charger Daytona EV rows have no fuel tank. 2024-2025 Charger was EV-only."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Charger",
+   "from": 2012,
+   "to": 2014,
+   "when": {},
+   "gallons": [
+    19.1
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11422",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13039",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=14741"
+   ],
+   "basis": "manufacturer",
+   "note": "19.1 gal (72.2 L), non-SRT (2012 from feature availability sheet). SRT8 has its own entry."
+  },
+  {
+   "make": "Dodge",
+   "baseModel": "Charger",
+   "from": 2015,
+   "to": 2023,
+   "when": {},
+   "gallons": [
+    18.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=15578",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18432",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20895",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24019"
+   ],
+   "basis": "manufacturer",
+   "note": "18.5 gal (70.0 L), incl. SRT/Widebody (spec sheets cover Charger and Charger SRT)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "modelContains": "Grand Cherokee 2WD"
+   },
+   "gallons": [
+    23.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23150",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25137",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26340",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27148"
+   ],
+   "basis": "manufacturer",
+   "note": "WL two-row (3.6L V6, 5.7L V8, 2026 2.0L Hurricane): 23 gal (87 L). EPA model \"Grand Cherokee 2WD\". 2022 \"Grand Cherokee WK\" carryover rows are NOT covered."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "modelContains": "Grand Cherokee 4WD"
+   },
+   "gallons": [
+    23.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23150",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25137",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26340",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27148"
+   ],
+   "basis": "manufacturer",
+   "note": "WL two-row (3.6L V6, 5.7L V8, 2026 2.0L Hurricane): 23 gal (87 L). EPA model \"Grand Cherokee 4WD\"."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "modelContains": "Grand Cherokee L"
+   },
+   "gallons": [
+    23.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=22432",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23400",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26339",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27149"
+   ],
+   "basis": "manufacturer",
+   "note": "Grand Cherokee L: 23 gal (87 L)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2022,
+   "to": 2026,
+   "when": {
+    "modelContains": "4xe"
+   },
+   "gallons": [
+    19.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23150",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23859",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=25138",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26338",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27157"
+   ],
+   "basis": "manufacturer",
+   "note": "4xe plug-in hybrid (2.0L turbo): 19 gal (72 L). 2026 from Stellantis Canada 4xe spec sheet (no US 2026 4xe sheet published)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2012,
+   "to": 2021,
+   "when": {},
+   "gallons": [
+    24.6
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11328",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=10828",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=12814",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13006",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13731",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=16705",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18217",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20112",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21930"
+   ],
+   "basis": "manufacturer",
+   "note": "WK2: 24.6 gal (93.1 L), incl. SRT8/SRT/Trackhawk/EcoDiesel. For 2021 the Grand Cherokee L rows have their own entry."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "hybrid": false,
+    "modelContains": "4dr"
+   },
+   "gallons": [
+    21.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21929",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23362",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23899",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24885",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26154",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27221"
+   ],
+   "basis": "manufacturer",
+   "note": "4-door gas (2.0T, 3.6L, 6.4L 392): 21.5 gal. 4xe and EcoDiesel rows have their own entries."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2018,
+   "to": 2018,
+   "when": {
+    "modelContains": "New Wrangler Unlimited"
+   },
+   "gallons": [
+    21.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18664"
+   ],
+   "basis": "manufacturer",
+   "note": "2018 JL \"New Wrangler Unlimited\": 21.5 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2018,
+   "to": 2018,
+   "when": {
+    "modelContains": "Wrangler Unlimited 4WD"
+   },
+   "gallons": [
+    22.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18386"
+   ],
+   "basis": "manufacturer",
+   "note": "2018 Wrangler JK Unlimited: 22.5 gal. Use only when the more specific \"New Wrangler Unlimited\" entry does not match."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2018,
+   "to": 2018,
+   "when": {
+    "modelContains": "New Wrangler 4WD"
+   },
+   "gallons": [
+    17.5,
+    18.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18664"
+   ],
+   "basis": "manufacturer",
+   "note": "2018 JL 2-door \"New Wrangler 4WD\": FCA sheet 18.5 gal (KBB shows 17.5 for Sport/Sport S 2-door, 18.5 for Rubicon). Offered as 17.5 or 18.5: Stellantis 2018 to 2019 sheets say 18.5; KBB 2018 Sport and 2020+ sheets say 17.5."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2018,
+   "to": 2018,
+   "when": {
+    "modelContains": "Wrangler 4WD"
+   },
+   "gallons": [
+    18.6
+   ],
+   "sources": [
+    "https://www.kbb.com/jeep/wrangler/2018/specs",
+    "https://www.cars.com/research/jeep-wrangler_jk-2018/specs/",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17670"
+   ],
+   "basis": "two-sources",
+   "note": "2018 Wrangler JK 2-door: KBB 18.6 gal, cars.com 19 gal (rounded), 2017 FCA sheet 18.6. 2018 JK FCA sheet only states 22.5 (Unlimited). Use only when \"New Wrangler 4WD\" does not match."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "modelContains": "Unlimited"
+   },
+   "gallons": [
+    22.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=16711",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17671"
+   ],
+   "basis": "manufacturer",
+   "note": "JK Unlimited (4-door): 22.5 gal (2016, 2017 Unlimited spec sheets)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2019,
+   "to": 2019,
+   "when": {
+    "modelContains": "Unlimited"
+   },
+   "gallons": [
+    21.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20115"
+   ],
+   "basis": "manufacturer",
+   "note": "JL Unlimited 4-door: 21.5 gal (2019 sheet; 3.6L and 2.0T)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2020,
+   "to": 2020,
+   "when": {
+    "modelContains": "Unlimited"
+   },
+   "gallons": [
+    18.3,
+    21.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21092"
+   ],
+   "basis": "manufacturer",
+   "note": "JL Unlimited: gas 21.5 gal; 3.0L EcoDiesel 18.3 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2021,
+   "to": 2023,
+   "when": {
+    "modelContains": "EcoDiesel",
+    "diesel": true
+   },
+   "gallons": [
+    18.3
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21929",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23362",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23899"
+   ],
+   "basis": "manufacturer",
+   "note": "3.0L EcoDiesel 4-door: 18.3 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2021,
+   "to": 2025,
+   "when": {
+    "modelContains": "4xe"
+   },
+   "gallons": [
+    17.2
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=22140",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23900",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24886",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26156"
+   ],
+   "basis": "manufacturer",
+   "note": "Wrangler 4xe plug-in hybrid: 17.2 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "modelContains": "2dr"
+   },
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21929",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23362",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=23899",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24885",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26154",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27221"
+   ],
+   "basis": "manufacturer",
+   "note": "2-door: 17.5 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2012,
+   "to": 2017,
+   "when": {},
+   "gallons": [
+    18.6
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11190",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=14776",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17670"
+   ],
+   "basis": "manufacturer",
+   "note": "JK 2-door: 18.6 gal (2012, 2014, 2017 spec sheets). Unlimited rows have their own entry."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2019,
+   "to": 2019,
+   "when": {},
+   "gallons": [
+    17.5,
+    18.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20115"
+   ],
+   "basis": "manufacturer",
+   "note": "JL 2-door: 18.5 gal per 2019 FCA sheet. Unlimited rows have their own entry. Offered as 17.5 or 18.5: Stellantis 2018 to 2019 sheets say 18.5; KBB 2018 Sport and 2020+ sheets say 17.5."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2020,
+   "to": 2020,
+   "when": {},
+   "gallons": [
+    17.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21092"
+   ],
+   "basis": "manufacturer",
+   "note": "JL 2-door: 17.5 gal. Unlimited rows have their own entry."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Cherokee",
+   "from": 2014,
+   "to": 2023,
+   "when": {},
+   "gallons": [
+    15.9
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=14051",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17663",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18759",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24567"
+   ],
+   "basis": "manufacturer",
+   "note": "KL: 15.9 gal (60.0 L), all engines."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Cherokee",
+   "from": 2026,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    13.7
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26996"
+   ],
+   "basis": "manufacturer",
+   "note": "2026 Cherokee (1.6L turbo hybrid): 13.7 gal (51.9 L)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Compass",
+   "from": 2017,
+   "to": 2017,
+   "when": {
+    "modelContains": "New Compass"
+   },
+   "gallons": [
+    13.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17945"
+   ],
+   "basis": "manufacturer",
+   "note": "2017 all-new MP Compass (EPA \"New Compass\"): 13.5 gal (51 L)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Compass",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "drive": "2WD"
+   },
+   "gallons": [
+    13.6
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11350",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13003",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13688",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17658"
+   ],
+   "basis": "manufacturer",
+   "note": "MK (previous gen) 2WD/FWD: 13.6 gal (51.5 L). 2017 MP \"New Compass\" rows have their own entry."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Compass",
+   "from": 2012,
+   "to": 2017,
+   "when": {
+    "drive": "4WD/AWD"
+   },
+   "gallons": [
+    13.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11350",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13003",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13688",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17658"
+   ],
+   "basis": "manufacturer",
+   "note": "MK (previous gen) 4WD: 13.5 gal (51.1 L)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Compass",
+   "from": 2018,
+   "to": 2025,
+   "when": {},
+   "gallons": [
+    13.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20096",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=22853",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26013"
+   ],
+   "basis": "manufacturer",
+   "note": "MP: 13.5 gal (51 L) (2017, 2019, 2022, 2025 sheets read; constant across the generation)."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Compass",
+   "from": 2026,
+   "to": 2026,
+   "when": {},
+   "gallons": [
+    13.5
+   ],
+   "sources": [
+    "https://www.kbb.com/jeep/compass/2026/specs",
+    "https://www.cars.com/research/jeep-compass-2026/specs/",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=26013",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=28137"
+   ],
+   "basis": "two-sources",
+   "note": "No US 2026 FCA sheet; KBB 13.5 gal, cars.com 14 gal (rounded); 2025 and 2027 Stellantis sheets both 13.5 gal."
+  },
+  {
+   "make": "Chrysler",
+   "baseModel": "Pacifica",
+   "from": 2017,
+   "to": 2017,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    17.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17213"
+   ],
+   "basis": "manufacturer",
+   "note": "2017 Pacifica Hybrid: 17 gal (64.3 L) per 2017 spec sheet."
+  },
+  {
+   "make": "Chrysler",
+   "baseModel": "Pacifica",
+   "from": 2018,
+   "to": 2026,
+   "when": {
+    "modelContains": "Hybrid"
+   },
+   "gallons": [
+    16.5
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18427",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20000",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20888",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21560",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27042"
+   ],
+   "basis": "manufacturer",
+   "note": "Pacifica Hybrid (PHEV): 16.5 gal (62.5 L)."
+  },
+  {
+   "make": "Chrysler",
+   "baseModel": "Pacifica",
+   "from": 2017,
+   "to": 2026,
+   "when": {
+    "hybrid": false
+   },
+   "gallons": [
+    19.0
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=17213",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18427",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=19999",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21559",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=24017",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=27041"
+   ],
+   "basis": "manufacturer",
+   "note": "Gas Pacifica (FWD and AWD): 19 gal (71.9 L)."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2018,
+   "to": 2020,
+   "when": {
+    "diesel": true
+   },
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2018-Ford-F-150-Owners-Manual-version-5_om_EN-US_09_2018.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2019-Ford-F150-Owners-Manual-version-3_om_EN-US_04_2019.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2020-Ford-F-150-Owners-Manual-version3_om_EN-US_04_2020.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 3.0L Power Stroke 26.0 gal per owner manual"
+  },
+  {
+   "make": "Ford",
+   "baseModel": "F150",
+   "from": 2021,
+   "to": 2021,
+   "when": {
+    "diesel": true
+   },
+   "gallons": [
+    26.0
+   ],
+   "sources": [
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2021-Ford-F-150-Owners-Manual-version-2_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2022-Ford-F-150-Owners-Manual-version-1_om_EN-US_10_2021.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2023_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2024_Ford_F-150_Owners_Manual_version_1_om_EN-US.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2025_Ford_F150_P702_OM_ENGLISH_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/Catalog/owner_information/2026_F-150_OM_enUSA_V1.pdf",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=9043&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web",
+    "https://www.fordservicecontent.com/Ford_Content/vdirsnet/OwnerManual/Home/Index?Variantid=10802&languageCode=EN&countryCode=USA&marketCode=US&bookcode=O&viewTech=IE&userMarket=USA&div=f&buildtype=web"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 2021 3.0L diesel 26.0 gal per owner manual"
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "2WD",
+    "diesel": true
+   },
+   "gallons": [
+    22.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Silverado_1500_OM_en_US_U_23400204D_2019MAR01_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Silverado_OM_en_US_U_84186886C_2020JAN30_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 2WD 3.0L diesel short box 22.0 gal, long box 28.0 gal per owner manual"
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "2WD",
+    "diesel": true
+   },
+   "gallons": [
+    22.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_CHEV_Silverado_1500_OM_en_US_U_84550389E_2025MAY09_5P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_CHEV_Silverado_1500_OM_en_US_U_84719634D_2025MAY16_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_CHEV_Silverado_1500_OM_en_US_U_85516379D_2025JUN26_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/chevrolet/silverado_1500/26_CHEV_Silverado_1500_OM_en_US_U_86595939C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 2WD diesel short box 22.0 gal, long box 28.3 gal per owner manual"
+  },
+  {
+   "make": "Chevrolet",
+   "baseModel": "Silverado",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "4WD/AWD",
+    "diesel": true
+   },
+   "gallons": [
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_CHEV_Silverado_1500_OM_en_US_U_23400204D_2019MAR01_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_CHEV_Silverado_OM_en_US_U_84186886C_2020JAN30_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 4WD short box 24.0 gal (gas and diesel), long box 28.0 gal"
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "2WD",
+    "diesel": true
+   },
+   "gallons": [
+    22.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_GMC_Sierra_Sierra_Denali_OM_en_US_U_23400205D_2019MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Sierra_OM_en_US_U_84186890A_2019APR11.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 2WD 3.0L diesel short box 22.0 gal, long box 28.0 gal per owner manual"
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2021,
+   "to": 2026,
+   "when": {
+    "drive": "2WD",
+    "diesel": true
+   },
+   "gallons": [
+    22.0,
+    28.3
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2021/21_GMC_Sierra_Sierra_Denali_OM_en_US_U_84550392D_2025MAY12_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2022/22_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_84719636D_2025MAY15_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2024/24_GMC_Sierra_Sierra_Denali_OM_en_US_U_85516381C_2025JUN26_3P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2026/gmc/sierra_1500/26_GMC_Sierra_Sierra_Denali_1500_OM_en_US_U_86595943C_2026JUN15_3P.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 2WD diesel short box 22.0 gal, long box 28.3 gal per owner manual"
+  },
+  {
+   "make": "GMC",
+   "baseModel": "Sierra",
+   "from": 2019,
+   "to": 2020,
+   "when": {
+    "drive": "4WD/AWD",
+    "diesel": true
+   },
+   "gallons": [
+    24.0,
+    28.0
+   ],
+   "sources": [
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2019/19_GMC_Sierra_Sierra_Denali_OM_en_US_U_23400205D_2019MAY14_4P.pdf",
+    "https://contentdelivery.ext.gm.com/content/dam/cope/en_us/public/pdf_assets/active/owners_manuals_browse/2020/20_GMC_Sierra_OM_en_US_U_84186890A_2019APR11.pdf"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: 4WD short box 24.0 gal (gas and diesel), long box 28.0 gal"
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "from": 2012,
+   "to": 2021,
+   "when": {
+    "diesel": true
+   },
+   "gallons": [
+    24.6
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=11328",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=10828",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=12814",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13006",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=13731",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=16705",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=18217",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=20112",
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21930"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: WK2 24.6 gal including EcoDiesel per Stellantis spec sheets"
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "from": 2020,
+   "to": 2020,
+   "when": {
+    "modelContains": "Unlimited",
+    "diesel": true
+   },
+   "gallons": [
+    18.3
+   ],
+   "sources": [
+    "https://media.stellantisnorthamerica.com/view-spec.do?id=21092"
+   ],
+   "basis": "manufacturer",
+   "note": "Diesel: JL Unlimited 3.0L EcoDiesel 18.3 gal"
   }
  ],
  "unverified": [
@@ -1723,6 +4909,24 @@
    "baseModel": "Telluride",
    "years": "2020-2025",
    "reason": "Not verified: Hyundai/Kia press sites are not fetchable and the web search budget ran out; only KBB was reachable (single source). KBB: 2022 18.8 (EPA file has no 2026 Telluride rows)"
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Wrangler",
+   "years": "2026",
+   "reason": "Wrangler 4xe (EPA 'Wrangler 4dr 4xe'): no 2026 4xe spec sheet on Stellantis media (2026 sheet says 4xe is in separate documents, none published); KBB 2026 lists no 4xe. 2021-2025 4xe was 17.2 gal."
+  },
+  {
+   "make": "Jeep",
+   "baseModel": "Grand Cherokee",
+   "years": "2022",
+   "reason": "'Grand Cherokee WK' carryover rows: no 2022 Stellantis sheet; only cars.com (25 gal, rounded) found; 2021 WK2 sheet says 24.6 gal."
+  },
+  {
+   "make": "Ford",
+   "baseModel": "Mustang",
+   "years": "2025-2026",
+   "reason": "Mustang GTD (EPA 'Mustang GTD', 8-cyl) not covered by the Mustang owner manual checked; the cylinders=8 entry may match these rows."
   }
  ]
 }
