@@ -126,6 +126,9 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   a3.consider(fake(100 * MILE), { ...all, announceGasGaps: false }, { lastOpen: lastOpen(4 * MILE, 'other') });
   a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(4 * MILE, 'third', 'g1'), gasGap: { length: 50 * MILE, before: { distance: 0, exit: { id: 'g1', label: '7' } } } });
   assert.equal(heard.length, 1, heard.join(' | '));
+  // Google Maps hours are never spoken (Google's terms forbid text to speech of its content).
+  a3.consider(fake(100 * MILE), all, { lastOpen: { ...lastOpen(4 * MILE, 'google'), evaluation: { hours: { status: 'verified', source: 'Google Maps' } } } });
+  assert.equal(heard.length, 1, heard.join(' | '));
 
   // Road alerts (same cases as VoiceAnnouncements in RoadIntelTests.swift): serious from 10 miles, others from
   // 2, once each, never within 0.3 mile, and not at all when alert voice is off. Simulated test alerts.

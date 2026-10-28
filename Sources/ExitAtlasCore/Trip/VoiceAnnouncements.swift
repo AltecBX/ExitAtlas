@@ -115,7 +115,8 @@ public struct VoiceAnnouncements: Sendable {
         }
         // Overnight: the last stop listed open before a long stretch, once per stop. Not when it is the same
         // exit as the last gas just announced.
-        if settings.gasGaps, let lo = lastOpen, let ahead = lo.stop.ahead, ahead > 0, ahead <= Self.gapWarning,
+        // Not when "listed open" rests on Google Maps hours: its terms forbid text to speech of its content.
+        if settings.gasGaps, let lo = lastOpen, !lo.evaluation.hoursFromGoogle, let ahead = lo.stop.ahead, ahead > 0, ahead <= Self.gapWarning,
            !announcedOpen.contains(lo.stop.id), lo.stop.exitID == nil || gasGap?.before?.exit?.id != lo.stop.exitID {
             announcedOpen.insert(lo.stop.id)
             let place = lo.stop.exitLabel.map { "\(lo.stop.name) at Exit \($0)" } ?? lo.stop.name

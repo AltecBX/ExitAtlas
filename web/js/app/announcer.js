@@ -170,7 +170,9 @@ export class Announcer {
     // Overnight: the last stop listed open before a long stretch, once per stop. Not when it is the same
     // exit as the last gas just announced.
     const lo = ctx.lastOpen;
-    if (settings.announceGasGaps !== false && lo && lo.stop.ahead > 0 && lo.stop.ahead <= GAP_WARN && !this.announcedOpen.has(lo.stop.id)
+    // Not when "listed open" rests on Google Maps hours: its terms forbid text to speech of its content.
+    const fromGoogle = lo && (lo.evaluation?.hours.status === 'verified' || /google/i.test(lo.evaluation?.hours.source ?? ''));
+    if (settings.announceGasGaps !== false && lo && !fromGoogle && lo.stop.ahead > 0 && lo.stop.ahead <= GAP_WARN && !this.announcedOpen.has(lo.stop.id)
         && !(lo.stop.exitId && gap?.before?.exit?.id === lo.stop.exitId)) {
       this.announcedOpen.add(lo.stop.id);
       const where = lo.stop.exit ? `${lo.stop.name} at ${exitTitle(lo.stop.exit)}` : lo.stop.name;
