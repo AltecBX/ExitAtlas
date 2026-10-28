@@ -21,7 +21,7 @@ public struct FuelPriceObservation: Sendable, Codable, Hashable {
     public let pricePerGallon: Double
     /// When the provider says the price was observed or last updated.
     public let observedAt: Date
-    /// Provider name shown next to the price ("OPIS", "iExit", "Entered by you").
+    /// Provider name shown next to the price (for example "OPIS" or "Google Maps").
     public let source: String
 
     public init(placeID: String, grade: FuelGrade, pricePerGallon: Double, observedAt: Date, source: String) {
@@ -108,12 +108,14 @@ public struct FuelPlanner: Sendable {
 
     /// - Parameters:
     ///   - fuelGallons: fuel in the tank now.
-    ///   - window: only stations within this many meters ahead (nil means the whole usable range).
+    ///   - window: only stations within this many meters ahead (nil means 1.5 times the usable range, at least 50 miles).
     public func plan(snapshot: TripSnapshot, plan: TripPlan, dataset: InterstateDataset,
                      vehicle: VehicleProfile, fuelGallons: Double,
                      prices: [String: [FuelPriceObservation]], window: Double? = nil, now: Date) -> FuelPlan {
         let usableMeters = max(0, fuelGallons - vehicle.reserveGallons) * vehicle.metersPerGallon
-        let horizon = min(window ?? usableMeters * 1.5, 500 * Geodesy.metersPerMile)
+        // At or below the reserve nothing is "reachable", but the nearest stations still matter most,
+        // so the search always covers at least 50 miles.
+        let horizon = min(window ?? max(usableMeters * 1.5, 50 * Geodesy.metersPerMile), 500 * Geodesy.metersPerMile)
         let d = snapshot.progress
         var options: [FuelOption] = []
         for exit in plan.exits(after: d, upTo: d + horizon) {

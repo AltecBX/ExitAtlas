@@ -100,4 +100,15 @@ final class PlanningTests: XCTestCase {
         let staleID = gasExits.last!.1.place.id
         XCTAssertNil(result.options.first { $0.service.place.id == staleID }?.price)
     }
+
+    func testLowFuelStillListsTheNearestStations() {
+        let s = snapshot(at: 200)
+        let vehicle = VehicleProfile(milesPerGallon: 25, tankGallons: 15, reserveGallons: 2)
+        // At the reserve: no usable range, but the stations in the next 50 miles are still listed.
+        let result = FuelPlanner().plan(snapshot: s, plan: plan, dataset: Fixtures.interstates, vehicle: vehicle,
+                                        fuelGallons: 2, prices: [:], now: now)
+        XCTAssertFalse(result.options.isEmpty)
+        XCTAssertTrue(result.options.allSatisfy { !$0.reachable })
+        XCTAssertTrue(result.options.allSatisfy { $0.exit.distance <= 50 * Geodesy.metersPerMile + 1 })
+    }
 }

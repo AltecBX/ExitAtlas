@@ -2,6 +2,8 @@
 
 Status key: **Built** (in the app, engine tested, device untested), **Engine** (implemented and tested in ExitAtlasCore, no or partial UI), **Planned**, **Blocked** (needs a license, entitlement or source).
 
+The statuses in this document describe the iOS app and the Swift engine. The web version is ahead in several areas (speedometer, vehicle picker, miles to empty fuel stops, gas prices with the driver's own Google key, EV charging stops, saved places). The current inventory by platform is in document 9.
+
 ## 4.1 Core navigation
 
 | ID | Feature | Status | Acceptance criteria |
@@ -39,7 +41,7 @@ Status key: **Built** (in the app, engine tested, device untested), **Engine** (
 | E3 | Exit number, name, distance, time | Built | Names exist for few exits in source data (see document 2) |
 | E4 | Gas, food, lodging, rest areas, EV, dog parks | Built | OpenStreetMap via OpenInterstate |
 | E5 | Convenience, truck stops, grocery, pharmacy, attractions | Planned | Not in OpenInterstate categories; add from an OSM extract or Overture Places |
-| E6 | Fuel prices, hotel rates | Blocked | Licensed source required |
+| E6 | Fuel prices, hotel rates | Blocked on iOS. Web: gas prices from Google Places with the driver's own key | A licensed source is required for a shared or server side price feed (document 9) |
 | E7 | Logos | Blocked | Trademark permission; text brand names used |
 | E8 | Window 5, 10, 25, 50, 100 mi | Built | Segmented control |
 | E9 | Auto advance after passing | Built | List is relative to live position |
@@ -94,7 +96,7 @@ Planned, Phase 4, entitlement not guaranteed. Details in document 6.
 
 ## 4.10 Offline
 
-Built: all bundled data and engine features. Planned: persist active trip across app termination, storable OSM route geometry, offline reroute.
+Built: all bundled data and engine features, and persisting the active trip across app termination (resume recomputes the route, so it needs a connection). Planned: storable OSM route geometry, offline reroute.
 
 ## 4.11 Additional features (evaluated)
 
@@ -105,9 +107,9 @@ Built: all bundled data and engine features. Planned: persist active trip across
 | Saved trips, history, lifetime miles and states | Built | From the ledger |
 | Total fuel cost estimate | Planned | Needs price source; can use regional averages labeled as estimates (EIA weekly averages are public) |
 | Toll cost | Planned | TollGuru or HERE cost per trip; only "Tolls" badge now |
-| Alternative routes | Built | Up to 3 from MapKit with per state breakdown |
+| Alternative routes | Built | Every alternative MapKit returns (no cap), with per state breakdown |
 | Roadside assistance and emergency locations | Planned | Low cost: hospitals from OSM; 911 is always the first action |
-| EV range and compatible chargers | Planned | AFDC connectors plus range model like FuelPlanner |
+| EV range and compatible chargers | Planned on iOS. Web: EPA range and AFDC fast charger stops | AFDC connectors plus range model like FuelPlanner |
 | Pet friendly filter | Built for dog parks; hotel pet policy Blocked | Needs hotel data |
 | Share itinerary | Built | Text share sheet |
 | Custom alerts before an exit or rest area | Planned | Uses the same announcement engine |

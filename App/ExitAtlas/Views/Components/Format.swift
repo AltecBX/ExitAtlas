@@ -16,14 +16,6 @@ enum Format {
         return mi < 10 ? String(format: "%.1f", max(mi, 0)) : String(format: "%.0f", mi.rounded())
     }
 
-    static func spokenMiles(_ meters: Double) -> String {
-        let mi = meters / Geodesy.metersPerMile
-        if mi < 0.35 { return "a quarter mile" }
-        if mi < 0.75 { return "half a mile" }
-        let whole = Int(mi.rounded())
-        return whole == 1 ? "1 mile" : "\(whole) miles"
-    }
-
     static func duration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int((seconds / 60).rounded()))
         let h = total / 60, m = total % 60

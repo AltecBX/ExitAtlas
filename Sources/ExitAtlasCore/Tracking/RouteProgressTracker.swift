@@ -138,7 +138,8 @@ public struct RouteProgressTracker: Sendable {
         return m
     }
 
-    /// Starts tracking from a known distance (for example after a reroute begins at the current spot).
+    /// Starts tracking from a known distance. Not used by the app today: `TripSession.replacePlan`
+    /// starts a fresh tracker that acquires the new route from the next fixes.
     public mutating func reset(to distance: Double, at date: Date, speed: Double = 0) {
         match = RouteMatch(status: .onRoute, distanceAlongRoute: distance, offset: nil, isEstimated: false,
                            timestamp: date, speed: speed)

@@ -2,8 +2,6 @@
 import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
 import { routeFromOSRM } from '../engine/osrm.js';
 import { distance, initialBearing } from '../engine/geo.js';
-import { spokenMiles } from './format.js';
-import { exitTitle } from '../engine/exits.js';
 
 export const DATA_BASE = new URL('../App/ExitAtlas/Resources/Data/', document.baseURI);
 const DATA_VERSION = '20261027';
@@ -227,59 +225,7 @@ export class ScreenWake {
 
 // MARK: Voice
 
-/// Speaks state line and exit announcements, at most one message per snapshot.
-export class Announcer {
-  constructor() { this.reset(); }
-
-  reset() {
-    this.announcedExits = new Set();
-    this.announcedBorders = new Set();
-    this.lastSegmentIndex = null;
-  }
-
-  get supported() { return 'speechSynthesis' in window; }
-
-  speak(text) {
-    if (!this.supported) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = 1.0;
-    window.speechSynthesis.speak(u);
-  }
-
-  consider(s, settings) {
-    if (!settings.voice || s.match.status !== 'onRoute') {
-      this.lastSegmentIndex = s.current?.segment.index ?? null;
-      return;
-    }
-    const MILE = 1609.344;
-    if (settings.announceStateLines && s.current) {
-      const cur = s.current;
-      if (this.lastSegmentIndex !== null && cur.segment.index > this.lastSegmentIndex) {
-        this.lastSegmentIndex = cur.segment.index;
-        let text = `Welcome to ${cur.segment.displayName}.`;
-        if (s.next) text += ` ${spokenMiles(cur.remainingMeters)} of your route are in ${cur.segment.displayName}.`;
-        this.speak(text);
-        return;
-      }
-      this.lastSegmentIndex = cur.segment.index;
-      const toBorder = s.distanceToNextBorder;
-      if (s.next && toBorder !== null && toBorder <= 5 * MILE && toBorder > 0.5 * MILE && !this.announcedBorders.has(s.next.segment.index)) {
-        this.announcedBorders.add(s.next.segment.index);
-        const n = cur.exitsRemaining;
-        this.speak(`${s.next.segment.displayName} state line in ${spokenMiles(toBorder)}. ${n} ${n === 1 ? 'exit remains' : 'exits remain'} in ${cur.segment.displayName}.`);
-        return;
-      }
-    }
-    const ne = s.nextExit;
-    if (settings.announceExits && ne && ne.distance <= MILE && !this.announcedExits.has(ne.exit.id)) {
-      this.announcedExits.add(ne.exit.id);
-      let text = `${exitTitle(ne.exit)} in ${spokenMiles(ne.distance)}`;
-      if (ne.exit.name) text += `, ${ne.exit.name}`;
-      this.speak(`${text}.`);
-    }
-  }
-}
+export { Announcer } from './announcer.js';
 
 // MARK: Storage (wrapped: private mode or blocked storage must not break the app)
 

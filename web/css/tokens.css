@@ -1,0 +1,113 @@
+/* Generated from design/tokens.json by tools/design/build-tokens.mjs. Do not edit by hand. */
+@font-face {
+  font-family: "Overpass";
+  src: url("../fonts/overpass-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  --bg: #F2F3F5;
+  --card: #FFFFFF;
+  --stroke: #DFE3E8;
+  --text: #0E1116;
+  --text-2: #525C69;
+  --chip: #ECEFF3;
+  --accent: #1565D8;
+  --amber: #8F5B00;
+  --amber-fill: #FFF4D6;
+  --danger: #C62828;
+  --success: #0E7A43;
+  --sign-green: #00673D;
+  --sign-blue: #0B4DA2;
+  --sign-brown: #6A3E1F;
+  --sign-yellow: #FFC72C;
+  --sign-ink: #FFFFFF;
+  --sign-ink-dark: #111111;
+  --shield-blue: #003F87;
+  --shield-red: #C8102E;
+  --seg0: #1D6FE0;
+  --seg1: #0E9F6E;
+  --seg2: #8E44AD;
+  --seg3: #D35400;
+  --map-land: #E6E9EE;
+  --map-land-on: #D9E8DD;
+  --map-line: #C3C9D2;
+  --type-speed: 3.7647rem;
+  --type-hero: 2.5882rem;
+  --type-title-xl: 1.7647rem;
+  --type-title-lg: 1.4118rem;
+  --type-title: 1.1765rem;
+  --type-body: 1rem;
+  --type-callout: 0.8824rem;
+  --type-caption: 0.7647rem;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --radius-sign: 10px;
+  --radius-chip: 999px;
+  --radius-control: 14px;
+  --radius-card: 20px;
+  --sign-font: "Overpass", "Highway Gothic", system-ui, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0C0F;
+    --card: #161A20;
+    --stroke: #262B33;
+    --text: #F2F4F7;
+    --text-2: #A3ACB7;
+    --chip: #20252D;
+    --accent: #5B9BFF;
+    --amber: #F2A900;
+    --amber-fill: #2B2412;
+    --danger: #FF6B6B;
+    --success: #3DD68C;
+    --sign-green: #0B7A4A;
+    --sign-blue: #1A5FC2;
+    --sign-brown: #7D4A26;
+    --sign-yellow: #FFC72C;
+    --sign-ink: #FFFFFF;
+    --sign-ink-dark: #111111;
+    --shield-blue: #2E56B8;
+    --shield-red: #E0293F;
+    --seg0: #4C93FF;
+    --seg1: #2FC48D;
+    --seg2: #B57BDB;
+    --seg3: #F07F2B;
+    --map-land: #1B2028;
+    --map-land-on: #1D2A22;
+    --map-line: #333B46;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0C0F;
+  --card: #161A20;
+  --stroke: #262B33;
+  --text: #F2F4F7;
+  --text-2: #A3ACB7;
+  --chip: #20252D;
+  --accent: #5B9BFF;
+  --amber: #F2A900;
+  --amber-fill: #2B2412;
+  --danger: #FF6B6B;
+  --success: #3DD68C;
+  --sign-green: #0B7A4A;
+  --sign-blue: #1A5FC2;
+  --sign-brown: #7D4A26;
+  --sign-yellow: #FFC72C;
+  --sign-ink: #FFFFFF;
+  --sign-ink-dark: #111111;
+  --shield-blue: #2E56B8;
+  --shield-red: #E0293F;
+  --seg0: #4C93FF;
+  --seg1: #2FC48D;
+  --seg2: #B57BDB;
+  --seg3: #F07F2B;
+  --map-land: #1B2028;
+  --map-land-on: #1D2A22;
+  --map-line: #333B46;
+}

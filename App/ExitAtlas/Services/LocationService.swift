@@ -45,8 +45,10 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                     self?.onSample?(LocationSample(location))
                 }
             } catch {
-                // The stream ends when location services are unavailable; the UI shows the status.
+                // The stream ends when location services are unavailable.
             }
+            // Let the next start() open a new stream instead of finding a finished task.
+            if !Task.isCancelled { self?.task = nil }
         }
     }
 

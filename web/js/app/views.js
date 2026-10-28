@@ -28,8 +28,47 @@ export function shield(ref, size = 50) {
   return `<span class="road-badge">${ref ? h(highwayLabel(ref)) : '—'}</span>`;
 }
 
+/// Exit number tab, as on a guide sign: "EXIT 119" in sign lettering on green with a white border.
 export function exitSign(label, compact = false) {
-  return `<span class="exit-sign${compact ? ' compact' : ''}" aria-label="${label ? `Exit ${h(label)}` : 'Unnumbered exit'}"><span class="e">EXIT</span><span class="n">${label ? h(label) : '—'}</span></span>`;
+  return `<span class="exit-sign${compact ? ' compact' : ''}" role="img" aria-label="${label ? `Exit ${h(label)}` : 'Unnumbered exit'}"><span class="e">EXIT</span><span class="n">${label ? h(label) : '—'}</span></span>`;
+}
+
+/// Sign words per service category. Blue for motorist services, brown for parks (as on real signs).
+const PLAQUE_WORDS = { 1: 'GAS', 2: 'FOOD', 3: 'LODGING', 5: 'EV', 4: 'REST AREA', 6: 'PARK', 7: 'DOG PARK' };
+const PLAQUE_ORDER = [1, 2, 3, 5, 4, 6, 7];
+
+/// Service plaques: one tile per category with the nearest named places. Text only (no brand logos).
+export function servicePlaques(services, { names = 2, compact = false } = {}) {
+  const tiles = [];
+  for (const cat of PLAQUE_ORDER) {
+    const items = services.filter((x) => x.place.category === cat).sort((a, b) => a.detourMeters - b.detourMeters);
+    if (!items.length) continue;
+    const named = [...new Set(items.map((x) => x.place.brand || x.place.name).filter((n) => n && n !== CATEGORY_NAMES[cat]))];
+    const shown = named.slice(0, compact ? 1 : names);
+    const more = items.length - shown.length;
+    const word = PLAQUE_WORDS[cat];
+    const label = `${CATEGORY_NAMES[cat]}: ${shown.length ? shown.join(', ') : `${items.length} ${items.length === 1 ? 'place' : 'places'}`}${shown.length && more > 0 ? ` and ${more} more` : ''}`;
+    const body = compact
+      ? `${shown.length ? `<span class="pn">${h(shown[0])}</span>` : ''}${more > 0 ? `<span class="pm">${shown.length ? '+' : ''}${more}</span>` : ''}`
+      : `${shown.map((n) => `<span class="pn">${h(n)}</span>`).join('')}${more > 0 ? `<span class="pm">${shown.length ? `+${more} more` : `${more}`}</span>` : ''}`;
+    tiles.push(`<span class="plaque ${cat >= 6 ? 'brown' : 'blue'}" aria-label="${h(label)}"><b>${word}</b>${body}</span>`);
+  }
+  return tiles.length ? `<div class="plaques${compact ? ' compact' : ''}">${tiles.join('')}</div>` : '';
+}
+
+/// Advance guide sign for the next exit: exit tab, the exit's name, and the distance in sign lettering.
+function guideSign(exit, distance, seconds, services = []) {
+  // Most exits have no name in the source data; the sign then lists the services, as a real
+  // "next exit" services sign would.
+  const words = PLAQUE_ORDER.filter((c) => c <= 5 && services.some((x) => x.place.category === c)).map((c) => PLAQUE_WORDS[c]);
+  const name = exit.name || (words.length ? words.join(' · ') : 'No services listed');
+  const mi = distance / MILE;
+  const value = mi < 10 ? mi.toFixed(1) : String(Math.round(mi));
+  return `<div class="gsign" role="group" aria-label="${h(name)}, ${h(value)} miles, ${duration(seconds)}">
+    <div class="gsign-tab">${exitSign(exit.label)}</div>
+    <div class="gsign-name">${h(name)}</div>
+    <div class="gsign-dist"><span class="v">${value}</span><span class="u">${value === '1.0' ? 'MILE' : 'MILES'}</span><span class="t">${duration(seconds)}</span></div>
+  </div>`;
 }
 
 export function badge(code, on = false, sm = false) {
@@ -42,13 +81,6 @@ function metric(title, value, { unit = '', caption = '', size = '' } = {}) {
 
 function progress(fraction, thick = false) {
   return `<div class="progress${thick ? ' thick' : ''}"><div style="width:${(Math.max(0, Math.min(1, fraction)) * 100).toFixed(1)}%"></div></div>`;
-}
-
-export function serviceSummary(services) {
-  const counts = new Map();
-  for (const s of services) counts.set(s.place.category, (counts.get(s.place.category) ?? 0) + 1);
-  return [...counts.entries()].sort((a, b) => a[0] - b[0])
-    .map(([cat, n]) => `<span class="svc" title="${CATEGORY_NAMES[cat]}">${CATEGORY_ICONS[cat]} ${n}</span>`).join('');
 }
 
 export function statusPill(app) {
@@ -184,6 +216,29 @@ function speedo(mph, limit, level) {
     <div class="speedo-num num">${mph === null ? '—' : mph}</div><div class="speedo-unit">MPH</div></div>`;
 }
 
+/// The state ledger: the whole route as one bar split into states in proportion to their miles,
+/// with the driven part filled and a marker where you are. ExitAtlas's signature element.
+function stateRibbon(s) {
+  const items = s.itinerary;
+  const total = items.reduce((t, f) => t + f.segment.length, 0);
+  if (!(total > 0) || items.length < 2) return '';
+  const pos = Math.max(0, Math.min(1, (s.progress - items[0].segment.startDistance) / total));
+  let colorIndex = 0;
+  const parts = items.map((f) => {
+    const seg = f.segment;
+    const w = (seg.length / total) * 100;
+    const color = seg.code ? `var(--seg${colorIndex++ % 4})` : 'var(--map-line)';
+    const done = f.status === 'completed' ? 1 : f.status === 'current' ? Math.max(0, Math.min(1, (s.progress - seg.startDistance) / seg.length)) : 0;
+    return { seg, w, color, done, status: f.status };
+  });
+  const bar = parts.map((p) => `<span class="rseg ${p.status}" style="width:${p.w.toFixed(3)}%;--c:${p.color};--done:${(p.done * 100).toFixed(1)}%"></span>`).join('');
+  const labels = parts.map((p) => `<span class="rlab ${p.status}" style="width:${p.w.toFixed(3)}%">${p.w >= 5 && p.seg.code ? h(p.seg.code) : ''}</span>`).join('');
+  const spoken = parts.filter((p) => p.seg.code).map((p) => `${p.seg.displayName} ${Math.round(p.seg.length / MILE)} miles`).join(', ');
+  return `<div class="ribbon" role="img" aria-label="Route by state: ${h(spoken)}. You are ${Math.round(pos * 100)} percent of the way.">
+    <div class="ribbon-bar">${bar}</div><span class="ribbon-pin" style="left:${(pos * 100).toFixed(2)}%"></span>
+    <div class="ribbon-labels">${labels}</div></div>`;
+}
+
 function borderCard(s) {
   const cur = s.current, next = s.next;
   let body;
@@ -204,21 +259,20 @@ function borderCard(s) {
       <div class="metrics two" style="margin-top:12px">${metric(`Left in ${cur.segment.code ?? 'state'}`, milesValue(cur.remainingMeters), { unit: 'mi' })}
       ${metric('Exits left', String(cur.exitsRemaining))}</div>`;
   }
-  return `<div class="card lg">${body}
-    <div style="margin-top:14px">${progress(cur.fractionComplete)}
-    <div class="row muted tiny" style="margin-top:6px"><span>${miles(cur.drivenMeters)} of ${miles(cur.totalMeters)} in ${h(cur.segment.displayName)}</span><span class="spacer"></span><span>${cur.exitCount} exits total</span></div></div></div>`;
+  const pct = Math.round(Math.max(0, Math.min(1, cur.fractionComplete)) * 100);
+  return `<div class="card lg state-card">${stateRibbon(s)}${body}
+    <div class="state-progress"><div class="row"><span class="pct num">${pct}%</span><span class="muted small">of ${h(cur.segment.displayName)} driven</span><span class="spacer"></span><span class="muted small num">${miles(cur.drivenMeters)} of ${miles(cur.totalMeters)}</span></div>
+    ${progress(cur.fractionComplete)}
+    <div class="row muted small" style="margin-top:6px"><span>${miles(cur.remainingMeters)} left in ${h(cur.segment.code ?? cur.segment.displayName)}</span><span class="spacer"></span><span>${cur.exitCount} exits in ${h(cur.segment.code ?? 'state')}</span></div></div></div>`;
 }
 
 function nextExitCard(app, s) {
   const ne = s.nextExit;
   const services = app.servicesFor(ne.exit);
-  return `<button class="card row" style="width:100%;text-align:left;cursor:pointer" data-act="exit" data-arg="${h(ne.exit.id)}">
-    ${exitSign(ne.exit.label)}
-    <div style="flex:1;min-width:0"><div class="eyebrow">Next exit</div>
-      ${ne.exit.name ? `<div style="font-weight:700">${h(ne.exit.name)}</div>` : ''}
-      ${services.length ? `<div class="services">${serviceSummary(services)}</div>` : '<div class="muted small">No services listed</div>'}</div>
-    <div style="text-align:right"><div class="num" style="font-weight:800;font-size:30px;line-height:1">${milesValue(ne.distance)}</div>
-      <div class="muted tiny">mi · ${duration(ne.eta - s.t)}</div></div></button>`;
+  return `<button class="card exit-card" data-act="exit" data-arg="${h(ne.exit.id)}">
+    <div class="eyebrow">Next exit</div>
+    ${guideSign(ne.exit, ne.distance, ne.eta - s.t, services)}
+    ${servicePlaques(services)}</button>`;
 }
 
 function fuelCard(app, s) {
@@ -294,7 +348,7 @@ function destinationCard(app, s, discovery) {
   }
   const stop = s.nextStop ? `<p class="muted small" style="margin:10px 0 0">Next stop: ${h(s.nextStop.stop.waypoint.name)}, ${miles(s.nextStop.distance)}, ${clock(s.nextStop.eta, null, s.t)}</p>` : '';
   return `<div class="card"><div class="metrics">
-    ${metric('Destination', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
+    ${metric('Remaining', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
     ${metric('Arrival', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}
     ${metric('States left', String(s.statesAhead.length), { caption: s.statesAhead.slice(0, 4).join(' · '), size: 'md' })}
   </div>${stop}${paceNote(app, s)}</div>`;
@@ -337,12 +391,13 @@ export function exitsView(app) {
     const services = app.servicesFor(u.exit);
     if (ui.category !== null && !services.some((x) => x.place.category === ui.category)) continue;
     const fuelStop = fuelStopID === u.exit.id;
-    rows.push(`<button class="item" data-act="exit" data-arg="${h(u.exit.id)}">${exitSign(u.exit.label, true)}
-      <div class="main"><div class="t">${h(u.exit.name || exitTitle(u.exit))}</div>
-      ${fuelStop ? '<div class="amber-text tiny">⛽ Planned fuel stop</div>' : ''}
-      ${services.length ? `<div class="services">${serviceSummary(services)}</div>` : '<div class="muted small">No services listed</div>'}
-      ${u.exit.confidence === 'medium' ? '<div class="muted tiny">Direction not verified in source data</div>' : ''}</div>
-      <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted tiny">${duration(u.eta - s.t)}</div></div></button>`);
+    rows.push(`<button class="item exit-row" data-act="exit" data-arg="${h(u.exit.id)}">
+      <div class="er-head">${exitSign(u.exit.label, true)}<div class="main">${u.exit.name ? `<div class="t">${h(u.exit.name)}</div>` : ''}
+        ${services.length ? '' : '<div class="muted small">No services listed</div>'}
+        ${fuelStop ? '<div class="amber-text small">⛽ Planned fuel stop</div>' : ''}
+        ${u.exit.confidence === 'medium' ? '<div class="muted small">Direction not verified in source data</div>' : ''}</div>
+        <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
+      ${servicePlaques(services, { compact: true })}</button>`);
   }
   while (bi < borders.length) rows.push(borderRow(borders[bi++]));
   const list = rows.length ? `<div class="list">${rows.join('')}</div>`
@@ -361,10 +416,10 @@ export function exitDetail(app, exitId) {
   for (let cat = 1; cat < CATEGORY_NAMES.length; cat++) {
     const items = services.filter((x) => x.place.category === cat);
     if (!items.length) continue;
-    groups += `<div class="section-title">${CATEGORY_ICONS[cat]} ${CATEGORY_NAMES[cat]}</div><div class="list">${items.map((x) => serviceRow(x)).join('')}</div>`;
+    groups += `<div class="section-title"><span class="plaque ${cat >= 6 ? 'brown' : 'blue'} tag"><b>${PLAQUE_WORDS[cat] ?? CATEGORY_NAMES[cat].toUpperCase()}</b></span> ${items.length}</div><div class="list">${items.map((x) => serviceRow(x)).join('')}</div>`;
   }
   const c = exit.coordinate;
-  return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || exitTitle(exit))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+  return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || (exit.label ? 'Exit services' : exitTitle(exit)))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(exit.distanceAlongRoute) - s.t)} · ` : ''}${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(exitTitle(exit))}" target="_blank" rel="noopener">Apple Maps</a>
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
@@ -412,7 +467,8 @@ function tripOverview(app, plan, s) {
   const map = renderRouteMap(app.routeMap(plan), plan.route.polyline.coordinateAt(s.progress));
   const summary = `<div class="metrics">${metric('Driven', milesValue(s.drivenTotal), { unit: 'mi', size: 'md' })}
     ${metric(discovery ? 'Ahead' : 'Remaining', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
-    ${discovery ? '' : metric('Arrive', clock(s.eta, null, s.t), { size: 'sm' })}</div>`;
+    ${discovery ? '' : metric('Arrive', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}</div>
+    ${discovery ? '' : `<div class="muted small" style="margin-top:10px">Total trip ${miles(s.drivenTotal + s.remaining)} · ${plural(new Set(plan.states.segments.filter((x) => x.code).map((x) => x.code)).size, 'state')} on the route</div>`}`;
   const completed = s.drivenStints.slice(0, -1);
   let html = `<div class="stack"><div class="card" style="padding:8px">${map}</div><div class="card">${summary}</div>`;
   if (completed.length) {
@@ -429,7 +485,7 @@ function tripOverview(app, plan, s) {
   if (upcoming.length) {
     html += `<div><div class="section-title">Ahead</div><div class="list">${upcoming.map((f) => `<div class="item">${badge(f.segment.code)}<div class="main">
       <div class="t">${h(f.segment.displayName)}${f.segment.visit > 1 ? ' (again)' : ''}</div>
-      <div class="muted tiny">${f.entryTime !== null ? `Enter ${clock(f.entryTime, f.entryTimeZoneID, s.t)}` : ''}${f.plannedDuration !== null ? ` · ${duration(f.plannedDuration)}` : ''} · ${f.exitCount} exits</div>
+      <div class="muted small">${f.entryTime !== null ? `Enter ${clock(f.entryTime, f.entryTimeZoneID, s.t)}, in ${duration(f.entryTime - s.t)}` : ''}${f.plannedDuration !== null ? ` · ${duration(f.plannedDuration)} in state` : ''} · ${f.exitCount} exits</div>
       ${f.segment.isBrief ? '<div class="amber-text tiny">Brief crossing</div>' : ''}</div>
       <div class="side num" style="font-weight:800">${miles(f.totalMeters)}</div></div>`).join('')}</div></div>`;
   }

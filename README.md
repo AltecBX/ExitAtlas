@@ -16,29 +16,33 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 | Part | State |
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; the fuel, gas price and EV features have not yet. The web version is ahead of the iOS app. |
-| iOS app (`App/`) | Builds and passes UI tests in CI (Xcode 26.6, iPhone 16e simulator). Not yet run on a device. |
-| Engine (`Sources/ExitAtlasCore`) | 44 tests pass on Linux. The pace model, fuel and charging planners and vehicle data are still to be ported from the web version. |
+| iOS app (`App/`) | Builds and passes two screenshot UI tests in CI (latest macOS runner and Xcode, the last available iPhone simulator). Not yet run on a device. Has the state dashboard, exits, services, planner, reroute and voice; the features marked "web only" below are not in it yet. |
+| Engine (`Sources/ExitAtlasCore`) | 47 tests pass on Linux. Its pace model and fuel planner are older designs than the web's; charging stops and vehicle data are not in it yet. |
+
+The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
 
 ## Features
+
+Everything below is in the web version. Items marked *(web only)* are not in the iOS app yet.
 
 **On the road**
 * Next exit with its services (gas, food, lodging, EV charging), exits ahead with state lines inline, and search along the route.
 * State line card: next state, miles to the line, exits left, and the crossing time in local time.
-* Arrival and border times that follow your actual pace, not the routing estimate.
-* Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin.
+* Arrival and border times that follow your actual pace, not the routing estimate (the iOS app uses an older pace model).
+* Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin *(web only)*.
 * Automatic reroute (miles per state survive it), and discovery mode when there is no destination.
-* Voice for state lines, exits and fuel stops.
+* Voice for state lines and exits; fuel stops too *(web only)*.
 
 **Fuel and charging**
-* Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles.
-* Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once.
-* Fuel stop: enter the miles to empty from your dash. ExitAtlas picks the last exit with gas that you reach with your buffer left, preferring your favorite brands.
-* Gas prices at each exit from Google Maps, with your own key (optional, see below).
-* Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy.
+* Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles *(web only)*.
+* Verified tank sizes for 20 makes, covering 6,925 versions; any other car asks for its tank size once *(web only; iOS bundles the data but does not read it yet)*.
+* Fuel stop: enter the miles to empty from your dash. ExitAtlas picks the last exit with gas that you reach with your buffer left, preferring your favorite brands *(web only; iOS has a simpler tank level slider)*.
+* Gas prices at each exit from Google Maps, with your own key (optional, see below) *(web only)*.
+* Tesla Superchargers, or all DC fast chargers, along the route from the U.S. Department of Energy *(web only)*.
 
 **Trips**
-* Home and recent places, for one tap routing.
-* The trip is saved every 30 seconds and resumes after a reload, even offline.
+* Home and recent places, for one tap routing *(web only; iOS saves whole trips)*.
+* The trip is saved every 30 seconds and resumes after a reload, even offline (on iOS, resuming needs a connection to recompute the route).
 * State, time zone and exit data are cached on the phone after the first load.
 
 Exit data covers signed interstates only. Turnpikes and US routes without an interstate number show no exits.

@@ -2,7 +2,7 @@ import ExitAtlasCore
 import Foundation
 
 /// Plays simulated GPS fixes along the selected route so the app can be tried without driving.
-/// Fixes carry a simulated clock; every screen shows a SIMULATION label while it runs.
+/// Fixes carry a simulated clock; Drive, Exits and Trip show a SIMULATION banner while it runs.
 @MainActor
 final class DriveSimulator {
     private var timer: Timer?
