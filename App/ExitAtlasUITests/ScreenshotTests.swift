@@ -91,12 +91,14 @@ final class ScreenshotTests: XCTestCase {
             sleep(1)
         }
         let card = app.buttons["Share trip card"].firstMatch
-        if reveal(card, in: app) {
+        if reveal(card, in: app), card.isEnabled {
             card.tap()
-            sleep(3)
-            snap("4f Trip card", dark)
-            app.buttons["Done"].firstMatch.tap()
-            sleep(1)
+            if app.navigationBars["Trip card"].waitForExistence(timeout: 5) {
+                sleep(2)
+                snap("4f Trip card", dark)
+                app.buttons["Done"].firstMatch.tap()
+                sleep(1)
+            }
         }
 
         app.tabBars.buttons["Settings"].tap()

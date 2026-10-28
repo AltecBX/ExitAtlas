@@ -29,7 +29,7 @@ struct TripOverviewView: View {
                         Button { showPlates = true } label: { Label("License plate game", systemImage: "car.rear") }
                         ShareLink(item: itineraryText(snapshot)) { Label("Share itinerary", systemImage: "square.and.arrow.up") }
                         Button { showCard = true } label: { Label("Share trip card", systemImage: "photo") }
-                            .disabled(drivenByState(snapshot).reduce(0) { $0 + $1.meters } < Geodesy.metersPerMile)
+                            .disabled(drivenByState(snapshot).reduce(0) { $0 + $1.meters } < 0.1 * Geodesy.metersPerMile)
                         Button(role: .destructive) { trip.endTrip() } label: { Label("End trip", systemImage: "stop.circle") }
                     }
                     Section { DataAttribution() }.listRowBackground(Color.clear)
