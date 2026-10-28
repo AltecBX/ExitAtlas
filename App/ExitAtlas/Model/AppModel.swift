@@ -59,9 +59,10 @@ final class AppModel {
             settings.favoriteBrands = ["Shell"]
         }
         startDemo(atMiles: miles, frozen: true)
-        // -demoRange <miles>: range entered from the dashboard.
+        // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
+        // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {
-            trip.setRange(miles: range)
+            trip.setRange(miles: range, drivenAtEntry: miles * Geodesy.metersPerMile)
         }
     }
 

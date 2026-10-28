@@ -317,8 +317,10 @@ final class TripController {
     var rangeLeft: Double? { fuelReading?.rangeLeft(drivenTotal: snapshot?.drivenTotal ?? 0) }
 
     /// Sets the range from the car's dashboard (miles to empty, or a charge estimate).
-    func setRange(miles: Double) {
-        fuelReading = FuelReading(rangeMeters: max(0, miles) * Geodesy.metersPerMile, drivenAtEntry: snapshot?.drivenTotal ?? 0)
+    /// `drivenAtEntry` overrides the odometer it counts down from (the demo starts mid-route).
+    func setRange(miles: Double, drivenAtEntry: Double? = nil) {
+        fuelReading = FuelReading(rangeMeters: max(0, miles) * Geodesy.metersPerMile,
+                                  drivenAtEntry: drivenAtEntry ?? snapshot?.drivenTotal ?? 0)
         fuelVoice.reset()
         rangePlanMemo = nil
         saveFuelReading()

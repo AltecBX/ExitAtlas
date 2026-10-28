@@ -120,7 +120,7 @@ README (web only labels, test counts, CI details), docs 02 (vehicle data size, G
 * The **state ledger ribbon** (the whole route split into states in proportion to their miles, with where you are) leads the state card. No competitor reviewed has it; it is the visual signature.
 * Web components: exit tab, advance guide sign for the next exit (name or services, distance and time), service plaques that name the nearest places, state ribbon, state completion percent. Type follows the reader's text size (Safari maps `-apple-system-body` to Dynamic Type); nothing a driver reads is smaller than 12 px.
 * Screenshots for review: iPhone SE, 15 Pro, 15 Pro Max and landscape, light and dark (PR #3).
-* Open decisions: keep the drawn Interstate shield (requested; legal note above) and Overpass for sign lettering, or switch to a generic route badge and the system font.
+* Decided 2026-10-28 (Jerry): keep the drawn Interstate shield and Overpass for sign lettering. The AASHTO letter stays on the release checklist (milestone 6).
 
 ## 9.8 Feature to code map
 
