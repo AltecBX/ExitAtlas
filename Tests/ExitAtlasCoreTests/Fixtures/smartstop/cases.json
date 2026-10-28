@@ -160,5 +160,33 @@
        {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "rangeOnArrivalMiles": 180, "arrival": "2026-10-29T16:00:00Z"},
        {"id": "shell90", "name": "Shell", "brand": "Shell", "exitId": "90", "aheadMiles": 90, "rangeOnArrivalMiles": 110, "arrival": "2026-10-29T17:00:00Z", "detourMinutes": 5}],
      "expect": {"primary": "shell90", "alternatives": ["shell20"], "favorite": null}}
+  ],
+  "lastOpen": [
+    {"name": "Overnight: the last stop listed open before 60 mi of stops not listed open", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
+     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 12, "osm": {"hours": "24/7"}},
+       {"id": "c", "aheadMiles": 20}, {"id": "d", "aheadMiles": 40}, {"id": "e", "aheadMiles": 72, "osm": {"hours": "24/7"}}],
+     "expect": {"stop": "b", "lengthMiles": 60, "unlisted": 2, "openEnded": false}},
+    {"name": "A stretch with no stops at all is a gas gap, left to its own warning", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
+     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 60, "osm": {"hours": "24/7"}}],
+     "expect": null},
+    {"name": "A stop reached after the overnight window ends the stretch", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
+     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 20, "arrival": "2026-10-29T07:30:00Z"},
+       {"id": "c", "aheadMiles": 35, "arrival": "2026-10-29T08:30:00Z"}, {"id": "d", "aheadMiles": 90, "arrival": "2026-10-29T09:30:00Z"}],
+     "expect": null},
+    {"name": "Nothing listed open to the end of the window", "options": {"minLengthMiles": 40, "windowEndMiles": 100},
+     "candidates": [{"id": "a", "aheadMiles": 10, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 30}, {"id": "c", "aheadMiles": 50}],
+     "expect": {"stop": "a", "lengthMiles": 90, "unlisted": 2, "openEnded": true}},
+    {"name": "A stop reported closed does not end the stretch, and a skipped stop does not count", "options": {"minLengthMiles": 40, "windowEndMiles": 150, "rejected": ["c"]},
+     "candidates": [{"id": "a", "aheadMiles": 10, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 25, "osm": {"hours": "Mo-Su 06:00-22:00"}},
+       {"id": "c", "aheadMiles": 45, "osm": {"hours": "24/7"}}, {"id": "d", "aheadMiles": 70, "osm": {"hours": "24/7"}}],
+     "expect": {"stop": "a", "lengthMiles": 60, "unlisted": 1, "openEnded": false}},
+    {"name": "Daytime: stops reported closed are not an overnight stretch", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
+     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}, "arrival": "2026-10-29T16:00:00Z"},
+       {"id": "b", "aheadMiles": 20, "osm": {"hours": "Mo-Su 06:00-10:00"}, "arrival": "2026-10-29T16:20:00Z"},
+       {"id": "c", "aheadMiles": 70, "osm": {"hours": "24/7"}, "arrival": "2026-10-29T17:00:00Z"}],
+     "expect": null},
+    {"name": "Only a stop listed open is named: unknown hours before the first open stop are not this warning", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
+     "candidates": [{"id": "a", "aheadMiles": 5}, {"id": "b", "aheadMiles": 30}, {"id": "c", "aheadMiles": 80, "osm": {"hours": "24/7"}}],
+     "expect": null}
   ]
 }

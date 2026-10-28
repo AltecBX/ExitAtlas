@@ -448,4 +448,48 @@ public enum SmartStop {
     }
 
     static func ordinal(_ i: Int) -> String { ["1st", "2nd", "3rd"].indices.contains(i) ? ["1st", "2nd", "3rd"][i] : "\(i + 1)th" }
+
+    /// The last stop listed open before a long stretch where the stops are not.
+    public struct LastOpen: Sendable {
+        public let stop: Candidate
+        public let evaluation: Evaluation
+        /// Meters from the stop to the end of the stretch.
+        public let length: Double
+        /// Stops in the stretch that are not listed open at their arrival time.
+        public let unlisted: Int
+        /// The stretch runs to the end of the window.
+        public let openEnded: Bool
+    }
+
+    /// Overnight: the last stop listed open at its arrival time before a long stretch where the stops are
+    /// not (the warning "before the last known suitable opportunity along a long stretch"). A stretch ends
+    /// at the next stop listed open, or at a stop reached after the overnight window that is not reported
+    /// closed, or at `windowEnd` (meters along the route). It counts when it is at least `minLength` long
+    /// and has stops reached overnight in it; a stretch with no stops at all is a gas gap, which has its own
+    /// warning, and one without overnight arrivals is not an overnight stretch. Port of lastOpenBeforeGap in
+    /// web/js/engine/smartstop.js.
+    public static func lastOpenBeforeGap(_ candidates: [Candidate], preferences p: Preferences, minLength: Double, windowEnd: Double,
+                                         rejected: Set<String> = []) -> LastOpen? {
+        func usable(_ c: Candidate) -> Bool { (c.ahead ?? 1) > 0 && c.gone == nil && !rejected.contains(c.id) }
+        func before(_ a: Candidate, _ b: Candidate) -> Bool { a.along != b.along ? a.along < b.along : a.id < b.id }
+        let stops: [(c: Candidate, e: Evaluation)] = candidates.filter(usable).sorted(by: before)
+            .map { (c: $0, e: evaluate($0, preferences: p)) }
+        func listedOpen(_ e: Evaluation) -> Bool { e.hours.status == .verified || e.hours.status == .reported }
+        func ends(_ e: Evaluation) -> Bool { listedOpen(e) || (!e.overnight && e.hours.status != .closed) }
+        var i = 0
+        while i < stops.count {
+            guard listedOpen(stops[i].e) else { i += 1; continue }
+            var j = i + 1
+            while j < stops.count && !ends(stops[j].e) { j += 1 }
+            let end = j < stops.count ? stops[j].c.along : windowEnd
+            let unlisted = j - i - 1
+            let overnight = stops[(i + 1)..<j].contains { $0.e.overnight }
+            if overnight && end - stops[i].c.along >= minLength {
+                return LastOpen(stop: stops[i].c, evaluation: stops[i].e, length: end - stops[i].c.along, unlisted: unlisted,
+                                openEnded: j >= stops.count)
+            }
+            i = j
+        }
+        return nil
+    }
 }

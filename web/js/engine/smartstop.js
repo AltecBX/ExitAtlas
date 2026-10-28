@@ -250,3 +250,36 @@ function reasons(x, profile, { needs, lowRange, reserveMeters }) {
   if (x.c.price?.value != null && f.priceOverBrand) out.push(`$${x.c.price.value.toFixed(2)} (Google Maps)`);
   return out;
 }
+
+const listedOpen = (e) => e.hours.status === 'verified' || e.hours.status === 'reported';
+
+/// Overnight: the last stop listed open at its arrival time before a long stretch where the stops are
+/// not (the warning "before the last known suitable opportunity along a long stretch"). A stretch ends at
+/// the next stop listed open, or at a stop reached after the overnight window that is not reported
+/// closed, or at `windowEnd` (meters along the route). It counts when it is at least `minLength` long and
+/// has stops reached overnight in it; a stretch with no stops at all is a gas gap, which has its own
+/// warning, and one without overnight arrivals is not an overnight stretch.
+///   candidates: stops ahead (stations and plazas with fuel), as for smartStop
+/// Returns {stop, evaluation, length, unlisted: stops in the stretch, openEnded: runs to windowEnd} for
+/// the first such stretch ahead, or null.
+export function lastOpenBeforeGap(candidates, profile, { minLength, windowEnd, rejected = [] }) {
+  const skip = new Set(rejected);
+  const stops = candidates
+    .filter((c) => (c.ahead == null || c.ahead > 0) && !c.gone && !skip.has(c.id))
+    .map((c) => ({ c, e: evaluateStop(c, profile) }))
+    .sort((a, b) => a.c.along - b.c.along || (a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0));
+  const ends = (x) => listedOpen(x.e) || (!x.e.overnight && x.e.hours.status !== 'closed');
+  for (let i = 0; i < stops.length; i++) {
+    if (!listedOpen(stops[i].e)) continue;
+    let j = i + 1;
+    while (j < stops.length && !ends(stops[j])) j++;
+    const end = j < stops.length ? stops[j].c.along : windowEnd;
+    const unlisted = j - i - 1;
+    const overnight = stops.slice(i + 1, j).some((x) => x.e.overnight);
+    if (overnight && end - stops[i].c.along >= minLength) {
+      return { stop: stops[i].c, evaluation: stops[i].e, length: end - stops[i].c.along, unlisted, openEnded: j >= stops.length };
+    }
+    i = j - 1;
+  }
+  return null;
+}

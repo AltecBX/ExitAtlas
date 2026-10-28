@@ -12,9 +12,24 @@ final class ScreenshotTests: XCTestCase {
 
     func testScreensDark() { capture(dark: true) }
 
+    /// Overnight Drive Mode on: before a long stretch where no stop is listed open at its arrival time, the
+    /// last one that is takes the focus card (mile 400 on the demo route, as on the web).
+    func testOvernightLastOpenStop() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoTrip", "400", "-demoVehicle", "-overnight", "on"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+        let card = app.descendants(matching: .any)["lastOpenCard"].firstMatch
+        let found = card.waitForExistence(timeout: 20)
+        app.swipeUp()
+        sleep(2)
+        snap("1e Overnight last open stop", false)
+        XCTAssertTrue(found, "No last open stop card at mile 400 with Overnight Drive Mode on")
+    }
+
     private func capture(dark: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "180"] + (dark ? ["-forceDark"] : [])
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "180", "-overnight", "auto"] + (dark ? ["-forceDark"] : [])
         app.launch()
 
         XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")

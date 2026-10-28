@@ -106,7 +106,8 @@ private struct DriveDashboard: View {
             nextExit: snapshot.nextExit?.distance, restArea: snapshot.nextRestArea?.distance,
             gap: gap.map { (startsIn: max(0, $0.from - progress), length: $0.to - max($0.from, progress)) },
             plannedStop: snapshot.nextStop?.distance, fuel: fuel,
-            overnight: SmartStop.Preferences(settings.values).overnight(atMinute: minute))
+            overnight: SmartStop.Preferences(settings.values).overnight(atMinute: minute),
+            lastOpen: trip.lastOpenAhead?.stop.ahead)
     }
 
     @ViewBuilder
@@ -118,6 +119,8 @@ private struct DriveDashboard: View {
             if let next = snapshot.nextStop { PlannedStopCard(stop: next.stop, distance: next.distance, eta: next.eta, now: snapshot.timestamp) }
         case .gap:
             if let gap = trip.gasGapsAhead().first(where: { $0.to > snapshot.progress }) { GasGapCard(gap: gap, progress: snapshot.progress) }
+        case .lastOpen:
+            if let lo = trip.lastOpenAhead { LastOpenCard(lastOpen: lo, now: snapshot.timestamp) }
         case .overnight:
             if trip.rangeLeft != nil {
                 FuelCard { showFuel = true }
@@ -171,6 +174,36 @@ private struct PlannedStopCard: View {
         .card()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("plannedStopCard")
+    }
+}
+
+/// Overnight, before a long stretch where no stop is listed open at its arrival time: the last one that is.
+private struct LastOpenCard: View {
+    let lastOpen: SmartStop.LastOpen
+    let now: Date
+
+    var body: some View {
+        let c = lastOpen.stop
+        let one = lastOpen.unlisted == 1
+        VStack(alignment: .leading, spacing: 8) {
+            Eyebrow(text: "🌙 Last stop listed open for \(Format.miles(lastOpen.length))\(lastOpen.openEnded ? "+" : "")")
+            HStack(alignment: .top, spacing: 12) {
+                SmartStopSign(candidate: c)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(c.name).font(.headline).lineLimit(2)
+                    ConfidenceLine(status: lastOpen.evaluation.hours.status.rawValue, label: lastOpen.evaluation.hours.label)
+                    Text(SmartStopText.whereLine(c) + " · " + SmartStopText.arrival(c, now: now))
+                        .font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+            }
+            Text("\(one ? "The next stop" : "The next \(lastOpen.unlisted) stops"), \(lastOpen.openEnded ? "in the next" : "over") "
+                 + "\(Format.miles(lastOpen.length)), \(one ? "has" : "have") no hours listed open at your arrival time.")
+                .font(.caption).foregroundStyle(Theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("lastOpenCard")
     }
 }
 

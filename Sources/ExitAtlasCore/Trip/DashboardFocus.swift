@@ -6,7 +6,7 @@ import Foundation
 /// on the same fixtures (Tests/ExitAtlasCoreTests/Fixtures/dashboard/focus.json).
 public enum DashboardFocus {
     public enum Kind: String, Sendable {
-        case fuel, stop, gap, overnight, restArea, exit, none
+        case fuel, stop, gap, lastOpen, overnight, restArea, exit, none
         /// No range entered yet (strip only).
         case fuelEntry
     }
@@ -36,15 +36,18 @@ public enum DashboardFocus {
         /// nil when no range has been entered.
         public var fuel: Fuel?
         public var overnight: Bool
+        /// Meters to the last stop listed open before a long overnight stretch (`SmartStop.lastOpenBeforeGap`).
+        public var lastOpen: Double?
 
         public init(nextExit: Double? = nil, restArea: Double? = nil, gap: (startsIn: Double, length: Double)? = nil,
-                    plannedStop: Double? = nil, fuel: Fuel? = nil, overnight: Bool = false) {
+                    plannedStop: Double? = nil, fuel: Fuel? = nil, overnight: Bool = false, lastOpen: Double? = nil) {
             self.nextExit = nextExit
             self.restArea = restArea
             self.gap = gap
             self.plannedStop = plannedStop
             self.fuel = fuel
             self.overnight = overnight
+            self.lastOpen = lastOpen
         }
     }
 
@@ -81,6 +84,7 @@ public enum DashboardFocus {
         else if let p = s.plannedStop, p <= rules.stopWithin { (focus, why) = (.stop, "Approaching your planned stop") }
         else if gapRisk { (focus, why) = (.gap, "A stretch without gas is coming up") }
         else if fuelSoon { (focus, why) = (.fuel, "Your fuel stop is coming up") }
+        else if let l = s.lastOpen, l <= rules.gapWithin { (focus, why) = (.lastOpen, "Last stop listed open before a long stretch") }
         else if s.overnight && (s.fuel != nil || s.restArea != nil) { (focus, why) = (.overnight, "Overnight: open stops and restrooms") }
         else if restFirst { (focus, why) = (.restArea, "Rest area before the next exit") }
         else if s.nextExit != nil { (focus, why) = (.exit, "Next exit") }

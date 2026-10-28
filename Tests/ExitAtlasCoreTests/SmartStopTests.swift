@@ -109,6 +109,26 @@ final class SmartStopTests: XCTestCase {
         }
     }
 
+    /// Overnight: the last stop listed open before a long stretch, on the same cases as the JavaScript engine.
+    func testLastOpenStopBeforeALongStretch() throws {
+        let f = try fixture("cases")
+        let (prefs, _) = preferences(f, nil)
+        for c in f["lastOpen"]!.array! {
+            let name = c["name"]!.string!
+            let o = c["options"]!
+            let r = SmartStop.lastOpenBeforeGap(try c["candidates"]!.array!.map { try candidate(f, $0) }, preferences: prefs,
+                                                minLength: o["minLengthMiles"]!.number! * mile, windowEnd: o["windowEndMiles"]!.number! * mile,
+                                                rejected: Set(o["rejected"]?.array?.compactMap(\.string) ?? []))
+            guard let x = c["expect"], x != .null else { XCTAssertNil(r, name); continue }
+            let got = try XCTUnwrap(r, name)
+            XCTAssertEqual(got.stop.id, x["stop"]!.string!, name)
+            XCTAssertEqual(Int((got.length / mile).rounded()), Int(x["lengthMiles"]!.number!), name)
+            XCTAssertEqual(got.unlisted, Int(x["unlisted"]!.number!), name)
+            XCTAssertEqual(got.openEnded, x["openEnded"]!.bool!, name)
+            XCTAssertTrue([.verified, .reported].contains(got.evaluation.hours.status), "\(name): only a stop listed open is named")
+        }
+    }
+
     /// F, G, H, P: the same rankings as the JavaScript engine.
     func testSmartStopRankingsOnTheSharedFixtures() throws {
         let f = try fixture("cases")

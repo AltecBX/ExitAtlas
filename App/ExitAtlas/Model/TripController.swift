@@ -310,7 +310,7 @@ final class TripController {
         snapshot = snap
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
-            announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap)
+            announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead)
             if settings.liveActivityEnabled {
                 let content = activityContent(for: snap, gasGap: gap)
                 if activityPending {
@@ -431,6 +431,25 @@ final class TripController {
         let result = SmartStop.choose(SmartStop.fuelCandidates(ctx, rangeLeft: range), preferences: SmartStop.Preferences(settings.values),
                                       context: .fuel, reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected)
         smartMemo = (key, result)
+        return result
+    }
+
+    @ObservationIgnored private var lastOpenMemo: (key: String, result: SmartStop.LastOpen?)?
+
+    /// Overnight: the last stop listed open before a long stretch where the stops ahead are not, within
+    /// 150 miles (docs/12, 12.10). Recomputed every half mile or five minutes.
+    var lastOpenAhead: SmartStop.LastOpen? {
+        _ = feedsVersion
+        guard let settings, let ctx = stopContext() else { return nil }
+        let rejected = rejectedNow
+        let key = "\(ctx.plan.route.id)|\(Int(ctx.snapshot.progress / 800))|\(Int(ctx.snapshot.timestamp.timeIntervalSince1970 / 300))|"
+            + "\(feedsVersion)|\(rejected.sorted())|\(settings.overnightMode)\(settings.overnightStart)\(settings.overnightEnd)|\(settings.gasGapMiles)"
+        if let memo = lastOpenMemo, memo.key == key { return memo.result }
+        let end = min(ctx.snapshot.progress + 150 * Geodesy.metersPerMile, ctx.plan.route.length)
+        let result = SmartStop.lastOpenBeforeGap(SmartStop.aheadCandidates(ctx, miles: 150, rangeLeft: nil),
+                                                 preferences: SmartStop.Preferences(settings.values),
+                                                 minLength: settings.gasGapMiles * Geodesy.metersPerMile, windowEnd: end, rejected: rejected)
+        lastOpenMemo = (key, result)
         return result
     }
 

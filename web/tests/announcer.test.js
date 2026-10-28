@@ -112,4 +112,18 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   assert.deepEqual(said, [`Last gas for 62 miles is Exit ${exit.label}, in 5 miles.`]);
   a2.consider(fake(exit.distanceAlongRoute - 3 * MILE), { ...all, announceGasGaps: false }, { gasGap: { ...gap, before: { ...gap.before, exit: { ...exit, id: 'other' } } } });
   assert.equal(said.length, 1);
+
+  // Overnight: the last stop listed open before a long stretch, once per stop, and not again for the
+  // exit whose last gas was just announced.
+  const lastOpen = (ahead, id = 'shell', exitId = 'x9') => ({ stop: { id, name: 'Shell', exitId, exit: { id: exitId, label: '94' }, ahead },
+    length: 74 * MILE, unlisted: 3, openEnded: false });
+  const heard = [];
+  const a3 = new Announcer((t) => heard.push(t));
+  a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(9 * MILE) });
+  a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(5 * MILE) });
+  a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(4 * MILE) });
+  assert.deepEqual(heard, ['Overnight, Shell at Exit 94 in 5 miles is the last stop listed open for 74 miles.']);
+  a3.consider(fake(100 * MILE), { ...all, announceGasGaps: false }, { lastOpen: lastOpen(4 * MILE, 'other') });
+  a3.consider(fake(100 * MILE), all, { lastOpen: lastOpen(4 * MILE, 'third', 'g1'), gasGap: { length: 50 * MILE, before: { distance: 0, exit: { id: 'g1', label: '7' } } } });
+  assert.equal(heard.length, 1, heard.join(' | '));
 });

@@ -13,7 +13,7 @@ import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
 import { GasPrices, GRADES } from './prices.js';
-import { smartStop, evaluateStop } from '../engine/smartstop.js';
+import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates } from './smartstops.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -234,6 +234,22 @@ const app = {
     return smartStop(candidates, profile, {
       context: 'ahead', purpose: restrooms ? 'restroom' : 'fuel', reserveMeters: this.settings.bufferMiles * MILE, rejected: this.rejectedStops,
     });
+  },
+
+  /// Overnight: the last stop listed open before a long stretch where the stops ahead are not, within
+  /// 150 miles (docs/12, 12.10). Recomputed every half mile or five minutes.
+  lastOpenAhead() {
+    const s = this.snapshot;
+    if (!this.plan || !s) return null;
+    const key = `${Math.floor(s.progress / 800)}|${Math.floor(s.t / 300)}|${this.rejectedStops.join()}|${JSON.stringify(this.profile.overnight)}|${this.settings.gasGapMiles}|${this.plan.route.length}`;
+    if (this.lastOpenKey !== key) {
+      this.lastOpenKey = key;
+      const candidates = aheadCandidates(this.stopContext(), 150, { rangeLeft: null, gradeKey: GRADES[this.gradeCode()].key });
+      this.lastOpenCache = lastOpenBeforeGap(candidates, this.profile, {
+        minLength: this.settings.gasGapMiles * MILE, windowEnd: Math.min(s.progress + 150 * MILE, this.plan.route.length), rejected: this.rejectedStops,
+      });
+    }
+    return this.lastOpenCache;
   },
 
   secret(key) { return store.get(key, ''); },
@@ -811,7 +827,7 @@ function handleDiscovery(sample) {
 function publish(snap) {
   app.snapshot = snap;
   const gap = app.gasGapsAhead(snap).find((g) => g.before && g.before.distance > snap.progress) ?? null;
-  app.announcer.consider(snap, app.settings, { zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap });
+  app.announcer.consider(snap, app.settings, { zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap, lastOpen: app.lastOpenAhead() });
   considerFuelVoice();
   ensureLimits();
   ensureChargers();

@@ -82,6 +82,7 @@ export class Announcer {
     this.announcedBorders = []; // {state, odometer}
     this.announcedRest = new Set();
     this.announcedGaps = new Set();
+    this.announcedOpen = new Set();
     this.lastState = null;
     this.lastZone = null;
   }
@@ -148,6 +149,16 @@ export class Announcer {
         this.speak(`Last gas for ${spokenMiles(gap.length)} is ${where}, in ${spokenMiles(ahead)}.`);
         return;
       }
+    }
+    // Overnight: the last stop listed open before a long stretch, once per stop. Not when it is the same
+    // exit as the last gas just announced.
+    const lo = ctx.lastOpen;
+    if (settings.announceGasGaps !== false && lo && lo.stop.ahead > 0 && lo.stop.ahead <= GAP_WARN && !this.announcedOpen.has(lo.stop.id)
+        && !(lo.stop.exitId && gap?.before?.exit?.id === lo.stop.exitId)) {
+      this.announcedOpen.add(lo.stop.id);
+      const where = lo.stop.exit ? `${lo.stop.name} at ${exitTitle(lo.stop.exit)}` : lo.stop.name;
+      this.speak(`Overnight, ${where} in ${spokenMiles(lo.stop.ahead)} is the last stop listed open for ${lo.openEnded ? 'at least ' : ''}${spokenMiles(lo.length)}.`);
+      return;
     }
     const nr = s.nextRestArea;
     if (settings.announceRestAreas !== false && nr && nr.distance <= REST_WARN && nr.distance > REST_MIN

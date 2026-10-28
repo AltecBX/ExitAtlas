@@ -19,6 +19,7 @@ export function signals(x) {
     plannedStop: x.plannedStop != null ? { distance: m(x.plannedStop) } : null,
     fuel: x.fuel ? { reading: true, range: m(x.fuel.range), reserve: m(x.fuel.reserve), stopAhead: m(x.fuel.stopAhead), low: Boolean(x.fuel.low) } : { reading: false },
     overnight: Boolean(x.overnight),
+    lastOpen: m(x.lastOpen),
   };
 }
 
