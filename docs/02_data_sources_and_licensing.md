@@ -12,6 +12,8 @@ Legal readings marked "Interpretation" are not legal advice. Get counsel review 
 | Exit to place drive distance and time | OpenInterstate reachability score-20260715-1351876 ([repo](https://github.com/tldev/openinterstate-reachability)) | ODbL 1.0 | Inside `interstates.eax` | Yes |
 | Directional interstate corridors | OpenInterstate `reference_routes.csv` | ODbL 1.0 | Yes, `corridors.eac` (2.3 MB) | Yes |
 | Map display, routes, ETA, place search | Apple MapKit | Apple Developer Program License Agreement, Attachment 6 | No (live) | Requires device build |
+| Vehicle fuel economy (every gasoline, diesel, hybrid, flex fuel and plug-in hybrid version since model year 2000) | U.S. EPA and DOE `vehicles.csv` ([fueleconomy.gov downloads](https://www.fueleconomy.gov/feg/download.shtml)) | Public domain, US Government work | Yes, `vehicles.json` (2.5 MB, about 0.4 MB compressed) | Yes, 2015 Camry 2.5 L matches the fueleconomy.gov vehicle page (25, 34, 28 mpg) |
+| Fuel tank capacity | `tools/data-pipeline/fuel_tanks.json`: manufacturer specifications, or two reputable sources that agree, with links per entry | Facts with citations | Inside `vehicles.json` | Spot checked (see 8) |
 
 ## 2.2 Providers evaluated
 
@@ -58,6 +60,18 @@ Measured OpenInterstate quality issues (this repo, see `tools/data-pipeline/buil
 | Foursquare Places | Hours and ratings are Premium fields, $18.75 per 1,000; 30 day cache | Candidate for hours and ratings |
 | Overture Places, Foursquare OS Places | Permissive licenses, no hours, no ratings | POI enrichment only |
 | Brand logos | No source licenses the trademarks (logo.dev, Brandfetch terms); App Review 5.2.1 | Text brand names until owners grant permission |
+
+### Vehicle specifications (tank size)
+
+| Source | Key facts | Usable now? |
+|---|---|---|
+| EPA / DOE fueleconomy.gov | MPG for every rated vehicle since 1984; no tank capacity field (checked `vehicles.csv` columns and a vehicle page, 2026-10-28) | Yes, for MPG |
+| NHTSA vPIC | VIN decoding; variables include fuel tank type and material, no capacity (GetVehicleVariableList, 2026-10-28) | No tank data |
+| CarAPI (carapi.app) | Paid, $199 to $299 per year; "CarAPI does not support CORS requests", so it needs a server ([pricing](https://carapi.app/pricing), [docs](https://carapi.app/docs/)) | Needs a subscription and a backend |
+| CarQuery | TLS certificate did not match www.carqueryapi.com when tested 2026-10-28 | No |
+| Manufacturer press sites, owner's manuals, KBB, Edmunds, Car and Driver | Per model; used to build the verified tank table | Yes, curated |
+
+The driver's dashboard "miles to empty" is the primary range input in the app. It reflects how that car is actually burning fuel, so the tank table only matters for gallons and for the full tank range after a fill up.
 
 ### Alerts
 

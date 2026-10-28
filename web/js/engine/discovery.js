@@ -1,5 +1,5 @@
-// Discovery mode, stop planning, fuel range and GPS simulation.
-// Port of Discovery/HighwayDiscovery.swift, Planning/*.swift and Simulation/GPSSimulator.swift.
+// Discovery mode, stop planning and GPS simulation.
+// Port of Discovery/HighwayDiscovery.swift, Planning/StopPlanner.swift and Simulation/GPSSimulator.swift.
 import { METERS_PER_MILE, normalizedDegrees, offset } from './geo.js';
 import { PlannedRoute, TravelTimeProfile, makeStep, parseHighways } from './route.js';
 import { searchAlongRoute } from './exits.js';
@@ -106,28 +106,6 @@ export function stopSuggestions(dataset, plan, snapshot, pace, requirements, win
   });
   if (target !== null) out.sort((a, b) => Math.abs(a.timeFromTarget) - Math.abs(b.timeFromTarget));
   return out;
-}
-
-/// Gas stations ahead with range and detour. No prices: there is no licensed price source yet.
-/// vehicle: {mpg, tankGallons, reserveGallons}
-export function fuelOptions(plan, snapshot, vehicle, fuelGallons, servicesFor) {
-  const metersPerGallon = vehicle.mpg * METERS_PER_MILE;
-  const usable = Math.max(0, fuelGallons - vehicle.reserveGallons) * metersPerGallon;
-  const horizon = Math.min(usable * 1.5, 500 * METERS_PER_MILE);
-  const d = snapshot.progress;
-  const out = [];
-  for (const exit of plan.exitsBetween(d, d + horizon)) {
-    const ahead = exit.distanceAlongRoute - d;
-    for (const service of servicesFor(exit)) {
-      if (service.place.category !== 1) continue;
-      const oneWay = service.detourMeters / 2;
-      out.push({
-        exit, ahead, service, reachable: ahead + oneWay <= usable,
-        detourGallons: service.detourMeters / metersPerGallon,
-      });
-    }
-  }
-  return { usableMeters: usable, options: out };
 }
 
 // MARK: Simulation

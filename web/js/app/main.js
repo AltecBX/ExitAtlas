@@ -2,14 +2,15 @@
 // reroutes when the driver leaves the route, and runs discovery mode. Mirrors TripController.swift.
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { TripPlan, TripSession } from '../engine/trip.js';
-import { HighwayDiscovery, GPSSimulator, fuelOptions, stopSuggestions } from '../engine/discovery.js';
-import { servicesForExit, searchAlongRoute } from '../engine/exits.js';
+import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
+import { planFuelStop, rangeLeft, fullTankRange } from '../engine/fuel.js';
+import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
-import { miles, clock } from './format.js';
+import { miles, clock, spokenMiles } from './format.js';
 import {
-  loadCoreData, loadCorridors, loadDemoRouteJSON, fetchRoutes, searchPlaces, currentPosition,
+  loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
   LocationService, ScreenWake, Announcer, store,
 } from './services.js';
 import * as V from './views.js';
@@ -18,7 +19,7 @@ const VERSION = '2026.10.28';
 const TITLES = { drive: 'Drive', exits: 'Exits Ahead', trip: 'Trip', settings: 'Settings' };
 const DEFAULT_SETTINGS = {
   voice: true, announceStateLines: true, announceExits: false, keepAwake: true,
-  mpg: 25, tankGallons: 15, reserveGallons: 2, theme: 'auto',
+  theme: 'auto', vehicle: null, mpgBasis: 'highway', customMpg: null, bufferMiles: 50, preferredBrands: '',
 };
 
 const app = {
@@ -37,7 +38,12 @@ const app = {
   placeSearch: { field: 'to', index: null, query: '', results: [], busy: false, error: null },
   exitsUI: { window: store.get('ea.window', 25), category: null },
   alongRoute: { categories: [], brand: '', window: 100, results: null },
-  fuel: { gallons: null },
+  fuel: store.get('ea.fuel', null),
+  fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
+  fuelAnnounced: new Set(),
+  vehicles: null, vehiclesError: null, vehiclesLoading: null,
+  vehiclePick: null,
+  recentVehicles: store.get('ea.vehicles', []),
   stopQuery: { category: 3, hours: 3, brand: '', results: null },
   sheet: null,
   serviceCache: new Map(),
@@ -73,12 +79,32 @@ const app = {
     return { meters, states };
   },
 
-  fuelResult() {
-    if (!this.plan || !this.snapshot) return null;
+  /// The selected vehicle with the MPG used for range (EPA highway, combined, or the driver's own).
+  vehicleProfile() {
+    const v = this.settings.vehicle;
+    if (!v) return null;
     const st = this.settings;
-    if (this.fuel.gallons === null) this.fuel.gallons = st.tankGallons / 2;
-    return fuelOptions(this.plan, this.snapshot, { mpg: st.mpg, tankGallons: st.tankGallons, reserveGallons: st.reserveGallons },
-      this.fuel.gallons, (e) => this.servicesFor(e));
+    const mpg = st.mpgBasis === 'custom' && st.customMpg > 0 ? st.customMpg : st.mpgBasis === 'combined' ? v.comb : v.hwy;
+    return { ...v, mpg };
+  },
+
+  rangeNow() {
+    return this.fuel ? rangeLeft(this.fuel, this.snapshot ? this.snapshot.drivenTotal : 0) : null;
+  },
+
+  fuelPlan() {
+    if (!this.fuel || !this.plan || !this.snapshot) return null;
+    const st = this.settings;
+    const key = `${this.snapshot.t}|${this.fuel.enteredAt}|${st.bufferMiles}|${st.preferredBrands}|${this.plan.route.id}|${this.mode}`;
+    if (this.fuelKey !== key) {
+      this.fuelKey = key;
+      this.fuelPlanCache = planFuelStop(this.plan, this.snapshot, this.rangeNow(), {
+        bufferMeters: st.bufferMiles * MILE, servicesFor: (e) => this.servicesFor(e),
+        preferredBrands: st.preferredBrands.split(',').map((b) => b.trim()).filter(Boolean),
+        hasDestination: this.mode === 'trip',
+      });
+    }
+    return this.fuelPlanCache;
   },
 };
 window.exitAtlas = app; // for debugging from the console
@@ -154,6 +180,7 @@ function renderSheet() {
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') html = V.fuelSheet(app);
   else if (kind === 'stop') html = V.stopSheet(app);
+  else if (kind === 'vehicle') html = V.vehicleSheet(app);
   $('#sheet-body').innerHTML = html;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
 }
@@ -181,6 +208,74 @@ function datasets() {
 
 function nowSeconds() { return Date.now() / 1000; }
 
+// MARK: Fuel
+
+/// Saves the range the car shows now. Range then counts down with miles driven in this session.
+function setFuelRange(meters, source) {
+  app.fuel = { rangeMeters: meters, drivenAtEntry: app.snapshot ? app.snapshot.drivenTotal : 0, enteredAt: nowSeconds(), source };
+  app.fuelAnnounced = new Set();
+  app.fuelUI.error = null;
+  store.set('ea.fuel', app.fuel);
+}
+
+/// Folds miles driven in the session that is ending into the saved range, so it carries over.
+function rebaseFuel(drivenTotal = app.snapshot?.drivenTotal ?? 0) {
+  if (!app.fuel) return;
+  app.fuel = { ...app.fuel, rangeMeters: rangeLeft(app.fuel, drivenTotal), drivenAtEntry: 0 };
+  store.set('ea.fuel', app.fuel);
+}
+
+function considerFuelVoice() {
+  if (!app.settings.voice || app.snapshot?.match.status !== 'onRoute') return;
+  const fp = app.fuelPlan();
+  if (!fp) return;
+  const rec = fp.recommended;
+  if (rec && fp.status === 'planned') {
+    for (const [mi, tag] of [[2, 'near'], [10, 'far']]) {
+      const key = `${rec.exit.id}|${tag}`;
+      if (rec.ahead <= mi * MILE && rec.ahead > 0.3 * MILE && !app.fuelAnnounced.has(key)) {
+        app.fuelAnnounced.add(key);
+        app.fuelAnnounced.add(`${rec.exit.id}|far`);
+        app.announcer.speak(`Fuel stop, ${exitTitle(rec.exit)}, in ${spokenMiles(rec.ahead)}. About ${Math.round(rec.rangeOnArrival / MILE)} miles to empty when you get there.`);
+        return;
+      }
+    }
+  }
+  if (fp.status !== 'destination' && fp.range < fp.buffer && !app.fuelAnnounced.has('low')) {
+    app.fuelAnnounced.add('low');
+    app.announcer.speak(rec ? `Fuel is low. Nearest gas is ${exitTitle(rec.exit)}, in ${spokenMiles(rec.ahead)}.`
+      : 'Fuel is low, and no gas is listed at interstate exits ahead.');
+  }
+}
+
+async function openVehicleSheet() {
+  const v = app.settings.vehicle;
+  app.vehiclePick = v ? { year: String(v.year), make: v.make, model: v.model, version: null, tank: v.tankGallons } : { year: '', make: '', model: '', version: null, tank: null };
+  openSheet('vehicle');
+  if (!app.vehicles) {
+    try {
+      app.vehicles = await (app.vehiclesLoading ??= loadVehicles());
+      if (v) {
+        const list = app.vehicles.years[v.year]?.[v.make]?.[v.model] ?? [];
+        const i = list.findIndex((x) => x[4] === v.epaId);
+        app.vehiclePick.version = i >= 0 ? String(i) : null;
+      }
+    } catch (e) {
+      app.vehiclesError = `Could not load the vehicle list: ${e.message}`;
+      app.vehiclesLoading = null;
+    }
+    if (app.sheet?.kind === 'vehicle') renderSheet();
+  }
+}
+
+function useVehicle(v) {
+  app.settings.vehicle = v;
+  store.set('ea.settings', app.settings);
+  app.recentVehicles = [v, ...app.recentVehicles.filter((r) => r.epaId !== v.epaId)].slice(0, 8);
+  store.set('ea.vehicles', app.recentVehicles);
+  lastViewHTML = '';
+}
+
 function beginDriveExtras(spokenStart) {
   if (app.settings.keepAwake) app.wake.request();
   if (app.settings.voice && spokenStart) app.announcer.speak(spokenStart);
@@ -188,6 +283,7 @@ function beginDriveExtras(spokenStart) {
 
 async function startDiscovery() {
   stopSimulation();
+  rebaseFuel();
   resetTripState();
   app.mode = 'discovery';
   app.gps = 'device';
@@ -221,6 +317,7 @@ function resetTripState() {
 function startTrip(route, { simulate = false, startMeters = 0, restoring = null } = {}) {
   stopSimulation();
   app.location.stop();
+  if (!restoring) rebaseFuel();
   resetTripState();
   const now = nowSeconds();
   const plan = new TripPlan(route, datasets());
@@ -266,6 +363,7 @@ function endTrip() {
   app.location.stop();
   app.wake.release();
   window.speechSynthesis?.cancel();
+  rebaseFuel();
   resetTripState();
   app.mode = 'idle';
   app.gps = 'device';
@@ -341,6 +439,7 @@ function handleDiscovery(sample) {
   if (state.kind === 'searching') {
     app.discoveryStatus = (sample.speed ?? 0) < discovery.minimumSpeed ? 'Waiting for highway speed' : 'Looking for an interstate';
     if (app.plan?.route.source === 'corridor') {
+      rebaseFuel();
       app.plan = null;
       app.session = null;
       app.snapshot = null;
@@ -366,6 +465,7 @@ function handleDiscovery(sample) {
 function publish(snap) {
   app.snapshot = snap;
   app.announcer.consider(snap, app.settings);
+  considerFuelVoice();
 }
 
 /// Keeps the dashboard moving through tunnels and dead zones by dead reckoning.
@@ -498,7 +598,7 @@ const actions = {
       toast(`Could not resume: ${e.message}`);
     }
   },
-  'discard-resume'() { app.resumable = null; store.remove('ea.active'); render(); },
+  'discard-resume'() { rebaseFuel(app.resumable?.drivenMeters ?? 0); app.resumable = null; store.remove('ea.active'); render(); },
   exit(arg) { openSheet('exit', arg); },
   sheet(arg) {
     if (arg === 'search') app.alongRoute.results = null;
@@ -564,6 +664,52 @@ const actions = {
   },
   'ar-window'(arg) { app.alongRoute.window = Number(arg); renderSheet(); },
   'stop-cat'(arg) { app.stopQuery.category = Number(arg); renderSheet(); },
+  vehicle() { openVehicleSheet(); },
+  'vehicle-recent'(arg) {
+    const list = app.recentVehicles.filter((r) => r.epaId !== app.settings.vehicle?.epaId);
+    const v = list[Number(arg)];
+    if (v) { useVehicle(v); toast(`Using ${v.year} ${v.make} ${v.model}`); render(); }
+  },
+  'vehicle-tank'(arg) { app.vehiclePick.tank = Number(arg); renderSheet(); },
+  'vehicle-save'() {
+    const vp = app.vehiclePick;
+    const ver = app.vehicles?.years[vp.year]?.[vp.make]?.[vp.model]?.[Number(vp.version)];
+    if (!ver) return;
+    const tank = ver[5] >= 0 ? app.vehicles.tanks[ver[5]] : null;
+    let gallons = null, basis = null;
+    if (tank && tank.gallons.length === 1) { gallons = tank.gallons[0]; basis = 'verified'; }
+    else if (tank) { gallons = tank.gallons.includes(Number(vp.tank)) ? Number(vp.tank) : null; basis = 'verified'; }
+    else if (Number(vp.tank) > 0) { gallons = Number(vp.tank); basis = 'entered'; }
+    if (tank && tank.gallons.length > 1 && gallons === null) { toast('Choose which tank this one has'); return; }
+    useVehicle({
+      year: Number(vp.year), make: vp.make, model: vp.model, label: ver[0], city: ver[1], hwy: ver[2], comb: ver[3],
+      epaId: ver[4], tankGallons: gallons, tankBasis: basis, tankSources: tank?.sources ?? [],
+    });
+    closeSheet();
+    toast(gallons ? `About ${Math.round(gallons * app.vehicleProfile().mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
+    render();
+  },
+  'mpg-basis'(arg) { app.settings.mpgBasis = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
+  'fuel-buffer'(arg) {
+    app.settings.bufferMiles = Number(arg);
+    store.set('ea.settings', app.settings);
+    lastViewHTML = '';
+    if (app.sheet) renderSheet();
+    render();
+  },
+  'fuel-mode'(arg) { app.fuelUI.mode = arg; renderSheet(); },
+  'fuel-filled'() {
+    const full = fullTankRange(app.vehicleProfile());
+    if (!full) {
+      app.fuelUI.error = 'Enter the miles to empty your car shows now. Choose your vehicle with its tank size to make this one tap.';
+      renderSheet();
+      return;
+    }
+    setFuelRange(full, 'fullTank');
+    renderSheet();
+    render();
+    toast(`Full tank: about ${Math.round(full / MILE)} mi. Your dashboard reading is more accurate if it differs.`);
+  },
 };
 
 document.addEventListener('click', (ev) => {
@@ -606,6 +752,18 @@ document.addEventListener('submit', async (ev) => {
     const d = app.snapshot.progress;
     q.results = searchAlongRoute(app.data.interstates, app.plan.exits, reqs, d, d + q.window * MILE, (e) => app.servicesFor(e));
     renderSheet();
+  } else if (kind === 'fuel') {
+    const v = app.vehicleProfile();
+    if (app.fuelUI.mode === 'gauge' && v?.tankGallons) {
+      setFuelRange(app.fuelUI.gaugeEighths / 8 * v.tankGallons * v.mpg * MILE, 'gauge');
+    } else {
+      const mi = parseFloat(form.dte.value);
+      if (!(mi >= 0 && mi <= 1500)) { app.fuelUI.error = 'Enter the miles to empty from your dashboard.'; renderSheet(); return; }
+      setFuelRange(mi * MILE, 'dashboard');
+    }
+    renderSheet();
+    render();
+    toast('Range saved');
   } else if (kind === 'stop') {
     const q = app.stopQuery;
     q.brand = form.brand.value.trim();
@@ -619,28 +777,40 @@ document.addEventListener('submit', async (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target;
+  const vp = el.dataset?.vp;
+  if (vp) {
+    const pick = app.vehiclePick;
+    if (vp === 'tank') { pick.tank = parseFloat(el.value) || null; return; }
+    pick[vp] = el.value;
+    const order = ['year', 'make', 'model', 'version'];
+    for (const k of order.slice(order.indexOf(vp) + 1)) pick[k] = k === 'version' ? null : '';
+    if (vp !== 'version') pick.tank = null;
+    const versions = app.vehicles?.years[pick.year]?.[pick.make]?.[pick.model];
+    if (vp === 'model' && versions?.length === 1) pick.version = '0';
+    renderSheet();
+    return;
+  }
   const key = el.dataset?.set;
   if (!key) return;
   if (el.type === 'checkbox') app.settings[key] = el.checked;
+  else if (el.dataset.kind === 'text') app.settings[key] = el.value.trim();
   else {
     const v = parseFloat(el.value);
     if (Number.isFinite(v) && v > 0) app.settings[key] = v;
   }
   store.set('ea.settings', app.settings);
   if (key === 'keepAwake') { if (el.checked && app.mode !== 'idle') app.wake.request(); else if (!el.checked) app.wake.release(); }
-  if (key === 'tankGallons') app.fuel.gallons = null;
   lastViewHTML = '';
   render();
 });
 
 document.addEventListener('input', (ev) => {
   const el = ev.target;
-  if (el.matches('[data-fuel]')) {
-    app.fuel.gallons = parseFloat(el.value);
-    const pos = $('#sheet').scrollTop;
-    renderSheet();
-    $('#sheet').scrollTop = pos;
-    $('#sheet [data-fuel]')?.focus();
+  if (el.matches('[data-gauge]')) {
+    app.fuelUI.gaugeEighths = Number(el.value);
+    const label = $('[data-gauge-label]');
+    const v = app.vehicleProfile();
+    if (label && v?.tankGallons) label.textContent = V.gaugeText(app.fuelUI.gaugeEighths, v);
   } else if (el.matches('[data-stop-hours]')) {
     app.stopQuery.hours = parseFloat(el.value);
     const label = $('[data-stop-hours-label]');
@@ -677,6 +847,7 @@ async function boot() {
     return;
   }
   app.resumable = loadResumable();
+  if (app.fuel?.drivenAtEntry > 0 && !app.resumable) rebaseFuel(app.fuel.drivenAtEntry);
   $('#loading').remove();
   const params = new URLSearchParams(location.search);
   if (params.has('demo')) runDemo();

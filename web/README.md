@@ -10,7 +10,9 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * Trip overview: offline SVG map by state, completed, current and upcoming states with local entry times.
 * Automatic reroute when you leave the route; miles per state survive reroutes.
 * Discovery mode: no destination, locks onto the interstate and direction you are driving.
-* Voice for state lines and exits, screen wake lock, light and dark mode.
+* Vehicle picker: EPA fuel economy for every gasoline, diesel and hybrid version since 2000 (all makes), tank size where verified, otherwise entered once. Highway, combined or your own MPG.
+* Fuel stop: enter the miles to empty from your dashboard (or the gauge). Range counts down as you drive; ExitAtlas picks the last interstate exit with gas that you reach with about your buffer left (25, 50, 75 or 100 mi), shows earlier options and the last gas before empty, and announces it.
+* Voice for state lines, exits and fuel stops, screen wake lock, light and dark mode.
 * The trip is saved on the phone every 30 seconds and can be resumed after the page reloads, without a network connection.
 * Offline data: states, time zones and 38,553 exits load once (about 15 MB) and are cached by a service worker.
 * Simulated demo (Miami to Manhattan), clearly marked as a simulation.
@@ -47,4 +49,4 @@ cd web
 npm test
 ```
 
-31 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery.
+36 tests: geodesy, synthetic regions, state segmentation against the shapely/pyproj oracle on four real routes (0.05 mi tolerance), published I-95 state lengths, exits against OSM node membership, snapshot values, time zones, GPS tracking (noise, tunnel, departure, out and back), reroute ledger, discovery, fuel stop planner.

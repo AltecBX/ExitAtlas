@@ -118,6 +118,7 @@ function dashboard(app, s) {
   const parts = [header];
   if (s.current) parts.push(borderCard(s));
   if (s.nextExit) parts.push(nextExitCard(app, s));
+  parts.push(fuelCard(app, s));
   parts.push(destinationCard(app, s, discovery));
   if (s.match.status === 'offRoute' && !app.isRerouting && app.mode === 'trip') {
     parts.push(`<div class="banner warn">You are off the planned route. ${app.gps === 'device' ? 'A new route is requested automatically when online.' : ''}</div>`);
@@ -164,6 +165,39 @@ function nextExitCard(app, s) {
       <div class="muted tiny">mi · ${duration(ne.eta - s.t)}</div></div></button>`;
 }
 
+function fuelCard(app, s) {
+  const fp = app.fuelPlan();
+  if (!fp) {
+    return `<button class="card row" style="width:100%;text-align:left;cursor:pointer" data-act="sheet" data-arg="fuel">
+      <span style="font-size:26px">⛽</span><div style="flex:1"><div class="eyebrow">Fuel</div><div style="font-weight:700">Enter miles to empty</div>
+      <div class="muted small">From your dashboard. ExitAtlas finds the exit where you will have about ${app.settings.bufferMiles} mi left.</div></div><span class="chev">›</span></button>`;
+  }
+  const rec = fp.recommended;
+  let body;
+  if (fp.status === 'destination') {
+    body = `<div style="font-weight:700">No stop needed</div><div class="muted small">You reach your destination with about ${miles(fp.destinationSpare)} left.</div>`;
+  } else if (fp.status === 'none') {
+    body = `<div style="font-weight:700;color:var(--danger)">No interstate gas listed before empty</div><div class="muted small">Leave the highway for gas. Turnpikes and US routes have no exit data yet.</div>`;
+  } else {
+    const low = fp.status === 'low';
+    body = `<div class="row" style="gap:10px;margin-top:2px">${exitSign(rec.exit.label, true)}<div style="flex:1;min-width:0">
+        <div style="font-weight:700${low ? ';color:var(--amber)' : ''}">${low ? 'Fuel low: nearest gas' : 'Fuel stop'} · ${milesValue(rec.ahead)} mi</div>
+        <div class="muted small">${h(stationNames(rec))}</div>
+        <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.exit.distanceAlongRoute), s.t)} · about ${miles(rec.rangeOnArrival)} left when you get there</div></div></div>`;
+  }
+  return `<button class="card" style="width:100%;text-align:left;cursor:pointer;display:block" data-act="sheet" data-arg="fuel">
+    <div class="row"><div class="eyebrow" style="flex:1">⛽ Fuel</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi to empty</span></div></div>${body}</button>`;
+}
+
+function stationNames(st) {
+  const names = [];
+  for (const g of st.gas) {
+    const n = placeDisplayName(g.place);
+    if (!names.includes(n)) names.push(n);
+  }
+  return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '');
+}
+
 function destinationCard(app, s, discovery) {
   if (discovery) {
     return `<div class="card"><div class="metrics two">${metric('Corridor ahead', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
@@ -188,7 +222,7 @@ export function exitsView(app) {
   const window = ui.window * MILE;
   const windowSeg = `<div class="seg">${WINDOWS.map((w) => `<button class="${w === ui.window ? 'on' : ''}" data-act="exits-window" data-arg="${w}">${w} mi</button>`).join('')}</div>`;
   const chips = `<div class="chips"><button class="chip${ui.category === null ? ' on' : ''}" data-act="exits-cat" data-arg="">All</button>${FILTER_CATEGORIES.map((c) => `<button class="chip${ui.category === c ? ' on' : ''}" data-act="exits-cat" data-arg="${c}">${CATEGORY_ICONS[c]} ${CATEGORY_NAMES[c]}</button>`).join('')}</div>`;
-  const tools = `<div class="btn-row"><button class="btn sm" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="btn sm" data-act="sheet" data-arg="fuel">⛽ Gas ahead</button></div>`;
+  const tools = `<div class="btn-row"><button class="btn sm" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="btn sm" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button></div>`;
   const rows = [];
   const borders = s.itinerary.filter((f) => f.status === 'upcoming' && f.segment.startDistance - s.progress <= window);
   let bi = 0;
@@ -198,13 +232,17 @@ export function exitsView(app) {
       <div class="muted small">${miles(f.totalMeters)} on route · ${f.exitCount} exits</div></div>
       <div class="side"><div class="big">${milesValue(d)}</div><div class="muted tiny">${f.entryTime !== null ? clock(f.entryTime, f.entryTimeZoneID, s.t) : ''}</div></div></div>`;
   };
+  const fp = app.fuelPlan();
+  const fuelStopID = fp && fp.status !== 'destination' ? fp.recommended?.exit.id : null;
   for (const u of s.upcomingExits) {
     if (u.distance > window) break;
     while (bi < borders.length && borders[bi].segment.startDistance <= u.exit.distanceAlongRoute) rows.push(borderRow(borders[bi++]));
     const services = app.servicesFor(u.exit);
     if (ui.category !== null && !services.some((x) => x.place.category === ui.category)) continue;
+    const fuelStop = fuelStopID === u.exit.id;
     rows.push(`<button class="item" data-act="exit" data-arg="${h(u.exit.id)}">${exitSign(u.exit.label, true)}
       <div class="main"><div class="t">${h(u.exit.name || exitTitle(u.exit))}</div>
+      ${fuelStop ? '<div class="amber-text tiny">⛽ Planned fuel stop</div>' : ''}
       ${services.length ? `<div class="services">${serviceSummary(services)}</div>` : '<div class="muted small">No services listed</div>'}
       ${u.exit.confidence === 'medium' ? '<div class="muted tiny">Direction not verified in source data</div>' : ''}</div>
       <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted tiny">${duration(u.eta - s.t)}</div></div></button>`);
@@ -298,7 +336,7 @@ function plannerView(app) {
     <div class="btn-row"><button class="btn sm" data-act="add-stop">＋ Add stop</button><button class="btn sm primary" data-act="find-routes" ${p.to && !p.busy ? '' : 'disabled'}>${p.busy ? 'Finding routes…' : 'Find routes'}</button></div>`;
   if (p.error) html += `<p class="amber-text small">${h(p.error)}</p>`;
   if (p.results.length) {
-    html += `<div class="section-title">Routes</div>${p.results.map((r, i) => routeCard(r, i, p.results.length)).join('')}
+    html += `<div class="section-title">Routes</div>${p.results.map((r, i) => routeCard(r, i, p.results.length, app)).join('')}
       <p class="note">Travel times come from the free OSRM routing server and do not include live traffic. ExitAtlas learns your actual pace as you drive and updates every arrival time. Avoid tolls is not available on this server.</p>`;
   }
   if (!p.results.length && p.recent.length) {
@@ -318,13 +356,16 @@ function plural(n, word) {
   return `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`;
 }
 
-function routeCard(r, i, count) {
+function routeCard(r, i, count, app) {
   const plan = r.plan;
   const totals = plan.states.totals;
+  const v = app.vehicleProfile();
+  const perTank = v?.tankGallons ? v.tankGallons * v.mpg * MILE : null;
+  const fuelLine = perTank ? `<div class="muted tiny" style="margin-top:6px">⛽ About ${(plan.route.length / perTank).toFixed(1)} tanks for your ${h(`${v.year} ${v.make} ${v.model}`)} (${Math.round(perTank / MILE)} mi per tank at ${v.mpg} mpg)</div>` : '';
   return `<div class="card"><div class="row"><div style="flex:1"><div class="title-md num">${duration(plan.route.timeProfile.totalSeconds)}</div>
       <div class="muted small">${miles(plan.route.length)} · ${plural(totals.length, 'state')} · ${plural(plan.states.segments.length - 1, 'state line')} · ${plural(plan.exits.length, 'exit')}</div></div>
       ${i === 0 && count > 1 ? '<span class="pill ok">Fastest</span>' : ''}</div>
-    <div class="strip">${totals.map((t) => `<span class="s">${badge(t.code, false, true)} ${miles(t.length)}</span>`).join('')}</div>
+    <div class="strip">${totals.map((t) => `<span class="s">${badge(t.code, false, true)} ${miles(t.length)}</span>`).join('')}</div>${fuelLine}
     <div class="btn-row" style="margin-top:12px"><button class="btn primary" data-act="start-route" data-arg="${i}">Start</button><button class="btn" data-act="simulate-route" data-arg="${i}">Simulate</button></div></div>`;
 }
 
@@ -333,7 +374,6 @@ function routeCard(r, i, count) {
 export function settingsView(app) {
   const st = app.settings;
   const toggle = (key, label, note = '') => `<label class="field"><span style="flex:1">${h(label)}${note ? `<div class="muted tiny">${h(note)}</div>` : ''}</span><input type="checkbox" class="toggle" data-set="${key}" ${st[key] ? 'checked' : ''}></label>`;
-  const number = (key, label, step) => `<label class="field"><span style="flex:1">${h(label)}</span><input type="number" inputmode="decimal" step="${step}" min="0" data-set="${key}" value="${st[key]}"></label>`;
   const life = app.lifetime();
   const meta = (m) => (m ? h(`${m.source ?? ''}${m.generated_at ? `, built ${m.generated_at.slice(0, 10)}` : ''}`) : 'not loaded');
   return `<div class="stack">
@@ -345,8 +385,7 @@ export function settingsView(app) {
     <div><div class="section-title">Screen</div><div class="list">
       ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
       <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div></div>
-    <div><div class="section-title">Vehicle</div><div class="list">
-      ${number('mpg', 'Miles per gallon', 0.5)}${number('tankGallons', 'Tank size (gallons)', 0.5)}${number('reserveGallons', 'Reserve to keep (gallons)', 0.5)}</div></div>
+    <div><div class="section-title">Vehicle and fuel</div>${vehicleSettings(app)}</div>
     <div><div class="section-title">Lifetime</div><div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(life.meters / MILE).toLocaleString('en-US'), { size: 'md' })}${metric('States driven', String(life.states.length), { caption: life.states.join(' · '), size: 'md' })}</div>
       <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone.</p></div></div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
@@ -394,30 +433,129 @@ export function alongRouteSheet(app) {
 }
 
 export function fuelSheet(app) {
-  const f = app.fuel;
   const st = app.settings;
-  const result = app.fuelResult();
-  let list = '';
-  if (result) {
-    const byExit = new Map();
-    for (const o of result.options) {
-      if (!byExit.has(o.exit.id)) byExit.set(o.exit.id, { exit: o.exit, ahead: o.ahead, items: [] });
-      byExit.get(o.exit.id).items.push(o);
+  const ui = app.fuelUI;
+  const v = app.vehicleProfile();
+  const full = v?.tankGallons ? v.tankGallons * v.mpg : null;
+  const fp = app.fuelPlan();
+  const range = app.rangeNow();
+  const vehicleLine = v
+    ? `<div class="row"><div style="flex:1;min-width:0"><div style="font-weight:700">${h(`${v.year} ${v.make} ${v.model}`)}</div>
+        <div class="muted tiny">${h(v.label)}</div>
+        <div class="muted small">${v.mpg} mpg ${basisName(st)}${v.tankGallons ? ` · ${v.tankGallons} gal · about ${Math.round(full)} mi per tank` : ' · tank size not set'}</div></div>
+        <button class="btn sm" data-act="vehicle">Change</button></div>`
+    : `<div class="row"><div style="flex:1"><div style="font-weight:700">No vehicle selected</div><div class="muted small">Pick your car to get EPA MPG and tank size.</div></div><button class="btn sm primary" data-act="vehicle">Choose</button></div>`;
+  const input = ui.mode === 'gauge' && v?.tankGallons
+    ? `<div class="row"><input type="range" min="0" max="8" step="1" value="${ui.gaugeEighths}" data-gauge style="flex:1;accent-color:var(--sign-green)"><span class="num" style="width:110px;text-align:right;font-weight:800" data-gauge-label>${gaugeText(ui.gaugeEighths, v)}</span></div>
+       <p class="muted tiny" style="margin:4px 0 0">Uses ${v.mpg} mpg ${basisName(st)}. Your dashboard's miles to empty is more accurate.</p>`
+    : `<div class="row"><input type="number" name="dte" inputmode="numeric" min="0" max="1500" placeholder="Miles to empty" value="${range !== null ? Math.round(range / 1609.344) : ''}" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card);font-size:20px;font-weight:700"><span class="muted">mi</span></div>
+       <p class="muted tiny" style="margin:4px 0 0">The range your dashboard shows. It counts down as you drive; update it any time.</p>`;
+  let plan = '';
+  if (fp) {
+    const rec = fp.recommended;
+    if (fp.status === 'destination') {
+      plan = `<div class="card"><div style="font-weight:700">No fuel stop needed</div><div class="muted small">You reach your destination with about ${miles(fp.destinationSpare)} left.</div></div>`;
+    } else if (fp.status === 'none') {
+      plan = `<div class="banner warn" style="margin:0">No gas is listed at interstate exits before empty. Leave the highway for gas. Turnpikes and US routes have no exit data yet.</div>`;
+    } else {
+      const row = (x, tag) => `<button class="item" data-act="exit" data-arg="${h(x.exit.id)}">${exitSign(x.exit.label, true)}<div class="main">
+          ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${h(stationNames(x))}</div>
+          <div class="muted tiny">${clock(x.eta, app.plan.timeZoneIDAt(x.exit.distanceAlongRoute), app.snapshot.t)} · arrive with about ${miles(x.rangeOnArrival)}${x.preferred ? ' · preferred brand' : ''}</div></div>
+          <div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></button>`;
+      const items = [row(rec, { text: fp.status === 'low' ? 'Nearest gas (below your buffer)' : `Fill up here · about ${st.bufferMiles} mi left`, amber: fp.status === 'low' })];
+      for (const e of fp.earlier) items.push(row(e, { text: 'Earlier option' }));
+      if (fp.lastChance) items.push(row(fp.lastChance, { text: 'Last gas before empty', amber: true }));
+      plan = `<div class="list">${items.join('')}</div>`;
     }
-    list = [...byExit.values()].map((g) => {
-      const reach = g.items.some((o) => o.reachable);
-      return `<button class="item" data-act="exit" data-arg="${h(g.exit.id)}" style="${reach ? '' : 'opacity:.45'}">${exitSign(g.exit.label, true)}<div class="main">
-        <div class="t">${h(g.items.map((o) => placeDisplayName(o.service.place)).slice(0, 3).join(', '))}${g.items.length > 3 ? ` +${g.items.length - 3}` : ''}</div>
-        <div class="muted tiny">${reach ? `Detour ${miles(Math.min(...g.items.map((o) => o.service.detourMeters)))} round trip` : 'Beyond your usable range'}</div></div>
-        <div class="side"><div class="big">${milesValue(g.ahead)}</div><div class="muted tiny">mi</div></div></button>`;
-    }).join('');
+  } else if (range !== null && !app.snapshot) {
+    plan = `<p class="muted small">Range saved: ${miles(range)}. Start a trip or discovery mode to see where to fill up.</p>`;
   }
-  return `<div class="sheet-head"><h2>Gas ahead</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <div class="card"><div class="row"><span style="flex:1;font-weight:700">Fuel in tank</span><span class="num" style="font-weight:800" data-fuel-label>${f.gallons.toFixed(1)} of ${st.tankGallons} gal</span></div>
-      <input type="range" min="0" max="${st.tankGallons}" step="0.5" value="${f.gallons}" data-fuel style="width:100%;accent-color:var(--sign-green);margin-top:10px">
-      <p class="muted small" style="margin:6px 0 0">Usable range about ${result ? miles(result.usableMeters) : '—'}, keeping ${st.reserveGallons} gal in reserve at ${st.mpg} mpg.</p></div>
-    <div class="banner warn" style="margin:12px 0">No verified fuel prices. ExitAtlas shows prices only from a licensed source, and none is connected yet.</div>
-    ${list ? `<div class="list">${list}</div>` : '<div class="card empty">No gas stations listed ahead within range.</div>'}`;
+  const others = fp && fp.stations.length
+    ? `<div class="section-title">All gas within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<button class="item" data-act="exit" data-arg="${h(x.exit.id)}">${exitSign(x.exit.label, true)}<div class="main"><div class="t">${h(stationNames(x))}</div>
+        <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></button>`).join('')}</div>` : '';
+  return `<div class="sheet-head"><h2>Fuel stop</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <div class="stack">
+    <div class="card">${vehicleLine}</div>
+    <form class="card" data-form="fuel">
+      <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now</div>
+        ${v?.tankGallons ? `<div class="seg" style="width:190px"><button type="button" class="${ui.mode !== 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="dashboard">Miles</button><button type="button" class="${ui.mode === 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="gauge">Gauge</button></div>` : ''}</div>
+      ${input}
+      ${ui.error ? `<p class="amber-text small">${h(ui.error)}</p>` : ''}
+      <div class="btn-row" style="margin-top:12px"><button class="btn primary" type="submit">Save range</button>
+        <button class="btn" type="button" data-act="fuel-filled">I filled up</button></div>
+      <div class="section-title">Fill up with about this much left</div>
+      <div class="seg">${[25, 50, 75, 100].map((b) => `<button type="button" class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div>
+    </form>
+    ${plan}${others}
+    <p class="note">Only gas stations linked to interstate exits in OpenStreetMap are listed. Detours count against your range. No fuel prices: there is no licensed price source yet.</p></div>`;
+}
+
+function basisName(st) {
+  return st.mpgBasis === 'custom' ? '(your mpg)' : st.mpgBasis === 'combined' ? 'combined (EPA)' : 'highway (EPA)';
+}
+
+export function gaugeText(eighths, v) {
+  const label = ['Empty', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8', 'Full'][eighths];
+  return `${label} · ${Math.round(eighths / 8 * v.tankGallons * v.mpg)} mi`;
+}
+
+function vehicleSettings(app) {
+  const st = app.settings;
+  const v = app.vehicleProfile();
+  const recent = app.recentVehicles.filter((r) => !v || r.epaId !== v.epaId).slice(0, 5);
+  return `<div class="list">
+    <div class="field"><span style="flex:1">${v ? `<b>${h(`${v.year} ${v.make} ${v.model}`)}</b><div class="muted tiny">${h(v.label)}</div>
+      <div class="muted tiny">EPA ${v.city} city · ${v.hwy} highway · ${v.comb} combined mpg${v.tankGallons ? ` · ${v.tankGallons} gal tank (${v.tankBasis === 'entered' ? 'entered by you' : 'verified'})` : ' · tank size not set'}</div>` : 'No vehicle selected'}</span>
+      <button class="btn sm${v ? '' : ' primary'}" data-act="vehicle">${v ? 'Change' : 'Choose'}</button></div>
+    ${recent.map((r, i) => `<button class="wp" style="width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left" data-act="vehicle-recent" data-arg="${i}"><span class="name">${h(`${r.year} ${r.make} ${r.model}`)}<div class="muted tiny" style="font-weight:400">${h(r.label)}</div></span><span class="muted small">Switch</span></button>`).join('')}
+    <div class="field"><span style="flex:1">MPG for range</span><div class="seg" style="width:220px">${[['highway', 'Highway'], ['combined', 'Combined'], ['custom', 'My MPG']].map(([k, n]) => `<button class="${st.mpgBasis === k ? 'on' : ''}" data-act="mpg-basis" data-arg="${k}">${n}</button>`).join('')}</div></div>
+    ${st.mpgBasis === 'custom' ? `<label class="field"><span style="flex:1">My real MPG<div class="muted tiny">Interstate speeds often use more fuel than the EPA highway test</div></span><input type="number" inputmode="decimal" step="0.5" min="1" data-set="customMpg" value="${st.customMpg ?? ''}"></label>` : ''}
+    <div class="field"><span style="flex:1">Fill up with about</span><div class="seg" style="width:220px">${[25, 50, 75, 100].map((b) => `<button class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div></div>
+    <label class="field"><span style="flex:1">Preferred gas brands<div class="muted tiny">Comma separated, for example Wawa, Sheetz, Buc-ee's</div></span><input type="text" data-set="preferredBrands" data-kind="text" value="${h(st.preferredBrands)}" style="width:150px"></label>
+  </div>`;
+}
+
+export function vehicleSheet(app) {
+  const vp = app.vehiclePick;
+  const head = '<div class="sheet-head"><h2>Choose vehicle</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>';
+  if (!app.vehicles) {
+    return `${head}<div class="card empty">${app.vehiclesError ? h(app.vehiclesError) : 'Loading the EPA vehicle list…'}</div>`;
+  }
+  const years = Object.keys(app.vehicles.years).sort((a, b) => b - a);
+  const makes = vp.year ? Object.keys(app.vehicles.years[vp.year] ?? {}).sort((a, b) => a.localeCompare(b)) : [];
+  const models = vp.year && vp.make ? Object.keys(app.vehicles.years[vp.year][vp.make] ?? {}).sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) : [];
+  const versions = vp.year && vp.make && vp.model ? app.vehicles.years[vp.year][vp.make][vp.model] ?? [] : [];
+  const select = (name, label, options, value, fmt = (x) => x) => `<label class="field"><span style="width:90px">${label}</span>
+    <select data-vp="${name}" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:10px;padding:10px;background:var(--bg)" ${options.length ? '' : 'disabled'}>
+      <option value="">Select</option>${options.map((o, i) => `<option value="${name === 'version' ? i : h(o)}" ${String(name === 'version' ? i : o) === String(value) ? 'selected' : ''}>${h(fmt(o))}</option>`).join('')}</select></label>`;
+  let detail = '';
+  const ver = vp.version !== null && vp.version !== '' ? versions[Number(vp.version)] : null;
+  if (ver) {
+    const [label, city, hwy, comb, , tankIdx] = ver;
+    const tank = tankIdx >= 0 ? app.vehicles.tanks[tankIdx] : null;
+    const query = encodeURIComponent(`${vp.year} ${vp.make} ${vp.model} ${label.split(' · ')[0]} fuel tank capacity gallons`);
+    let tankUI;
+    if (tank && tank.gallons.length === 1) {
+      tankUI = `<div class="field"><span style="flex:1">Tank<div class="muted tiny">Verified: ${tank.sources.map((u, i) => `<a href="${h(u)}" target="_blank" rel="noopener">source ${i + 1}</a>`).join(', ')}</div></span><b class="num">${tank.gallons[0]} gal</b></div>`;
+    } else if (tank) {
+      tankUI = `<div class="field" style="flex-wrap:wrap"><span style="flex:1">Tank<div class="muted tiny">This model came with different tanks. Verified: ${tank.sources.map((u, i) => `<a href="${h(u)}" target="_blank" rel="noopener">source ${i + 1}</a>`).join(', ')}</div></span>
+        <div class="chips">${tank.gallons.map((g) => `<button class="chip${Number(vp.tank) === g ? ' on' : ''}" data-act="vehicle-tank" data-arg="${g}">${g} gal</button>`).join('')}</div></div>`;
+    } else {
+      tankUI = `<label class="field"><span style="flex:1">Tank size (gallons)<div class="muted tiny">Not in the verified list yet. <a href="https://www.google.com/search?q=${query}" target="_blank" rel="noopener">Look it up</a> or check the owner's manual.</div></span>
+        <input type="number" inputmode="decimal" step="0.1" min="1" max="60" data-vp="tank" value="${vp.tank ?? ''}"></label>`;
+    }
+    detail = `<div class="list" style="margin-top:12px">
+      <div class="field"><span style="flex:1">EPA fuel economy<div class="muted tiny"><a href="https://www.fueleconomy.gov/feg/noframes/${ver[4]}.shtml" target="_blank" rel="noopener">fueleconomy.gov</a></div></span><span class="num"><b>${city}</b> city · <b>${hwy}</b> hwy · <b>${comb}</b> comb</span></div>
+      ${tankUI}</div>
+      <button class="btn primary block" style="margin-top:14px" data-act="vehicle-save">Use this vehicle</button>`;
+  }
+  return `${head}<div class="list">
+    ${select('year', 'Year', years, vp.year)}
+    ${select('make', 'Make', makes, vp.make)}
+    ${select('model', 'Model', models, vp.model)}
+    ${select('version', 'Version', versions, vp.version, (o) => `${o[0]} · ${o[2]} mpg hwy`)}
+  </div>${detail}
+  <p class="note">Fuel economy for every gasoline, diesel and hybrid vehicle since 2000 from the U.S. EPA (fueleconomy.gov). Tank sizes are included only where verified from the manufacturer or two reputable sources.</p>`;
 }
 
 export function stopSheet(app) {

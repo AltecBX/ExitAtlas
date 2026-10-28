@@ -52,6 +52,14 @@ export async function loadCorridors() {
   return new CorridorDataset(await fetchBuffer('corridors.eac'));
 }
 
+/// EPA vehicle list with verified tank sizes (about 2.5 MB, compressed by the host). Loaded on demand.
+export async function loadVehicles() {
+  const res = await fetch(new URL(`vehicles.json?v=${VEHICLES_VERSION}`, DATA_BASE));
+  if (!res.ok) throw new Error(`vehicle list: HTTP ${res.status}`);
+  return res.json();
+}
+const VEHICLES_VERSION = '20261028';
+
 export async function loadDemoRouteJSON() {
   const res = await fetch(new URL(`demo_miami_manhattan.json?v=${DATA_VERSION}`, DATA_BASE));
   if (!res.ok) throw new Error(`demo route: HTTP ${res.status}`);
