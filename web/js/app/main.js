@@ -821,7 +821,7 @@ const actions = {
   'discard-resume'() { rebaseFuel(app.resumable?.drivenMeters ?? 0); app.resumable = null; store.remove('ea.active'); render(); },
   exit(arg) { openSheet('exit', arg); },
   rest(arg) { openSheet('rest', arg); },
-  'add-stop'(arg) { const [exitID, placeID] = arg.split('|'); addStop(exitID, placeID); },
+  'add-trip-stop'(arg) { const [exitID, placeID] = arg.split('|'); addStop(exitID, placeID); },
   'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   sheet(arg) {
     if (arg === 'search') app.alongRoute.results = null;
