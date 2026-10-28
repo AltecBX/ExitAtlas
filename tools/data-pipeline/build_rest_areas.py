@@ -94,8 +94,11 @@ class Carriageways:
         gx, gy = math.floor(lon / CELL), math.floor(lat / CELL)
         seen, out = set(), []
         px, py = xy(lon, lat, lat)
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
+        # Cells to search on each side: enough to cover the radius (one cell is about 1.1 km north to south).
+        sy = max(1, math.ceil(radius / 111000.0 / CELL))
+        sx = max(1, math.ceil(radius / (111000.0 * max(math.cos(math.radians(lat)), 0.2)) / CELL))
+        for dx in range(-sx, sx + 1):
+            for dy in range(-sy, sy + 1):
                 for sid in self.grid.get((gx + dx, gy + dy), ()):
                     if sid in seen:
                         continue

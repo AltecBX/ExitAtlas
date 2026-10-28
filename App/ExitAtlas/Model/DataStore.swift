@@ -30,9 +30,10 @@ struct BundledData: Sendable {
         let corridors = try CorridorDataset(contentsOf: try url("corridors", "eac"))
         // Optional: without it the timeline has no rest area rows.
         let restAreas = (try? url("restareas", "json")).flatMap { try? RestAreaDataset(contentsOf: $0) }
+        let discover = (try? url("discover", "json")).flatMap { try? DiscoverDataset(contentsOf: $0) }
         return BundledData(
             datasets: TripDatasets(states: states, timeZones: TimeZoneResolver(zones: zones), interstates: interstates,
-                                   restAreas: restAreas),
+                                   restAreas: restAreas, discover: discover),
             corridors: corridors, interstates: interstates)
     }
 
@@ -49,5 +50,11 @@ struct BundledData: Sendable {
         guard let m = datasets.restAreas?.metadata else { return nil }
         return "\(m.count) rest areas, welcome centers and service plazas from OpenStreetMap (tags checked \(m.tagsFetched ?? "unknown")). "
             + "Truck parking counts from the FHWA Truck Stop Parking survey (2019, public domain). \(m.license). Amenities show only what mappers have tagged."
+    }
+
+    var discoverSummary: String? {
+        guard let m = datasets.discover?.metadata else { return nil }
+        return "\(m.count) notable places from Wikidata (\(m.license), fetched \(m.fetched ?? "unknown")): parks, museums, monuments and more "
+            + "within 5 to 10 miles of an interstate. Hours, fees and closures are not included."
     }
 }

@@ -17,7 +17,7 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, EV stops, rest areas and the new voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 72 tests pass on Linux, with the web's 58 tests covering the same cases in JavaScript. |
+| Engine (`Sources/ExitAtlasCore`) | 78 tests pass on Linux, with the web's 63 tests covering the same cases in JavaScript. |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
 
@@ -38,6 +38,12 @@ In both the web version and the iOS app unless marked.
 **Stops**
 * Plan a stop about N hours ahead: ranked by how close it is to your time, the detour, your favorite brands and listed restrooms, with the reasons shown. Rest stops include rest areas on the highway (no detour).
 * Add a suggested stop to the trip and reroute through it (live GPS only).
+
+**Discover and keep**
+* Discover ahead: up to five notable places in the next 200 miles (national and state parks, monuments, museums, zoos, waterfalls), 1,620 in all from Wikidata, within 5 miles of the interstate (10 for parks and natural sites). Each shows how far off the highway it is, and "Add to trip" reroutes through it (live GPS only). Hours and closures are not known.
+* Road Trip Passport: states driven and achievements (five states, 1,000 miles, coast to coast and more) from real GPS trips; simulated drives never count.
+* Share cards: an image of the trip (miles and miles per state, marked when simulated) or of the Passport.
+* License plate game for passengers, kept per trip.
 
 **Lock Screen, Siri and the car** *(iOS)*
 * A Live Activity with the next exit, the next state line, the next rest area and your arrival time, on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch.
@@ -117,6 +123,7 @@ Select your team under Signing, then run on an iPhone (iOS 17+). Use **Simulate*
 
 * **Exits and places:** OpenStreetMap contributors via [OpenInterstate](https://openinterstate.org/), ODbL 1.0. The derived databases (`interstates.eax`, `corridors.eac`, `restareas.json`) are available under the ODbL, and `tools/data-pipeline` rebuilds them.
 * **Rest area truck parking:** FHWA Truck Stop Parking survey (NTAD, 2019), public domain.
+* **Discover places:** Wikidata (CC0), `discover.json`, rebuilt by `tools/data-pipeline/build_discover.py`.
 * **State boundaries:** U.S. Census Bureau TIGER/Line 2026 (public domain).
 * **Time zones:** USDOT BTS NTAD Time Zones (public domain).
 * **Fuel economy and EV range:** U.S. EPA and DOE, fueleconomy.gov (public domain).

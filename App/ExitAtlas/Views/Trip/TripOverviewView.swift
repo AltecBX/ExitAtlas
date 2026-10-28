@@ -6,6 +6,8 @@ import SwiftUI
 struct TripOverviewView: View {
     @Environment(TripController.self) private var trip
     @State private var showStopPlanner = false
+    @State private var showPlates = false
+    @State private var showCard = false
 
     var body: some View {
         NavigationStack {
@@ -19,11 +21,15 @@ struct TripOverviewView: View {
                         TripSummary(snapshot: snapshot, discovery: trip.mode == .discovery)
                     }
                     ItinerarySections(snapshot: snapshot)
+                    DiscoverSection(plan: plan, snapshot: snapshot)
                     Section {
                         if trip.mode == .trip {
                             Button { showStopPlanner = true } label: { Label("Plan a stop ahead", systemImage: "bed.double") }
                         }
+                        Button { showPlates = true } label: { Label("License plate game", systemImage: "car.rear") }
                         ShareLink(item: itineraryText(snapshot)) { Label("Share itinerary", systemImage: "square.and.arrow.up") }
+                        Button { showCard = true } label: { Label("Share trip card", systemImage: "photo") }
+                            .disabled(drivenByState(snapshot).reduce(0) { $0 + $1.meters } < 0.1 * Geodesy.metersPerMile)
                         Button(role: .destructive) { trip.endTrip() } label: { Label("End trip", systemImage: "stop.circle") }
                     }
                     Section { DataAttribution() }.listRowBackground(Color.clear)
@@ -31,11 +37,30 @@ struct TripOverviewView: View {
                 .simulationBanner(trip.isSimulating)
                 .navigationTitle(trip.mode == .discovery ? (plan.route.title ?? "Discovery") : "Trip")
                 .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
+                .navigationDestination(for: RouteDiscovery.self) { DiscoverDetailView(place: $0) }
                 .sheet(isPresented: $showStopPlanner) { StopPlannerView() }
+                .sheet(isPresented: $showPlates) { LicensePlatesView() }
+                .sheet(isPresented: $showCard) {
+                    ShareCardSheet(title: "Trip card", card: TripCardView(
+                        title: trip.mode == .discovery ? (plan.route.title ?? "Discovery drive") : "\(plan.route.origin.name) to \(plan.route.destination.name)",
+                        date: Date(), totalMeters: drivenByState(snapshot).reduce(0) { $0 + $1.meters }, states: drivenByState(snapshot),
+                        simulated: trip.isSimulating))
+                }
             } else {
                 ContentUnavailableView("No trip yet", systemImage: "map", description: Text("Plan a trip to see your route by state."))
             }
         }
+    }
+
+    /// Miles driven in each state so far, in order of first entry (same as the web trip card). The card's
+    /// total is their sum, so it matches the states shown (the demo starts partway, which is not driving).
+    private func drivenByState(_ s: TripSnapshot) -> [(code: String, meters: Double)] {
+        var out: [(code: String, meters: Double)] = []
+        for st in s.drivenStints where st.meters > 0 {
+            let code = st.regionCode ?? String(st.regionName.prefix(2)).uppercased()
+            if let i = out.firstIndex(where: { $0.code == code }) { out[i].meters += st.meters } else { out.append((code, st.meters)) }
+        }
+        return out
     }
 
     private func itineraryText(_ s: TripSnapshot) -> String {

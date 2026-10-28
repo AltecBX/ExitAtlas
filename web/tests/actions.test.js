@@ -14,7 +14,7 @@ function actionNames() {
   const start = main.indexOf('const actions = {');
   assert.ok(start >= 0, 'actions object found');
   const body = main.slice(start, main.indexOf('\n};', start));
-  return [...body.matchAll(/^ {2}'?([\w-]+)'?\s*\(/gm)].map((m) => m[1]);
+  return [...body.matchAll(/^ {2}(?:async )?'?([\w-]+)'?\s*\(/gm)].map((m) => m[1]);
 }
 
 test('every action name is defined once', () => {

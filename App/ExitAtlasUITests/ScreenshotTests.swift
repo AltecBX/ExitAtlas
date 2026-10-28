@@ -62,16 +62,43 @@ final class ScreenshotTests: XCTestCase {
         app.swipeUp()
         sleep(1)
         snap("5 Itinerary", dark)
-        // The stop planner button sits below the itinerary.
-        app.swipeUp()
-        sleep(1)
+        // Discover ahead and the trip buttons sit below the itinerary.
+        let discover = app.buttons["discoverRow"].firstMatch
+        if reveal(discover, in: app) {
+            snap("4c Discover ahead", dark)
+            discover.tap()
+            sleep(2)
+            snap("4d Discover place", dark)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
         let planStop = app.buttons["Plan a stop ahead"].firstMatch
-        if planStop.waitForExistence(timeout: 5), planStop.isHittable {
+        if reveal(planStop, in: app) {
             planStop.tap()
             sleep(3)
             snap("4b Plan a stop", dark)
             app.buttons["Done"].firstMatch.tap()
             sleep(1)
+        }
+        let plates = app.buttons["License plate game"].firstMatch
+        if reveal(plates, in: app) {
+            plates.tap()
+            sleep(1)
+            for code in ["GA", "FL", "NY", "TX"] { app.buttons[code].firstMatch.tap() }
+            snap("4e License plates", dark)
+            app.buttons["Start over"].firstMatch.tap()
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
+        }
+        let card = app.buttons["Share trip card"].firstMatch
+        if reveal(card, in: app), card.isEnabled {
+            card.tap()
+            if app.navigationBars["Trip card"].waitForExistence(timeout: 5) {
+                sleep(2)
+                snap("4f Trip card", dark)
+                app.buttons["Done"].firstMatch.tap()
+                sleep(1)
+            }
         }
 
         app.tabBars.buttons["Settings"].tap()
@@ -88,7 +115,25 @@ final class ScreenshotTests: XCTestCase {
             preview.tap()
             sleep(2)
             snap("7 Live Activity", dark)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
         }
+
+        let passport = app.buttons["passportLink"].firstMatch
+        if reveal(passport, in: app) {
+            passport.tap()
+            sleep(2)
+            snap("6b Passport", dark)
+        }
+    }
+
+    /// Scrolls up until the element can be tapped.
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 5) -> Bool {
+        for _ in 0..<swipes where !(element.exists && element.isHittable) {
+            app.swipeUp()
+            sleep(1)
+        }
+        return element.exists && element.isHittable
     }
 
     private func snap(_ name: String, _ dark: Bool) {

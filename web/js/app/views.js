@@ -8,6 +8,8 @@ import { renderRouteMap } from './map.js';
 import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
+import { DISCOVER_CATEGORIES } from '../engine/discover.js';
+import { passport, STATE_CODES } from '../engine/passport.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -143,7 +145,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -598,10 +600,66 @@ function tripOverview(app, plan, s) {
       ${f.segment.isBrief ? '<div class="amber-text tiny">Brief crossing</div>' : ''}</div>
       <div class="side num" style="font-weight:800">${miles(f.totalMeters)}</div></div>`).join('')}</div></div>`;
   }
+  html += discoverSection(plan, s);
   html += `<div class="stack">${app.mode === 'trip' ? '<button class="btn block" data-act="sheet" data-arg="stop">🛏️ Plan a stop ahead</button>' : ''}
+    <div class="btn-row"><button class="btn" data-act="share-card">🖼️ Share trip card</button><button class="btn" data-act="sheet" data-arg="plates">🚗 License plates</button></div>
     <button class="btn block" data-act="share">Share itinerary</button>
     <button class="btn danger block" data-act="end">End ${discovery ? 'discovery mode' : 'trip'}</button></div>${attribution()}</div>`;
   return html;
+}
+
+/// Up to five notable places in the next 200 miles, the best scored first picked, shown in route order.
+function discoverSection(plan, s) {
+  const ahead = plan.discover.filter((x) => x.distanceAlongRoute > s.progress && x.distanceAlongRoute - s.progress <= 200 * MILE);
+  if (!ahead.length) return '';
+  const top = [...ahead].sort((a, b) => b.item.score - a.item.score).slice(0, 5).sort((a, b) => a.distanceAlongRoute - b.distanceAlongRoute);
+  return `<div><div class="section-title">Discover ahead</div><div class="list">${top.map((x) => discoverRow(x, s)).join('')}</div>
+    <p class="note">Notable places from Wikidata within 5 to 10 miles of the highway. Distances off the highway are straight lines; the drive is longer. Check hours before you go.</p></div>`;
+}
+
+function discoverRow(x, s) {
+  const c = DISCOVER_CATEGORIES[x.item.cat];
+  const where = [c?.title, x.exit ? `near ${exitTitle(x.exit)}` : null, `${miles(x.offMeters)} off the highway`].filter(Boolean).join(' · ');
+  return `<button class="item" data-act="discover" data-arg="${h(x.item.id)}"><span class="disc-icon" aria-hidden="true">${c?.icon ?? '📍'}</span>
+    <div class="main"><div class="t">${h(x.item.name)}</div><div class="muted small">${h(where)}</div></div>
+    <div class="side"><div class="big">${milesValue(x.distanceAlongRoute - s.progress)}</div><div class="muted tiny">${duration(s.etaTo(x.distanceAlongRoute) - s.t)}</div></div></button>`;
+}
+
+export function discoverSheet(app, id) {
+  const x = app.plan?.discover.find((d) => d.item.id === id);
+  if (!x) return '<div class="empty">Place not found on this route.</div>';
+  const s = app.snapshot, it = x.item, c = DISCOVER_CATEGORIES[it.cat];
+  const ahead = s ? x.distanceAlongRoute - s.progress : null;
+  return `<div class="sheet-head"><span class="disc-icon lg" aria-hidden="true">${c?.icon ?? '📍'}</span><h2>${h(it.name)}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <p class="muted small" style="margin-top:0">${h(c?.title ?? '')}${ahead !== null && ahead > 0 ? ` · ${miles(ahead)} ahead on the route` : ''}${x.exit ? ` · near ${h(exitTitle(x.exit))}` : ''} · ${miles(x.offMeters)} off the highway (straight line)</p>
+    ${it.desc ? `<div class="card small">${h(it.desc[0].toUpperCase() + it.desc.slice(1))}</div>` : ''}
+    <div class="btn-row" style="margin-top:12px"><a class="btn sm" href="https://maps.apple.com/?daddr=${it.lat},${it.lon}&dirflg=d" target="_blank" rel="noopener">Apple Maps</a>
+      <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${it.lat},${it.lon}" target="_blank" rel="noopener">Google Maps</a>
+      ${it.wiki ? `<a class="btn sm" href="${h(it.wiki)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}</div>
+    ${app.canAddStop() ? `<button class="btn primary block" style="margin-top:12px" data-act="add-place-stop" data-arg="${h(it.id)}">Add to trip</button>` : '<p class="muted tiny">Adding it to the trip reroutes through it, which needs live GPS (not the demo).</p>'}
+    <p class="note">From Wikidata (${h(it.id)}, CC0): linked from ${it.sitelinks} Wikimedia sites (Wikipedia editions and sister projects). Hours, fees and closures are not in this data.</p>`;
+}
+
+/// Passenger game: tap the plates you spot. Kept for the current trip on this phone.
+export function platesSheet(app) {
+  const seen = new Set(app.plates.seen);
+  return `<div class="sheet-head"><h2>License plates</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <p class="muted small" style="margin-top:0">For passengers: tap each state's plate when you spot it. <b>${seen.size}</b> of ${STATE_CODES.length} on this trip.</p>
+    <div class="plates">${STATE_CODES.map((c) => `<button class="plate${seen.has(c) ? ' on' : ''}" data-act="plate" data-arg="${c}" aria-pressed="${seen.has(c)}">${c}</button>`).join('')}</div>
+    <button class="btn block" style="margin-top:14px" data-act="plates-reset">Start over</button>`;
+}
+
+/// Road Trip Passport: states and achievements from real GPS trips.
+function passportSection(app) {
+  const p = passport(app.history);
+  const earned = p.achievements.filter((a) => a.earned);
+  const next = p.achievements.filter((a) => !a.earned).sort((a, b) => b.progress - a.progress).slice(0, 3);
+  return `<div class="card"><div class="metrics two">${metric('States driven', String(p.states.size), { caption: `of ${STATE_CODES.length}`, size: 'md' })}${metric('Miles tracked', Math.round(p.totalMeters / MILE).toLocaleString('en-US'), { caption: `${p.tripCount} ${p.tripCount === 1 ? 'trip' : 'trips'}`, size: 'md' })}</div>
+    <div class="plates passport">${STATE_CODES.map((c) => `<span class="plate${p.states.has(c) ? ' on' : ''}" title="${p.states.has(c) ? h(`${p.states.get(c).name}: ${miles(p.states.get(c).meters)}`) : ''}">${c}</span>`).join('')}</div>
+    ${earned.length ? `<div class="section-title">Earned</div>${earned.map((a) => `<div class="ach on">★ ${h(a.title)}</div>`).join('')}` : ''}
+    ${next.length ? `<div class="section-title">Next up</div>${next.map((a) => `<div class="ach"><div class="row"><span style="flex:1">${h(a.title)}</span><span class="muted tiny">${h(a.detail)}</span></div>${progress(a.progress)}</div>`).join('')}` : ''}
+    <button class="btn block" style="margin-top:12px" data-act="share-passport" ${p.tripCount ? '' : 'disabled'}>🖼️ Share passport</button>
+    <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone. Simulated drives and discovery mode are not counted.</p></div>`;
 }
 
 function plannerView(app) {
@@ -653,7 +711,6 @@ function routeCard(r, i, count, app) {
 export function settingsView(app) {
   const st = app.settings;
   const toggle = (key, label, note = '') => `<label class="field"><span style="flex:1">${h(label)}${note ? `<div class="muted tiny">${h(note)}</div>` : ''}</span><input type="checkbox" class="toggle" data-set="${key}" ${st[key] ? 'checked' : ''}></label>`;
-  const life = app.lifetime();
   const meta = (m) => (m ? h(`${m.source ?? ''}${m.generated_at ? `, built ${m.generated_at.slice(0, 10)}` : ''}`) : 'not loaded');
   return `<div class="stack">
     <div><div class="section-title">Voice</div><div class="list">
@@ -687,13 +744,13 @@ export function settingsView(app) {
       <div class="field"><span style="flex:1">🏠 Home<div class="muted tiny">${app.places.home ? h(app.places.home.name) : 'Not set. Tap 🏠 next to any place when you search.'}</div></span>${app.places.home ? '<button class="btn sm" data-act="clear-home">Clear</button>' : ''}</div>
       <div class="field"><span style="flex:1">Recent places<div class="muted tiny">${app.places.recent.length} saved on this phone</div></span>${app.places.recent.length ? '<button class="btn sm" data-act="clear-recent">Clear</button>' : ''}</div></div></div>
     <div><div class="section-title">Arrival times</div><div class="card small">${paceSettings(app)}</div></div>
-    <div><div class="section-title">Lifetime</div><div class="card"><div class="metrics two">${metric('Miles tracked', Math.round(life.meters / MILE).toLocaleString('en-US'), { size: 'md' })}${metric('States driven', String(life.states.length), { caption: life.states.join(' · '), size: 'md' })}</div>
-      <p class="note" style="margin:10px 0 0">Real GPS trips only, saved on this phone.</p></div></div>
+    <div><div class="section-title">Road Trip Passport</div>${passportSection(app)}</div>
     <div><div class="section-title">Data and licenses</div><div class="card small">
       <p style="margin-top:0"><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
+      <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
       <p><b>Gas prices:</b> Google Maps Places API with your key (Settings, Gas prices). Off without a key.</p>

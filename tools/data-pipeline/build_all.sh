@@ -70,4 +70,7 @@ python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.js
 python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
 python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicles.json"
+# Discover places come from the live Wikidata query service (cached per category in the work dir).
+mkdir -p "$WORK/wikidata"
+python3 build_discover.py "$OI_CSV" "$WORK/wikidata" "$OUT/discover.json"
 echo "Full resolution states for oracle fixtures: $WORK/states_full.geojson"

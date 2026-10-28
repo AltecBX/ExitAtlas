@@ -66,6 +66,7 @@ All little endian. Common header: 4 byte magic, `u32` version, `u32` metadata le
 |---|---|---|
 | `states.eab`, `timezones.eab` | EAB1 | regions: code, name, extra, bbox, polygons, rings, points |
 | `restareas.json` | JSON | `{meta: {kind: "restareas", source, tags_fetched, fhwa_source, license, attribution, count, generated_at}, items: [{id (OSM), lat, lon, kind (rest, welcome, plaza, parking), name, nameSource?, road, bearing? (carriageway served; absent in the median or on an undivided road), amenities? ({toilets, water, picnic, vending, pets, wifi, dump, shower, accessible, trucks, info}: true or false, only when tagged), hours?, truckSpaces?, checked?, fhwa? {id, truckSpaces}, gas?, food?, ev? (names within 300 m of a plaza)}]}` |
+| `discover.json` | JSON | `{meta: {kind: "discover", version, source, license, attribution, fetched, count, min_score, generated_at}, items: [{id (Wikidata Q id), name, cat (nationalPark, nationalMonument, statePark, waterfall, cave, viewpoint, museum, zoo, amusementPark, historicSite, landmark), lat, lon, sitelinks, score (0 to 100), road (nearest interstate), offMeters (straight line to it), desc?, wiki? (English Wikipedia URL)}]}` |
 | `interstates.eax` | EAX1 | string table; exits (40 bytes: node id, lat, lon, 2 bearings × 10, label, name, highways, link start, link count); places (24 bytes); links (12 bytes: place index, straight m, drive m, drive s, rank, flags) |
 | `corridors.eac` | EAC1 | string table; corridors: highway, direction code, display name, distance, duration, parts of points |
 

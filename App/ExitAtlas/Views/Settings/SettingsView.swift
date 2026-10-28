@@ -89,7 +89,10 @@ struct SettingsView: View {
                 }
                 Section("Your trips") {
                     LabeledContent("Lifetime miles", value: Format.miles(library.lifetimeMeters))
-                    LabeledContent("States driven", value: "\(library.lifetimeStates.count)")
+                    NavigationLink { PassportView() } label: {
+                        LabeledContent("Road Trip Passport", value: "\(library.lifetimeStates.count) states")
+                    }
+                    .accessibilityIdentifier("passportLink")
                     NavigationLink("Trip history") { HistoryView() }
                 }
                 Section("About the data") {
@@ -193,6 +196,9 @@ struct DataSourcesView: View {
             }
             if let summary = app.data?.restAreaSummary {
                 Section("Rest areas and service plazas") { Text(summary).font(.subheadline) }
+            }
+            if let summary = app.data?.discoverSummary {
+                Section("Discover ahead") { Text(summary).font(.subheadline) }
             }
             Section("Maps and routes") {
                 Text("Maps, routes and travel times: Apple Maps (MapKit). Route geometry is kept only for the active trip.")

@@ -7,6 +7,8 @@ import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft,
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { gasGaps } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
+import { passport, STATE_CODES } from '../engine/passport.js';
+import { drawTripCard, drawPassportCard, shareCanvas } from './sharecard.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
@@ -41,6 +43,8 @@ const app = {
   lastRerouteAt: null, lastPersistAt: null,
   settings: { ...DEFAULT_SETTINGS, ...store.get('ea.settings', {}) },
   history: store.get('ea.history', []),
+  /// License plate game for the current trip: {key: trip start, seen: [codes]}.
+  plates: store.get('ea.plates', { key: null, seen: [] }),
   resumable: null,
   planner: { from: null, to: null, stops: [], results: [], busy: false, error: null },
   places: loadPlaces(),
@@ -109,15 +113,6 @@ const app = {
     return this.mapCache.map;
   },
 
-  lifetime() {
-    let meters = 0;
-    const states = [];
-    for (const t of this.history) {
-      meters += t.totalMeters;
-      for (const s of t.states) if (s.code && !states.includes(s.code)) states.push(s.code);
-    }
-    return { meters, states };
-  },
 
   /// Current speed in mph from the latest fix, or null when there is no recent fix.
   speedNow() {
@@ -255,6 +250,8 @@ function renderSheet() {
   let html = '';
   if (kind === 'exit') html = V.exitDetail(app, arg);
   else if (kind === 'rest') html = V.restAreaDetail(app, arg);
+  else if (kind === 'discover') html = V.discoverSheet(app, arg);
+  else if (kind === 'plates') { platesForTrip(); html = V.platesSheet(app); }
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') {
@@ -286,7 +283,7 @@ function toast(text) {
 // MARK: Modes
 
 function datasets() {
-  return { states: app.data.states, timeZones: app.data.timeZones, interstates: app.data.interstates, restAreas: app.data.restAreas };
+  return { states: app.data.states, timeZones: app.data.timeZones, interstates: app.data.interstates, restAreas: app.data.restAreas, discover: app.data.discover };
 }
 
 function nowSeconds() { return Date.now() / 1000; }
@@ -717,19 +714,31 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
 /// Adds a place as the next stop and reroutes through it. Stops already on the trip keep their order;
 /// the new one goes before the first remaining stop that lies farther along the current route.
 async function addStop(exitID, placeID) {
-  if (!app.canAddStop()) { toast('Adding a stop needs live GPS'); return; }
-  const exit = app.plan.exits.find((e) => e.id === exitID);
+  const exit = app.plan?.exits.find((e) => e.id === exitID);
   const place = exit && app.servicesFor(exit).find((x) => x.place.id === placeID)?.place;
   if (!place) return;
-  const waypoint = { name: placeDisplayName(place), coordinate: place.coordinate };
+  await addWaypointStop({ name: placeDisplayName(place), coordinate: place.coordinate }, exit.distanceAlongRoute);
+}
+
+/// Inserts a stop before the first remaining stop farther along the route, then reroutes.
+async function addWaypointStop(waypoint, alongRoute) {
+  if (!app.canAddStop()) { toast('Adding a stop needs live GPS'); return; }
   const along = (w) => app.plan.route.stops.find((st) => st.waypoint.name === w.name)?.distanceAlongRoute ?? Infinity;
   const list = remainingWaypoints();
-  const at = list.findIndex((w) => along(w) > exit.distanceAlongRoute);
+  const at = list.findIndex((w) => along(w) > alongRoute);
   list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
   app.remainingWaypoints = list;
   closeSheet();
   toast(`Adding ${waypoint.name}`);
   await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+}
+
+/// The plate game belongs to one trip: a new trip starts a fresh list.
+function platesForTrip() {
+  if (app.plates.key !== app.tripStartedAt) {
+    app.plates = { key: app.tripStartedAt, seen: [] };
+    store.set('ea.plates', app.plates);
+  }
 }
 
 function persistIfDue(t, force = false) {
@@ -822,6 +831,49 @@ const actions = {
   exit(arg) { openSheet('exit', arg); },
   rest(arg) { openSheet('rest', arg); },
   'add-trip-stop'(arg) { const [exitID, placeID] = arg.split('|'); addStop(exitID, placeID); },
+  discover(arg) { openSheet('discover', arg); },
+  'add-place-stop'(arg) {
+    const x = app.plan?.discover.find((d) => d.item.id === arg);
+    if (x) addWaypointStop({ name: x.item.name, coordinate: x.item.coordinate }, x.distanceAlongRoute);
+  },
+  plate(arg) {
+    platesForTrip();
+    const seen = new Set(app.plates.seen);
+    if (seen.has(arg)) seen.delete(arg); else seen.add(arg);
+    app.plates.seen = STATE_CODES.filter((c) => seen.has(c));
+    store.set('ea.plates', app.plates);
+    renderSheet();
+  },
+  'plates-reset'() { app.plates = { key: app.tripStartedAt, seen: [] }; store.set('ea.plates', app.plates); renderSheet(); },
+  async 'share-card'() {
+    const s = app.snapshot, plan = app.plan;
+    if (!s || !plan) return;
+    const totals = new Map();
+    for (const st of s.drivenStints) {
+      const e = totals.get(st.code ?? st.name) ?? { code: st.code, name: st.name, meters: 0 };
+      e.meters += st.meters;
+      totals.set(st.code ?? st.name, e);
+    }
+    const title = app.mode === 'discovery' ? plan.route.title : `${plan.route.origin.name} to ${plan.route.destination.name}`;
+    const canvas = document.createElement('canvas');
+    drawTripCard(canvas, { title, date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      // The total is the sum of the states shown (the demo starts partway, which is not driving).
+      totalMeters: [...totals.values()].reduce((a, e) => a + e.meters, 0), states: [...totals.values()], simulated: app.gps === 'simulation' });
+    try {
+      const how = await shareCanvas(canvas, 'exitatlas-trip.png', `${title} on ExitAtlas`);
+      if (how === 'downloaded') toast('Trip card saved');
+    } catch (e) { toast(e.message); }
+  },
+  async 'share-passport'() {
+    const p = passport(app.history);
+    const canvas = document.createElement('canvas');
+    drawPassportCard(canvas, { codes: STATE_CODES, visited: new Set(p.states.keys()), totalMeters: p.totalMeters, tripCount: p.tripCount,
+      earned: p.achievements.filter((a) => a.earned) });
+    try {
+      const how = await shareCanvas(canvas, 'exitatlas-passport.png', 'My ExitAtlas Road Trip Passport');
+      if (how === 'downloaded') toast('Passport card saved');
+    } catch (e) { toast(e.message); }
+  },
   'gas-gap'(arg) { app.settings.gasGapMiles = Number(arg); store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   sheet(arg) {
     if (arg === 'search') app.alongRoute.results = null;
@@ -892,7 +944,7 @@ const actions = {
   theme(arg) { app.settings.theme = arg; store.set('ea.settings', app.settings); lastViewHTML = ''; render(); },
   'clear-data'() {
     if (!confirm('Erase saved trips, recent destinations and settings on this phone?')) return;
-    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles']) store.remove(k);
+    for (const k of ['ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window', 'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles', 'ea.plates']) store.remove(k);
     app.places = { home: null, recent: [] };
     app.fuel = null;
     app.recentVehicles = [];

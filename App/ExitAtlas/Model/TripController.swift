@@ -512,19 +512,26 @@ final class TripController {
         }
     }
 
+    /// Identifies the current trip (its start time), for things kept per trip like the plate game.
+    var tripKey: String { tripStartedAt.map { String(Int($0.timeIntervalSince1970)) } ?? "" }
+
     /// A stop can be added mid-trip when a reroute is possible: a planned trip on device GPS.
     var canAddStop: Bool { mode == .trip && !isSimulating && lastSample != nil && !remainingWaypoints.isEmpty }
 
     /// Adds a place at an exit as the next stop and reroutes through it. Stops already on the trip keep
     /// their order; the new one goes before the first remaining stop that lies farther along the route.
     func addStop(_ place: Place, at exit: RouteExit) {
+        addStop(Waypoint(name: place.displayName, coordinate: place.coordinate), alongRoute: exit.distanceAlongRoute)
+    }
+
+    /// Adds any place (a Discover place, for example) as a stop, ordered by where it is along the route.
+    func addStop(_ waypoint: Waypoint, alongRoute: Double) {
         guard canAddStop, let sample = lastSample, let plan else { return }
-        let waypoint = Waypoint(name: place.displayName, coordinate: place.coordinate)
         var list = dropPassedStops()
         func along(_ w: Waypoint) -> Double {
             plan.route.stops.first { $0.waypoint == w }?.distanceAlongRoute ?? .infinity
         }
-        let index = list.firstIndex { along($0) > exit.distanceAlongRoute } ?? max(0, list.count - 1)
+        let index = list.firstIndex { along($0) > alongRoute } ?? max(0, list.count - 1)
         list.insert(waypoint, at: min(index, max(0, list.count - 1)))
         reroute(from: sample, waypoints: list, force: true, spoken: "Stop added: \(waypoint.name).")
     }

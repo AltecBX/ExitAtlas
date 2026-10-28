@@ -5,6 +5,7 @@ import path from 'node:path';
 import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../js/engine/datasets.js';
 import { routeFromJSON } from '../js/engine/osrm.js';
 import { RestAreaDataset } from '../js/engine/restareas.js';
+import { DiscoverDataset } from '../js/engine/discover.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dataDir = path.join(root, 'App/ExitAtlas/Resources/Data');
@@ -22,6 +23,7 @@ export const data = {
   get timeZones() { return (cache.tzr ??= new TimeZoneResolver(this.timeZoneIndex)); },
   get interstates() { return (cache.ix ??= new InterstateDataset(buffer(path.join(dataDir, 'interstates.eax')))); },
   get corridors() { return (cache.cx ??= new CorridorDataset(buffer(path.join(dataDir, 'corridors.eac')))); },
+  get discover() { return (cache.dc ??= new DiscoverDataset(JSON.parse(readFileSync(path.join(dataDir, 'discover.json'), 'utf8')))); },
   get restAreas() { return (cache.ra ??= new RestAreaDataset(JSON.parse(readFileSync(path.join(dataDir, 'restareas.json'), 'utf8')))); },
 };
 

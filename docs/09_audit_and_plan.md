@@ -158,7 +158,8 @@ Each milestone ends in a pull request with tests, screenshots where the interfac
 | 1 | Merged (PR #3) | Web and engine tests; web screenshots on 4 sizes |
 | 2 | Merged (PR #4) | Engine ports tested against the web cases (66 tests then); iOS builds and its screenshot tests pass in CI; not run on a device |
 | 3 | Merged (PR #5) | See below |
-| 4 | PR #6 | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
+| 4 | Merged (PR #6) | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
+| 5 | PR #7 | See below |
 
 Milestone 3 delivered:
 
@@ -166,6 +167,13 @@ Milestone 3 delivered:
 * **Engine (Swift and JavaScript):** rest area matching (driver's side only, median facilities both ways, nothing on non interstate roads), gas gaps, ranked stop suggestions with reasons, voice for rest areas, the last gas before a long stretch and time zone changes. Tests: placement on the Miami to Manhattan and Richmond to New York fixtures in both directions, gas gaps, ranking order, voice on Atlanta to Nashville (Eastern to Central once).
 * **Interfaces (web and iOS):** rest area rows and a Drive card with verified amenity chips, a rest area detail screen with OSM links, "No gas for N mi" rows and a Drive heads up, settings for each voice message and the gap length, ranked stops with "Add to trip" (reroutes through the stop; live GPS only).
 * **Not done or not verifiable here:** amenity coverage is what mappers tagged (58% of facilities have a restrooms tag, 37% have none of the tracked tags); closures and open status need state DOT feeds; some plazas and their gas stations are missing from the source (Maryland House; Chesapeake House shows no gas); "Add to trip" and the new voice messages are untested on a real drive.
+
+Milestone 5 delivered:
+
+* **Data:** `tools/data-pipeline/build_discover.py` builds `discover.json` from Wikidata (CC0): 1,620 places within 8 km of an interstate carriageway (16 km for parks and natural sites): 1,236 state parks, 254 museums, 42 national monuments, 34 zoos, 13 landmarks, 13 waterfalls, 12 national parks, 12 amusement parks, 3 historic sites, 1 cave. Closed, dissolved, planned and former places are excluded. Rebuilding from the cached query results gives the same items.
+* **Engine (Swift and JavaScript):** `DiscoverAhead` projects places onto the route with the nearest exit; `Passport` computes states, miles and ten achievements from trip history. Tests on the Miami to Manhattan fixture (173 places, route order, nearest exit) and on achievement thresholds.
+* **Interfaces (web and iOS):** Discover section (top five by score in the next 200 miles, in route order) with a detail screen, directions and "Add to trip"; Road Trip Passport (state grid, achievements, next up); trip and Passport share cards as images (marked when simulated); a per trip license plate game.
+* **Not done or not verifiable here:** opening hours, fees and closures (not in Wikidata in usable form); the score is a notability proxy, so state parks dominate and some local favorites are missing; distances off the highway are straight lines; share cards and the plate game are untested on a device.
 
 ## 9.11 Blockers and external dependencies
 
