@@ -60,6 +60,41 @@ final class TripLibrary {
         saved = load("saved.json") ?? []
         history = load("history.json") ?? []
         paceHistory = load("pace_history.json") ?? PaceHistory()
+        if let places: Places = load("places.json") {
+            home = places.home
+            recentPlaces = places.recent
+        }
+    }
+
+    /// Home and the last 10 places used, offered first when choosing a start, stop or destination.
+    private(set) var home: Waypoint?
+    private(set) var recentPlaces: [Waypoint] = []
+
+    private struct Places: Codable {
+        var home: Waypoint?
+        var recent: [Waypoint]
+    }
+
+    func setHome(_ place: Waypoint?) {
+        home = place
+        writePlaces()
+    }
+
+    func recordPlace(_ place: Waypoint) {
+        guard place.name != "Current location" else { return }
+        recentPlaces.removeAll { $0 == place || ($0.name == place.name && Geodesy.distance($0.coordinate, place.coordinate) < 100) }
+        recentPlaces.insert(place, at: 0)
+        if recentPlaces.count > 10 { recentPlaces.removeLast(recentPlaces.count - 10) }
+        writePlaces()
+    }
+
+    func clearRecentPlaces() {
+        recentPlaces = []
+        writePlaces()
+    }
+
+    private func writePlaces() {
+        write(Places(home: home, recent: recentPlaces), "places.json")
     }
 
     func recordPace(key: String, pace: PaceModel) {

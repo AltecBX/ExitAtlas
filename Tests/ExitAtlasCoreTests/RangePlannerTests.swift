@@ -102,6 +102,34 @@ final class RangePlannerTests: XCTestCase {
         XCTAssertEqual(none.recommended?.key, base.recommended?.key)
     }
 
+    func testFuelStopIsSpokenAtTenAndTwoMilesAndLowFuelOnce() {
+        let plan = Self.miami
+        let range = 300 * mile
+        let first = RangePlanner.plan(plan: plan, snapshot: snap(plan, 100), range: range, candidates: gas(plan, snap(plan, 100), range))
+        let stopMile = (first.recommended!.candidate.along) / mile
+        var voice = FuelAnnouncements()
+        var said: [String] = []
+        // Drive toward the stop with range counting down; speak whatever is due at each mile.
+        var m = 100.0
+        while m < stopMile - 0.2 {
+            let s = snap(plan, m)
+            let left = range - (m - 100) * mile
+            let r = RangePlanner.plan(plan: plan, snapshot: s, range: left, candidates: gas(plan, s, left))
+            if let text = voice.message(for: r, electric: false, onRoute: true, enabled: true) { said.append(text) }
+            m += 0.5
+        }
+        let stopTitle = first.recommended!.candidate.exit!.displayTitle
+        XCTAssertEqual(said.filter { $0.contains(stopTitle) }.count, 2, said.joined(separator: " | "))
+        XCTAssertTrue(said.allSatisfy { $0.hasPrefix("Fuel stop, ") })
+        // Under the buffer: one low fuel message.
+        let low = RangePlanner.plan(plan: plan, snapshot: snap(plan, 450), range: 30 * mile, candidates: gas(plan, snap(plan, 450), 30 * mile))
+        var v2 = FuelAnnouncements()
+        XCTAssertTrue(v2.message(for: low, electric: false, onRoute: true, enabled: true)!.hasPrefix("Fuel is low. Nearest gas is Exit"))
+        XCTAssertNil(v2.message(for: low, electric: false, onRoute: true, enabled: true))
+        var v3 = FuelAnnouncements()
+        XCTAssertNil(v3.message(for: low, electric: false, onRoute: false, enabled: true))
+    }
+
     func testFavoriteMatchingIgnoresCaseAndPunctuation() {
         XCTAssertTrue(RangePlanner.matchesFavorite("Casey's General Store", favorites: ["caseys"]))
         XCTAssertTrue(RangePlanner.matchesFavorite("Costco Gasoline", favorites: ["Costco"]))

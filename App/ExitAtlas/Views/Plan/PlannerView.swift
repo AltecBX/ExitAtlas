@@ -200,25 +200,51 @@ private struct RouteOptionRow: View {
     }
 }
 
-/// Destination and stop search (Apple MapKit autocomplete).
+/// Destination and stop search (Apple MapKit autocomplete), with Home and recent places first.
 struct PlaceSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(TripLibrary.self) private var library
     @State private var search = PlaceSearch()
     @State private var resolving = false
     let onPick: (Waypoint) -> Void
+
+    private func pick(_ w: Waypoint) {
+        library.recordPlace(w)
+        onPick(w)
+        dismiss()
+    }
 
     var body: some View {
         @Bindable var search = search
         NavigationStack {
             List {
+                if search.query.isEmpty {
+                    if let home = library.home {
+                        Section("Home") {
+                            Button { pick(home) } label: { Label(home.name, systemImage: "house.fill") }
+                                .swipeActions { Button("Clear", role: .destructive) { library.setHome(nil) } }
+                        }
+                    }
+                    if !library.recentPlaces.isEmpty {
+                        Section {
+                            ForEach(library.recentPlaces, id: \.self) { place in
+                                Button { pick(place) } label: { Label(place.name, systemImage: "clock.arrow.circlepath").lineLimit(1) }
+                                    .swipeActions {
+                                        Button { library.setHome(place) } label: { Label("Set as Home", systemImage: "house") }.tint(Theme.signGreen)
+                                    }
+                            }
+                        } header: {
+                            Text("Recent")
+                        } footer: {
+                            Text("Swipe a place to set it as Home.")
+                        }
+                    }
+                }
                 ForEach(search.suggestions, id: \.self) { s in
                     Button {
                         Task {
                             resolving = true
-                            if let w = try? await search.resolve(s) {
-                                onPick(w)
-                                dismiss()
-                            }
+                            if let w = try? await search.resolve(s) { pick(w) }
                             resolving = false
                         }
                     } label: {
@@ -245,8 +271,14 @@ enum CurrentLocation {
         var errorDescription: String? { "Current location is unavailable. Allow location access or choose a starting point." }
     }
 
+    /// Kept alive so the permission prompt can show before the first fix is requested.
+    @MainActor private static let manager = CLLocationManager()
+
     static func fetch(timeout: TimeInterval = 15) async throws -> GeoCoordinate {
-        try await withThrowingTaskGroup(of: GeoCoordinate.self) { group in
+        await MainActor.run {
+            if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
+        }
+        return try await withThrowingTaskGroup(of: GeoCoordinate.self) { group in
             group.addTask {
                 for try await update in CLLocationUpdate.liveUpdates() {
                     if let loc = update.location, loc.horizontalAccuracy >= 0, loc.horizontalAccuracy < 200 {

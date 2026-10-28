@@ -8,12 +8,14 @@ struct MetricTile: View {
     var unit: String? = nil
     var caption: String? = nil
     var valueSize: CGFloat = 30
+    /// Follows the reader's text size, capped so the dashboard keeps its layout.
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Eyebrow(text: title)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(Theme.number(valueSize)).minimumScaleFactor(0.5).lineLimit(1)
+                Text(value).font(Theme.number(valueSize * min(max(scale, 0.85), 1.4))).minimumScaleFactor(0.5).lineLimit(1)
                 if let unit { Text(unit).font(.system(.subheadline, design: .rounded).weight(.semibold)).foregroundStyle(Theme.secondaryText) }
             }
             if let caption {
@@ -41,28 +43,6 @@ struct StateProgressBar: View {
         }
         .frame(height: height)
         .accessibilityValue("\(Int((fraction * 100).rounded())) percent")
-    }
-}
-
-/// Service counts at an exit, by category.
-struct ServiceSummary: View {
-    let services: [ExitService]
-    var categories: [PlaceCategory] = [.gas, .food, .lodging, .restArea, .evCharging]
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(categories, id: \.self) { category in
-                let count = services.filter { $0.place.category == category }.count
-                if count > 0 {
-                    HStack(spacing: 3) {
-                        Image(systemName: category.symbolName).font(.caption)
-                        Text("\(count)").font(.caption.monospacedDigit().weight(.semibold))
-                    }
-                    .foregroundStyle(Theme.secondaryText)
-                    .accessibilityLabel("\(count) \(category.displayName)")
-                }
-            }
-        }
     }
 }
 

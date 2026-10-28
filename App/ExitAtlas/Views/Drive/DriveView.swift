@@ -43,39 +43,144 @@ struct DriveView: View {
 
 private struct DriveDashboard: View {
     @Environment(TripController.self) private var trip
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @State private var showFuel = false
     let snapshot: TripSnapshot
 
     var body: some View {
-        VStack(spacing: 14) {
-            HeaderRow(snapshot: snapshot, discovery: trip.mode == .discovery)
-            if let current = snapshot.current {
-                BorderCard(snapshot: snapshot, current: current)
+        let discovery = trip.mode == .discovery
+        Group {
+            if verticalSizeClass == .compact {
+                // Phone mounted sideways: two columns, the most important cards on the left.
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(spacing: 14) {
+                        InstrumentCluster(snapshot: snapshot, discovery: discovery)
+                        if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
+                    }
+                    VStack(spacing: 14) {
+                        nextExit
+                        FuelCard { showFuel = true }
+                        DestinationRow(snapshot: snapshot, discovery: discovery)
+                    }
+                }
+            } else {
+                VStack(spacing: 14) {
+                    InstrumentCluster(snapshot: snapshot, discovery: discovery)
+                    if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
+                    nextExit
+                    FuelCard { showFuel = true }
+                    DestinationRow(snapshot: snapshot, discovery: discovery)
+                }
             }
-            if let next = snapshot.nextExit {
-                NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
-            }
-            DestinationRow(snapshot: snapshot, discovery: trip.mode == .discovery)
+        }
+        .padding(.top, 8)
+        .sheet(isPresented: $showFuel) { FuelView() }
+    }
+
+    @ViewBuilder
+    private var nextExit: some View {
+        if let next = snapshot.nextExit {
+            NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
         }
     }
 }
 
-private struct HeaderRow: View {
+/// Speedometer, posted limit, highway and state.
+private struct InstrumentCluster: View {
+    @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     let snapshot: TripSnapshot
     let discovery: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            HighwayShield(ref: snapshot.highway?.ref, size: 50)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(snapshot.highway.map { "\($0.ref.description) \($0.direction.word)" } ?? "Local roads")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                Text(discovery ? "Discovery mode · no destination" : "Driving in \(snapshot.current?.segment.displayName ?? "—")")
-                    .font(.subheadline).foregroundStyle(Theme.secondaryText)
+        let limit = trip.speedLimit
+        HStack(alignment: .center, spacing: 12) {
+            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver)
+            VStack(spacing: 6) {
+                SpeedLimitSign(limit: limit.mph, loading: limit.state == .loading)
+                if let next = limit.next {
+                    Text("\(next.mph) in \(Format.miles(next.distance))").font(.caption.monospacedDigit()).foregroundStyle(Theme.secondaryText)
+                } else if limit.mph == nil, limit.state == .unknown {
+                    Text("No limit data").font(.caption).foregroundStyle(Theme.secondaryText)
+                }
             }
-            Spacer()
-            StateBadge(code: snapshot.current?.segment.code, highlighted: true)
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                HighwayShield(ref: snapshot.highway?.ref, size: 46)
+                Text(snapshot.highway.map { $0.ref.description } ?? "Local roads")
+                    .font(.system(.title3, design: .rounded).weight(.heavy)).lineLimit(1).minimumScaleFactor(0.7)
+                if let direction = snapshot.highway?.direction.word {
+                    Text(direction).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondaryText)
+                }
+                HStack(spacing: 6) {
+                    StateBadge(code: snapshot.current?.segment.code, highlighted: true, compact: true)
+                    Text(discovery ? "Discovery" : (snapshot.current?.segment.displayName ?? "")).font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
+                }
+            }
         }
-        .padding(.top, 8)
+        .card(padding: 14)
+    }
+}
+
+/// Range left and the recommended fuel or charging stop; opens the fuel sheet.
+private struct FuelCard: View {
+    @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
+    let open: () -> Void
+
+    var body: some View {
+        let electric = settings.vehicle?.isElectric == true
+        Button(action: open) {
+            HStack(spacing: 12) {
+                Image(systemName: electric ? "bolt.car.fill" : "fuelpump.fill").font(.title2)
+                    .foregroundStyle(color).frame(width: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Eyebrow(text: electric ? "Charging" : "Fuel", color: color)
+                    Text(headline).font(.headline).lineLimit(2)
+                    Text(detail).font(.subheadline).foregroundStyle(Theme.secondaryText).lineLimit(2)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .buttonStyle(.plain)
+        .card()
+        .accessibilityIdentifier("fuelCard")
+    }
+
+    private var plan: RangePlan? { trip.rangePlan }
+
+    private var color: Color {
+        guard let plan else { return Theme.secondaryText }
+        switch plan.status {
+        case .destination, .planned: return Theme.signGreen
+        case .low: return Theme.amber
+        case .none: return Theme.danger
+        }
+    }
+
+    private var headline: String {
+        guard let left = trip.rangeLeft else { return "Enter miles to empty" }
+        guard let plan else { return "\(Format.miles(left)) of range" }
+        switch plan.status {
+        case .destination: return "No stop needed"
+        case .none: return "Nothing listed before empty"
+        case .planned, .low:
+            guard let rec = plan.recommended else { return "\(Format.miles(left)) of range" }
+            let name = rec.candidate.exit?.displayTitle ?? rec.candidate.charger?.station.name ?? "Stop"
+            return (rec.favorite ? "★ " : "") + "\(name) in \(Format.miles(rec.ahead))"
+        }
+    }
+
+    private var detail: String {
+        guard let left = trip.rangeLeft else {
+            return "From your dashboard. ExitAtlas finds the exit where you will have about \(Int(settings.bufferMiles)) mi left."
+        }
+        guard let plan, let rec = plan.recommended, plan.status == .planned || plan.status == .low else {
+            if let spare = plan?.destinationSpare { return "\(Format.miles(left)) of range, about \(Format.miles(spare)) left at arrival" }
+            return "\(Format.miles(left)) of range"
+        }
+        return "\(Format.miles(left)) of range now, about \(Format.miles(rec.rangeOnArrival)) left there"
     }
 }
 
@@ -86,6 +191,7 @@ private struct BorderCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            StateRibbon(snapshot: snapshot)
             if let next = snapshot.next {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -120,11 +226,17 @@ private struct BorderCard: View {
                 MetricTile(title: "Left in \(current.segment.code ?? "state")", value: Format.milesValue(current.remainingMeters), unit: "mi")
             }
             VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(Int((min(max(current.fractionComplete, 0), 1) * 100).rounded()))%").font(Theme.number(20, weight: .heavy))
+                    Text("of \(current.segment.displayName) driven").font(.subheadline).foregroundStyle(Theme.secondaryText)
+                    Spacer()
+                    Text("\(Format.miles(current.drivenMeters)) of \(Format.miles(current.totalMeters))").font(.caption.monospacedDigit()).foregroundStyle(Theme.secondaryText)
+                }
                 StateProgressBar(fraction: current.fractionComplete)
                 HStack {
-                    Text("\(Format.miles(current.drivenMeters)) of \(Format.miles(current.totalMeters)) in \(current.segment.displayName)")
+                    Text("\(Format.miles(current.remainingMeters)) left in \(current.segment.code ?? current.segment.displayName)")
                     Spacer()
-                    Text("\(current.exitCount) exits total")
+                    Text("\(current.exitCount) exits in \(current.segment.code ?? "state")")
                 }
                 .font(.caption).foregroundStyle(Theme.secondaryText)
             }
@@ -139,24 +251,10 @@ private struct NextExitCard: View {
     let now: Date
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            ExitSign(label: upcoming.exit.label)
-            VStack(alignment: .leading, spacing: 4) {
-                Eyebrow(text: "Next exit")
-                if !upcoming.exit.name.isEmpty {
-                    Text(upcoming.exit.name).font(.headline).lineLimit(2)
-                }
-                if services.isEmpty {
-                    Text("No services listed").font(.subheadline).foregroundStyle(Theme.secondaryText)
-                } else {
-                    ServiceSummary(services: services)
-                }
-            }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Format.milesValue(upcoming.distance)).font(Theme.number(30))
-                Text("mi · " + Format.duration(upcoming.eta.timeIntervalSince(now))).font(.caption).foregroundStyle(Theme.secondaryText)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            Eyebrow(text: "Next exit")
+            GuideSign(exit: upcoming.exit, distance: upcoming.distance, seconds: upcoming.eta.timeIntervalSince(now), services: services)
+            ServicePlaques(services: services)
         }
         .card()
     }
@@ -172,7 +270,8 @@ private struct DestinationRow: View {
                 MetricTile(title: "Corridor ahead", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
                 MetricTile(title: "State lines", value: "\(snapshot.borderCrossingsRemaining)", caption: "within lookahead", valueSize: 24)
             } else {
-                MetricTile(title: "Destination", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
+                MetricTile(title: "Remaining", value: Format.milesValue(snapshot.remaining), unit: "mi",
+                           caption: "of \(Format.miles(snapshot.drivenTotal + snapshot.remaining))", valueSize: 24)
                 MetricTile(title: "Arrival", value: Format.time(snapshot.eta, relativeTo: snapshot.timestamp),
                            caption: Format.duration(snapshot.timeRemaining), valueSize: 20)
                 MetricTile(title: "States left", value: "\(snapshot.statesAhead.count)",

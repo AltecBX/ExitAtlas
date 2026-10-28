@@ -37,6 +37,10 @@ final class TripController {
     private(set) var lastFixAt: Date?
     /// Remaining waypoints for rerouting: upcoming stops then the destination.
     private(set) var remainingWaypoints: [Waypoint] = []
+    /// The range the driver entered from the dashboard, counting down with miles driven.
+    private(set) var fuelReading: FuelReading? = TripController.loadFuelReading()
+    /// Bumped when speed limits, chargers or prices arrive, so views that read them refresh.
+    private(set) var feedsVersion = 0
     /// A trip saved before the app was terminated, offered for resuming.
     private(set) var resumable: ActiveTripRecord?
 
@@ -57,6 +61,11 @@ final class TripController {
     @ObservationIgnored let simulator = DriveSimulator()
     @ObservationIgnored let announcer = Announcer()
     @ObservationIgnored let routing = MapKitRouteService()
+    @ObservationIgnored let limits = SpeedLimitService()
+    @ObservationIgnored let chargers = ChargerService()
+    @ObservationIgnored let prices = GasPriceService()
+    @ObservationIgnored private var fuelVoice = FuelAnnouncements()
+    @ObservationIgnored private var rangePlanMemo: (key: String, plan: RangePlan?)?
     @ObservationIgnored weak var settings: UserSettings?
     @ObservationIgnored weak var library: TripLibrary?
 
@@ -69,6 +78,10 @@ final class TripController {
             guard let self, case .simulation = self.gpsSource else { return }
             self.handle(sample)
         }
+        limits.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        chargers.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        prices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        prices.onCall = { PriceCallCounter.count() }
     }
 
     func attach(data: BundledData) {
@@ -87,6 +100,7 @@ final class TripController {
 
     func startDiscovery() {
         stopSimulation()
+        rebaseFuel()
         tripID = UUID()
         discoveryCarry = []
         tripStartedAt = Date()
@@ -107,6 +121,7 @@ final class TripController {
     func startTrip(route: PlannedRoute, simulate: Bool, startMiles: Double = 0, fixLimit: Int? = nil,
                    restoring record: ActiveTripRecord? = nil) {
         guard let data else { return }
+        rebaseFuel()
         let plan = TripPlan(route: route, datasets: data.datasets)
         self.plan = plan
         tripID = UUID()
@@ -154,6 +169,7 @@ final class TripController {
             }
             discoveryCarry = []
         }
+        rebaseFuel()
         stopSimulation()
         location.stop()
         refreshTimer?.invalidate()
@@ -283,6 +299,104 @@ final class TripController {
     private func publish(_ snap: TripSnapshot) {
         snapshot = snap
         if let settings { announcer.consider(snap, settings: settings) }
+        limits.reset(for: plan)
+        if snap.match.status == .onRoute { limits.ensureAhead(of: snap.progress) }
+        if let plan, let settings, settings.vehicle?.isElectric == true {
+            chargers.ensure(for: plan, teslaOnly: settings.teslaOnlyChargers, apiKey: settings.nrelKey)
+        }
+        if let settings, settings.voiceEnabled, settings.announceFuel, let rangePlan = self.rangePlan,
+           let text = fuelVoice.message(for: rangePlan, electric: settings.vehicle?.isElectric == true,
+                                         onRoute: snap.match.status == .onRoute, enabled: true) {
+            announcer.speak(text)
+        }
+    }
+
+    // MARK: Fuel and range
+
+    /// Range left now, or nil until the driver enters one.
+    var rangeLeft: Double? { fuelReading?.rangeLeft(drivenTotal: snapshot?.drivenTotal ?? 0) }
+
+    /// Sets the range from the car's dashboard (miles to empty, or a charge estimate).
+    func setRange(miles: Double) {
+        fuelReading = FuelReading(rangeMeters: max(0, miles) * Geodesy.metersPerMile, drivenAtEntry: snapshot?.drivenTotal ?? 0)
+        fuelVoice.reset()
+        rangePlanMemo = nil
+        saveFuelReading()
+    }
+
+    /// A fill up or full charge: the vehicle's full range, when known.
+    func filledUp() {
+        guard let full = settings?.vehicle?.fullRangeMeters else { return }
+        setRange(miles: full / Geodesy.metersPerMile)
+    }
+
+    func clearRange() {
+        fuelReading = nil
+        rangePlanMemo = nil
+        saveFuelReading()
+    }
+
+    /// Where to stop for fuel or a charge, for the current position and range.
+    var rangePlan: RangePlan? {
+        _ = feedsVersion
+        guard let snapshot, let plan, let range = rangeLeft, let interstates, let settings else { return nil }
+        let electric = settings.vehicle?.isElectric == true
+        let key = "\(plan.route.id)|\(snapshot.timestamp.timeIntervalSince1970)|\(range)|\(feedsVersion)|\(settings.bufferMiles)|\(electric)|\(settings.favoriteBrands)|\(mode)"
+        if let memo = rangePlanMemo, memo.key == key { return memo.plan }
+        let favorites = electric ? [] : settings.favoriteBrands
+        let candidates = electric
+            ? RangePlanner.chargerCandidates(chargers.projected, from: snapshot.progress, range: range)
+            : RangePlanner.gasCandidates(plan: plan, from: snapshot.progress, range: range, dataset: interstates, favorites: favorites)
+        let result = RangePlanner.plan(plan: plan, snapshot: snapshot, range: range, candidates: candidates,
+                                       bufferMeters: settings.bufferMiles * Geodesy.metersPerMile,
+                                       hasDestination: mode == .trip, favorites: favorites)
+        rangePlanMemo = (key, result)
+        return result
+    }
+
+    /// Folds miles driven in the session that is ending into the saved range, so it carries over.
+    private func rebaseFuel() {
+        guard let reading = fuelReading else { return }
+        fuelReading = FuelReading(rangeMeters: reading.rangeLeft(drivenTotal: snapshot?.drivenTotal ?? 0), drivenAtEntry: 0)
+        rangePlanMemo = nil
+        saveFuelReading()
+    }
+
+    private func saveFuelReading() {
+        if let fuelReading, let data = try? JSONEncoder().encode(fuelReading) {
+            UserDefaults.standard.set(data, forKey: "fuelReading")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "fuelReading")
+        }
+    }
+
+    private static func loadFuelReading() -> FuelReading? {
+        UserDefaults.standard.data(forKey: "fuelReading").flatMap { try? JSONDecoder().decode(FuelReading.self, from: $0) }
+    }
+
+    // MARK: Speed, limits, prices
+
+    /// Current speed in mph from the latest fix, or nil when there is no recent fix.
+    var speedMPH: Int? {
+        guard let snapshot, snapshot.match.status != .acquiring else { return nil }
+        let speed = max(0, snapshot.match.speed)
+        if !isSimulating, let last = lastFixAt, Date().timeIntervalSince(last) > 5 { return nil }
+        return Int((speed * 2.23694).rounded())
+    }
+
+    /// Posted limit here (OpenStreetMap), and the next change within 2 miles.
+    var speedLimit: (mph: Int?, state: SpeedLimitTable.State, next: (mph: Int, distance: Double)?) {
+        _ = feedsVersion
+        guard let snapshot, snapshot.match.status == .onRoute, let table = limits.table else { return (nil, .unknown, nil) }
+        return (table.limit(at: snapshot.progress), table.state(at: snapshot.progress),
+                table.nextChange(after: snapshot.progress, within: 2 * Geodesy.metersPerMile))
+    }
+
+    /// Cached gas prices near an exit, loading them when a key is set.
+    func gasPrices(at exit: RouteExit) -> GasPriceService.Entry? {
+        _ = feedsVersion
+        if let key = settings?.googleKey, !key.isEmpty { prices.load(exit: exit, apiKey: key) }
+        return prices.entry(for: exit.id)
     }
 
     private func startRefreshTimer() {

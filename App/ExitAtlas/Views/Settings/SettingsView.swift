@@ -13,16 +13,57 @@ struct SettingsView: View {
                 Section("Voice") {
                     Toggle("Spoken announcements", isOn: $settings.voiceEnabled)
                     Toggle("State lines (5 mi warning and arrival)", isOn: $settings.announceStateLines).disabled(!settings.voiceEnabled)
+                    Toggle("Fuel and charging stops", isOn: $settings.announceFuel).disabled(!settings.voiceEnabled)
                     Toggle("Each exit (1 mi before)", isOn: $settings.announceExits).disabled(!settings.voiceEnabled)
                 }
-                Section("Vehicle") {
-                    Stepper("\(Int(settings.milesPerGallon)) mpg", value: $settings.milesPerGallon, in: 5...120)
-                    Stepper("\(Int(settings.tankGallons)) gallon tank", value: $settings.tankGallons, in: 5...300)
-                    Picker("Fuel", selection: $settings.fuelGrade) {
-                        ForEach(FuelGrade.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                Section {
+                    NavigationLink {
+                        VehiclePickerView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(settings.vehicle?.title ?? "Choose your vehicle")
+                            Text(vehicleSummary).font(.caption).foregroundStyle(Theme.secondaryText)
+                        }
                     }
-                    TextField("Preferred brands, comma separated", text: $settings.preferredBrandsText)
+                    Picker("Fuel stop buffer", selection: $settings.bufferMiles) {
+                        ForEach([25.0, 50.0, 75.0, 100.0], id: \.self) { Text("\(Int($0)) mi").tag($0) }
+                    }
+                    NavigationLink("Favorite gas brands (\(settings.favoriteBrands.count))") { FavoriteBrandsView() }
+                } header: {
+                    Text("Vehicle and fuel")
+                } footer: {
+                    Text("Fuel stops pick the last exit you reach with the buffer left, preferring your favorite brands anywhere in range.")
+                }
+                Section {
+                    SecureField("Google Maps Platform key", text: $settings.googleKey)
                         .autocorrectionDisabled().textInputAutocapitalization(.never)
+                    LabeledContent("Lookups this month", value: "\(PriceCallCounter.thisMonth)")
+                } header: {
+                    Text("Gas prices")
+                } footer: {
+                    Text("Optional. Prices per station near an exit from Google Maps (Places API New), billed to your own key after Google's monthly free allowance. One lookup per exit at most every 15 minutes. The key stays on this iPhone; prices are never stored.")
+                }
+                Section {
+                    Toggle("Tesla Superchargers only", isOn: $settings.teslaOnlyChargers)
+                    SecureField("NREL key (optional)", text: $settings.nrelKey)
+                        .autocorrectionDisabled().textInputAutocapitalization(.never)
+                } header: {
+                    Text("Electric vehicles")
+                } footer: {
+                    Text("Charging stops from the U.S. Department of Energy. The built in demo key allows about 10 lookups an hour; a free key from developer.nlr.gov removes that limit.")
+                }
+                Section {
+                    Stepper("Red when over by \(Int(settings.speedAlertOver)) mph", value: $settings.speedAlertOver, in: 0...20)
+                } header: {
+                    Text("Speedometer")
+                } footer: {
+                    Text("Posted limits come from OpenStreetMap and can be missing or out of date. Always follow the signs.")
+                }
+                Section("Places") {
+                    LabeledContent("Home", value: library.home?.name ?? "Not set")
+                    if library.home != nil { Button("Clear Home", role: .destructive) { library.setHome(nil) } }
+                    Button("Clear recent places", role: .destructive) { library.clearRecentPlaces() }
+                        .disabled(library.recentPlaces.isEmpty)
                 }
                 Section("Routing") {
                     Toggle("Avoid tolls", isOn: $settings.avoidTolls)
@@ -38,6 +79,58 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+    }
+
+    private var vehicleSummary: String {
+        guard let v = settings.vehicle else { return "EPA fuel economy, tank size and EV range" }
+        if v.isElectric { return "Electric · \(v.evRangeMiles) mi EPA range" }
+        let tank = v.tankGallons.map { String(format: "%.1f gal tank", $0) } ?? "tank size not set"
+        return "\(Int(v.milesPerGallon)) mpg · \(tank)"
+    }
+}
+
+/// Favorite gas brands: common brands to tap, plus any brand typed in.
+private struct FavoriteBrandsView: View {
+    @Environment(UserSettings.self) private var settings
+    @State private var custom = ""
+
+    static let common = ["Shell", "Chevron", "BP", "Exxon", "Mobil", "Sunoco", "Speedway", "Valero", "Marathon", "Love's",
+                         "Circle K", "Citgo", "QuikTrip", "Pilot", "Flying J", "76", "Phillips 66", "Arco", "7-Eleven", "Conoco",
+                         "Sinclair", "Sheetz", "Wawa", "RaceTrac", "Buc-ee's", "Costco", "Sam's Club", "Murphy USA", "Casey's",
+                         "Kwik Trip", "Texaco", "Gulf", "Maverik", "Kroger", "Holiday", "TA", "Royal Farms", "GetGo", "Thorntons", "Cenex"]
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    TextField("Add a brand", text: $custom).autocorrectionDisabled()
+                    Button("Add") {
+                        let name = custom.trimmingCharacters(in: .whitespaces)
+                        if !name.isEmpty, !settings.favoriteBrands.contains(name) { settings.favoriteBrands.append(name) }
+                        custom = ""
+                    }
+                    .disabled(custom.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            Section("Common brands") {
+                ForEach(Array(Set(Self.common + settings.favoriteBrands)).sorted(), id: \.self) { brand in
+                    Button {
+                        if let i = settings.favoriteBrands.firstIndex(of: brand) {
+                            settings.favoriteBrands.remove(at: i)
+                        } else {
+                            settings.favoriteBrands.append(brand)
+                        }
+                    } label: {
+                        HStack {
+                            Text(brand).foregroundStyle(.primary)
+                            Spacer()
+                            if settings.favoriteBrands.contains(brand) { Image(systemName: "star.fill").foregroundStyle(Theme.amber) }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Favorite Gas")
     }
 }
 
@@ -83,8 +176,12 @@ struct DataSourcesView: View {
                 Text("Maps, routes and travel times: Apple Maps (MapKit). Route geometry is kept only for the active trip.")
                     .font(.subheadline)
             }
+            Section("Live sources") {
+                Text("Gas prices: Google Maps, only with your own key, shown with their update time and never stored. EV chargers: U.S. DOE Alternative Fuels Data Center. Posted speed limits: OpenStreetMap through the public Valhalla server.")
+                    .font(.subheadline)
+            }
             Section("Not live in this version") {
-                Text("Fuel prices, hotel rates and availability, restaurant hours and ratings, traffic incidents and weather alerts need licensed or live sources and are not shown. ExitAtlas never displays estimated prices as real ones.")
+                Text("Hotel rates and availability, restaurant hours and ratings, traffic incidents and weather alerts need licensed or live sources and are not shown. ExitAtlas never displays estimated prices as real ones.")
                     .font(.subheadline)
             }
             Section("Open Database License") {
