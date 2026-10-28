@@ -3,6 +3,7 @@ import { METERS_PER_MILE, distance as geoDistance } from './geo.js';
 import { RegionSegmenter } from './datasets.js';
 import { ExitMatcher, optionsForSource } from './exits.js';
 import { matchRestAreas } from './restareas.js';
+import { matchDiscover } from './discover.js';
 import { RouteProgressTracker, TripLedger, PaceModel } from './tracking.js';
 
 function lowerBound(a, x) {
@@ -19,7 +20,7 @@ function upperBound(a, x) {
 
 /// Everything derived from one route: ordered state segments, time zones, exits and rest areas.
 /// datasets: {states: RegionIndex, timeZones: TimeZoneResolver|null, interstates: InterstateDataset|null,
-///            restAreas: RestAreaDataset|null}
+///            restAreas: RestAreaDataset|null, discover: DiscoverDataset|null}
 export class TripPlan {
   constructor(route, datasets, { segmenter = new RegionSegmenter(), matcher = null } = {}) {
     this.route = route;
@@ -32,6 +33,7 @@ export class TripPlan {
       ? matchRestAreas(route.polyline, datasets.restAreas, { highwayAt: (d) => route.stepAt(d)?.highways ?? null })
       : [];
     this.restAreaDistances = this.restAreas.map((r) => r.distanceAlongRoute);
+    this.discover = datasets.discover ? matchDiscover(route.polyline, datasets.discover, this.exits) : [];
     this.timeZones = datasets.timeZones ?? null;
     this.timeZoneIDs = this.states.segments.map((seg) => (
       this.timeZones ? this.timeZones.identifier(seg.entryCoordinate, seg.code) : null));
