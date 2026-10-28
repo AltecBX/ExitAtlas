@@ -34,8 +34,17 @@ self.addEventListener('fetch', (event) => {
     }));
     return;
   }
-  event.respondWith(fetch(req).then((res) => {
-    if (res.ok) caches.open(CACHE).then((c) => c.put(req, res.clone()));
+  event.respondWith(fetch(req).then(async (res) => {
+    if (res.ok) {
+      const copy = res.clone();
+      if (await isAppFile(res.clone())) caches.open(CACHE).then((c) => c.put(req, copy));
+    }
     return res;
   }).catch(() => caches.match(req).then((hit) => hit || caches.match('index.html'))));
 });
+
+/// Some static hosts answer a page request with an interstitial; only the real app page is cached.
+async function isAppFile(res) {
+  if (!(res.headers.get('content-type') ?? '').includes('text/html')) return true;
+  return (await res.text()).includes('js/app/main.js');
+}

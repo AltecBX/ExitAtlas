@@ -23,6 +23,13 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * No fuel prices: there is no licensed price source.
 * Routing and search need a connection. The demo server is for light personal use.
 
+## Hosting
+
+The page needs HTTPS (Safari only gives GPS to secure pages) and must be served together with the repository's `App/ExitAtlas/Resources/Data` folder.
+
+* GitHub Pages (recommended, stable link): repository Settings, Pages, Build and deployment, Source "Deploy from a branch", branch with this code, folder "/ (root)". The app is then at `https://<owner>.github.io/ExitAtlas/web/`. The `.nojekyll` file at the root serves files as they are.
+* Immediate link with no setup: `https://rawcdn.githack.com/<owner>/ExitAtlas/<commit>/web/index.html`. githack shows a one time "Open the page" step (with an ad) before the app; data files are redirected to raw.githubusercontent.com. Each commit has its own link.
+
 ## Run locally
 
 Serve the repository root (the page loads data from `../App/ExitAtlas/Resources/Data/`):
