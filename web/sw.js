@@ -1,9 +1,9 @@
 // Offline cache. App files: network first, cache fallback, so updates arrive when online.
 // Datasets (versioned URLs): cache first, since they only change with a new version string.
-const CACHE = 'exitatlas-v4';
+const CACHE = 'exitatlas-v5';
 const APP_FILES = [
-  './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
-  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/chargers.js',
+  './', 'index.html', 'css/tokens.css', 'css/app.css', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
+  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/chargers.js', 'js/app/announcer.js',
   'js/engine/geo.js', 'js/engine/datasets.js', 'js/engine/exits.js', 'js/engine/route.js',
   'js/engine/tracking.js', 'js/engine/trip.js', 'js/engine/discovery.js', 'js/engine/osrm.js', 'js/engine/fuel.js',
 ];

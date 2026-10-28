@@ -4,20 +4,22 @@ import UIKit
 
 /// Visual language: interstate sign colors on a calm automotive dashboard, light and dark.
 enum Theme {
-    static let signGreen = Color(light: 0x0B6B3A, dark: 0x13824A)
-    static let shieldBlue = Color(light: 0x1D3E8C, dark: 0x2E56B8)
-    static let shieldRed = Color(light: 0xC8102E, dark: 0xE0293F)
-    static let amber = Color(light: 0xD98E04, dark: 0xF2A900)
-    static let background = Color(light: 0xF2F3F5, dark: 0x0A0C0F)
-    static let card = Color(light: 0xFFFFFF, dark: 0x161A20)
-    static let cardStroke = Color(light: 0xE3E6EA, dark: 0x262B33)
-    static let secondaryText = Color(light: 0x5B636E, dark: 0x9AA3AE)
+    // Colors come from design/tokens.json through the generated Tokens.swift (shared with the web).
+    static let signGreen = Tokens.signGreen
+    static let signBlue = Tokens.signBlue
+    static let signBrown = Tokens.signBrown
+    static let shieldBlue = Tokens.shieldBlue
+    static let shieldRed = Tokens.shieldRed
+    static let amber = Tokens.amber
+    static let danger = Tokens.danger
+    static let success = Tokens.success
+    static let background = Tokens.bg
+    static let card = Tokens.card
+    static let cardStroke = Tokens.stroke
+    static let secondaryText = Tokens.text2
 
     /// Alternating route colors so state segments are visible on the map.
-    static let segmentColors: [Color] = [
-        Color(light: 0x1D6FE0, dark: 0x4C93FF), Color(light: 0x0E9F6E, dark: 0x2FC48D),
-        Color(light: 0x8E44AD, dark: 0xB57BDB), Color(light: 0xD35400, dark: 0xF07F2B),
-    ]
+    static let segmentColors: [Color] = [Tokens.seg0, Tokens.seg1, Tokens.seg2, Tokens.seg3]
 
     static func number(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         .system(size: size, weight: weight, design: .rounded).monospacedDigit()

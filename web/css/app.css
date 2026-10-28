@@ -1,42 +1,15 @@
-/* ExitAtlas web. Interstate sign colors on a calm dashboard, light and dark. */
+/* ExitAtlas web. Interstate sign colors on a calm dashboard, light and dark. Tokens: tokens.css. */
 :root {
-  --sign-green: #0b6b3a;
-  --shield-blue: #1d3e8c;
-  --shield-red: #c8102e;
-  --amber: #b87700;
-  --amber-fill: #fff4d6;
-  --danger: #c62828;
-  --bg: #f2f3f5;
-  --card: #ffffff;
-  --stroke: #e3e6ea;
-  --text: #111418;
-  --text-2: #5b636e;
-  --chip: #eef0f3;
-  --accent: #1d6fe0;
-  --seg0: #1d6fe0; --seg1: #0e9f6e; --seg2: #8e44ad; --seg3: #d35400;
-  --map-land: #e6e9ee; --map-land-on: #d9e8dd; --map-line: #c3c9d2;
+  /* Colors, type sizes, spacing and radii come from tokens.css (generated from design/tokens.json). */
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --radius: 20px;
+  --radius: var(--radius-card);
   --tabbar-h: 58px;
   --num: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --sign-green: #13824a; --shield-blue: #2e56b8; --shield-red: #e0293f; --amber: #f2a900; --amber-fill: #2b2412;
-    --danger: #ff6b6b; --bg: #0a0c0f; --card: #161a20; --stroke: #262b33; --text: #f2f4f7; --text-2: #9aa3ae;
-    --chip: #20252d; --accent: #4c93ff;
-    --seg0: #4c93ff; --seg1: #2fc48d; --seg2: #b57bdb; --seg3: #f07f2b;
-    --map-land: #1b2028; --map-land-on: #1d2a22; --map-line: #333b46; --shadow: none;
-  }
+  :root:not([data-theme="light"]) { --shadow: none; }
 }
-:root[data-theme="dark"] {
-  --sign-green: #13824a; --shield-blue: #2e56b8; --shield-red: #e0293f; --amber: #f2a900; --amber-fill: #2b2412;
-  --danger: #ff6b6b; --bg: #0a0c0f; --card: #161a20; --stroke: #262b33; --text: #f2f4f7; --text-2: #9aa3ae;
-  --chip: #20252d; --accent: #4c93ff;
-  --seg0: #4c93ff; --seg1: #2fc48d; --seg2: #b57bdb; --seg3: #f07f2b;
-  --map-land: #1b2028; --map-land-on: #1d2a22; --map-line: #333b46; --shadow: none;
-}
+:root[data-theme="dark"] { --shadow: none; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
