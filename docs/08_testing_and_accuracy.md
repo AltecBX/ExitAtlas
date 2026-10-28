@@ -53,6 +53,8 @@ Time zones: Atlanta to Nashville starts in America/New_York, ends in America/Chi
 
 Performance (release build, x86 Linux): loading all datasets 0.36 s; building the Miami plan 0.014 s; about 35 µs per GPS fix including the snapshot.
 
+Web version (`web/tests`, `npm test`, CI job "Web engine tests"): the JavaScript port passes the same checks against the same oracles and tolerances (state segments on four routes, published I-95 lengths, exits by node membership, reversed route, snapshot values, time zones, tracking, reroute ledger, discovery). On the demo route it produces the same state miles as the Swift engine and 338 exits. Browser flows were run in headless Chromium at iPhone size with emulated GPS: live place search and OSRM routing, 45 on route fixes tracked to the meter, an automatic reroute after leaving the route, resume after reload with miles kept, and discovery locking onto I-95 Northbound on the third fix. Not yet tested: Safari on a real iPhone while driving.
+
 ## 8.4 Coverage of the requested checks
 
 | Requested check | How it is covered | Status |

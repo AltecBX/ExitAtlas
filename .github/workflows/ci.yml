@@ -20,6 +20,18 @@ jobs:
       - name: Build and test ExitAtlasCore
         run: swift test --parallel
 
+  web-tests:
+    name: Web engine tests (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Test the JavaScript engine against the route fixtures
+        working-directory: web
+        run: npm test
+
   ios-app:
     name: iOS app build and screenshots (Xcode)
     runs-on: macos-latest

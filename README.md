@@ -16,9 +16,14 @@ Status: research, design and the first functional version. See [docs/](docs/READ
 | `Sources/ExitAtlasCore` | Platform independent engine: geodesy, state segmentation, exit matching, GPS map matching, trip ledger, ETAs, discovery mode, stop and fuel planning, GPS simulator |
 | `Tests/ExitAtlasCoreTests` | Engine tests on real routes with independent oracles |
 | `App/` | SwiftUI iOS app (XcodeGen spec, MapKit, Core Location) |
+| `web/` | Browser version for phones: the same engine ported to JavaScript, live GPS in Safari, no build step ([web/README.md](web/README.md)) |
 | `App/ExitAtlas/Resources/Data` | Bundled offline datasets (state and time zone boundaries, exits and services, interstate corridors) |
 | `tools/data-pipeline` | Scripts that rebuild the bundled datasets from public sources |
 | `docs/` | Research, feature comparison, licensing, architecture, spec, data models, screens, roadmap, test plan |
+
+## Use it in a phone browser now
+
+Open `web/index.html` from any HTTPS host that serves this repository (for example GitHub Pages with this branch and the root folder). See [web/README.md](web/README.md).
 
 ## Run the engine tests (macOS or Linux, Swift 6)
 

@@ -14,6 +14,7 @@ Phases follow the original priorities. Each item lists its status as of this pul
 | Reroute and ETA calibration | Done, device testing pending |
 | Simulated demo trip | Done |
 | Real drive validation (Florida to New York or a shorter interstate trip) | Next. Needs you on the road with the app installed |
+| Web version for phones (`web/`): engine ported to JavaScript, live GPS in Safari, OSRM routing, Nominatim search, offline data cache | Done, 31 tests against the same fixtures; browser flows tested with emulated GPS; real phone drive pending |
 | Persist the active trip across app termination | Done: waypoints, ledger and pace saved every 30 s; Resume recomputes the route from the current location (needs network); device testing pending |
 
 ## Phase 2: Services and route based search
