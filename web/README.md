@@ -27,7 +27,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * GPS stops when the screen locks or Safari is not in front. Keep the screen on (the app requests a wake lock; if that is not available, set Auto Lock to Never). Short gaps are dead reckoned and the trip catches up on return.
 * Travel times start from OSRM road speeds, which are OpenStreetMap speed limits times 0.8 (OSRM car profile `speed_reduction = 0.8`; 90 km/h where no limit is mapped), so about 56 mph on a 70 mph interstate, and no live traffic. While you drive, the next 30 minutes of road follow your speed over the last few minutes (5 minute memory, moving time only), and later stretches blend into your trip pace and your usual pace from earlier trips. In simulation, driving 1.7 times the model speed, the next state line ETA error is 12% after 5 minutes, 8% after 10 and 3% after 20 on a first trip, and under 1% once your pace is learned from an earlier trip.
 * Avoid tolls is not available on the OSRM demo server.
-* Gas prices need your own Google Maps Platform key (Settings, Gas prices). Without one, exits list their stations without prices.
+* Gas prices need your own Google Maps Platform key (Settings, Gas prices), or the URL of an ExitAtlas key proxy (`infra/worker`) that holds one. Without either, exits list their stations without prices.
 * Routing and search need a connection. The demo server is for light personal use.
 
 ## Hosting

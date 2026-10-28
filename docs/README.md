@@ -14,4 +14,5 @@ Research date for external facts: 2026-10-27 (documents 1 to 8) and 2026-10-28 (
 | 8 | [Testing and accuracy](08_testing_and_accuracy.md) | Oracles, fixtures, results, open risks |
 | 9 | [Product audit and plan](09_audit_and_plan.md) | Verified feature inventory by platform, defects, competitor, Apple, data and legal findings, design system, milestones (2026-10-28) |
 | 10 | [Lock Screen, Siri and CarPlay](10_lock_screen_and_carplay.md) | Live Activity content and update rules, App Shortcuts and their answers, CarPlay app steps that need Apple's entitlement |
+| 11 | [Release readiness](11_release_readiness.md) | Data versions, updates and rollback; the key proxy; App Store privacy, review risks and owner decisions |
 | | [Research notes](research/) | Competitors, Apple platform, infrastructure and legal, with sources (2026-10-28) |

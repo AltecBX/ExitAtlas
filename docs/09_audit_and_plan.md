@@ -160,6 +160,7 @@ Each milestone ends in a pull request with tests, screenshots where the interfac
 | 3 | Merged (PR #5) | See below |
 | 4 | Merged (PR #6) | Live Activity (Lock Screen, Dynamic Island, CarPlay Dashboard, Watch), six App Shortcuts, CarPlay scaffold not enabled; details and device checks in docs/10 |
 | 5 | PR #7 | See below |
+| 6 | PR #8 | Data manifest with update and rollback (web and iOS), key proxy Worker (tested, not deployed), privacy manifest, release checklist and drafts; details, verification and owner decisions in docs/11 |
 
 Milestone 3 delivered:
 
