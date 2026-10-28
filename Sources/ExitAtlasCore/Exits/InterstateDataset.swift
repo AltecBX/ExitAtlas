@@ -11,6 +11,8 @@ public enum PlaceCategory: UInt8, Sendable, Codable, CaseIterable, Hashable {
     case evCharging = 5
     case park = 6
     case dogPark = 7
+    /// A highway=services truck stop or travel center (Love's, Pilot, TA) reached through an exit.
+    case travelCenter = 8
 
     public var displayName: String {
         switch self {
@@ -22,6 +24,7 @@ public enum PlaceCategory: UInt8, Sendable, Codable, CaseIterable, Hashable {
         case .evCharging: return "EV Charging"
         case .park: return "Park"
         case .dogPark: return "Dog Park"
+        case .travelCenter: return "Travel Center"
         }
     }
 
@@ -36,6 +39,7 @@ public enum PlaceCategory: UInt8, Sendable, Codable, CaseIterable, Hashable {
         case .evCharging: return "bolt.car.fill"
         case .park: return "tree.fill"
         case .dogPark: return "pawprint.fill"
+        case .travelCenter: return "truck.box.fill"
         }
     }
 }

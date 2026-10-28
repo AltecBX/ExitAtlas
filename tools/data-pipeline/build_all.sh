@@ -6,7 +6,7 @@
 #   npm install --prefix "$WORK" mapshaper@0.6.102
 #
 # Usage: tools/data-pipeline/build_all.sh [work dir]
-# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,vehicles.json}
+# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,vehicles.json,restareas.json}
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -21,6 +21,8 @@ OI_URL="https://github.com/tldev/openinterstate/releases/download/$OI_TAG/openin
 REACH_URL="https://github.com/tldev/openinterstate-reachability/releases/download/score-20260715-1351876/reachability.csv"
 EPA_URL="https://www.fueleconomy.gov/feg/epadata/vehicles.csv.zip"
 TZ_URL="https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_Time_Zones/FeatureServer/0/query?where=1%3D1&outFields=zone,utc&returnGeometry=true&outSR=4326&f=geojson"
+# FHWA Truck Stop Parking (Jason's Law survey), public domain. 1,915 rows; two pages, merged by OBJECTID.
+NTAD_URL="https://services.arcgis.com/xOi1kZaI0eWDREZv/ArcGIS/rest/services/NTAD_Truck_Stop_Parking/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=false&f=json&orderByFields=OBJECTID"
 
 # Checksums recorded on 2026-10-27. A mismatch means the upstream file changed: review before updating.
 TIGER_SHA="2e17ea40dff3e00163eec87a26efa0b0ff7e8fe364a191bf1a7754dcb49ea326"
@@ -43,6 +45,9 @@ fetch "$OI_URL" openinterstate.tar.gz "$OI_SHA"
 fetch "$REACH_URL" reachability.csv "$REACH_SHA"
 fetch "$TZ_URL" timezones.geojson
 fetch "$EPA_URL" vehicles.csv.zip "$EPA_SHA"
+fetch "$NTAD_URL&resultOffset=0" ntad_0.json
+fetch "$NTAD_URL&resultOffset=1000" ntad_1.json
+python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); s={f["attributes"]["OBJECTID"]:f for f in a["features"]+json.load(open(sys.argv[2]))["features"]}; a["features"]=[s[k] for k in sorted(s)]; json.dump(a,open(sys.argv[3],"w"))' ntad_0.json ntad_1.json ntad.json
 unzip -o -q vehicles.csv.zip -d epa
 
 unzip -o -q tl_2026_us_state.zip -d tiger
@@ -60,7 +65,9 @@ OI_CSV="$WORK/oi/$OI_TAG/csv"
 cd "$HERE"
 python3 build_regions.py states "$WORK/states_s3.geojson" "$OUT/states.eab" states_source.json
 python3 build_regions.py tzones "$WORK/timezones_s10.geojson" "$OUT/timezones.eab" timezones_source.json
-python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json
+# Rest area tags come from the live OSM API (cached in the work dir), so the result reflects the fetch date.
+python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.json" "$OUT/restareas.json" "$WORK/rest_area_classes.json"
+python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
 python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicles.json"
 echo "Full resolution states for oracle fixtures: $WORK/states_full.geojson"

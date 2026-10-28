@@ -384,9 +384,9 @@ export class TimeZoneResolver {
 // MARK: Interstate exits and places (EAX1)
 
 export const PlaceCategory = Object.freeze({
-  unknown: 0, gas: 1, food: 2, lodging: 3, restArea: 4, evCharging: 5, park: 6, dogPark: 7,
+  unknown: 0, gas: 1, food: 2, lodging: 3, restArea: 4, evCharging: 5, park: 6, dogPark: 7, travelCenter: 8,
 });
-export const CATEGORY_NAMES = ['Other', 'Gas', 'Food', 'Lodging', 'Rest Area', 'EV Charging', 'Park', 'Dog Park'];
+export const CATEGORY_NAMES = ['Other', 'Gas', 'Food', 'Lodging', 'Rest Area', 'EV Charging', 'Park', 'Dog Park', 'Travel Center'];
 
 const EXIT_SIZE = 40, PLACE_SIZE = 24, LINK_SIZE = 12;
 

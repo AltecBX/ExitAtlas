@@ -3,6 +3,7 @@
 import { METERS_PER_MILE, normalizedDegrees, offset } from './geo.js';
 import { PlannedRoute, TravelTimeProfile, makeStep, parseHighways } from './route.js';
 import { searchAlongRoute } from './exits.js';
+import { matchesFavorite } from './fuel.js';
 
 /// Works out which interstate and direction the driver is on, without a destination.
 export class HighwayDiscovery {
@@ -89,8 +90,13 @@ export function timeWindow(plan, d, seconds, tolerance, pace) {
   return [lo, Math.max(lo, hi)];
 }
 
-/// Stop suggestions in a window, with ETA and distance from the target time when given.
-export function stopSuggestions(dataset, plan, snapshot, pace, requirements, window, servicesFor) {
+/// Stop suggestions in a window, ranked, each with the reasons behind its place.
+/// options: {favorites: brand names, restAreas: true to add rest areas and plazas on the highway (they
+/// cost no detour)}.
+/// Ranking for a time window: minutes from the target time, plus twice the detour time, minus five
+/// minutes for a favorite brand and five for restrooms that OpenStreetMap lists. Distance windows keep
+/// route order.
+export function stopSuggestions(dataset, plan, snapshot, pace, requirements, window, servicesFor, options = {}) {
   const d = snapshot.progress;
   let range, target = null;
   if (window.kind === 'time') {
@@ -99,13 +105,47 @@ export function stopSuggestions(dataset, plan, snapshot, pace, requirements, win
   } else {
     range = [d + window.from, d + window.to];
   }
-  const matches = searchAlongRoute(dataset, plan.exits, requirements, range[0], range[1], servicesFor);
-  const out = matches.map((m) => {
+  const favorites = options.favorites ?? [];
+  const isFavorite = (name) => favorites.length > 0 && Boolean(name) && matchesFavorite(name, favorites);
+  const out = [];
+  for (const m of searchAlongRoute(dataset, plan.exits, requirements, range[0], range[1], servicesFor)) {
     const eta = snapshot.etaTo(m.exit.distanceAlongRoute);
-    return { match: m, distanceAhead: m.exit.distanceAlongRoute - d, eta, timeFromTarget: target !== null ? eta - target : null };
-  });
-  if (target !== null) out.sort((a, b) => Math.abs(a.timeFromTarget) - Math.abs(b.timeFromTarget));
+    const best = m.matchesPerRequirement.map((hits) => hits[0]);
+    const detourSeconds = best.reduce((sum, x) => sum + (x.detourSeconds ?? x.detourMeters / 13.4), 0);
+    const favorite = m.matchesPerRequirement.some((hits) => hits.some((x) => isFavorite(x.place.brand || x.place.name)));
+    out.push({ match: m, distanceAhead: m.exit.distanceAlongRoute - d, eta, timeFromTarget: target !== null ? eta - target : null,
+      detourMeters: m.combinedDetourMeters, detourSeconds, favorite, restrooms: null });
+  }
+  if (options.restAreas) {
+    const nameQuery = requirements.map((r) => (r.nameOrBrand ?? '').trim().toLowerCase()).find(Boolean);
+    for (const r of plan.restAreasBetween(range[0], range[1])) {
+      if (nameQuery && ![r.name, ...r.gas, ...r.food].some((n) => n.toLowerCase().includes(nameQuery))) continue;
+      const eta = snapshot.etaTo(r.distanceAlongRoute);
+      out.push({ restArea: r, distanceAhead: r.distanceAlongRoute - d, eta, timeFromTarget: target !== null ? eta - target : null,
+        detourMeters: 0, detourSeconds: 0, favorite: [...r.gas, ...r.food].some(isFavorite), restrooms: r.amenities.toilets ?? null });
+    }
+  }
+  for (const x of out) {
+    x.score = (target !== null ? Math.abs(x.timeFromTarget) : 0) + 2 * x.detourSeconds - (x.favorite ? 300 : 0) - (x.restrooms ? 300 : 0);
+    x.reasons = stopReasons(x);
+  }
+  if (target !== null) out.sort((a, b) => a.score - b.score);
+  else out.sort((a, b) => a.distanceAhead - b.distanceAhead);
   return out;
+}
+
+function stopReasons(x) {
+  const reasons = [];
+  if (x.timeFromTarget !== null) {
+    const min = Math.round(x.timeFromTarget / 60);
+    reasons.push(Math.abs(min) < 5 ? 'Right on time' : min < 0 ? `${-min} min early` : `${min} min late`);
+  }
+  if (x.restArea) reasons.push(x.restArea.side === 'both' ? 'On the highway, both directions' : 'On the highway, no detour');
+  else reasons.push(`Detour ${(x.detourMeters / METERS_PER_MILE).toFixed(1)} mi round trip`);
+  if (x.favorite) reasons.push('Favorite brand');
+  if (x.restrooms === true) reasons.push('Restrooms listed');
+  if (x.restrooms === false) reasons.push('No restrooms');
+  return reasons;
 }
 
 // MARK: Simulation

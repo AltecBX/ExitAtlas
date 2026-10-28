@@ -63,7 +63,7 @@ struct ServicePlaques: View {
     let services: [ExitService]
     var compact = false
 
-    static let order: [PlaceCategory] = [.gas, .food, .lodging, .evCharging, .restArea, .park, .dogPark]
+    static let order: [PlaceCategory] = [.gas, .food, .lodging, .evCharging, .travelCenter, .restArea, .park, .dogPark]
 
     static func word(_ c: PlaceCategory) -> String {
         switch c {
@@ -74,6 +74,7 @@ struct ServicePlaques: View {
         case .restArea: return "REST AREA"
         case .park: return "PARK"
         case .dogPark: return "DOG PARK"
+        case .travelCenter: return "TRAVEL CENTER"
         default: return c.displayName.uppercased()
         }
     }
@@ -299,5 +300,94 @@ struct SpeedLimitSign: View {
         .opacity(limit == nil ? 0.6 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(limit.map { "Speed limit \($0)" } ?? "Speed limit not available")
+    }
+}
+
+/// Rest area sign: blue with white lettering, two lines, the same width as the exit tab.
+struct RestAreaSign: View {
+    let kind: RestAreaKind
+    var compact = false
+
+    var body: some View {
+        let words = kind.signWords
+        VStack(spacing: 1) {
+            Text(words.0)
+            Text(words.1)
+        }
+        .font(SignFont.font(compact ? 10.5 : 13, weight: .heavy, relativeTo: .caption))
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .foregroundStyle(.white)
+        .padding(.horizontal, compact ? 6 : 9)
+        .padding(.vertical, compact ? 5 : 6)
+        .frame(minWidth: compact ? 64 : 74)
+        .background(Theme.signBlue, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.white.opacity(0.95), lineWidth: 1.5).padding(2))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(kind.title)
+    }
+}
+
+/// Verified amenity chips: only what OpenStreetMap tags. A plaza lists its gas and food by name.
+struct AmenityChips: View {
+    let restArea: RouteRestArea
+    var maxCount = 6
+
+    static func symbol(_ a: RestAreaAmenity) -> String {
+        switch a {
+        case .toilets: return "toilet.fill"
+        case .accessible: return "figure.roll"
+        case .water: return "drop.fill"
+        case .vending: return "cup.and.saucer.fill"
+        case .picnic: return "leaf.fill"
+        case .pets: return "pawprint.fill"
+        case .wifi: return "wifi"
+        case .info: return "info.circle.fill"
+        case .shower: return "shower.fill"
+        case .dump: return "arrow.down.to.line"
+        case .trucks: return "truck.box.fill"
+        }
+    }
+
+    private var chips: [(symbol: String, text: String, negative: Bool)] {
+        var out: [(symbol: String, text: String, negative: Bool)] = []
+        let r = restArea
+        func named(_ symbol: String, _ list: [String]) {
+            guard !list.isEmpty else { return }
+            out.append((symbol, list.prefix(2).joined(separator: ", ") + (list.count > 2 ? " +\(list.count - 2)" : ""), false))
+        }
+        if r.kind == .plaza {
+            named("fuelpump.fill", r.gas)
+            named("fork.knife", r.food)
+            named("bolt.car.fill", r.ev)
+        }
+        if r.hours == "24/7" { out.append(("clock.fill", "Open 24 hours", false)) }
+        for b in r.badges {
+            out.append((Self.symbol(b.amenity), b.value ? b.amenity.label : "No \(b.amenity.label.lowercased())", !b.value))
+        }
+        return out
+    }
+
+    var body: some View {
+        let all = chips
+        if all.isEmpty {
+            Text("Amenities not listed in OpenStreetMap").font(.caption).foregroundStyle(Theme.secondaryText)
+        } else {
+            FlowLayout(spacing: 5) {
+                ForEach(Array(all.prefix(maxCount).enumerated()), id: \.offset) { _, chip in
+                    Label(chip.text, systemImage: chip.symbol)
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .foregroundStyle(chip.negative ? Theme.amber : .primary)
+                        .background(chip.negative ? Theme.amber.opacity(0.14) : Theme.cardStroke.opacity(0.6), in: Capsule())
+                }
+                if all.count > maxCount {
+                    Text("+\(all.count - maxCount)").font(.caption.weight(.semibold)).foregroundStyle(Theme.secondaryText)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                }
+            }
+        }
     }
 }

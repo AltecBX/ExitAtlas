@@ -50,8 +50,13 @@ final class PlanningTests: XCTestCase {
         for r in results {
             XCTAssertLessThanOrEqual(abs(r.timeFromTarget!), 20 * 60 + 60)
         }
+        // Ranked by time from the target plus twice the detour time, with the reasons listed.
         for (a, b) in zip(results, results.dropFirst()) {
-            XCTAssertLessThanOrEqual(abs(a.timeFromTarget!), abs(b.timeFromTarget!))
+            XCTAssertLessThanOrEqual(a.score, b.score)
+        }
+        for r in results {
+            XCTAssertEqual(r.score, abs(r.timeFromTarget!) + 2 * r.detourSeconds, accuracy: 1e-6)
+            XCTAssertTrue(r.reasons.contains { $0.hasPrefix("Detour ") })
         }
     }
 

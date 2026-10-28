@@ -15,6 +15,9 @@ struct SettingsView: View {
                     Toggle("State lines (5 mi warning and arrival)", isOn: $settings.announceStateLines).disabled(!settings.voiceEnabled)
                     Toggle("Fuel and charging stops", isOn: $settings.announceFuel).disabled(!settings.voiceEnabled)
                     Toggle("Each exit (1 mi before)", isOn: $settings.announceExits).disabled(!settings.voiceEnabled)
+                    Toggle("Rest areas and service plazas (2 mi before)", isOn: $settings.announceRestAreas).disabled(!settings.voiceEnabled)
+                    Toggle("Last gas before a long stretch", isOn: $settings.announceGasGaps).disabled(!settings.voiceEnabled)
+                    Toggle("Time zone changes", isOn: $settings.announceTimeZones).disabled(!settings.voiceEnabled)
                 }
                 Section {
                     NavigationLink {
@@ -29,10 +32,13 @@ struct SettingsView: View {
                         ForEach([25.0, 50.0, 75.0, 100.0], id: \.self) { Text("\(Int($0)) mi").tag($0) }
                     }
                     NavigationLink("Favorite gas brands (\(settings.favoriteBrands.count))") { FavoriteBrandsView() }
+                    Picker("Flag stretches without gas over", selection: $settings.gasGapMiles) {
+                        ForEach([25.0, 40.0, 60.0, 80.0], id: \.self) { Text("\(Int($0)) mi").tag($0) }
+                    }
                 } header: {
                     Text("Vehicle and fuel")
                 } footer: {
-                    Text("Fuel stops pick the last exit you reach with the buffer left, preferring your favorite brands anywhere in range.")
+                    Text("Fuel stops pick the last exit you reach with the buffer left, preferring your favorite brands anywhere in range. Stretches without gas count exits with a gas station listed and service plazas with gas.")
                 }
                 Section {
                     SecureField("Google Maps Platform key", text: $settings.googleKey)
@@ -171,6 +177,9 @@ struct DataSourcesView: View {
                         if let built = item.metadata.generatedAt { LabeledContent("Built", value: built) }
                     }
                 }
+            }
+            if let summary = app.data?.restAreaSummary {
+                Section("Rest areas and service plazas") { Text(summary).font(.subheadline) }
             }
             Section("Maps and routes") {
                 Text("Maps, routes and travel times: Apple Maps (MapKit). Route geometry is kept only for the active trip.")

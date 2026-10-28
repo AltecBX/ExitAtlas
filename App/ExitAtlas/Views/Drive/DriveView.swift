@@ -45,6 +45,7 @@ private struct DriveDashboard: View {
     @Environment(TripController.self) private var trip
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showFuel = false
+    @State private var shownRestArea: RouteRestArea?
     let snapshot: TripSnapshot
 
     var body: some View {
@@ -75,12 +76,26 @@ private struct DriveDashboard: View {
         }
         .padding(.top, 8)
         .sheet(isPresented: $showFuel) { FuelView() }
+        .sheet(item: $shownRestArea) { r in
+            NavigationStack { RestAreaDetailView(restArea: r, showsDone: true) }
+        }
     }
 
+    /// Next exit, then a stretch without gas starting soon, then the next rest area.
     @ViewBuilder
     private var nextExit: some View {
         if let next = snapshot.nextExit {
             NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
+        }
+        if let gap = trip.gasGapsAhead().first(where: { $0.from - snapshot.progress <= 25 * Geodesy.metersPerMile }) {
+            GasGapCard(gap: gap, progress: snapshot.progress)
+        }
+        if let rest = snapshot.nextRestArea, rest.distance <= 150 * Geodesy.metersPerMile {
+            Button { shownRestArea = rest.restArea } label: {
+                RestAreaCard(upcoming: rest, then: snapshot.upcomingRestAreas.first { $0.id != rest.id }, now: snapshot.timestamp)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("restAreaCard")
         }
     }
 }
@@ -242,6 +257,70 @@ private struct BorderCard: View {
             }
         }
         .card(padding: 18)
+    }
+}
+
+/// The next rest area or service plaza with its verified amenities.
+private struct RestAreaCard: View {
+    let upcoming: UpcomingRestArea
+    let then: UpcomingRestArea?
+    let now: Date
+
+    var body: some View {
+        let r = upcoming.restArea
+        VStack(alignment: .leading, spacing: 10) {
+            Eyebrow(text: "Next \(r.kind.title.lowercased())")
+            HStack(spacing: 12) {
+                RestAreaSign(kind: r.kind)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(r.title).font(.title3.weight(.bold)).lineLimit(2).minimumScaleFactor(0.8)
+                    Text((r.side == .both ? "Serves both directions · " : "") + r.road).font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(Format.milesValue(upcoming.distance)).font(Theme.number(28, weight: .heavy))
+                        Text("mi").font(.caption).foregroundStyle(Theme.secondaryText)
+                    }
+                    Text(Format.duration(upcoming.eta.timeIntervalSince(now))).font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+            }
+            AmenityChips(restArea: r)
+            if let then {
+                Text("Then \(then.restArea.title), \(Format.miles(then.distance))").font(.caption).foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .card()
+    }
+}
+
+/// Amber card when the next stretch without gas starts within 25 miles, or the driver is in one.
+private struct GasGapCard: View {
+    let gap: GasGaps.Gap
+    let progress: Double
+
+    var body: some View {
+        let inside = (gap.before?.distance ?? progress) <= progress
+        let plus = gap.open ? "+" : ""
+        HStack(spacing: 12) {
+            Image(systemName: "fuelpump.slash.fill").font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                if inside {
+                    Text("No gas for the next \(Format.miles(gap.to - progress))\(plus)").font(.headline)
+                    Text(gap.after.map { "Next gas at \($0.title)" } ?? "None listed ahead on this route").font(.subheadline)
+                } else if let before = gap.before {
+                    Text("Last gas for \(Format.miles(gap.length))\(plus): \(before.title)").font(.headline)
+                    Text("In \(Format.miles(before.distance - progress))" + (gap.after.map { ", then next gas at \($0.title)" } ?? ""))
+                        .font(.subheadline)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Theme.amber)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.amber.opacity(0.14), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

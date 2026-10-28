@@ -1,6 +1,7 @@
 import Foundation
 
-/// Decides what to say for state lines and exits, at most one message per snapshot. The app speaks it.
+/// Decides what to say for state lines, time zones, the last gas before a long stretch, rest areas and
+/// exits, at most one message per snapshot. The app speaks it. Same rules as web/js/app/announcer.js.
 ///
 /// Announcements are keyed by things that survive a reroute: the state code and the odometer
 /// (driven total) where the state line is expected. Segment indexes restart at 0 on every new plan,
@@ -10,11 +11,18 @@ public struct VoiceAnnouncements: Sendable {
         public var enabled: Bool
         public var stateLines: Bool
         public var exits: Bool
+        public var restAreas: Bool
+        public var gasGaps: Bool
+        public var timeZones: Bool
 
-        public init(enabled: Bool, stateLines: Bool, exits: Bool) {
+        public init(enabled: Bool, stateLines: Bool, exits: Bool, restAreas: Bool = true, gasGaps: Bool = true,
+                    timeZones: Bool = true) {
             self.enabled = enabled
             self.stateLines = stateLines
             self.exits = exits
+            self.restAreas = restAreas
+            self.gasGaps = gasGaps
+            self.timeZones = timeZones
         }
     }
 
@@ -23,19 +31,29 @@ public struct VoiceAnnouncements: Sendable {
     /// A state line warning counts as already given when one was given for the same state with an
     /// expected crossing within this many meters on the odometer (route changes move it a little).
     static let sameBorder = 3 * Geodesy.metersPerMile
+    static let restWarning = 2.5 * Geodesy.metersPerMile
+    static let restMinimum = 0.4 * Geodesy.metersPerMile
+    static let gapWarning = 6 * Geodesy.metersPerMile
 
     private var announcedExitIDs = Set<String>()
     private var announcedBorders: [(state: String, odometer: Double)] = []
     private var lastState: String?
+    private var lastZone: String?
+    private var announcedRest = Set<String>()
+    private var announcedGaps = Set<String>()
 
     public init() {}
 
     public mutating func reset() { self = VoiceAnnouncements() }
 
-    public mutating func message(for s: TripSnapshot, settings: Settings) -> String? {
+    /// zoneID: the time zone at the driver (`TripPlan.timeZoneID(at:)`). gasGap: the next stretch
+    /// without gas that starts ahead (`GasGaps.find`), or nil.
+    public mutating func message(for s: TripSnapshot, settings: Settings, zoneID: String? = nil,
+                                 gasGap: GasGaps.Gap? = nil) -> String? {
         let state = Self.key(s.current?.segment)
         guard settings.enabled, s.match.status == .onRoute else {
             if let state { lastState = state }
+            if let zoneID { lastZone = zoneID }
             return nil
         }
         if settings.stateLines, let current = s.current {
@@ -61,6 +79,31 @@ public struct VoiceAnnouncements: Sendable {
                 }
             }
         }
+        // After the state line messages, so a state line that also changes the clock says both, in order.
+        if let zoneID, let last = lastZone, zoneID != last, settings.timeZones {
+            lastZone = zoneID
+            if let change = Self.clockChange(from: last, to: zoneID, at: s.timestamp) {
+                return "Now on \(Self.zoneName(zoneID, at: s.timestamp)). \(change)"
+            }
+        }
+        if let zoneID { lastZone = zoneID }
+        if settings.gasGaps, let gap = gasGap, let before = gap.before {
+            let ahead = before.distance - s.progress
+            if ahead > 0, ahead <= Self.gapWarning, !announcedGaps.contains(before.key) {
+                announcedGaps.insert(before.key)
+                return "Last gas for \(Self.spokenMiles(gap.length)) is \(before.title), in \(Self.spokenMiles(ahead))."
+            }
+        }
+        if settings.restAreas, let next = s.nextRestArea, next.distance <= Self.restWarning, next.distance > Self.restMinimum,
+           !announcedRest.contains(next.restArea.id) {
+            announcedRest.insert(next.restArea.id)
+            let r = next.restArea
+            var text = "\(r.kind.title) in \(Self.spokenMiles(next.distance))"
+            if r.side == .both { text += ", serving both directions" }
+            let extra = Self.spokenAmenities(r)
+            if !extra.isEmpty { text += ". " + extra.prefix(1).uppercased() + extra.dropFirst() }
+            return text + "."
+        }
         if settings.exits, let next = s.nextExit, next.distance <= Geodesy.metersPerMile,
            !announcedExitIDs.contains(next.exit.id) {
             announcedExitIDs.insert(next.exit.id)
@@ -74,6 +117,43 @@ public struct VoiceAnnouncements: Sendable {
     static func key(_ segment: RegionSegment?) -> String? {
         guard let segment else { return nil }
         return segment.code ?? segment.displayName
+    }
+
+    /// Verified amenities in words: what a plaza sells, or a rest area's restrooms, pet area and vending.
+    static func spokenAmenities(_ r: RouteRestArea) -> String {
+        if r.kind == .plaza {
+            let has = [r.gas.isEmpty ? nil : "gas", r.food.isEmpty ? nil : "food", r.ev.isEmpty ? nil : "charging"].compactMap { $0 }
+            if !has.isEmpty { return has.count == 2 ? has.joined(separator: " and ") : has.joined(separator: ", ") }
+        }
+        if r.amenities[.toilets] == false { return "no restrooms" }
+        return [r.amenities[.toilets] == true ? "restrooms" : nil, r.amenities[.pets] == true ? "pet area" : nil,
+                r.amenities[.vending] == true ? "vending" : nil].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    /// "Central Time" for a zone ID.
+    public static func zoneName(_ id: String, at date: Date) -> String {
+        guard let zone = TimeZone(identifier: id) else { return id }
+        if let name = zone.localizedName(for: .generic, locale: Locale(identifier: "en_US")), name.hasSuffix("Time"),
+           !name.contains("GMT") {
+            return name
+        }
+        let names = ["E": "Eastern Time", "C": "Central Time", "M": "Mountain Time", "P": "Pacific Time",
+                     "AK": "Alaska Time", "H": "Hawaii-Aleutian Time", "A": "Atlantic Time"]
+        let abbreviation = zone.abbreviation(for: date) ?? ""
+        for key in ["AK", "E", "C", "M", "P", "H", "A"] where abbreviation.hasPrefix(key) {
+            return names[key]!
+        }
+        return id
+    }
+
+    /// "Clocks go back one hour." between two zones at a moment, or nil when the offset is the same.
+    public static func clockChange(from a: String, to b: String, at date: Date) -> String? {
+        guard let za = TimeZone(identifier: a), let zb = TimeZone(identifier: b) else { return nil }
+        let delta = zb.secondsFromGMT(for: date) - za.secondsFromGMT(for: date)
+        guard delta != 0 else { return nil }
+        let hours = Double(abs(delta)) / 3600
+        let amount = hours == 1 ? "one hour" : hours == 2 ? "two hours" : "\(hours.formatted()) hours"
+        return "Clocks go \(delta > 0 ? "forward" : "back") \(amount)."
     }
 
     public static func spokenMiles(_ meters: Double) -> String {

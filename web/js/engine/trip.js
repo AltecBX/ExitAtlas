@@ -2,6 +2,7 @@
 import { METERS_PER_MILE, distance as geoDistance } from './geo.js';
 import { RegionSegmenter } from './datasets.js';
 import { ExitMatcher, optionsForSource } from './exits.js';
+import { matchRestAreas } from './restareas.js';
 import { RouteProgressTracker, TripLedger, PaceModel } from './tracking.js';
 
 function lowerBound(a, x) {
@@ -16,8 +17,9 @@ function upperBound(a, x) {
   return lo;
 }
 
-/// Everything derived from one route: ordered state segments, time zones and exits.
-/// datasets: {states: RegionIndex, timeZones: TimeZoneResolver|null, interstates: InterstateDataset|null}
+/// Everything derived from one route: ordered state segments, time zones, exits and rest areas.
+/// datasets: {states: RegionIndex, timeZones: TimeZoneResolver|null, interstates: InterstateDataset|null,
+///            restAreas: RestAreaDataset|null}
 export class TripPlan {
   constructor(route, datasets, { segmenter = new RegionSegmenter(), matcher = null } = {}) {
     this.route = route;
@@ -26,6 +28,10 @@ export class TripPlan {
       ? (matcher ?? new ExitMatcher(optionsForSource(route.source))).match(route.polyline, datasets.interstates)
       : [];
     this.exitDistances = this.exits.map((e) => e.distanceAlongRoute);
+    this.restAreas = datasets.restAreas
+      ? matchRestAreas(route.polyline, datasets.restAreas, { highwayAt: (d) => route.stepAt(d)?.highways ?? null })
+      : [];
+    this.restAreaDistances = this.restAreas.map((r) => r.distanceAlongRoute);
     this.timeZones = datasets.timeZones ?? null;
     this.timeZoneIDs = this.states.segments.map((seg) => (
       this.timeZones ? this.timeZones.identifier(seg.entryCoordinate, seg.code) : null));
@@ -45,6 +51,17 @@ export class TripPlan {
   nextExit(distance) {
     const i = upperBound(this.exitDistances, distance);
     return i < this.exits.length ? this.exits[i] : null;
+  }
+
+  /// Rest areas strictly after `start` up to `end`, in route order.
+  restAreasBetween(start, end) {
+    const lo = upperBound(this.restAreaDistances, start), hi = upperBound(this.restAreaDistances, end);
+    return lo < hi ? this.restAreas.slice(lo, hi) : [];
+  }
+
+  nextRestArea(distance) {
+    const i = upperBound(this.restAreaDistances, distance);
+    return i < this.restAreas.length ? this.restAreas[i] : null;
   }
 
   timeZoneIDAt(distance) {
@@ -113,6 +130,8 @@ export class TripPlan {
     });
     const upcomingExits = this.exitsBetween(d, d + exitLookahead).slice(0, maxUpcomingExits).map(toUpcoming);
     const ne = this.nextExit(d);
+    const toRest = (r) => ({ restArea: r, distance: r.distanceAlongRoute - d, eta: eta(r.distanceAlongRoute) });
+    const nr = this.nextRestArea(d);
     const ahead = itinerary.filter((f) => f.status === 'upcoming');
     const statesAhead = [];
     for (const f of ahead) {
@@ -127,6 +146,7 @@ export class TripPlan {
       paceFactor: pace.factor, paceRecent: pace.recentFactor, recentSpeed: pace.recentSpeed, etaTo: eta,
       highway: route.highwayAt(d), current, next, itinerary,
       nextExit: ne ? toUpcoming(ne) : null, upcomingExits,
+      nextRestArea: nr ? toRest(nr) : null, upcomingRestAreas: this.restAreasBetween(d, d + exitLookahead).map(toRest),
       borderCrossingsRemaining: ahead.length, statesAhead,
       nextStop: stop ? { stop, distance: stop.distanceAlongRoute - d, eta: eta(stop.distanceAlongRoute) } : null,
       drivenStints: ledger.stints,

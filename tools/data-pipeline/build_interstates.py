@@ -2,7 +2,7 @@
 """Build the EAX1 interstate exit + services dataset from an OpenInterstate release.
 
 Usage:
-    build_interstates.py <openinterstate csv dir> <reachability.csv> <out.eax> <source.json>
+    build_interstates.py <openinterstate csv dir> <reachability.csv> <out.eax> <source.json> [rest_area_classes.json]
 
 What it does:
   * Collapses OpenInterstate exit rows to one record per physical OSM exit node.
@@ -15,6 +15,9 @@ What it does:
   * Keeps only places that are linked to at least one exit, and stores the
     straight-line distance plus the OSRM drive distance/duration from the
     reachability release when available.
+  * With the classes file from build_rest_areas.py: rest areas and service plazas on the
+    mainline lose their exit links (they are timeline rows of their own, not reached through
+    an exit), and highway=services truck stops become travelCenter instead of restArea.
 
 EAX1 layout after the common header:
     string table
@@ -42,6 +45,7 @@ csv.field_size_limit(10**9)
 
 CATEGORIES = {
     "gas": 1, "food": 2, "lodging": 3, "restArea": 4, "evCharging": 5, "park": 6, "dogPark": 7,
+    "travelCenter": 8,
 }
 
 # Cyrillic and Greek lookalikes seen in OSM refs (for example a Cyrillic A in "8A").
@@ -88,6 +92,7 @@ def key(lon, lat):
 def main():
     csv_dir, reach_path, dst, source_json = sys.argv[1:5]
     source = json.load(open(source_json))
+    classes = json.load(open(sys.argv[5])) if len(sys.argv) > 5 else {}
 
     # 1. Exits collapsed to physical nodes.
     nodes = collections.OrderedDict()
@@ -132,7 +137,7 @@ def main():
     links = collections.defaultdict(dict)
     for r in csv.DictReader(open(os.path.join(csv_dir, "exit_place_links.csv"))):
         b = base_id(r["exit_id"])
-        if b not in nodes:
+        if b not in nodes or classes.get(r["place_id"]) == "mainline":
             continue
         prev = links[b].get(r["place_id"])
         cur = (float(r["distance_m"]), int(r["rank"]))
@@ -157,7 +162,8 @@ def main():
             continue
         lon, lat = json.loads(r["geometry_geojson"])["coordinates"][:2]
         places[r["place_id"]] = {
-            "lat": lat, "lon": lon, "category": CATEGORIES.get(r["category"], 0),
+            "lat": lat, "lon": lon,
+            "category": CATEGORIES["travelCenter" if classes.get(r["place_id"]) == "travel" else r["category"]] if r["category"] in CATEGORIES else 0,
             "name": (r["display_name"] or r["name"]).strip(), "brand": r["brand"].strip(),
         }
     place_ids = sorted(places)

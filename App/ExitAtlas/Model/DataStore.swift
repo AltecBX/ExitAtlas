@@ -1,8 +1,8 @@
 import ExitAtlasCore
 import Foundation
 
-/// Loads the bundled offline datasets (state and time zone boundaries, exits and services,
-/// interstate corridors). Everything here works without a network connection.
+/// Loads the bundled offline datasets (state and time zone boundaries, exits and services, rest
+/// areas, interstate corridors). Everything here works without a network connection.
 struct BundledData: Sendable {
     let datasets: TripDatasets
     let corridors: CorridorDataset
@@ -28,8 +28,11 @@ struct BundledData: Sendable {
         let zones = try RegionIndex(contentsOf: try url("timezones", "eab"))
         let interstates = try InterstateDataset(contentsOf: try url("interstates", "eax"))
         let corridors = try CorridorDataset(contentsOf: try url("corridors", "eac"))
+        // Optional: without it the timeline has no rest area rows.
+        let restAreas = (try? url("restareas", "json")).flatMap { try? RestAreaDataset(contentsOf: $0) }
         return BundledData(
-            datasets: TripDatasets(states: states, timeZones: TimeZoneResolver(zones: zones), interstates: interstates),
+            datasets: TripDatasets(states: states, timeZones: TimeZoneResolver(zones: zones), interstates: interstates,
+                                   restAreas: restAreas),
             corridors: corridors, interstates: interstates)
     }
 
@@ -39,5 +42,12 @@ struct BundledData: Sendable {
          ("Time zones", datasets.timeZones?.zones.metadata ?? DatasetMetadata(values: [:])),
          ("Exits and services", interstates.metadata),
          ("Interstate corridors", corridors.metadata)]
+    }
+
+    /// The rest area file is JSON, so its provenance is shown separately.
+    var restAreaSummary: String? {
+        guard let m = datasets.restAreas?.metadata else { return nil }
+        return "\(m.count) rest areas, welcome centers and service plazas from OpenStreetMap (tags checked \(m.tagsFetched ?? "unknown")). "
+            + "Truck parking counts from the FHWA Truck Stop Parking survey (2019, public domain). \(m.license). Amenities show only what mappers have tagged."
     }
 }

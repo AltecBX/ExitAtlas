@@ -77,3 +77,39 @@ test('voice off or off route says nothing, then resumes without a false welcome'
   }
   assert.ok(!spoken.some((t) => t.startsWith('Welcome')), spoken.join(' | '));
 });
+
+test('rest areas, time zones and the last gas before a long stretch are spoken once each', () => {
+  const ds = { states: data.states, timeZones: data.timeZones, interstates: data.interstates, restAreas: data.restAreas };
+  const r = route('atlanta_to_nashville');
+  const plan = new TripPlan(r, ds);
+  const session = new TripSession(plan, data.states, START);
+  const spoken = [];
+  const announcer = new Announcer((text) => spoken.push(text));
+  const all = { ...settings, announceRestAreas: true, announceTimeZones: true, announceGasGaps: true };
+  for (const { sample } of new GPSSimulator(r).trace(0, r.polyline.length - 100, START)) {
+    const s = session.ingest(sample);
+    announcer.consider(s, all, { zoneID: plan.timeZoneIDAt(s.progress) });
+  }
+  // I-24 west of Chattanooga moves from Eastern to Central time.
+  const zone = spoken.filter((t) => t.startsWith('Now on Central Time.'));
+  assert.equal(zone.length, 1, spoken.join(' | '));
+  assert.match(zone[0], /Clocks go back one hour\./);
+  // Every rest area on the route is announced once, ahead of it.
+  const rest = spoken.filter((t) => /^(Rest Area|Welcome Center|Service Plaza|Parking Area) in /.test(t));
+  assert.equal(rest.length, plan.restAreas.length, spoken.join(' | '));
+  assert.ok(rest.every((t) => /in [23] miles/.test(t)), rest.join(' | '));
+
+  // Gas gap: spoken once when the last gas is within about 6 miles.
+  const exit = plan.exits.find((e) => e.distanceAlongRoute > 30 * MILE);
+  const gap = { length: 62 * MILE, before: { distance: exit.distanceAlongRoute, exit } };
+  const fake = (progress) => ({ match: { status: 'onRoute' }, current: null, next: null, progress, t: START, drivenTotal: progress,
+    distanceToNextBorder: null, nextRestArea: null, nextExit: null });
+  const said = [];
+  const a2 = new Announcer((t) => said.push(t));
+  a2.consider(fake(exit.distanceAlongRoute - 10 * MILE), all, { gasGap: gap });
+  a2.consider(fake(exit.distanceAlongRoute - 5 * MILE), all, { gasGap: gap });
+  a2.consider(fake(exit.distanceAlongRoute - 4 * MILE), all, { gasGap: gap });
+  assert.deepEqual(said, [`Last gas for 62 miles is Exit ${exit.label}, in 5 miles.`]);
+  a2.consider(fake(exit.distanceAlongRoute - 3 * MILE), { ...all, announceGasGaps: false }, { gasGap: { ...gap, before: { ...gap.before, exit: { ...exit, id: 'other' } } } });
+  assert.equal(said.length, 1);
+});

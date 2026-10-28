@@ -13,7 +13,7 @@ Why native Swift:
 
 | Layer | Contents | Depends on |
 |---|---|---|
-| Data | Bundled datasets: `states.eab`, `timezones.eab`, `interstates.eax`, `corridors.eac`, `vehicles.json` (read by the web version only so far), `demo_miami_manhattan.json` | Built offline by `tools/data-pipeline` |
+| Data | Bundled datasets: `states.eab`, `timezones.eab`, `interstates.eax`, `restareas.json`, `corridors.eac`, `vehicles.json`, `demo_miami_manhattan.json` | Built offline by `tools/data-pipeline` |
 | Engine (`ExitAtlasCore`) | Geodesy, `RoutePolyline`, `RegionIndex`, `RegionSegmenter`, `ExitMatcher`, `RouteProgressTracker`, `TripLedger`, `PaceModel`, `TripPlan`, `TripSnapshot`, `TripSession`, `HighwayDiscovery`, `AlongRouteSearch`, `StopPlanner`, `FuelPlanner`, `GPSSimulator` | Foundation only |
 | Platform services (app) | `LocationService` (Core Location), `MapKitRouteService`, `PlaceSearch`, `Announcer` (AVSpeech), `DriveSimulator` | Apple frameworks |
 | Controllers (app) | `AppModel`, `TripController`, `UserSettings`, `TripLibrary` (Observation framework) | Engine and services |

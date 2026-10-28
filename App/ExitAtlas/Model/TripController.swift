@@ -56,6 +56,8 @@ final class TripController {
     @ObservationIgnored private var lastPersistAt: Date?
     @ObservationIgnored private var refreshTimer: Timer?
     @ObservationIgnored private var serviceCache: [String: [ExitService]] = [:]
+    @ObservationIgnored private var gasStopCache: (routeID: UUID, stops: [GasGaps.Stop])?
+    @ObservationIgnored private var lastSample: LocationSample?
     @ObservationIgnored private var lineCache: (routeID: UUID, lines: [StateLine])?
     @ObservationIgnored let location = LocationService()
     @ObservationIgnored let simulator = DriveSimulator()
@@ -227,6 +229,7 @@ final class TripController {
 
     private func handle(_ sample: LocationSample) {
         lastFixAt = sample.timestamp
+        lastSample = sample
         switch mode {
         case .idle:
             return
@@ -298,7 +301,10 @@ final class TripController {
 
     private func publish(_ snap: TripSnapshot) {
         snapshot = snap
-        if let settings { announcer.consider(snap, settings: settings) }
+        if let settings {
+            let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
+            announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap)
+        }
         limits.reset(for: plan)
         if snap.match.status == .onRoute { limits.ensureAhead(of: snap.progress) }
         if let plan, let settings, settings.vehicle?.isElectric == true {
@@ -419,11 +425,16 @@ final class TripController {
 
     // MARK: Reroute and ETA calibration
 
-    private func reroute(from sample: LocationSample) {
+    /// - Parameters:
+    ///   - waypoints: the stops to route through, the destination last (default: the remaining ones).
+    ///   - force: skip the 20 second limit between reroutes (a stop the driver just added).
+    ///   - spoken: what to say once the new route is in use.
+    private func reroute(from sample: LocationSample, waypoints override: [Waypoint]? = nil, force: Bool = false,
+                         spoken: String? = nil) {
         guard mode == .trip, !isRerouting, !remainingWaypoints.isEmpty, !isSimulating else { return }
-        if let last = lastRerouteAt, sample.timestamp.timeIntervalSince(last) < 20 { return }
+        if !force, let last = lastRerouteAt, sample.timestamp.timeIntervalSince(last) < 20 { return }
         // Every stop, the destination included, can already be passed (near the end of a trip).
-        let waypoints = dropPassedStops()
+        let waypoints = override ?? dropPassedStops()
         guard let destination = waypoints.last else { return }
         lastRerouteAt = sample.timestamp
         isRerouting = true
@@ -444,10 +455,28 @@ final class TripController {
                 self.plan = plan
                 self.remainingWaypoints = waypoints
                 self.lastError = nil
+                if let spoken, self.settings?.voiceEnabled == true { self.announcer.speak(spoken) }
             } catch {
                 self.lastError = "Reroute failed: \(error.localizedDescription). Will retry."
             }
         }
+    }
+
+    /// A stop can be added mid-trip when a reroute is possible: a planned trip on device GPS.
+    var canAddStop: Bool { mode == .trip && !isSimulating && lastSample != nil && !remainingWaypoints.isEmpty }
+
+    /// Adds a place at an exit as the next stop and reroutes through it. Stops already on the trip keep
+    /// their order; the new one goes before the first remaining stop that lies farther along the route.
+    func addStop(_ place: Place, at exit: RouteExit) {
+        guard canAddStop, let sample = lastSample, let plan else { return }
+        let waypoint = Waypoint(name: place.displayName, coordinate: place.coordinate)
+        var list = dropPassedStops()
+        func along(_ w: Waypoint) -> Double {
+            plan.route.stops.first { $0.waypoint == w }?.distanceAlongRoute ?? .infinity
+        }
+        let index = list.firstIndex { along($0) > exit.distanceAlongRoute } ?? max(0, list.count - 1)
+        list.insert(waypoint, at: min(index, max(0, list.count - 1)))
+        reroute(from: sample, waypoints: list, force: true, spoken: "Stop added: \(waypoint.name).")
     }
 
     private func dropPassedStops() -> [Waypoint] {
@@ -480,6 +509,23 @@ final class TripController {
         }
         lineCache = (plan.route.id, lines)
         return lines
+    }
+
+    /// Gas along the route: exits with a gas station listed and service plazas listing gas.
+    func gasStops() -> [GasGaps.Stop] {
+        guard let plan else { return [] }
+        if let cached = gasStopCache, cached.routeID == plan.route.id { return cached.stops }
+        let stops = GasGaps.stops(plan: plan) { self.services(for: $0) }
+        gasStopCache = (plan.route.id, stops)
+        return stops
+    }
+
+    /// Stretches without gas in the next `window` meters, longer than the driver's setting. None for EVs.
+    func gasGapsAhead(window: Double = 150 * Geodesy.metersPerMile) -> [GasGaps.Gap] {
+        guard let plan, let snapshot, let settings, settings.vehicle?.isElectric != true else { return [] }
+        let end = min(plan.route.length, snapshot.progress + window)
+        return GasGaps.find(stops: gasStops(), from: snapshot.progress, to: end,
+                            minimum: settings.gasGapMiles * Geodesy.metersPerMile, routeLength: plan.route.length)
     }
 
     func stopSuggestions(_ query: StopQuery) -> [StopSuggestion] {

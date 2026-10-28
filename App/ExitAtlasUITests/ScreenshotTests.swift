@@ -44,6 +44,16 @@ final class ScreenshotTests: XCTestCase {
             sleep(3)
             snap("3 Exit detail", dark)
             app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
+
+        let rest = app.buttons["restAreaRow"].firstMatch
+        if rest.waitForExistence(timeout: 5), rest.isHittable {
+            rest.tap()
+            sleep(2)
+            snap("3b Rest area", dark)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
         }
 
         app.tabBars.buttons["Trip"].tap()
@@ -52,6 +62,17 @@ final class ScreenshotTests: XCTestCase {
         app.swipeUp()
         sleep(1)
         snap("5 Itinerary", dark)
+        // The stop planner button sits below the itinerary.
+        app.swipeUp()
+        sleep(1)
+        let planStop = app.buttons["Plan a stop ahead"].firstMatch
+        if planStop.waitForExistence(timeout: 5), planStop.isHittable {
+            planStop.tap()
+            sleep(3)
+            snap("4b Plan a stop", dark)
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
+        }
 
         app.tabBars.buttons["Settings"].tap()
         sleep(2)
