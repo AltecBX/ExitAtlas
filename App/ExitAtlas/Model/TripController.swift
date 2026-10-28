@@ -155,7 +155,10 @@ final class TripController {
             let here = Waypoint(name: "Current location", coordinate: try await CurrentLocation.fetch())
             let options = MapKitRouteService.Options(avoidTolls: settings?.avoidTolls ?? false)
             guard let route = try await routing.routes(from: here, via: Array(record.remainingWaypoints.dropLast()),
-                                                       to: destination, options: options).first else { return }
+                                                       to: destination, options: options).first else {
+                lastError = "Could not resume: no route to \(destination.name) was found."
+                return
+            }
             let restored = PlannedRoute(source: route.source, polyline: route.polyline, steps: route.steps,
                                     timeProfile: route.timeProfile, origin: record.origin, destination: route.destination,
                                     stops: route.stops, hasTolls: route.hasTolls, createdAt: route.createdAt, title: route.title)
@@ -272,11 +275,12 @@ final class TripController {
     private func reroute(from sample: LocationSample) {
         guard mode == .trip, !isRerouting, !remainingWaypoints.isEmpty, !isSimulating else { return }
         if let last = lastRerouteAt, sample.timestamp.timeIntervalSince(last) < 20 { return }
+        // Every stop, the destination included, can already be passed (near the end of a trip).
+        let waypoints = dropPassedStops()
+        guard let destination = waypoints.last else { return }
         lastRerouteAt = sample.timestamp
         isRerouting = true
         let here = Waypoint(name: "Current location", coordinate: sample.coordinate)
-        let waypoints = dropPassedStops()
-        let destination = waypoints.last!
         let stops = Array(waypoints.dropLast())
         let options = MapKitRouteService.Options(avoidTolls: settings?.avoidTolls ?? false)
         Task { @MainActor in

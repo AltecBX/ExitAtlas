@@ -108,12 +108,14 @@ public struct FuelPlanner: Sendable {
 
     /// - Parameters:
     ///   - fuelGallons: fuel in the tank now.
-    ///   - window: only stations within this many meters ahead (nil means the whole usable range).
+    ///   - window: only stations within this many meters ahead (nil means 1.5 times the usable range, at least 50 miles).
     public func plan(snapshot: TripSnapshot, plan: TripPlan, dataset: InterstateDataset,
                      vehicle: VehicleProfile, fuelGallons: Double,
                      prices: [String: [FuelPriceObservation]], window: Double? = nil, now: Date) -> FuelPlan {
         let usableMeters = max(0, fuelGallons - vehicle.reserveGallons) * vehicle.metersPerGallon
-        let horizon = min(window ?? usableMeters * 1.5, 500 * Geodesy.metersPerMile)
+        // At or below the reserve nothing is "reachable", but the nearest stations still matter most,
+        // so the search always covers at least 50 miles.
+        let horizon = min(window ?? max(usableMeters * 1.5, 50 * Geodesy.metersPerMile), 500 * Geodesy.metersPerMile)
         let d = snapshot.progress
         var options: [FuelOption] = []
         for exit in plan.exits(after: d, upTo: d + horizon) {

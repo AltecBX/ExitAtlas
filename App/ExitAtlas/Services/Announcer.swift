@@ -2,13 +2,12 @@ import AVFoundation
 import ExitAtlasCore
 import Foundation
 
-/// Spoken announcements for state lines and exits. Music is ducked only while speaking.
+/// Speaks state line and exit announcements. Music is ducked only while speaking.
 @MainActor
 final class Announcer: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
-    private var announcedExitIDs = Set<String>()
-    private var announcedBorderWarnings = Set<Int>()
-    private var lastSegmentIndex: Int?
+    /// What to say lives in the engine (shared with the web version and tested there).
+    private var announcements = VoiceAnnouncements()
 
     override init() {
         super.init()
@@ -16,45 +15,15 @@ final class Announcer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func reset() {
-        announcedExitIDs.removeAll()
-        announcedBorderWarnings.removeAll()
-        lastSegmentIndex = nil
+        announcements.reset()
     }
 
     /// Compares the new snapshot with what was already said and speaks at most one message.
     func consider(_ s: TripSnapshot, settings: UserSettings) {
-        guard settings.voiceEnabled, s.match.status == .onRoute else {
-            lastSegmentIndex = s.current?.segment.index
-            return
-        }
-        if settings.announceStateLines, let current = s.current {
-            if let last = lastSegmentIndex, current.segment.index > last {
-                lastSegmentIndex = current.segment.index
-                var text = "Welcome to \(current.segment.displayName)."
-                if s.next != nil {
-                    text += " \(Format.spokenMiles(current.remainingMeters)) of your route are in \(current.segment.displayName)."
-                }
-                speak(text)
-                return
-            }
-            lastSegmentIndex = current.segment.index
-            if let next = s.next, let toBorder = s.distanceToNextBorder,
-               toBorder <= 5 * Geodesy.metersPerMile, toBorder > 0.5 * Geodesy.metersPerMile,
-               !announcedBorderWarnings.contains(next.segment.index) {
-                announcedBorderWarnings.insert(next.segment.index)
-                let exits = current.exitsRemaining
-                speak("\(next.segment.displayName) state line in \(Format.spokenMiles(toBorder)). "
-                    + "\(exits) \(exits == 1 ? "exit remains" : "exits remain") in \(current.segment.displayName).")
-                return
-            }
-        }
-        if settings.announceExits, let next = s.nextExit, next.distance <= 1.0 * Geodesy.metersPerMile,
-           !announcedExitIDs.contains(next.exit.id) {
-            announcedExitIDs.insert(next.exit.id)
-            var text = "\(next.exit.displayTitle) in \(Format.spokenMiles(next.distance))"
-            if !next.exit.name.isEmpty { text += ", \(next.exit.name)" }
-            speak(text + ".")
-        }
+        let voice = VoiceAnnouncements.Settings(enabled: settings.voiceEnabled,
+                                                stateLines: settings.announceStateLines,
+                                                exits: settings.announceExits)
+        if let text = announcements.message(for: s, settings: voice) { speak(text) }
     }
 
     func speak(_ text: String) {
