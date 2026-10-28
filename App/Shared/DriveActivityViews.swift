@@ -63,8 +63,13 @@ struct DriveActivityLockScreenView: View {
                     }
                     .layoutPriority(2)
                     if let left = content.exitsLeftInState, let here = content.stateCode {
-                        Text("· \(left) \(left == 1 ? "exit" : "exits") left in \(here)").foregroundStyle(.secondary)
-                            .lineLimit(1).minimumScaleFactor(0.85)
+                        // The shorter wording when the full one does not fit.
+                        ViewThatFits(in: .horizontal) {
+                            Text("· \(left) \(left == 1 ? "exit" : "exits") left in \(here)")
+                            Text("· \(left) \(left == 1 ? "exit" : "exits") left")
+                            Text("· \(left) left")
+                        }
+                        .foregroundStyle(.secondary).lineLimit(1)
                     }
                 } else if let here = content.stateCode {
                     Label("In \(here), last state", systemImage: "flag.checkered")
