@@ -55,7 +55,10 @@ public struct TripSnapshot: Sendable {
     public let drivenTotal: Double
     public let eta: Date
     public let timeRemaining: TimeInterval
+    /// Trip pace (actual over modeled time); see `pace` for the recent pace.
     public let paceFactor: Double
+    /// The pace model used for these ETAs (also for ETAs to other points: `TripPlan.eta`).
+    public let pace: PaceModel
     public let highway: SignedHighway?
     public let current: SegmentForecast?
     public let next: SegmentForecast?
@@ -75,18 +78,21 @@ public struct TripSnapshot: Sendable {
 }
 
 public extension TripPlan {
+    /// Predicted arrival at `target` (meters along the route) from `d`: the modeled travel time
+    /// adjusted by the pace model, plus planned dwell at stops in between.
+    func eta(from d: Double, to target: Double, pace: PaceModel, now: Date) -> Date {
+        var seconds = pace.seconds(forModelSeconds: route.timeProfile.seconds(from: d, to: target))
+        for stop in route.stops where stop.distanceAlongRoute > d && stop.distanceAlongRoute < target {
+            seconds += stop.plannedDwell
+        }
+        return now.addingTimeInterval(seconds)
+    }
+
     /// Builds the dashboard snapshot for the current match.
     func snapshot(match: RouteMatch, ledger: TripLedger, pace: PaceModel, now: Date,
                   exitLookahead: Double = 100 * Geodesy.metersPerMile, maxUpcomingExits: Int = 200) -> TripSnapshot {
         let d = min(max(match.distanceAlongRoute, 0), route.length)
-        let factor = pace.factor
-        func eta(to target: Double) -> Date {
-            var seconds = route.timeProfile.seconds(from: d, to: target) * factor
-            for stop in route.stops where stop.distanceAlongRoute > d && stop.distanceAlongRoute < target {
-                seconds += stop.plannedDwell
-            }
-            return now.addingTimeInterval(seconds)
-        }
+        func eta(to target: Double) -> Date { self.eta(from: d, to: target, pace: pace, now: now) }
 
         let currentIndex = states.segmentIndex(at: d)
         let lastStint = ledger.stints.last
@@ -154,7 +160,7 @@ public extension TripPlan {
         return TripSnapshot(
             timestamp: now, match: match, routeLength: route.length, progress: d, remaining: route.length - d,
             drivenTotal: max(ledger.totalMeters, d), eta: arrival, timeRemaining: arrival.timeIntervalSince(now),
-            paceFactor: factor, highway: route.highway(at: d), current: current, next: next, itinerary: itinerary,
+            paceFactor: pace.factor, pace: pace, highway: route.highway(at: d), current: current, next: next, itinerary: itinerary,
             nextExit: nextExitRecord, upcomingExits: Array(upcoming),
             borderCrossingsRemaining: ahead.count, statesAhead: statesAhead, nextStop: nextStop,
             drivenStints: ledger.stints)

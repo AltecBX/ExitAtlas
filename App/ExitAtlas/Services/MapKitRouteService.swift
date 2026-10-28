@@ -6,7 +6,7 @@ import MapKit
 ///
 /// MKDirections takes one origin and one destination, so trips with stops are computed leg by
 /// leg and joined. MKRoute reports only a total travel time per leg (no per step durations), so
-/// time is spread over each leg by distance and corrected live by the pace model.
+/// time is spread over each leg by distance and corrected live by the pace model (no provider calibration).
 /// Route geometry is held in memory for the active trip only (Apple Developer Program License
 /// Agreement, Attachment 6, section 2.5: temporary caching).
 struct MapKitRouteService {
@@ -44,16 +44,6 @@ struct MapKitRouteService {
         return [joined(legs, waypoints: points)]
     }
 
-    /// Live travel time estimate for the rest of the trip, used to calibrate ETAs.
-    func remainingTravelTime(from here: GeoCoordinate, to destination: Waypoint) async throws -> TimeInterval {
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: here.clCoordinate))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination.coordinate.clCoordinate))
-        request.transportType = .automobile
-        request.departureDate = Date()
-        let response = try await MKDirections(request: request).calculateETA()
-        return response.expectedTravelTime
-    }
 
     private func directions(from a: Waypoint, to b: Waypoint, options: Options,
                             alternatives: Bool) async throws -> [MKRoute] {

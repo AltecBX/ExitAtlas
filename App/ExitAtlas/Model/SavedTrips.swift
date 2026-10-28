@@ -47,6 +47,8 @@ struct TripRecord: Codable, Identifiable, Hashable {
 final class TripLibrary {
     private(set) var saved: [SavedTrip] = []
     private(set) var history: [TripRecord] = []
+    /// Moving pace on earlier device trips against MapKit travel times (prior for new trips).
+    private(set) var paceHistory = PaceHistory()
 
     private var folder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -57,6 +59,12 @@ final class TripLibrary {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         saved = load("saved.json") ?? []
         history = load("history.json") ?? []
+        paceHistory = load("pace_history.json") ?? PaceHistory()
+    }
+
+    func recordPace(key: String, pace: PaceModel) {
+        paceHistory.record(key: key, pace: pace)
+        write(paceHistory, "pace_history.json")
     }
 
     func save(_ trip: SavedTrip) {

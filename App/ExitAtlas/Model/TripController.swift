@@ -45,7 +45,10 @@ final class TripController {
     @ObservationIgnored private var data: BundledData?
     @ObservationIgnored private var tripStartedAt: Date?
     @ObservationIgnored private var lastRerouteAt: Date?
-    @ObservationIgnored private var lastCalibrationAt: Date?
+    /// Changes with every new trip, so a late reroute result is never applied to a different trip.
+    @ObservationIgnored private var tripID = UUID()
+    /// Miles per state from discovery locks that already ended (discovery drops its plan between locks).
+    @ObservationIgnored private var discoveryCarry: [TripRecord.StateMiles] = []
     @ObservationIgnored private var lastPersistAt: Date?
     @ObservationIgnored private var refreshTimer: Timer?
     @ObservationIgnored private var serviceCache: [String: [ExitService]] = [:]
@@ -84,6 +87,9 @@ final class TripController {
 
     func startDiscovery() {
         stopSimulation()
+        tripID = UUID()
+        discoveryCarry = []
+        tripStartedAt = Date()
         mode = .discovery
         plan = nil
         session = nil
@@ -103,13 +109,17 @@ final class TripController {
         guard let data else { return }
         let plan = TripPlan(route: route, datasets: data.datasets)
         self.plan = plan
+        tripID = UUID()
+        lastRerouteAt = nil
         let now = Date()
         if let record {
             session = TripSession(plan: plan, states: data.datasets.states, startedAt: now,
                                   ledger: record.ledger, pace: record.pace)
             tripStartedAt = record.startedAt
         } else {
-            session = TripSession(plan: plan, states: data.datasets.states, startedAt: now)
+            // Device trips start from the driver's usual pace on MapKit routes; simulations from the model.
+            let prior = simulate ? 1 : (library?.paceHistory.priorFactor() ?? 1)
+            session = TripSession(plan: plan, states: data.datasets.states, startedAt: now, priorPaceFactor: prior)
             tripStartedAt = now
         }
         resumable = nil
@@ -134,6 +144,15 @@ final class TripController {
             library?.record(TripRecord(title: "\(plan?.route.origin.name ?? "Trip") to \(plan?.route.destination.name ?? "")",
                                        startedAt: start, endedAt: Date(), states: states,
                                        totalMeters: session.ledger.totalMeters))
+            library?.recordPace(key: start.timeIntervalSince1970.description, pace: session.pace)
+        } else if mode == .discovery, !isSimulating {
+            absorbDiscoveryLedger()
+            let total = discoveryCarry.reduce(0) { $0 + $1.meters }
+            if total > 0, let start = tripStartedAt {
+                library?.record(TripRecord(title: "Discovery drive", startedAt: start, endedAt: Date(),
+                                           states: discoveryCarry, totalMeters: total))
+            }
+            discoveryCarry = []
         }
         stopSimulation()
         location.stop()
@@ -201,7 +220,6 @@ final class TripController {
             self.session = session
             publish(snap)
             if session.needsReroute(at: sample.timestamp) { reroute(from: sample) }
-            calibrateIfDue(at: sample)
             persistIfDue(at: sample.timestamp)
         case .discovery:
             handleDiscovery(sample)
@@ -217,6 +235,7 @@ final class TripController {
             discoveryStatus = (sample.speed ?? 0) < discovery.minimumSpeed
                 ? "Waiting for highway speed" : "Looking for an interstate"
             if plan?.route.source == .corridor {
+                absorbDiscoveryLedger()
                 plan = nil
                 session = nil
                 snapshot = nil
@@ -245,6 +264,18 @@ final class TripController {
                 let snap = session.ingest(sample)
                 self.session = session
                 publish(snap)
+            }
+        }
+    }
+
+    /// Keeps the miles of a discovery lock that is ending, for the trip history.
+    private func absorbDiscoveryLedger() {
+        guard let session else { return }
+        for t in session.ledger.totalsByRegion {
+            if let i = discoveryCarry.firstIndex(where: { $0.code == t.code && $0.name == t.name }) {
+                discoveryCarry[i].meters += t.meters
+            } else {
+                discoveryCarry.append(TripRecord.StateMiles(code: t.code, name: t.name, meters: t.meters))
             }
         }
     }
@@ -283,11 +314,13 @@ final class TripController {
         let here = Waypoint(name: "Current location", coordinate: sample.coordinate)
         let stops = Array(waypoints.dropLast())
         let options = MapKitRouteService.Options(avoidTolls: settings?.avoidTolls ?? false)
+        let id = tripID
         Task { @MainActor in
             defer { self.isRerouting = false }
             do {
                 guard let route = try await self.routing.routes(from: here, via: stops, to: destination,
                                                                 options: options).first,
+                      self.tripID == id, self.mode == .trip,
                       let data = self.data, var session = self.session else { return }
                 let plan = TripPlan(route: route, datasets: data.datasets)
                 session.replacePlan(plan, at: Date())
@@ -307,18 +340,6 @@ final class TripController {
         return remainingWaypoints.filter { !passed.contains($0) }
     }
 
-    private func calibrateIfDue(at sample: LocationSample) {
-        guard mode == .trip, !isSimulating, let destination = remainingWaypoints.last,
-              session?.tracker.match.status == .onRoute else { return }
-        if let last = lastCalibrationAt, sample.timestamp.timeIntervalSince(last) < 600 { return }
-        lastCalibrationAt = sample.timestamp
-        Task { @MainActor in
-            guard let seconds = try? await self.routing.remainingTravelTime(from: sample.coordinate, to: destination),
-                  var session = self.session else { return }
-            session.calibrate(providerRemainingSeconds: seconds)
-            self.session = session
-        }
-    }
 
     // MARK: Queries for views
 

@@ -19,10 +19,12 @@ public struct TripSession: Sendable {
     /// Seconds off route before a reroute is requested.
     public var rerouteDelay: TimeInterval = 8
 
-    public init(plan: TripPlan, states: RegionIndex, startedAt: Date = Date()) {
+    /// - Parameter priorPaceFactor: the driver's usual pace from earlier trips (1 means the model).
+    public init(plan: TripPlan, states: RegionIndex, startedAt: Date = Date(), priorPaceFactor: Double = 1) {
         self.plan = plan
         self.states = states
         tracker = RouteProgressTracker(route: plan.route.polyline, startedAt: startedAt)
+        pace = PaceModel(priorFactor: priorPaceFactor)
     }
 
     /// Resumes a trip after the app was terminated: driven history and pace are restored and
@@ -51,7 +53,7 @@ public struct TripSession: Sendable {
             if dt > 0, moved / dt > 2 {
                 pace.observe(expected: plan.route.timeProfile.seconds(from: previous.distanceAlongRoute,
                                                                      to: current.distanceAlongRoute),
-                             actual: dt)
+                             actual: dt, meters: moved)
             }
         } else if hasStartedDriving, current.status != .onRoute, let last = lastSample,
                   sample.horizontalAccuracy >= 0, sample.horizontalAccuracy <= 100,
@@ -85,12 +87,5 @@ public struct TripSession: Sendable {
         tracker = RouteProgressTracker(route: newPlan.route.polyline, startedAt: date)
         offRouteSince = nil
         recordedUpTo = 0
-    }
-
-    /// Feeds a provider ETA for the rest of the route (for example from MKDirections.calculateETA).
-    public mutating func calibrate(providerRemainingSeconds: Double) {
-        let d = tracker.match.distanceAlongRoute
-        pace.calibrate(providerRemainingSeconds: providerRemainingSeconds,
-                       profileRemainingSeconds: plan.route.timeProfile.seconds(from: d, to: plan.route.length))
     }
 }
