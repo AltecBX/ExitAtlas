@@ -456,3 +456,12 @@ public enum RoadIntel {
         return "\(updated ? "Updated" : "Reported") \(ago)"
     }
 }
+
+extension RoadIntel.Result {
+    /// The alert the Drive screen considers: the first serious one within 50 miles, else the nearest. Work
+    /// zones that leave the travel lanes open stay in Road Ahead (same rule as focusAlertItem in views.js).
+    public func focusAlert(progress: Double) -> RoadIntel.Alert? {
+        let shown = alerts.filter(\.notable)
+        return shown.first { $0.serious && $0.start - progress <= 50 * Geodesy.metersPerMile } ?? shown.first
+    }
+}

@@ -111,18 +111,14 @@ private struct DriveDashboard: View {
             alert: focusAlert.map { (distance: max(0, $0.start - progress), serious: $0.serious) })
     }
 
-    /// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones
-    /// that leave the travel lanes open stay in Road Ahead.
-    private var focusAlert: RoadIntel.Alert? {
-        let alerts = (trip.roadIntel?.alerts ?? []).filter(\.notable)
-        return alerts.first { $0.serious && $0.start - snapshot.progress <= 50 * Geodesy.metersPerMile } ?? alerts.first
-    }
+    /// The alert the focus rule considers (RoadIntel.Result.focusAlert).
+    private var focusAlert: RoadIntel.Alert? { trip.roadIntel?.focusAlert(progress: snapshot.progress) }
 
     @ViewBuilder
     private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
         switch kind {
         case .alert:
-            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
+            if let a = trip.roadIntel?.focusAlert(progress: snapshot.progress) { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
         case .fuel:
             FuelCard { showFuel = true }
         case .stop:
