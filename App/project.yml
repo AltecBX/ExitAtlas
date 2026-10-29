@@ -20,6 +20,10 @@ settings:
 packages:
   ExitAtlas:
     path: ..
+  # Experimental Google navigation mode only (target ExitAtlasGoogle, docs/14). The ExitAtlas target never links it.
+  GoogleNavigation:
+    url: https://github.com/googlemaps/ios-navigation-sdk
+    exactVersion: 11.2.0
 targets:
   ExitAtlas:
     type: application
@@ -77,6 +81,73 @@ targets:
           while the screen is off or another app is open.
         ITSAppUsesNonExemptEncryption: false
         # canOpenURL("waze://") to hand a destination to Waze, or its App Store page when it is not installed.
+        LSApplicationQueriesSchemes:
+          - waze
+  # Experimental: the same app with Google's navigation (Navigation SDK) as an optional mode, for real
+  # device tests (docs/14). Same bundle identifier, so installing it over ExitAtlas keeps every saved
+  # preference, and installing ExitAtlas again removes Google. Code for it is under #if GOOGLE_NAVIGATION.
+  ExitAtlasGoogle:
+    type: application
+    platform: iOS
+    sources:
+      - path: ExitAtlas
+        excludes:
+          - "Resources/Data/**"
+          - "PrivacyInfo.xcprivacy"
+      - path: ExitAtlas/Resources/Data
+        type: folder
+        buildPhase: resources
+      - path: ExitAtlas/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Shared
+    dependencies:
+      - package: ExitAtlas
+        product: ExitAtlasCore
+      - package: GoogleNavigation
+        product: GoogleNavigation
+      - target: ExitAtlasWidgets
+    scheme: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cobyconstruction.exitatlas
+        INFOPLIST_FILE: ExitAtlasGoogle/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) GOOGLE_NAVIGATION
+        # Google's libraries are static; their Objective-C categories need -ObjC (Google's setup guide).
+        OTHER_LDFLAGS: $(inherited) -ObjC
+    info:
+      path: ExitAtlasGoogle/Info.plist
+      properties:
+        CFBundleDisplayName: ExitAtlas
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIAppFonts:
+          - Overpass-SemiBold.ttf
+          - Overpass-Bold.ttf
+          - Overpass-ExtraBold.ttf
+        UIApplicationSupportsIndirectInputEvents: true
+        NSSupportsLiveActivities: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - location
+          - audio
+        NSLocationWhenInUseUsageDescription: >-
+          ExitAtlas uses your location to show the exits ahead, how far you are from the next
+          state line, and your progress through each state on your route.
+        NSLocationAlwaysAndWhenInUseUsageDescription: >-
+          ExitAtlas keeps tracking your trip progress, state line distances and upcoming exits
+          while the screen is off or another app is open. In Google navigation, Google's guidance
+          and alerts continue in the background.
+        # Google's Navigation SDK asks for this from version 11 (altitude from the barometer).
+        NSMotionUsageDescription: >-
+          Google navigation uses the motion sensors to estimate altitude and keep the route accurate.
+        ITSAppUsesNonExemptEncryption: false
         LSApplicationQueriesSchemes:
           - waze
   ExitAtlasWidgets:

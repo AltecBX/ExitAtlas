@@ -8,6 +8,9 @@ final class Announcer: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
     /// What to say lives in the engine (shared with the web version and tested there).
     private var announcements = VoiceAnnouncements()
+    /// While another app or mode speaks (the experimental Google navigation), nothing is said; what would have
+    /// been said is skipped, not queued.
+    var suspended = false
 
     override init() {
         super.init()
@@ -36,6 +39,7 @@ final class Announcer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func speak(_ text: String) {
+        guard !suspended else { return }
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
         try? session.setActive(true)

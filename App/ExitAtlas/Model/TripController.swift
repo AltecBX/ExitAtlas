@@ -663,8 +663,11 @@ final class TripController {
         reroute(from: sample, waypoints: list, force: true, spoken: "Stop added: \(waypoint.name).")
     }
 
+    /// The stops and the destination still ahead on a planned trip, in order (empty otherwise).
+    var waypointsAhead: [Waypoint] { mode == .trip ? dropPassedStops() : [] }
+
     /// The next stop or the destination still ahead on a planned trip, for handing off to Waze.
-    var nextWaypoint: Waypoint? { mode == .trip ? dropPassedStops().first : nil }
+    var nextWaypoint: Waypoint? { waypointsAhead.first }
 
     private func dropPassedStops() -> [Waypoint] {
         guard let plan, let snapshot else { return remainingWaypoints }

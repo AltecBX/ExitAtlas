@@ -7,6 +7,9 @@ struct TripOverviewView: View {
     @Environment(TripController.self) private var trip
     @State private var showStopPlanner = false
     @State private var showCard = false
+    #if GOOGLE_NAVIGATION
+    @State private var showGoogle = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -26,6 +29,12 @@ struct TripOverviewView: View {
                         if let next = trip.nextWaypoint {
                             Button { WazeHandoff.open(to: next.coordinate) } label: { Label("Drive to \(next.name) in Waze", systemImage: "car") }
                         }
+                        #if GOOGLE_NAVIGATION
+                        // The experimental Google navigation mode (docs/14), once a key is in Settings.
+                        if trip.nextWaypoint != nil, GoogleNavigationAccount.shared.isConfigured {
+                            Button { showGoogle = true } label: { Label("Navigate with Google (experimental)", systemImage: "location.north.line") }
+                        }
+                        #endif
                         if trip.mode == .trip {
                             Button { showStopPlanner = true } label: { Label("Plan a stop ahead", systemImage: "bed.double") }
                         }
@@ -42,6 +51,9 @@ struct TripOverviewView: View {
                 .navigationDestination(for: RouteExit.self) { ExitDetailView(exit: $0) }
                 .navigationDestination(for: RouteDiscovery.self) { DiscoverDetailView(place: $0) }
                 .sheet(isPresented: $showStopPlanner) { StopPlannerView() }
+                #if GOOGLE_NAVIGATION
+                .fullScreenCover(isPresented: $showGoogle) { GoogleNavigationScreen() }
+                #endif
                 .sheet(isPresented: $showCard) {
                     ShareCardSheet(title: "Trip card", card: TripCardView(
                         title: trip.mode == .discovery ? (plan.route.title ?? "Discovery drive") : "\(plan.route.origin.name) to \(plan.route.destination.name)",

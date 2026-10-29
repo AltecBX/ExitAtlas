@@ -116,6 +116,9 @@ struct SettingsView: View {
                 Section("Routing") {
                     Toggle("Avoid tolls", isOn: $settings.avoidTolls)
                 }
+                #if GOOGLE_NAVIGATION
+                GoogleNavigationSettingsSection()
+                #endif
                 Section("Your trips") {
                     LabeledContent("Lifetime miles", value: Format.miles(library.lifetimeMeters))
                     NavigationLink { TravelsView() } label: {
