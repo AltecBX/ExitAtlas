@@ -1480,12 +1480,27 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
 {
   const sheet = $('#sheet'), backdrop = $('#sheet-backdrop');
   let start = null, dragging = false, dy = 0, samples = [];
+  const release = (e, close) => {
+    if (!dragging) { start = null; return; }
+    start = null;
+    dragging = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    backdrop.style.opacity = '';
+    const a = samples[0], b = samples[samples.length - 1];
+    const speed = b && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+    const flick = dy > 40 && speed > 0.5 && e.timeStamp - b.t < 100;
+    if (close && (dy > sheet.offsetHeight / 3 || flick)) closeSheet();
+  };
   sheet.addEventListener('touchstart', (e) => {
+    // A second finger cancels the pull: the sheet springs back, and nothing moves until the fingers lift.
+    if (dragging) { release(e, false); return; }
     start = e.touches.length === 1 && !e.target.closest('input, select, textarea')
       ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
     dragging = false;
   }, { passive: true });
   sheet.addEventListener('touchmove', (e) => {
+    if (dragging && e.touches.length > 1) { release(e, false); return; }
     if (!start) return;
     const t = e.touches[0], mx = t.clientX - start.x, my = t.clientY - start.y;
     if (!dragging) {
@@ -1504,18 +1519,6 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
     sheet.style.transform = `translateY(${dy}px)`;
     backdrop.style.opacity = String(1 - Math.min(dy / sheet.offsetHeight, 1));
   }, { passive: false });
-  const release = (e, close) => {
-    if (!dragging) { start = null; return; }
-    start = null;
-    dragging = false;
-    sheet.style.transition = '';
-    sheet.style.transform = '';
-    backdrop.style.opacity = '';
-    const a = samples[0], b = samples[samples.length - 1];
-    const speed = b && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
-    const flick = dy > 40 && speed > 0.5 && e.timeStamp - b.t < 100;
-    if (close && (dy > sheet.offsetHeight / 3 || flick)) closeSheet();
-  };
   sheet.addEventListener('touchend', (e) => release(e, true));
   sheet.addEventListener('touchcancel', (e) => release(e, false));
 }
