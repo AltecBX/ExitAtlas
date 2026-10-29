@@ -94,6 +94,8 @@ targets:
         excludes:
           - "Resources/Data/**"
           - "PrivacyInfo.xcprivacy"
+          # The regular app's generated Info.plist; this target has its own (ExitAtlasGoogle/Info.plist).
+          - "Info.plist"
       - path: ExitAtlas/Resources/Data
         type: folder
         buildPhase: resources
