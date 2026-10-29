@@ -74,6 +74,7 @@ struct DiscoverDetailView: View {
             Section {
                 Button("Directions in Apple Maps") { open("https://maps.apple.com/?daddr=\(it.lat),\(it.lon)&dirflg=d") }
                 Button("Directions in Google Maps") { open("https://www.google.com/maps/dir/?api=1&destination=\(it.lat),\(it.lon)") }
+                Button("Directions in Waze") { WazeHandoff.open(to: it.coordinate) }
                 if let wiki = it.wiki, let url = URL(string: wiki) { Link("Wikipedia", destination: url) }
                 if trip.canAddStop {
                     Button("Add to trip") {

@@ -17,6 +17,7 @@ import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { weatherLabel, windText } from '../engine/weather.js';
 import { weatherIcon, skyColors } from './weathericons.js';
+import { wazeLink } from '../engine/handoff.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -194,6 +195,13 @@ export function weatherSheet(app) {
     ${hours ? `<div class="wx-hours">${hours}</div>` : ''}
   </div>
   <p class="note">${source} National Weather Service.</p>`;
+}
+
+/// "Waze" next to the Apple Maps and Google Maps buttons: the official Waze deep link, which opens the Waze
+/// app when it is installed and the Waze website otherwise.
+function wazeButton(c) {
+  const link = wazeLink(c, 'exitatlas-web');
+  return link ? `\n      <a class="btn sm" href="${h(link)}" target="_blank" rel="noopener">Waze</a>` : '';
 }
 
 export function statusPill(app) {
@@ -868,7 +876,7 @@ export function exitDetail(app, exitId) {
   return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || (exit.label ? 'Exit services' : exitTitle(exit)))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(exit.distanceAlongRoute) - s.t)} · ` : ''}${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(exitTitle(exit))}" target="_blank" rel="noopener">Apple Maps</a>
-      <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
+      <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
     <p class="note">Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
@@ -892,7 +900,7 @@ export function restAreaDetail(app, id) {
   return `<div class="sheet-head">${restSign(r.kind)}<h2>${h(restAreaTitle(r))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(r.distanceAlongRoute) - s.t)} · ` : ''}${h(r.road)} · ${r.side === 'both' ? 'In the median or on an undivided road: serves both directions' : 'On your side of the highway'}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(restAreaTitle(r))}" target="_blank" rel="noopener">Apple Maps</a>
-      <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
+      <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>
     <div class="section-title">Amenities listed</div>${am}
     ${hours ? `<div class="section-title">🕐 Hours</div><div class="card small">${h(hours)}</div>` : ''}
     ${names('Gas', '⛽', r.gas)}${names('Food', '🍴', r.food)}${names('EV charging', '⚡', r.ev)}
@@ -962,7 +970,11 @@ function tripOverview(app, plan, s) {
       <div class="side num" style="font-weight:800">${miles(f.totalMeters)}</div></div>`).join('')}</div></div>`;
   }
   html += discoverSection(plan, s);
-  html += `<div class="stack">${app.mode === 'trip' ? '<button class="btn block" data-act="sheet" data-arg="stop">🛏️ Plan a stop ahead</button>' : ''}
+  // Turn by turn in Waze to the next stop or the destination (one destination per Waze link).
+  const next = app.nextWaypoint();
+  const waze = next ? wazeLink(next.coordinate, 'exitatlas-web') : null;
+  html += `<div class="stack">${waze ? `<a class="btn block" href="${h(waze)}" target="_blank" rel="noopener">Drive to ${h(next.name)} in Waze</a>` : ''}
+    ${app.mode === 'trip' ? '<button class="btn block" data-act="sheet" data-arg="stop">🛏️ Plan a stop ahead</button>' : ''}
     <button class="btn block" data-act="share-card">🖼️ Share trip card</button>
     <button class="btn block" data-act="share">Share itinerary</button>
     <button class="btn danger block" data-act="end">End ${discovery ? 'discovery mode' : 'trip'}</button></div>${attribution()}</div>`;
@@ -995,7 +1007,7 @@ export function discoverSheet(app, id) {
     <p class="muted small" style="margin-top:0">${h(c?.title ?? '')}${ahead !== null && ahead > 0 ? ` · ${miles(ahead)} ahead on the route` : ''}${x.exit ? ` · near ${h(exitTitle(x.exit))}` : ''} · ${miles(x.offMeters)} off the highway (straight line)</p>
     ${it.desc ? `<div class="card small">${h(it.desc[0].toUpperCase() + it.desc.slice(1))}</div>` : ''}
     <div class="btn-row" style="margin-top:12px"><a class="btn sm" href="https://maps.apple.com/?daddr=${it.lat},${it.lon}&dirflg=d" target="_blank" rel="noopener">Apple Maps</a>
-      <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${it.lat},${it.lon}" target="_blank" rel="noopener">Google Maps</a>
+      <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${it.lat},${it.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(it)}
       ${it.wiki ? `<a class="btn sm" href="${h(it.wiki)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}</div>
     ${app.canAddStop() ? `<button class="btn primary block" style="margin-top:12px" data-act="add-place-stop" data-arg="${h(it.id)}">Add to trip</button>` : '<p class="muted tiny">Adding it to the trip reroutes through it, which needs live GPS (not the demo).</p>'}
     <p class="note">From Wikidata (${h(it.id)}, CC0): linked from ${it.sitelinks} Wikimedia sites (Wikipedia editions and sister projects). Hours, fees and closures are not in this data.</p>`;

@@ -1,0 +1,10 @@
+{
+  "_note": "Waze deep links (https://developers.google.com/waze/deeplinks): drive to a coordinate, with utm_source naming the app. Shared by HandoffTests.swift and web/tests/handoff.test.js.",
+  "cases": [
+    { "lat": 40.758895, "lon": -73.985131, "source": "com.cobyconstruction.exitatlas",
+      "url": "https://waze.com/ul?ll=40.758895,-73.985131&navigate=yes&utm_source=com.cobyconstruction.exitatlas" },
+    { "lat": 25.7616798, "lon": -80.1917902, "source": "exitatlas-web",
+      "url": "https://waze.com/ul?ll=25.761680,-80.191790&navigate=yes&utm_source=exitatlas-web" },
+    { "lat": 91, "lon": 0, "source": "exitatlas-web", "url": null }
+  ]
+}

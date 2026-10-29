@@ -32,6 +32,8 @@ struct RestAreaDetailView: View {
                     Button("Apple Maps") { open(apple: true) }
                     Spacer()
                     Button("Google Maps") { open(apple: false) }
+                    Spacer()
+                    Button("Waze") { WazeHandoff.open(to: restArea.coordinate) }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.signGreen)

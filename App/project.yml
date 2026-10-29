@@ -76,6 +76,9 @@ targets:
           ExitAtlas keeps tracking your trip progress, state line distances and upcoming exits
           while the screen is off or another app is open.
         ITSAppUsesNonExemptEncryption: false
+        # canOpenURL("waze://") to hand a destination to Waze, or its App Store page when it is not installed.
+        LSApplicationQueriesSchemes:
+          - waze
   ExitAtlasWidgets:
     type: app-extension
     platform: iOS
