@@ -37,6 +37,7 @@ In both the web version and the iOS app unless marked.
 * Arrival and border times that follow your actual pace, with a personal prior from earlier trips.
 * Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin.
 * Automatic reroute (miles per state survive it), and discovery mode when there is no destination.
+* The weather where you are, at the top of the Drive screen while a trip runs: temperature and conditions from the nearest National Weather Service station that reported in the last 90 minutes, else that hour's forecast, labeled "Forecast". Tap it for feels like, wind, humidity, the next 4 hours, and which station and how long ago. Checked every 10 minutes or 10 miles, only during a trip; an old reading is never shown as current.
 * Road alerts on your road and in your direction only: weather and flooding warnings from the National Weather Service, and work zones and closures from official state feeds in 12 states (DE, IN, KY, LA, MD, MN, MO, MS, ND, NJ, WA, WI; on the website, six of them need the key proxy). Serious ones take the Drive screen; all are in Road Ahead with source, age and end time. Each kind has its own switch, and a source that fails says "Data unavailable", never "all clear". Police reports are not shown: no authorized source exists ([docs/13](docs/13_road_intelligence_audit.md)).
 * Voice for state lines, time zone changes, rest areas, the last gas before a long stretch, fuel stops, exits and road alerts, each with its own switch. Hours and restroom details from Google Maps are shown, never spoken (Google's terms).
 
@@ -148,7 +149,7 @@ Select your team under Signing, then run on an iPhone (iOS 17+). Use **Simulate*
 * **Speed limits:** OpenStreetMap `maxspeed`, via the FOSSGIS public Valhalla server.
 * **Brand store listings (gas station hours and restrooms):** All the Places, CC0, weekly scrapes of brand store locators; ExitAtlas uses a pinned run and does not scrape.
 * **EV chargers:** U.S. DOE Alternative Fuels Data Center.
-* **Weather alerts:** National Weather Service (`api.weather.gov`), public domain.
+* **Weather alerts and current weather:** National Weather Service (`api.weather.gov`), public domain. The position sent for current weather is rounded to about 1 km.
 * **Work zones:** state DOT Work Zone Data Exchange (WZDx) feeds, CC0, credited by agency on every alert.
 * **Gas prices:** Google Maps Platform, with the driver's own key, under Google's terms. Prices are shown with attribution and never stored.
 * **iOS maps and routing:** Apple MapKit.

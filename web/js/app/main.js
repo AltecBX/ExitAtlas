@@ -16,6 +16,7 @@ import { GasPrices, GRADES } from './prices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
+import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -90,6 +91,7 @@ const app = {
   announcer: new Announcer(),
   /// Road alert sources for the active trip (app/roadalerts.js).
   roadAlerts: new RoadAlerts({ proxyBase: () => proxyFor('wzdx') }),
+  weather: new LiveWeather(),
 
   /// Gas along the route in order: exits with a gas station and service plazas that list one.
   gasStops(plan = this.plan) {
@@ -161,6 +163,12 @@ const app = {
     return this.mapCache.map;
   },
 
+
+  /// The weather where you are now (app/weather.js), only while a trip runs.
+  weatherNow() {
+    if (this.mode === 'idle' || !this.lastSample) return null;
+    return this.weather.current(this.lastSample.coordinate);
+  },
 
   /// Current speed in mph from the latest fix, or null when there is no recent fix.
   speedNow() {
@@ -295,6 +303,7 @@ window.exitAtlas = app; // for debugging from the console
 const $ = (sel) => document.querySelector(sel);
 let renderQueued = false;
 let lastViewHTML = '';
+let lastWeatherHTML = '';
 let lastExitsRender = 0;
 let exitsTimer = null;
 
@@ -309,7 +318,15 @@ function render() {
 
 function renderNow() {
   applyTheme();
-  $('#title').textContent = app.tab === 'drive' && app.mode === 'discovery' && app.plan?.route.title ? app.plan.route.title : TITLES[app.tab];
+  const highway = app.tab === 'drive' && app.mode === 'discovery' && app.plan?.route.title;
+  $('#title').textContent = highway || TITLES[app.tab];
+  // On the Drive screen the weather takes the place of the "Drive" title; next to a highway name it is compact.
+  const wx = app.tab === 'drive' ? V.weatherPill(app, { compact: Boolean(highway) }) : '';
+  if (wx !== lastWeatherHTML) { $('#weather').innerHTML = wx; lastWeatherHTML = wx; }
+  // The condition goes when it does not fit next to the status pill (the sheet always shows it).
+  const cond = $('#weather .wx-cond');
+  if (cond) { cond.parentNode.classList.remove('tight'); cond.parentNode.classList.toggle('tight', cond.scrollWidth > cond.clientWidth + 1); }
+  $('#title').hidden = Boolean(wx) && !highway;
   $('#status').innerHTML = V.statusPill(app);
   $('#end').hidden = app.mode === 'idle';
   $('#banner').innerHTML = app.gps === 'simulation' && app.mode !== 'idle'
@@ -377,6 +394,7 @@ function renderSheet() {
   }
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
+  else if (kind === 'weather') html = V.weatherSheet(app);
   $('#sheet-body').innerHTML = html;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
 }
@@ -687,6 +705,7 @@ function resetTripState() {
   app.smartKey = null;
   app.announcer.reset();
   app.roadAlerts.reset();
+  app.weather.reset();
   app.intelKey = null;
   app.limits = null;
   app.lastSpeed = null;
@@ -857,6 +876,10 @@ function publish(snap) {
   // Road alert sources: fetched only while a trip runs, when due (app/roadalerts.js).
   app.roadAlerts.refresh(app.plan, snap.progress, { online: navigator.onLine !== false, enabled: app.settings.alerts ?? {} })
     .then((changed) => { if (changed) { lastViewHTML = ''; render(); } })
+    .catch(() => {});
+  // Current weather where you are: also only while a trip runs, when due (app/weather.js).
+  app.weather.refresh(app.lastSample?.coordinate, { online: navigator.onLine !== false })
+    .then((changed) => { if (changed) { render(); if (app.sheet?.kind === 'weather') renderSheet(); } })
     .catch(() => {});
   considerFuelVoice();
   ensureLimits();

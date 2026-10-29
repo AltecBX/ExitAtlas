@@ -1,0 +1,29 @@
+{
+ "properties": {
+  "forecastHourly": "https://api.weather.gov/gridpoints/JAX/66,65/forecast/hourly",
+  "observationStations": "https://api.weather.gov/gridpoints/JAX/66,65/stations",
+  "timeZone": "America/New_York",
+  "relativeLocation": {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -81.6616028,
+     30.3368643
+    ]
+   },
+   "properties": {
+    "city": "Jacksonville",
+    "state": "FL",
+    "distance": {
+     "unitCode": "wmoUnit:m",
+     "value": 0
+    },
+    "bearing": {
+     "unitCode": "wmoUnit:degree_(angle)",
+     "value": 0
+    }
+   }
+  }
+ }
+}

@@ -71,6 +71,8 @@ final class TripController {
     @ObservationIgnored let prices = GasPriceService()
     /// Road alert sources for the active trip (NWS weather; others when connected).
     @ObservationIgnored let roadAlerts = RoadAlertService()
+    /// Current weather where you are, while a trip runs (NWS).
+    @ObservationIgnored let weather = WeatherService()
     @ObservationIgnored private var intelMemo: (key: String, result: RoadIntel.Result?)?
     @ObservationIgnored private var fuelVoice = FuelAnnouncements()
     @ObservationIgnored private var rangePlanMemo: (key: String, plan: RangePlan?)?
@@ -88,6 +90,7 @@ final class TripController {
         }
         limits.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         roadAlerts.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        weather.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         chargers.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onCall = { PriceCallCounter.count() }
@@ -122,6 +125,7 @@ final class TripController {
         location.start()
         startRefreshTimer()
         announcer.reset()
+        weather.reset()
         activityPending = true
     }
 
@@ -153,6 +157,7 @@ final class TripController {
         mode = .trip
         snapshot = session?.snapshot(at: now)
         announcer.reset()
+        weather.reset()
         activityPending = true
         startRefreshTimer()
         if simulate {
@@ -191,6 +196,7 @@ final class TripController {
         plan = nil
         snapshot = nil
         mode = .idle
+        weather.reset()
         library?.clearActive()
     }
 
@@ -335,6 +341,8 @@ final class TripController {
             for (k, v) in settings?.alertGroups ?? [:] { if let g = RoadIntel.Group(rawValue: k) { enabled[g] = v } }
             roadAlerts.refresh(plan: plan, progress: snap.progress, enabled: enabled)
         }
+        // Current weather where you are: also only while a trip runs, when due.
+        if let here = lastSample?.coordinate { weather.refresh(at: here) }
         if let plan, let settings, settings.vehicle?.isElectric == true {
             chargers.ensure(for: plan, teslaOnly: settings.teslaOnlyChargers, apiKey: settings.nrelKey)
         }
@@ -463,6 +471,14 @@ final class TripController {
                                                  minLength: settings.gasGapMiles * Geodesy.metersPerMile, windowEnd: end, rejected: rejected)
         lastOpenMemo = (key, result)
         return result
+    }
+
+    /// The weather where you are now, only while a trip runs; nil when nothing current is known.
+    var weatherNow: CurrentWeather.Now? {
+        _ = feedsVersion
+        _ = snapshot
+        guard mode != .idle, let here = lastSample?.coordinate else { return nil }
+        return weather.current(at: here)
     }
 
     /// Road alerts on the route ahead and a status per Settings group. Expiry and freshness use the clock;

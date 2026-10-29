@@ -1,0 +1,43 @@
+{
+ "features": [
+  {
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -81.67462,
+     30.23468
+    ]
+   },
+   "properties": {
+    "stationIdentifier": "KNIP",
+    "name": "Jacksonville Naval Air Station"
+   }
+  },
+  {
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -81.51275,
+     30.33709
+    ]
+   },
+   "properties": {
+    "stationIdentifier": "KCRG",
+    "name": "Jacksonville Craig Municipal Airport"
+   }
+  },
+  {
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -81.6937,
+     30.49534
+    ]
+   },
+   "properties": {
+    "stationIdentifier": "KJAX",
+    "name": "Jacksonville International Airport"
+   }
+  }
+ ]
+}

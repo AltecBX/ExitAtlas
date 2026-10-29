@@ -35,6 +35,29 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// The weather pill in the top bar and its sheet, from the National Weather Service for the demo's
+    /// position. These are real network answers: when the service cannot be reached from CI the pill never
+    /// appears (nothing is shown rather than a guess), and the test is skipped rather than failed.
+    func testWeather() throws {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto"] + (dark ? ["-forceDark"] : [])
+            app.launch()
+            XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+            let pill = app.buttons["weatherPill"].firstMatch
+            guard pill.waitForExistence(timeout: 45) else {
+                app.terminate()
+                throw XCTSkip("The National Weather Service did not answer from CI")
+            }
+            snap("1g Weather pill", dark)
+            pill.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["weatherCard"].firstMatch.waitForExistence(timeout: 10), "No weather card")
+            sleep(1)
+            snap("1h Weather", dark)
+            app.terminate()
+        }
+    }
+
     /// Overnight Drive Mode on: before a long stretch where no stop is listed open at its arrival time, the
     /// last one that is takes the focus card (mile 400 on the demo route, as on the web).
     func testOvernightLastOpenStop() {

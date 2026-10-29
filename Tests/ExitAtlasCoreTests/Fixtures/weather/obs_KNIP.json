@@ -1,0 +1,43 @@
+{
+ "properties": {
+  "timestamp": "2026-10-28T23:53:00+00:00",
+  "textDescription": "Mostly Cloudy",
+  "icon": "https://api.weather.gov/icons/land/night/bkn?size=medium",
+  "temperature": {
+   "unitCode": "wmoUnit:degC",
+   "value": 21.7,
+   "qualityControl": "V"
+  },
+  "windDirection": {
+   "unitCode": "wmoUnit:degree_(angle)",
+   "value": 30,
+   "qualityControl": "V"
+  },
+  "windSpeed": {
+   "unitCode": "wmoUnit:km_h-1",
+   "value": 25.92,
+   "qualityControl": "V"
+  },
+  "windGust": {
+   "unitCode": "wmoUnit:km_h-1",
+   "value": null,
+   "qualityControl": "Z"
+  },
+  "relativeHumidity": {
+   "unitCode": "wmoUnit:percent",
+   "value": 86.779227810896,
+   "qualityControl": "V"
+  },
+  "windChill": {
+   "unitCode": "wmoUnit:degC",
+   "value": null,
+   "qualityControl": "V"
+  },
+  "heatIndex": {
+   "unitCode": "wmoUnit:degC",
+   "value": 22.191457615062223,
+   "qualityControl": "V"
+  },
+  "station": "https://api.weather.gov/stations/KNIP"
+ }
+}

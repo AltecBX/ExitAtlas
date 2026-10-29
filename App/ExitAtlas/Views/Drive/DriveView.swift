@@ -5,6 +5,7 @@ import SwiftUI
 struct DriveView: View {
     @Environment(TripController.self) private var trip
     @Binding var selectedTab: RootView.Tab
+    @State private var showWeather = false
 
     var body: some View {
         NavigationStack {
@@ -30,6 +31,12 @@ struct DriveView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     TrackingStatusPill(match: trip.snapshot?.match, simulated: trip.isSimulating, rerouting: trip.isRerouting)
                 }
+                // Current weather where you are, in the middle of the top bar while a trip runs.
+                if let weather = trip.weatherNow, let temperature = weather.temperatureF {
+                    ToolbarItem(placement: .principal) {
+                        WeatherPill(weather: weather, temperature: temperature) { showWeather = true }
+                    }
+                }
                 if trip.mode != .idle {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("End", role: .destructive) { trip.endTrip() }
@@ -38,6 +45,7 @@ struct DriveView: View {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showWeather) { WeatherSheet() }
         }
     }
 }

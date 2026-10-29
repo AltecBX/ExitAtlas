@@ -15,6 +15,8 @@ import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
 import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
+import { weatherLabel, windText } from '../engine/weather.js';
+import { weatherIcon, skyColors } from './weathericons.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -134,6 +136,64 @@ function metric(title, value, { unit = '', caption = '', size = '' } = {}) {
 
 function progress(fraction, thick = false) {
   return `<div class="progress${thick ? ' thick' : ''}"><div style="width:${(Math.max(0, Math.min(1, fraction)) * 100).toFixed(1)}%"></div></div>`;
+}
+
+// MARK: Weather
+
+/// The weather pill in the top bar: symbol, temperature and the condition, with "Forecast" when no station
+/// near you reported recently. Compact (symbol and temperature) when the title is a highway name.
+export function weatherPill(app, { compact = false } = {}) {
+  const w = app.weatherNow();
+  if (!w || w.temperatureF == null) return '';
+  const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
+  const said = `${w.temperatureF} degrees, ${label}${w.source === 'forecast' ? ', forecast' : ''}`;
+  return `<button class="wx-pill${compact ? ' compact' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
+    ${weatherIcon(w.kind, w.isDay)}<span class="wx-temp num">${w.temperatureF}°</span>${label ? `<span class="wx-cond">${h(label)}</span>` : ''}${w.source === 'forecast' ? '<span class="wx-tag">Forecast</span>' : ''}</button>`;
+}
+
+/// "11 PM" in the time zone of the place.
+function hourText(t, zone) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', ...(zone ? { timeZone: zone } : {}) }).format(new Date(t * 1000));
+  } catch { return clock(t); }
+}
+
+/// The weather sheet: the sky card, the next hours and where the numbers come from.
+export function weatherSheet(app) {
+  const head = '<div class="sheet-head"><h2>Weather</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>';
+  const w = app.weatherNow();
+  if (!w || w.temperatureF == null) {
+    return `${head}<p class="muted">No current weather for where you are. ExitAtlas asks the National Weather Service while a trip runs, about every 10 minutes; nothing is shown when the answer is old or the service cannot be reached.</p>`;
+  }
+  const now = Date.now() / 1000;
+  const [top, bottom] = skyColors(w.kind, w.isDay);
+  const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
+  const wind = windText(w);
+  const metrics = [
+    w.feelsLikeF != null && w.feelsLikeF !== w.temperatureF ? ['Feels like', `${w.feelsLikeF}°`] : null,
+    wind ? ['Wind', wind] : null,
+    w.humidity != null ? ['Humidity', `${w.humidity}%`] : null,
+  ].filter(Boolean);
+  // Chance of rain under an hour when it is 20% or more (NWS forecasts say "slight chance" from 20%).
+  const next = w.next.filter((x) => x.temperatureF != null);
+  const rainy = next.some((x) => x.rainChance >= 20);
+  const hours = next.map((x) => `<div class="wx-hour">
+      <span class="wx-h">${h(hourText(x.at, w.timeZone))}</span>${weatherIcon(x.kind, x.isDay)}
+      <b class="num">${x.temperatureF}°</b>${rainy ? `<span class="wx-rain">${x.rainChance >= 20 ? `${x.rainChance}%` : ''}</span>` : ''}</div>`).join('');
+  const minutes = Math.max(0, Math.round((now - w.at) / 60));
+  const source = w.source === 'observed'
+    ? `Observed ${minutes < 1 ? 'just now' : `${minutes} min ago`} at ${h(w.station.name)}, ${miles(w.station.distance)} away. Next hours from the hourly forecast.`
+    : 'No weather station near you reported in the last 90 minutes, so this is the forecast for this hour.';
+  return `${head}<div class="wx-card" style="--sky-top:${top};--sky-bottom:${bottom}">
+    <div class="wx-place">${h(w.place ?? 'Where you are')}</div>
+    <div class="wx-hero"><div><div class="wx-big num">${w.temperatureF}°</div>
+      <div class="wx-cond-lg">${h(label)}${w.source === 'forecast' ? ' <span class="wx-tag">Forecast</span>' : ''}</div>
+      ${w.condition && w.condition.toLowerCase() !== label.toLowerCase() ? `<div class="wx-said">${h(w.condition)}</div>` : ''}</div>
+      ${weatherIcon(w.kind, w.isDay, 'wx-icon wx-hero-icon')}</div>
+    ${metrics.length ? `<div class="wx-metrics">${metrics.map(([k, v]) => `<div><span>${k}</span><b>${h(v)}</b></div>`).join('')}</div>` : ''}
+    ${hours ? `<div class="wx-hours">${hours}</div>` : ''}
+  </div>
+  <p class="note">${source} National Weather Service.</p>`;
 }
 
 export function statusPill(app) {

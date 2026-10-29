@@ -1,0 +1,35 @@
+{
+  "_note": "Real National Weather Service answers for Jacksonville, FL (points, stations, latest observations of KNIP and KCRG, hourly forecast), captured 2026-10-29 at about 02:03Z and trimmed to the fields used. KNIP last reported at 23:53Z, over 90 minutes before 'now', so it must be skipped. Shared by WeatherTests.swift and web/tests/weather.test.js.",
+  "position": { "lat": 30.33, "lon": -81.66 },
+  "now": "2026-10-29T02:00:00Z",
+  "stations": [["KNIP", 10.66], ["KCRG", 14.18], ["KJAX", 18.61]],
+  "observed": {
+    "source": "observed", "station": "KCRG", "at": "2026-10-29T01:30:00Z", "temperatureF": 72, "feelsLikeF": 73,
+    "kind": "cloudy", "isDay": false, "condition": "Cloudy", "windMph": 11, "windFrom": "NE", "gustMph": null, "humidity": 88
+  },
+  "forecastOnly": {
+    "source": "forecast", "station": null, "at": "2026-10-29T02:00:00Z", "temperatureF": 71, "feelsLikeF": null,
+    "kind": "mostlyCloudy", "isDay": false, "condition": "Mostly Cloudy", "windMph": 15, "windFrom": "NE", "gustMph": null, "humidity": 87
+  },
+  "next": [
+    { "at": "2026-10-29T03:00:00Z", "temperatureF": 71, "kind": "mostlyCloudy", "isDay": false, "rainChance": 2 },
+    { "at": "2026-10-29T04:00:00Z", "temperatureF": 71, "kind": "mostlyCloudy", "isDay": false, "rainChance": 5 },
+    { "at": "2026-10-29T05:00:00Z", "temperatureF": 71, "kind": "mostlyCloudy", "isDay": false, "rainChance": 4 },
+    { "at": "2026-10-29T06:00:00Z", "temperatureF": 71, "kind": "mostlyCloudy", "isDay": false, "rainChance": 4 }
+  ],
+  "kinds": [
+    ["https://api.weather.gov/icons/land/night/ovc?size=medium", "", "cloudy", false],
+    ["https://api.weather.gov/icons/land/day/rain_showers,30/tsra_hi,40?size=small", "", "showers", true],
+    ["https://api.weather.gov/icons/land/day/tsra_sct,40?size=small", "", "thunder", true],
+    ["https://api.weather.gov/icons/land/night/fzra?size=small", "", "sleet", false],
+    ["https://api.weather.gov/icons/land/day/wind_bkn?size=small", "", "wind", true],
+    ["https://api.weather.gov/icons/land/day/tropical_storm?size=small", "", "severe", true],
+    ["", "Light Rain and Fog/Mist", "rain", null],
+    ["", "Thunderstorms and Rain", "thunder", null],
+    ["", "Patchy Fog", "fog", null],
+    ["", "Partly Sunny", "partlyCloudy", null],
+    ["", "Fair", "mostlyClear", null],
+    ["https://api.weather.gov/icons/land/day/unknowncode?size=small", "Snow Showers", "snow", true],
+    ["", "", null, null]
+  ]
+}
