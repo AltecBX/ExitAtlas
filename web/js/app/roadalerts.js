@@ -31,6 +31,8 @@ export class RoadAlerts {
     this.wzdx = {};
     // States within 150 miles ahead: covered (a feed this app can read) and not.
     this.coverage = null;
+    // Extra incidents for the demo and screenshots (?demo&alert); never set otherwise.
+    this.demoIncidents = [];
   }
 
   /// The sources as roadIntel() expects them.
@@ -46,6 +48,12 @@ export class RoadAlerts {
     list.push({ id: 'wzdx', name: 'State work zone feeds', kinds: WZDX_KINDS,
       state: !c ? 'pending' : c.covered.length ? 'ok' : 'unsupported', fetchedAt: c?.at ?? null, maxAgeSeconds: 86400,
       incidents: [], uncovered: c?.uncovered ?? [] });
+    // The simulated source covers only its own kinds, so the other groups keep their real status
+    // (police and cameras stay "No source connected", never "No relevant reports").
+    if (this.demoIncidents.length) {
+      list.push({ id: 'demo', name: 'Simulated test alert', kinds: [...new Set(this.demoIncidents.map((i) => i.category))], state: 'ok',
+        fetchedAt: this.clock(), maxAgeSeconds: 86400, incidents: this.demoIncidents, uncovered: [] });
+    }
     return list;
   }
 

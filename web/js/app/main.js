@@ -18,6 +18,8 @@ import { fuelCandidates, aheadCandidates } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
+import { FocusStabilizer } from '../engine/dashboard.js';
+import { NavMap } from './navmap.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
@@ -49,6 +51,8 @@ const app = {
   version: VERSION,
   data: null, corridors: null, corridorsLoading: null,
   tab: 'drive', mode: 'idle', gps: 'device',
+  // The adaptive Drive card, held steady between readings; the Navigation View map (created on first use).
+  focusStabilizer: new FocusStabilizer(), navMap: null,
   plan: null, session: null, snapshot: null,
   discovery: null, discoveryStatus: 'Waiting for highway speed',
   isRerouting: false, lastError: null, lastFixAt: null,
@@ -362,6 +366,43 @@ function renderNow() {
     $('#view').innerHTML = html;
     lastViewHTML = html;
   }
+  syncNavMap();
+}
+
+/// The Navigation View map: shown on the Drive tab during a trip unless the driver chose the Focus View. The
+/// map element stays outside #view so it survives re-renders; the camera keeps the vehicle between the
+/// guidance banner and the bottom card, a little low so more road ahead shows.
+function syncNavMap() {
+  const on = Boolean(app.tab === 'drive' && app.snapshot && app.plan && app.settings.drivePresentation !== 'focus');
+  document.body.classList.toggle('nav-mode', on);
+  if (!on) return;
+  const top = Math.max($('.appbar').getBoundingClientRect().bottom, $('#banner').getBoundingClientRect().bottom);
+  document.documentElement.style.setProperty('--chrome-top', `${Math.round(top)}px`);
+  // Portrait: the card and trip strip sit across the bottom. Landscape: they fill a right hand column, so the
+  // map's open area is to their left.
+  const panel = $('.nav-bottom')?.getBoundingClientRect() ?? null;
+  const side = Boolean(panel && panel.left > window.innerWidth * 0.4);
+  const tabTop = $('.tabbar').getBoundingClientRect().top;
+  const bottom = side ? tabTop : panel?.top ?? window.innerHeight;
+  const root = document.documentElement.style;
+  root.setProperty('--attr-bottom', `${Math.round(window.innerHeight - bottom + 4)}px`);
+  root.setProperty('--attr-right', `${side ? Math.round(window.innerWidth - panel.left + 8) : 4}px`);
+  if (!app.navMap) {
+    app.navMap = new NavMap($('#navmap'));
+    app.navMap.onChange = () => { lastViewHTML = ''; render(); };
+  }
+  const theme = document.documentElement.getAttribute('data-theme');
+  const dark = theme ? theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  app.navMap.ensure(dark ? 'dark' : 'light');
+  const st = V.navMapState(app, app.snapshot);
+  const guideBottom = $('.nav-top')?.getBoundingClientRect().bottom ?? top;
+  const visible = Math.max(80, bottom - guideBottom);
+  st.padding = {
+    top: Math.round(guideBottom + visible * 0.3), bottom: Math.round(window.innerHeight - bottom + 16),
+    left: 24, right: side ? Math.round(window.innerWidth - panel.left + 16) : 24,
+  };
+  st.duration = app.gps === 'simulation' ? 260 : 900;
+  app.navMap.update(st);
 }
 
 function applyTheme() {
@@ -403,6 +444,7 @@ function renderSheet() {
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   else if (kind === 'weather') html = V.weatherSheet(app);
+  else if (kind === 'restroom') html = V.restroomSheet(app);
   $('#sheet-body').innerHTML = html;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
 }
@@ -717,6 +759,8 @@ function resetTripState() {
   app.intelKey = null;
   app.limits = null;
   app.lastSpeed = null;
+  app.focusStabilizer.reset();
+  if (app.navMap) app.navMap.following = true;
 }
 
 /// Starts a planned trip. options: {simulate, startMeters, restoring}
@@ -1030,7 +1074,9 @@ async function findRoutes() {
   }
 }
 
-async function runDemo() {
+/// The simulated demo. For screenshots and checks: ?demo=<mile> starts at that mile, and ?demo&alert adds one
+/// SIMULATED crash 6 miles ahead, labeled as a simulated test alert everywhere it shows.
+async function runDemo({ mile = 355, alert = false } = {}) {
   try {
     const json = await loadDemoRouteJSON();
     const route = routeFromJSON(json, {
@@ -1038,7 +1084,20 @@ async function runDemo() {
     });
     route.origin = { name: 'Miami, FL', coordinate: route.polyline.point(0) };
     route.destination = { name: 'Manhattan, NY', coordinate: route.polyline.point(route.polyline.pointCount - 1) };
-    startTrip(route, { simulate: true, startMeters: 355 * MILE });
+    startTrip(route, { simulate: true, startMeters: mile * MILE });
+    if (alert) {
+      const d = (mile + 6) * MILE;
+      const hw = route.highwayAt(d);
+      const now = Date.now() / 1000;
+      app.roadAlerts.demoIncidents = [{
+        id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', source: { id: 'demo', name: 'Simulated test alert' },
+        verification: 'official', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
+        geometry: { type: 'point', coordinate: route.polyline.coordinateAt(d) }, road: hw ? `${hw.ref.prefix}-${hw.ref.number}` : null,
+        direction: hw?.direction ?? null, lanes: 'Right lane blocked', severity: 'major',
+      }];
+      app.intelKey = null;
+      render();
+    }
   } catch (e) {
     toast(`Demo failed: ${e.message}`);
   }
@@ -1166,6 +1225,8 @@ const actions = {
   'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
   'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
+  'drive-view'(arg) { app.settings.drivePresentation = arg === 'focus' ? 'focus' : 'map'; saveProfile(); window.scrollTo(0, 0); render(); },
+  'nav-recenter'() { app.navMap?.recenter(); },
   'speed-alert'(arg) { app.settings.speedAlertOver = Number(arg); saveProfile(); render(); },
   'reset-pace'() { store.remove('ea.paceHistory'); lastViewHTML = ''; render(); toast('Pace history cleared'); },
   'test-voice'() {
@@ -1555,7 +1616,10 @@ async function boot() {
   if (app.fuel?.drivenAtEntry > 0 && !app.resumable) rebaseFuel(app.fuel.drivenAtEntry);
   $('#loading').remove();
   const params = new URLSearchParams(location.search);
-  if (params.has('demo')) runDemo();
+  if (params.has('demo')) {
+    const mile = Number(params.get('demo'));
+    runDemo({ mile: Number.isFinite(mile) && mile > 0 && mile < 1280 ? mile : 355, alert: params.has('alert') });
+  }
   render();
 }
 

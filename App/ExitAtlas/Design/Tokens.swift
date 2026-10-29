@@ -2,28 +2,40 @@
 import SwiftUI
 
 enum Tokens {
-    /// Screen background
-    static let bg = Color(light: 0xF2F3F5, dark: 0x0A0C0F)
+    /// Screen background: near black with a navy cast at night
+    static let bg = Color(light: 0xF2F3F5, dark: 0x07090D)
     /// Card surface
-    static let card = Color(light: 0xFFFFFF, dark: 0x161A20)
+    static let card = Color(light: 0xFFFFFF, dark: 0x11151C)
+    /// Surfaces floating over the map (guidance, adaptive card, trip strip)
+    static let raised = Color(light: 0xFFFFFF, dark: 0x171D27)
+    /// Navy surface: state line and trip strips
+    static let navy = Color(light: 0xE9EEF6, dark: 0x0E1A2C)
     /// Card and divider lines
-    static let stroke = Color(light: 0xDFE3E8, dark: 0x262B33)
+    static let stroke = Color(light: 0xDFE3E8, dark: 0x222934)
     /// Primary text
     static let text = Color(light: 0x0E1116, dark: 0xF2F4F7)
     /// Secondary text
     static let text2 = Color(light: 0x525C69, dark: 0xA3ACB7)
     /// Chips and inactive controls
-    static let chip = Color(light: 0xECEFF3, dark: 0x20252D)
+    static let chip = Color(light: 0xECEFF3, dark: 0x1A2029)
     /// Links and primary actions
     static let accent = Color(light: 0x1565D8, dark: 0x5B9BFF)
     /// Caution text and approaching state line
     static let amber = Color(light: 0x8F5B00, dark: 0xF2A900)
     /// Caution background
     static let amberFill = Color(light: 0xFFF4D6, dark: 0x2B2412)
-    /// Over the limit, low fuel
+    /// Over the limit, low fuel, urgent alerts
     static let danger = Color(light: 0xC62828, dark: 0xFF6B6B)
+    /// Urgent alert background
+    static let dangerFill = Color(light: 0xFDECEC, dark: 0x2B1215)
+    /// Informational alerts (work zones with lanes open, minor notices)
+    static let info = Color(light: 0x1557B5, dark: 0x7DB3FF)
+    /// Informational alert background
+    static let infoFill = Color(light: 0xE7F0FD, dark: 0x0F2036)
     /// Reachable, verified
     static let success = Color(light: 0x0E7A43, dark: 0x3DD68C)
+    /// Verified or recommended background
+    static let successFill = Color(light: 0xE6F4EC, dark: 0x0D2318)
     /// Selected tabs, switches and tinted buttons (sign green is too dark for text on dark cards)
     static let tint = Color(light: 0x00673D, dark: 0x3DD68C)
     /// Guide sign green (exits, destinations); ink is white
@@ -56,6 +68,22 @@ enum Tokens {
     static let mapLandOn = Color(light: 0xD9E8DD, dark: 0x1D2A22)
     /// Map, state borders
     static let mapLine = Color(light: 0xC3C9D2, dark: 0x333B46)
+    /// The route ahead on the navigation map
+    static let route = Color(light: 0x1D6FE0, dark: 0x4C9BFF)
+    /// Outline under the route line
+    static let routeCasing = Color(light: 0xFFFFFF, dark: 0x0A1F3D)
+    /// The route already driven
+    static let routePassed = Color(light: 0xA3ADBA, dark: 0x3A4352)
+    /// Navigation map land
+    static let mapBg = Color(light: 0xEEF1F5, dark: 0x0B1017)
+    /// Navigation map water
+    static let mapWater = Color(light: 0xC9D8EC, dark: 0x0A1626)
+    /// Navigation map roads
+    static let mapRoad = Color(light: 0xFFFFFF, dark: 0x252D3A)
+    /// Navigation map interstates and freeways
+    static let mapMotorway = Color(light: 0xF2D8A7, dark: 0x38455C)
+    /// Navigation map place and road names
+    static let mapLabel = Color(light: 0x5A6472, dark: 0x8792A2)
 
     enum Space {
         static let xs: CGFloat = 4

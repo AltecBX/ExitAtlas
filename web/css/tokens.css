@@ -8,6 +8,8 @@
 :root {
   --bg: #F2F3F5;
   --card: #FFFFFF;
+  --raised: #FFFFFF;
+  --navy: #E9EEF6;
   --stroke: #DFE3E8;
   --text: #0E1116;
   --text-2: #525C69;
@@ -16,7 +18,11 @@
   --amber: #8F5B00;
   --amber-fill: #FFF4D6;
   --danger: #C62828;
+  --danger-fill: #FDECEC;
+  --info: #1557B5;
+  --info-fill: #E7F0FD;
   --success: #0E7A43;
+  --success-fill: #E6F4EC;
   --tint: #00673D;
   --sign-green: #00673D;
   --sign-blue: #0B4DA2;
@@ -33,6 +39,14 @@
   --map-land: #E6E9EE;
   --map-land-on: #D9E8DD;
   --map-line: #C3C9D2;
+  --route: #1D6FE0;
+  --route-casing: #FFFFFF;
+  --route-passed: #A3ADBA;
+  --map-bg: #EEF1F5;
+  --map-water: #C9D8EC;
+  --map-road: #FFFFFF;
+  --map-motorway: #F2D8A7;
+  --map-label: #5A6472;
   --type-speed: 3.7647rem;
   --type-hero: 2.5882rem;
   --type-title-xl: 1.7647rem;
@@ -56,17 +70,23 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0A0C0F;
-    --card: #161A20;
-    --stroke: #262B33;
+    --bg: #07090D;
+    --card: #11151C;
+    --raised: #171D27;
+    --navy: #0E1A2C;
+    --stroke: #222934;
     --text: #F2F4F7;
     --text-2: #A3ACB7;
-    --chip: #20252D;
+    --chip: #1A2029;
     --accent: #5B9BFF;
     --amber: #F2A900;
     --amber-fill: #2B2412;
     --danger: #FF6B6B;
+    --danger-fill: #2B1215;
+    --info: #7DB3FF;
+    --info-fill: #0F2036;
     --success: #3DD68C;
+    --success-fill: #0D2318;
     --tint: #3DD68C;
     --sign-green: #0B7A4A;
     --sign-blue: #1A5FC2;
@@ -83,20 +103,34 @@
     --map-land: #1B2028;
     --map-land-on: #1D2A22;
     --map-line: #333B46;
+    --route: #4C9BFF;
+    --route-casing: #0A1F3D;
+    --route-passed: #3A4352;
+    --map-bg: #0B1017;
+    --map-water: #0A1626;
+    --map-road: #252D3A;
+    --map-motorway: #38455C;
+    --map-label: #8792A2;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0A0C0F;
-  --card: #161A20;
-  --stroke: #262B33;
+  --bg: #07090D;
+  --card: #11151C;
+  --raised: #171D27;
+  --navy: #0E1A2C;
+  --stroke: #222934;
   --text: #F2F4F7;
   --text-2: #A3ACB7;
-  --chip: #20252D;
+  --chip: #1A2029;
   --accent: #5B9BFF;
   --amber: #F2A900;
   --amber-fill: #2B2412;
   --danger: #FF6B6B;
+  --danger-fill: #2B1215;
+  --info: #7DB3FF;
+  --info-fill: #0F2036;
   --success: #3DD68C;
+  --success-fill: #0D2318;
   --tint: #3DD68C;
   --sign-green: #0B7A4A;
   --sign-blue: #1A5FC2;
@@ -113,4 +147,12 @@
   --map-land: #1B2028;
   --map-land-on: #1D2A22;
   --map-line: #333B46;
+  --route: #4C9BFF;
+  --route-casing: #0A1F3D;
+  --route-passed: #3A4352;
+  --map-bg: #0B1017;
+  --map-water: #0A1626;
+  --map-road: #252D3A;
+  --map-motorway: #38455C;
+  --map-label: #8792A2;
 }
