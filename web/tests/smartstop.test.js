@@ -128,16 +128,26 @@ test('Overnight: the last stop listed open before a long stretch', () => {
 // same file, so both engines must agree on real stations, not only on the hand written cases.
 
 
-function routeCases() {
+function realRoute() {
   const plan = new TripPlan(route('miami_to_manhattan'), {
     states: data.states, timeZones: data.timeZones, interstates: data.interstates, restAreas: data.restAreas,
   });
   const stations = new StationFacts(JSON.parse(readFileSync(path.resolve(dir, '../../../../App/ExitAtlas/Resources/Data/stations.json'), 'utf8')));
+  return {
+    plan,
+    context: (miles, t = START) => {
+      const s = plan.snapshot({ status: 'onRoute', distanceAlongRoute: miles * MILE, offset: 0, isEstimated: false, t, speed: 30 },
+        new TripLedger(), new PaceModel(), t);
+      return { plan, snapshot: s, servicesFor: (e) => servicesForExit(data.interstates, e), stations, prices: null };
+    },
+  };
+}
+
+function routeCases() {
+  const real = realRoute();
   const cases = load('route_expectations').cases;
   return cases.map((c) => {
-    const s = plan.snapshot({ status: 'onRoute', distanceAlongRoute: c.atMiles * MILE, offset: 0, isEstimated: false, t: START, speed: 30 },
-      new TripLedger(), new PaceModel(), START);
-    const ctx = { plan, snapshot: s, servicesFor: (e) => servicesForExit(data.interstates, e), stations, prices: null };
+    const ctx = real.context(c.atMiles);
     const profile = defaultProfile();
     profile.overnight.mode = c.overnight;
     profile.fuel.brands = c.brands;
@@ -162,4 +172,26 @@ test('P. SmartStop on the real route gives the recorded picks', () => {
   }
   const expected = load('route_expectations').cases;
   for (let i = 0; i < expected.length; i++) assert.deepEqual(got[i].result, expected[i].result, expected[i].name);
+});
+
+test('P. Overnight on the real route: the last stop listed open before a long stretch, through each time window', () => {
+  const x = load('route_expectations').lastOpen;
+  const real = realRoute();
+  const profile = defaultProfile();
+  profile.overnight.mode = 'on';
+  const midnight = Date.parse(x.midnight) / 1000;
+  const minutes = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));
+  for (const w of x.windows) {
+    const from = minutes(w.from), to = minutes(w.to) < from ? minutes(w.to) + 1440 : minutes(w.to);
+    for (let m = from; m <= to; m = m === to ? to + 1 : Math.min(m + 15, to)) {
+      const ctx = real.context(w.atMiles, midnight + m * 60);
+      const r = lastOpenBeforeGap(aheadCandidates(ctx, 150), profile, {
+        minLength: x.gasGapMiles * MILE, windowEnd: Math.min(ctx.snapshot.progress + 150 * MILE, real.plan.route.length),
+      });
+      const at = `mile ${w.atMiles} at ${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+      assert.ok(r, `${at}: no last open stop`);
+      assert.deepEqual([r.stop.id, Math.round(r.stop.ahead / MILE), Math.round(r.length / MILE), r.unlisted],
+        [w.stop, w.aheadMiles, w.lengthMiles, w.unlisted], at);
+    }
+  }
 });

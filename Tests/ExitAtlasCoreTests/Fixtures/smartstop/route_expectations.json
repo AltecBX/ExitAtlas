@@ -1,5 +1,14 @@
 {
  "comment": "SmartStop on the real Miami to Manhattan route (bundled exits, rest areas, stations.json), from the snapshot time 1793000000. Recorded by web/tests/smartstop.test.js with UPDATE_SMARTSTOP=1 and checked by both engines; a data rebuild changes it.",
+ "lastOpen": {
+  "comment": "Overnight on, gas gap setting 40 mi: where the last stop listed open before a long stretch is ahead, by the local time it is now (stores open and close, so no one mile works all day with the brand store listings). ScreenshotTests.testOvernightLastOpenStop launches the demo at the mile for the current New York time. Checked every 15 minutes across each window, ends included, by both engines.",
+  "gasGapMiles": 40,
+  "midnight": "2026-10-29T00:00:00-04:00",
+  "windows": [
+   { "atMiles": 1035, "from": "05:35", "to": "22:30", "stop": "way/55331538", "aheadMiles": 19, "lengthMiles": 40, "unlisted": 3 },
+   { "atMiles": 599, "from": "21:40", "to": "06:05", "stop": "node/2952864769", "aheadMiles": 6, "lengthMiles": 46, "unlisted": 6 }
+  ]
+ },
  "cases": [
   {
    "name": "Day, mile 100, 300 mi of range, Shell first",

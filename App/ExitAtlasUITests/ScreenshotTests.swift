@@ -59,10 +59,18 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// Overnight Drive Mode on: before a long stretch where no stop is listed open at its arrival time, the
-    /// last one that is takes the focus card (mile 400 on the demo route, as on the web).
+    /// last one that is takes the focus card. Which stretch qualifies depends on the time of day (stores open and
+    /// close), so the demo starts at the mile for the current New York time: mile 1035 from 5:35 AM to 10:30 PM,
+    /// mile 599 from 9:40 PM to 6:05 AM, switching at 10 PM and 5:50 AM (both engines check these windows in
+    /// Fixtures/smartstop/route_expectations.json). Live road alerts are off so none can take the card.
     func testOvernightLastOpenStop() {
+        var newYork = Calendar(identifier: .gregorian)
+        newYork.timeZone = TimeZone(identifier: "America/New_York")!
+        let c = newYork.dateComponents([.hour, .minute], from: Date())
+        let minute = (c.hour ?? 12) * 60 + (c.minute ?? 0)
+        let mile = minute >= 22 * 60 || minute < 5 * 60 + 50 ? "599" : "1035"
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", "400", "-demoVehicle", "-overnight", "on"]
+        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-overnight", "on", "-alertsOff"]
         app.launch()
         XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
         let card = app.descendants(matching: .any)["lastOpenCard"].firstMatch
@@ -70,7 +78,7 @@ final class ScreenshotTests: XCTestCase {
         app.swipeUp()
         sleep(2)
         snap("1e Overnight last open stop", false)
-        XCTAssertTrue(found, "No last open stop card at mile 400 with Overnight Drive Mode on")
+        XCTAssertTrue(found, "No last open stop card at mile \(mile) with Overnight Drive Mode on (New York time \(minute / 60):\(String(format: "%02d", minute % 60)))")
     }
 
     private func capture(dark: Bool) {
