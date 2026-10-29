@@ -11,7 +11,7 @@ import Foundation
 ///   a source closed at the arrival time (and none open)       "Reported closed at estimated arrival"
 ///   nothing listed, hours that do not parse, or OpenStreetMap
 ///   and the brand listing disagree at the arrival time        "Hours unavailable"
-/// A restroom is "confirmed" only when tagged or listed. It is "accessible at estimated arrival" only
+/// A restroom is "listed" only when tagged or listed by a source. It is "open at arrival" only
 /// where its own hours are known: at rest areas and service plazas, whose listed hours are the
 /// building's. A 24 hour gas station can still lock its restroom overnight, so a station restroom is
 /// never shown as open at arrival.
@@ -36,8 +36,8 @@ public enum SmartStop {
 
         public var label: String {
             switch self {
-            case .accessible: return "Restroom confirmed accessible at estimated arrival"
-            case .available: return "Restroom confirmed available, hours unknown"
+            case .accessible: return "Restroom listed, open at arrival per listed hours"
+            case .available: return "Restroom listed, access hours unknown"
             case .unknown: return "Restroom availability unknown"
             case .none: return "Listed without a restroom"
             }

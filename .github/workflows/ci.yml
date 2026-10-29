@@ -36,7 +36,7 @@ jobs:
         run: npm test
 
   web-layout:
-    name: Web Drive layout (Playwright)
+    name: Web Drive and Road Ahead layout (Playwright)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -48,6 +48,8 @@ jobs:
         run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
       - name: Drive screen at phone sizes, both presentations, light and dark
         run: node web/tests/layout/drive.layout.mjs
+      - name: Road Ahead timeline, filters and alert sheet at phone sizes, light and dark
+        run: node web/tests/layout/ahead.layout.mjs
 
   ios-app:
     name: iOS app build and screenshots (Xcode)
