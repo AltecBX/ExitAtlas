@@ -330,7 +330,11 @@ final class TripController {
         if snap.match.status == .onRoute { limits.ensureAhead(of: snap.progress) }
         // Road alert sources: only while a trip runs, when due.
         roadAlerts.reset(for: plan)
-        if let plan { roadAlerts.refresh(plan: plan, progress: snap.progress) }
+        if let plan {
+            var enabled: [RoadIntel.Group: Bool] = [:]
+            for (k, v) in settings?.alertGroups ?? [:] { if let g = RoadIntel.Group(rawValue: k) { enabled[g] = v } }
+            roadAlerts.refresh(plan: plan, progress: snap.progress, enabled: enabled)
+        }
         if let plan, let settings, settings.vehicle?.isElectric == true {
             chargers.ensure(for: plan, teslaOnly: settings.teslaOnlyChargers, apiKey: settings.nrelKey)
         }

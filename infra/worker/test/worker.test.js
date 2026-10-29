@@ -93,8 +93,8 @@ test('upstream errors pass through and are not cached', async () => {
 test('config: off switches and which services are available', async () => {
   const handle = createHandler();
   const res = await handle(new Request('https://proxy.test/v1/config', { headers: { Origin: ORIGIN } }), env({ DISABLED: 'search, prices' }));
-  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true });
-  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false });
+  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true, wzdx: true });
+  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false, wzdx: true });
   const pre = await handle(new Request('https://proxy.test/v1/gas-prices', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), env());
   assert.equal(pre.status, 204);
 });
@@ -105,5 +105,31 @@ test('a failed budget counter write does not fail the request', async () => {
   const store = { get: async () => null, put: async () => { throw new Error('KV PUT failed: 429 Too Many Requests'); } };
   const res = await handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }), env({ BUDGET: store }));
   assert.equal(res.status, 200);
+  assert.equal(calls.length, 1);
+});
+
+test('work zone feeds: only the feeds in the app table, cached, refused for other sites, off with a switch', async () => {
+  const calls = [];
+  const cache = memoryCache();
+  const handle = createHandler({ fetchImpl: upstream(calls, 200, '{"feed_info":{},"features":[]}'), cache });
+  const get = (path, origin = ORIGIN) => new Request(`https://proxy.test${path}`, { headers: { Origin: origin } });
+  const first = await handle(get('/v1/wzdx/MD'), env());
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('Access-Control-Allow-Origin'), ORIGIN);
+  assert.equal(first.headers.get('X-Cache'), 'miss');
+  assert.equal(await first.text(), '{"feed_info":{},"features":[]}');
+  assert.deepEqual(calls.map((c) => c.url), ['https://filter.ritis.org/wzdx_v4.1/mdot.geojson']);
+  const second = await handle(get('/v1/wzdx/MD'), env());
+  assert.equal(second.headers.get('X-Cache'), 'hit');
+  assert.equal(calls.length, 1, 'served from the cache');
+  for (const bad of ['/v1/wzdx/XX', '/v1/wzdx/constructor', '/v1/wzdx/https%3A%2F%2Fevil.example']) {
+    assert.equal((await handle(get(bad), env())).status, 404, bad);
+  }
+  assert.equal((await handle(get('/v1/wzdx/NJ', 'https://evil.example'), env())).status, 403);
+  assert.equal((await handle(get('/v1/wzdx/NJ'), env({ DISABLED: 'wzdx' }))).status, 503);
+  assert.equal(config(env({ DISABLED: 'wzdx' })).wzdx, false);
+  assert.equal(config(env()).wzdx, true);
+  const failing = createHandler({ fetchImpl: upstream([], 500, 'oops'), cache: memoryCache() });
+  assert.equal((await failing(get('/v1/wzdx/NJ'), env())).status, 502);
   assert.equal(calls.length, 1);
 });

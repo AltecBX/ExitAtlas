@@ -1,6 +1,7 @@
 // The owner's key proxy (infra/worker), optional. When its URL is set in Settings, gas prices and
-// charger lookups go through it with keys that never reach the phone, and its /v1/config can switch
-// off any public service for everyone (routing, search, prices, chargers) without an app update.
+// charger lookups go through it with keys that never reach the phone, state work zone feeds that browsers
+// may not read directly come through it, and its /v1/config can switch off any public service for everyone
+// (routing, search, prices, chargers, wzdx) without an app update.
 
 /// The proxy's base URL from what was typed, or null. HTTPS only (localhost allowed for testing).
 export function proxyBase(text) {
@@ -15,7 +16,7 @@ export function proxyBase(text) {
   return url;
 }
 
-/// Reads the proxy's switches. Returns { base, prices, chargers, disabled } or null when the proxy
+/// Reads the proxy's switches. Returns { base, prices, chargers, wzdx, disabled } or null when the proxy
 /// cannot be reached (then the app works as if none was set).
 export async function loadProxy(text, fetchImpl = (...a) => fetch(...a)) {
   const base = proxyBase(text);
@@ -24,7 +25,7 @@ export async function loadProxy(text, fetchImpl = (...a) => fetch(...a)) {
     const res = await fetchImpl(new URL('v1/config', base), { cache: 'no-store' });
     if (!res.ok) return null;
     const c = await res.json();
-    return { base, prices: c.prices === true, chargers: c.chargers === true, disabled: Array.isArray(c.disabled) ? c.disabled : [] };
+    return { base, prices: c.prices === true, chargers: c.chargers === true, wzdx: c.wzdx === true, disabled: Array.isArray(c.disabled) ? c.disabled : [] };
   } catch {
     return null;
   }

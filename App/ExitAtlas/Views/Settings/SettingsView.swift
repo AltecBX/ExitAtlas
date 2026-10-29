@@ -302,7 +302,7 @@ private struct RoadAlertRows: View {
     @Environment(TripController.self) private var trip
 
     static let sources: [RoadIntel.Group: String] = [
-        .closures: "No source connected yet: state 511 and work zone feeds need registration",
+        .closures: "Official state work zone feeds (WZDx, public domain): \(AlertSources.wzdxFeeds.keys.sorted().joined(separator: ", ")), checked every 10 to 30 minutes during a trip. Other states: none yet",
         .incidents: "No source connected yet: state 511 feeds need registration",
         .weather: "National Weather Service, public domain, checked every 10 minutes during a trip",
         .police: "No authorized live source exists for ExitAtlas, so nothing is shown",

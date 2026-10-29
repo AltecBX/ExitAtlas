@@ -89,7 +89,7 @@ const app = {
   wake: new ScreenWake(),
   announcer: new Announcer(),
   /// Road alert sources for the active trip (app/roadalerts.js).
-  roadAlerts: new RoadAlerts(),
+  roadAlerts: new RoadAlerts({ proxyBase: () => proxyFor('wzdx') }),
 
   /// Gas along the route in order: exits with a gas station and service plazas that list one.
   gasStops(plan = this.plan) {
@@ -854,7 +854,7 @@ function publish(snap) {
     zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap, lastOpen: app.lastOpenAhead(), alerts: app.roadIntel()?.alerts ?? [],
   });
   // Road alert sources: fetched only while a trip runs, when due (app/roadalerts.js).
-  app.roadAlerts.refresh(app.plan, snap.progress, { online: navigator.onLine !== false })
+  app.roadAlerts.refresh(app.plan, snap.progress, { online: navigator.onLine !== false, enabled: app.settings.alerts ?? {} })
     .then((changed) => { if (changed) { lastViewHTML = ''; render(); } })
     .catch(() => {});
   considerFuelVoice();

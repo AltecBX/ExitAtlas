@@ -111,9 +111,10 @@ private struct DriveDashboard: View {
             alert: focusAlert.map { (distance: max(0, $0.start - progress), serious: $0.serious) })
     }
 
-    /// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+    /// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones
+    /// that leave the travel lanes open stay in Road Ahead.
     private var focusAlert: RoadIntel.Alert? {
-        let alerts = trip.roadIntel?.alerts ?? []
+        let alerts = (trip.roadIntel?.alerts ?? []).filter(\.notable)
         return alerts.first { $0.serious && $0.start - snapshot.progress <= 50 * Geodesy.metersPerMile } ?? alerts.first
     }
 
@@ -341,8 +342,7 @@ private struct ThenStrip: View {
                 chip(Format.milesValue(next.distance) + " mi", next.exit.displayTitle) { selectedTab = .ahead }
             }
         case .alert:
-            let alerts = trip.roadIntel?.alerts ?? []
-            if let a = alerts.first(where: { $0.serious && $0.start - snapshot.progress <= 50 * Geodesy.metersPerMile }) ?? alerts.first {
+            if let a = focusAlert {
                 chip(a.start > snapshot.progress ? Format.milesValue(a.start - snapshot.progress) + " mi" : nil,
                      AlertText.icon(a.incident.kind) + " " + AlertText.title(a.incident)) { selectedTab = .ahead }
             }

@@ -156,4 +156,76 @@ final class RoadIntelTests: XCTestCase {
         XCTAssertTrue(incident(f["incidents"]!["crashA"]!).isSerious)
         XCTAssertFalse(incident(f["incidents"]!["workZone"]!).isSerious)
     }
+
+    func testWZDxRealFeedsConvertedAndMatchedByRoadAndDirection() throws {
+        let dir = Fixtures.fixtureDirectory.appendingPathComponent("roadintel")
+        let x = try JSONValue(data: Data(contentsOf: dir.appendingPathComponent("wzdx_expect.json")))
+        let route = Fixtures.route(x["route"]!.string!)
+        let from = x["progressMiles"]!.number! * mile
+        let matches = x["matches"]!.object!
+        var all: [String: RoadIntel.Incident] = [:]
+        for (state, want) in x["states"]!.object! {
+            let list = try AlertSources.wzdxIncidents(Data(contentsOf: dir.appendingPathComponent("wzdx_\(state.lowercased()).json")), state: state)
+            XCTAssertEqual(list.count, Int(want["count"]!.number!), state)
+            var tally: [String: Double] = [:]
+            for i in list { tally["\(i.kind.rawValue)/\(i.severity.rawValue)", default: 0] += 1 }
+            XCTAssertEqual(tally, want["tally"]!.object!.mapValues { $0.number! }, state)
+            var rejected: [String: Double] = [:]
+            for i in list {
+                all[i.id] = i
+                XCTAssertEqual(i.verification, .official)
+                XCTAssertEqual(i.source.id, "wzdx-\(state)")
+                switch RoadIntel.place(i, on: route, progress: from) {
+                case .rejected(let why): rejected[why, default: 0] += 1
+                case .ahead(let start, _, _, _): XCTAssertNotNil(matches[i.id], "\(i.id) matched at \((start - from) / mile)")
+                }
+            }
+            XCTAssertEqual(rejected, x["rejected"]![state]!.object!.mapValues { $0.number! }, state)
+        }
+        for (id, want) in x["incidents"]!.object! {
+            let i = try XCTUnwrap(all[id], id)
+            XCTAssertEqual(i.road, want["road"]?.string, "\(id) road")
+            XCTAssertEqual(i.direction, want["direction"]?.string, "\(id) direction")
+            XCTAssertEqual(i.kind.rawValue, want["category"]?.string, "\(id) category")
+            XCTAssertEqual(i.severity.rawValue, want["severity"]?.string, "\(id) severity")
+            XCTAssertEqual(i.lanes, want["lanes"]?.string, "\(id) lanes")
+            for (key, value) in [("startsAt", i.startsAt), ("endsAt", i.endsAt), ("updatedAt", i.updatedAt)] {
+                if let w = want[key]?.number { XCTAssertEqual(value?.timeIntervalSince1970, w, "\(id) \(key)") }
+            }
+            let kind: String
+            switch i.geometry {
+            case .point: kind = "point"
+            case .line: kind = "line"
+            default: kind = "other"
+            }
+            XCTAssertEqual(kind, want["geometry"]?.string, "\(id) geometry")
+        }
+        for (id, ahead) in matches {
+            guard case let .ahead(start, _, _, _) = RoadIntel.place(all[id]!, on: route, progress: from) else { return XCTFail(id) }
+            XCTAssertEqual((start - from) / mile, ahead.number!, accuracy: 0.15, id)
+        }
+        for (id, why) in x["rejectedByID"]!.object! {
+            guard case let .rejected(got) = RoadIntel.place(all[id]!, on: route, progress: from) else { return XCTFail(id) }
+            XCTAssertEqual(got, why.string, id)
+        }
+        // Local time to UTC across the end of daylight saving time (November 1, 2026 in New York).
+        XCTAssertEqual(AlertSources.zonedDate(year: 2026, month: 9, day: 31, hour: 20, minute: 0, zone: "America/New_York")?.timeIntervalSince1970, 1_793_491_200)
+        XCTAssertEqual(AlertSources.zonedDate(year: 2026, month: 10, day: 2, hour: 20, minute: 0, zone: "America/New_York")?.timeIntervalSince1970, 1_793_667_600)
+    }
+
+    func testStreetBesideTheHighwayIsNeverTheHighway() throws {
+        let f = try fixture()
+        let route = Fixtures.route(f["route"]!.string!)
+        let progress = f["progressMiles"]!.number! * mile
+        let point = RoadIntel.Geometry.point(route.polyline.coordinate(at: progress + 5 * mile))
+        func place(_ road: String?) -> RoadIntel.Placement {
+            RoadIntel.place(RoadIntel.Incident(id: "t", kind: .construction, description: "", source: .init(id: "t", name: "t"),
+                                               verification: .official, geometry: point, road: road, direction: "N", severity: .moderate),
+                            on: route, progress: progress)
+        }
+        guard case .ahead = place("I 95 / Some Memorial Hwy") else { return XCTFail("I-95 by any name") }
+        guard case .rejected("other road") = place("Showalter Rd") else { return XCTFail("street") }
+        guard case .rejected("other road") = place("MD 3BU") else { return XCTFail("business route") }
+        guard case .ahead = place(nil) else { return XCTFail("no name") }
+    }
 }

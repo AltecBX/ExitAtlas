@@ -123,6 +123,12 @@ public enum RoadIntel {
             return (severity == .severe || severity == .major) && [.crash, .weather, .flooding, .hazard].contains(kind)
         }
 
+        /// Worth the Drive screen and a spoken warning: everything except a work zone that leaves the travel
+        /// lanes open or does not say (those stay in Road Ahead).
+        public var isNotable: Bool {
+            isSerious || !(kind == .construction && (severity == .minor || severity == .unknown))
+        }
+
         /// Expired or ended events are not current.
         public func isCurrent(at now: Date) -> Bool {
             if let e = expiresAt, e <= now { return false }
@@ -158,6 +164,7 @@ public enum RoadIntel {
         /// An area alert known only at sample points: its extent along the route is not known.
         public let approximate: Bool
         public let serious: Bool
+        public var notable: Bool { incident.isNotable }
         public internal(set) var sources: [Source]
     }
 
@@ -228,6 +235,23 @@ public enum RoadIntel {
         return HighwayRef.parse(text.uppercased().replacingOccurrences(of: "INTERSTATE", with: "I")).first
     }
 
+    /// Every highway named in the text ("I 95 / J F K Memorial Hwy" names I-95).
+    public static func roadRefs(_ text: String?) -> [HighwayRef] {
+        guard let text, !text.isEmpty else { return [] }
+        return HighwayRef.parse(text.uppercased().replacingOccurrences(of: "INTERSTATE", with: "I"))
+    }
+
+    /// Is the incident's road the route's road at `d`? A highway must be one the route is on there (all its
+    /// names count, as where I-95 runs on the New Jersey Turnpike). A named road that is not a highway (a
+    /// street, a county road) is never the route's road while the route is on a highway there. No name: unknown.
+    static func onSameRoad(_ route: PlannedRoute, _ i: Incident, _ d: Double) -> Bool {
+        guard let road = i.road, !road.isEmpty else { return true }
+        let here = route.step(at: d)?.highways ?? route.highway(at: d).map { [$0.ref] } ?? []
+        let refs = roadRefs(road)
+        if !refs.isEmpty { return refs.contains { here.contains($0) } }
+        return here.isEmpty
+    }
+
     /// "Northbound", "NB", "north", "both directions" as "N", "S", "E", "W" or "both", else nil.
     public static func directionCode(_ text: String?) -> String? {
         guard let text else { return nil }
@@ -270,13 +294,12 @@ public enum RoadIntel {
     }
 
     static func placePoint(_ c: GeoCoordinate, _ i: Incident, _ route: PlannedRoute, _ progress: Double, _ rules: Rules) -> Placement {
-        let ref = roadRef(i.road)
         let dir = directionCode(i.direction)
         var best: Double?
         var why = "off route"
-        for p in route.polyline.projections(of: c, within: ref != nil ? rules.sameRoadOffset : rules.unnamedOffset) {
+        for p in route.polyline.projections(of: c, within: roadRefs(i.road).isEmpty ? rules.unnamedOffset : rules.sameRoadOffset) {
             if p.distanceAlong < progress { why = "behind"; continue }
-            if let ref, route.highway(at: p.distanceAlong)?.ref != ref { why = "other road"; continue }
+            if !onSameRoad(route, i, p.distanceAlong) { why = "other road"; continue }
             if let dir, dir != "both", dir != travel(route, p.distanceAlong) { why = "other direction"; continue }
             if dir == nil && p.signedOffset < -rules.otherCarriageway { why = "other direction"; continue }
             if best.map({ p.distanceAlong < $0 }) ?? true { best = p.distanceAlong }
@@ -290,7 +313,7 @@ public enum RoadIntel {
         guard along.count >= min(2, cs.count), let start = along.min(), let end = along.max() else { return .rejected("off route") }
         if end < progress { return .rejected("behind") }
         let mid = (start + end) / 2
-        if let ref = roadRef(i.road), route.highway(at: mid)?.ref != ref { return .rejected("other road") }
+        if !onSameRoad(route, i, mid) { return .rejected("other road") }
         let dir = directionCode(i.direction)
         if let dir, dir != "both", dir != travel(route, mid) { return .rejected("other direction") }
         if dir == nil, cs.count >= 2,

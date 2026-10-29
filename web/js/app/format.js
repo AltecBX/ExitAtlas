@@ -39,6 +39,7 @@ function formattersFor(zone) {
       time: new Intl.DateTimeFormat('en-US', { ...opts, hour: 'numeric', minute: '2-digit' }),
       day: new Intl.DateTimeFormat('en-US', { ...opts, year: 'numeric', month: '2-digit', day: '2-digit' }),
       weekday: new Intl.DateTimeFormat('en-US', { ...opts, weekday: 'short' }),
+      date: new Intl.DateTimeFormat('en-US', { ...opts, month: 'short', day: 'numeric' }),
       abbr: new Intl.DateTimeFormat('en-US', { ...opts, timeZoneName: 'short' }),
     };
     formatters.set(key, f);
@@ -52,7 +53,10 @@ export function clock(t, zone = null, now = Date.now() / 1000) {
   const f = formattersFor(zone);
   const date = new Date(t * 1000);
   let text = f.time.format(date);
-  if (f.day.format(date) !== f.day.format(new Date(now * 1000))) text = `${f.weekday.format(date)} ${text}`;
+  // Another day: its weekday within the coming week, else its date ("Dec 31"), never a weekday weeks away.
+  if (f.day.format(date) !== f.day.format(new Date(now * 1000))) {
+    text = `${Math.abs(t - now) < 6 * 86400 ? f.weekday.format(date) : f.date.format(date)} ${text}`;
+  }
   if (zone) {
     const part = f.abbr.formatToParts(date).find((p) => p.type === 'timeZoneName');
     if (part) text += ` ${part.value}`;

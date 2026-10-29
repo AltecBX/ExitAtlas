@@ -116,6 +116,7 @@ export class Announcer {
     // Road alerts first: once each. A state line message waits for the next position, it is not lost.
     if (settings.alerts?.voice !== false) {
       for (const a of ctx.alerts ?? []) {
+        if (a.notable === false) continue;
         const ahead = a.start - s.progress;
         if (ahead <= ALERT_MIN || ahead > (a.serious ? ALERT_SERIOUS_WARN : ALERT_WARN) || this.announcedAlerts.has(a.incident.id)) continue;
         this.announcedAlerts.add(a.incident.id);

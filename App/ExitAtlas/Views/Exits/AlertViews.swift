@@ -28,9 +28,11 @@ enum AlertText {
         return i.description != title(i) && !i.description.isEmpty ? i.description : nil
     }
 
-    /// "Source: National Weather Service · Updated 6 minutes ago · until 8:45 PM".
+    /// "Source: National Weather Service · Updated 6 minutes ago · until 8:45 PM", and "starts 8:00 PM" for
+    /// scheduled work that has not begun.
     static func meta(_ a: RoadIntel.Alert, now: Date, timeZoneID: String?, reference: Date) -> String {
         var parts = ["Source: " + a.sources.map(\.name).joined(separator: ", "), RoadIntel.freshnessText(a.incident, now: now)]
+        if let start = a.incident.startsAt, start > now { parts.append("starts " + Format.time(start, timeZoneID: timeZoneID, relativeTo: reference)) }
         if let end = a.incident.endsAt { parts.append("until " + Format.time(end, timeZoneID: timeZoneID, relativeTo: reference)) }
         return parts.joined(separator: " · ")
     }

@@ -68,7 +68,7 @@ public struct VoiceAnnouncements: Sendable {
         }
         // Road alerts first: once each. A state line message waits for the next position, it is not lost.
         if settings.alerts {
-            for a in alerts where !announcedAlerts.contains(a.incident.id) {
+            for a in alerts where a.notable && !announcedAlerts.contains(a.incident.id) {
                 let ahead = a.start - s.progress
                 guard ahead > Self.alertMinimum, ahead <= (a.serious ? Self.seriousAlertWarning : Self.alertWarning) else { continue }
                 announcedAlerts.insert(a.incident.id)

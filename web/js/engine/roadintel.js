@@ -79,6 +79,22 @@ export function sameRoad(a, b) {
   return Boolean(a && b) && a.kind === b.kind && a.prefix === b.prefix && a.number === b.number;
 }
 
+/// Every highway named in the text ("I 95 / J F K Memorial Hwy" names I-95).
+export function roadRefs(text) {
+  return text ? parseHighways(String(text).toUpperCase().replace(/INTERSTATE/g, 'I')) : [];
+}
+
+/// Is the incident's road the route's road at `d`? A highway must be one the route is on there (all its
+/// names count, as where I-95 runs on the New Jersey Turnpike). A named road that is not a highway (a
+/// street, a county road) is never the route's road while the route is on a highway there. No name: unknown.
+function onSameRoad(route, i, d) {
+  if (!i.road) return true;
+  const here = route.stepAt?.(d)?.highways ?? (route.highwayAt(d) ? [route.highwayAt(d).ref] : []);
+  const refs = roadRefs(i.road);
+  if (refs.length) return refs.some((r) => here.some((h) => sameRoad(r, h)));
+  return here.length === 0;
+}
+
 /// "Northbound", "NB", "north", "both directions" as 'N' | 'S' | 'E' | 'W' | 'both', else null.
 export function directionCode(text) {
   if (!text) return null;
@@ -100,13 +116,12 @@ export function isCurrent(i, now) {
 
 /// Where a point incident sits on the route ahead, or why it does not.
 function matchPoint(route, c, i, progress, rules) {
-  const ref = roadRef(i.road);
-  const radius = ref ? rules.sameRoadOffset : rules.unnamedOffset;
+  const radius = roadRefs(i.road).length ? rules.sameRoadOffset : rules.unnamedOffset;
   let best = null, why = 'off route';
   for (const p of route.polyline.projections(c, radius)) {
     if (p.distanceAlong < progress) { why = 'behind'; continue; }
     const hw = route.highwayAt(p.distanceAlong);
-    if (ref && !sameRoad(ref, hw?.ref)) { why = 'other road'; continue; }
+    if (!onSameRoad(route, i, p.distanceAlong)) { why = 'other road'; continue; }
     const dir = directionCode(i.direction);
     const travel = hw?.direction ?? cardinalOf(route.polyline.bearingAt(p.distanceAlong));
     if (dir && dir !== 'both' && dir !== travel) { why = 'other direction'; continue; }
@@ -118,7 +133,6 @@ function matchPoint(route, c, i, progress, rules) {
 
 /// A line (work zone, closure extent): its vertices must run along the route in the travel direction.
 function matchLine(route, coords, i, progress, rules) {
-  const ref = roadRef(i.road);
   const along = [];
   for (const c of coords) {
     const p = route.polyline.nearestProjection(c, rules.lineOffset);
@@ -129,7 +143,7 @@ function matchLine(route, coords, i, progress, rules) {
   if (end < progress) return { why: 'behind' };
   const mid = (start + end) / 2;
   const hw = route.highwayAt(mid);
-  if (ref && !sameRoad(ref, hw?.ref)) return { why: 'other road' };
+  if (!onSameRoad(route, i, mid)) return { why: 'other road' };
   const travel = hw?.direction ?? cardinalOf(route.polyline.bearingAt(mid));
   const dir = directionCode(i.direction);
   if (dir && dir !== 'both' && dir !== travel) return { why: 'other direction' };
@@ -200,6 +214,12 @@ export function isSerious(i) {
   return false;
 }
 
+/// Worth the Drive screen and a spoken warning: everything except a work zone that leaves the travel lanes
+/// open or does not say (those stay in Road Ahead).
+export function isNotable(i) {
+  return isSerious(i) || !(i.category === 'construction' && (i.severity === 'minor' || i.severity === 'unknown'));
+}
+
 const VERIFICATION_ORDER = { official: 0, community: 1, mapped: 2 };
 const SEVERITY_ORDER = { severe: 0, major: 1, moderate: 2, minor: 3, unknown: 4 };
 
@@ -235,7 +255,7 @@ function sameEvent(a, b, rules) {
 ///   providers: [{id, name, kinds: [...], state: 'ok' | 'pending' | 'error' | 'notConfigured' | 'unsupported',
 ///               fetchedAt, maxAgeSeconds, incidents: [...], uncovered: ['GA', ...]}]
 ///   options: {now, enabled: {group: bool}, window, etaAt(meters) -> unix seconds}
-/// Returns {alerts: [{incident, start, end, ahead, serious, directionKnown, approximate, sources}], status: {group: {state, label, note}}}.
+/// Returns {alerts: [{incident, start, end, ahead, serious, notable, directionKnown, approximate, sources}], status: {group: {state, label, note}}}.
 /// `approximate`: an area alert known only at sample points; its extent along the route is not known.
 export function roadIntel(route, progress, providers, { now, enabled = {}, window = MATCH_RULES.window, etaAt = null, rules = MATCH_RULES } = {}) {
   const r = { ...rules, window };
@@ -256,7 +276,7 @@ export function roadIntel(route, progress, providers, { now, enabled = {}, windo
       if (i.startsAt != null && etaAt && i.startsAt > etaAt(m.end)) continue;
       const incident = { ...i, category: kind };
       matched.push({ incident, start: m.start, end: m.end, ahead: m.start - progress, directionKnown: m.directionKnown,
-        approximate: Boolean(m.approximate), serious: isSerious(incident) });
+        approximate: Boolean(m.approximate), serious: isSerious(incident), notable: isNotable(incident) });
     }
   }
   const alerts = dedupe(matched, r);

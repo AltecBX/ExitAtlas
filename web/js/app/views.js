@@ -14,6 +14,7 @@ import { dashboardFocus } from '../engine/dashboard.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
 import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js';
+import { WZDX_FEEDS } from '../engine/alertsources.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -264,7 +265,8 @@ function focusSignals(app, s) {
 
 /// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
 function focusAlertItem(app, s) {
-  const alerts = app.roadIntel()?.alerts ?? [];
+  // Work zones that leave the travel lanes open stay in Road Ahead.
+  const alerts = (app.roadIntel()?.alerts ?? []).filter((a) => a.notable);
   return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
 }
 
@@ -275,11 +277,13 @@ function focusAlert(app, s) {
 
 const ALERT_ICONS = { closure: '⛔', crash: '⚠️', flooding: '🌊', weather: '⛈️', hazard: '⚠️', disabledVehicle: '🚗', construction: '🚧', congestion: '🐢', police: '🚓', speedCamera: '📷', other: '⚠️' };
 
-/// "Source: National Weather Service · Updated 6 minutes ago", and "until 8:45 PM" for timed events.
+/// "Source: National Weather Service · Updated 6 minutes ago", "starts 8:00 PM" for scheduled work that has
+/// not begun, and "until 8:45 PM" for timed events.
 function alertMeta(app, a, s) {
   const i = a.incident;
   const now = Date.now() / 1000;
   const parts = [`Source: ${a.sources.map((x) => h(x.name)).join(', ')}`, h(freshnessText(i, now))];
+  if (i.startsAt && i.startsAt > now) parts.push(`starts ${clock(i.startsAt, app.plan.timeZoneIDAt(a.start), s.t)}`);
   if (i.endsAt) parts.push(`until ${clock(i.endsAt, app.plan.timeZoneIDAt(a.start), s.t)}`);
   return parts.join(' · ');
 }
@@ -1383,7 +1387,8 @@ function alertSettings(app) {
   const al = app.settings.alerts ?? {};
   const st = app.roadIntel()?.status ?? null;
   const sources = {
-    closures: 'No source connected yet: state 511 and work zone feeds need registration (docs/13)',
+    closures: `Official state work zone feeds (WZDx, public domain): ${Object.keys(WZDX_FEEDS).join(', ')}, checked every 10 to 30 minutes during a trip.${
+      app.proxy?.wzdx ? '' : ` ${Object.keys(WZDX_FEEDS).filter((k) => !WZDX_FEEDS[k].cors).join(', ')} need the key proxy here.`} Other states: none yet (docs/13)`,
     incidents: 'No source connected yet: state 511 feeds need registration (docs/13)',
     weather: 'National Weather Service, public domain, checked every 10 minutes during a trip',
     police: 'No authorized live source exists for ExitAtlas, so nothing is shown (docs/13)',

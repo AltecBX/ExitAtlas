@@ -23,13 +23,13 @@ enum Format {
         return m == 0 ? "\(h) h" : "\(h) h \(m) min"
     }
 
-    private static var formatters: [String: (time: DateFormatter, weekday: DateFormatter)] = [:]
+    private static var formatters: [String: (time: DateFormatter, weekday: DateFormatter, date: DateFormatter)] = [:]
 
     /// Clock time in the time zone of a place on the route, with its abbreviation ("4:32 PM EDT").
     /// Adds the weekday when the time is not today in that zone.
     static func time(_ date: Date, timeZoneID: String? = nil, relativeTo now: Date = Date()) -> String {
         let zone = timeZoneID.flatMap(TimeZone.init(identifier:)) ?? .current
-        let pair: (time: DateFormatter, weekday: DateFormatter)
+        let pair: (time: DateFormatter, weekday: DateFormatter, date: DateFormatter)
         if let cached = formatters[zone.identifier] {
             pair = cached
         } else {
@@ -40,14 +40,18 @@ enum Format {
             let w = DateFormatter()
             w.timeZone = zone
             w.setLocalizedDateFormatFromTemplate("EEE")
-            pair = (t, w)
+            let d = DateFormatter()
+            d.timeZone = zone
+            d.setLocalizedDateFormatFromTemplate("MMMd")
+            pair = (t, w, d)
             formatters[zone.identifier] = pair
         }
         var calendar = Calendar.current
         calendar.timeZone = zone
         var text = pair.time.string(from: date)
+        // Another day: its weekday within the coming week, else its date ("Dec 31"), never a weekday weeks away.
         if !calendar.isDate(date, inSameDayAs: now) {
-            text = pair.weekday.string(from: date) + " " + text
+            text = (abs(date.timeIntervalSince(now)) < 6 * 86400 ? pair.weekday : pair.date).string(from: date) + " " + text
         }
         if timeZoneID != nil, let abbreviation = zone.abbreviation(for: date) {
             text += " " + abbreviation
