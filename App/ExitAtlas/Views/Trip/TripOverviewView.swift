@@ -22,6 +22,10 @@ struct TripOverviewView: View {
                     ItinerarySections(snapshot: snapshot)
                     DiscoverSection(plan: plan, snapshot: snapshot)
                     Section {
+                        // Turn by turn in Waze to the next stop or the destination (one destination per Waze link).
+                        if let next = trip.nextWaypoint {
+                            Button { WazeHandoff.open(to: next.coordinate) } label: { Label("Drive to \(next.name) in Waze", systemImage: "car") }
+                        }
                         if trip.mode == .trip {
                             Button { showStopPlanner = true } label: { Label("Plan a stop ahead", systemImage: "bed.double") }
                         }
