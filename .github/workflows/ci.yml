@@ -69,8 +69,10 @@ jobs:
           plutil -lint "$APP/PrivacyInfo.xcprivacy"
           test -f "$APP/Data/manifest.json"
           plutil -p "$APP/Info.plist" | grep -E "ITSAppUsesNonExemptEncryption|NSLocation" 
-          # The regular app never links Google's Navigation SDK (only ExitAtlasGoogle does, docs/14).
-          if strings "$APP/ExitAtlas" | grep -q GMSNavigationServices; then echo "Google Navigation SDK found in the regular build"; exit 1; fi
+          # The regular app never links Google's Navigation SDK (only ExitAtlasGoogle does, docs/14). The whole
+          # bundle is searched: Debug builds keep the app's code in ExitAtlas.debug.dylib, not the executable.
+          du -sh "$APP"
+          if grep -rlq GMSNavigationServices "$APP"; then echo "Google Navigation SDK found in the regular build"; exit 1; fi
           echo "Regular build: no Google Navigation SDK"
       - name: Export screenshots
         if: always()
@@ -110,5 +112,7 @@ jobs:
           echo "$APP"
           du -sh "$APP"
           plutil -p "$APP/Info.plist" | grep -E "CFBundleIdentifier|NSMotionUsageDescription|LSApplicationQueriesSchemes"
-          strings "$APP/ExitAtlasGoogle" | grep -q GMSNavigationServices
+          # Debug builds keep the code in ExitAtlasGoogle.debug.dylib, so the whole bundle is searched.
+          grep -rl GMSNavigationServices "$APP" | head -3
+          grep -rlq GMSNavigationServices "$APP"
           echo "Google build: Navigation SDK linked"
