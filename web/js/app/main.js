@@ -14,6 +14,7 @@ import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
 import { GasPrices, GRADES } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
+import { benchmarkFor } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
@@ -86,6 +87,8 @@ const app = {
   priceBook: new PriceBook({ store, getProxy: () => proxyFor('community'), sources: () => ({ own: app.settings.prices?.ownReports !== false, shared: app.settings.prices?.community === true }) }),
   /// Road Ahead price comparison sort, and the price report sheet's state.
   priceUI: { sort: 'recommended' },
+  /// EIA's weekly averages through the proxy (context only): {summary, at, error}.
+  benchmarks: { summary: null, at: 0, error: null },
   report: null,
   /// The owner's key proxy when set in Settings and reachable: { base, prices, chargers, disabled }.
   proxy: null,
@@ -265,6 +268,14 @@ const app = {
     }
     if (x?.exit) x.live = liveFor(this.prices, x.exit, { coordinate: x.coordinate, name: x.name }, x.brand);
     return x;
+  },
+
+  /// EIA's average for the state the driver is in and the grade, when known and at most two weeks old:
+  /// context and a sanity check only, never a station's price.
+  benchmark(grade = this.gradeCode()) {
+    const s = this.snapshot, sum = this.benchmarks.summary;
+    if (!s?.current || !sum || Date.now() - Date.parse(sum.weekOf) > 14 * 86400000) return null;
+    return benchmarkFor(sum, s.current.segment.code, grade);
   },
 
   /// Tank and mpg for the cost of a fill (gas vehicles with both known), else null.
@@ -679,6 +690,7 @@ function openPlan(t) {
 /// Shared driver reports for the stations SmartStop and the price comparison look at (free, budgeted on
 /// the owner's server; only when the driver turned them on). Re-renders when new ones arrive.
 function loadSharedPrices() {
+  loadBenchmarks();
   if (!app.priceBook.sharedOn || !app.plan || !app.snapshot) return;
   const ids = new Set();
   const sm = app.smartStop();
@@ -691,6 +703,23 @@ function countPriceCall() {
   const month = new Date().toISOString().slice(0, 7);
   const c = store.get('ea.priceCalls', { month, n: 0 });
   store.set('ea.priceCalls', c.month === month ? { month, n: c.n + 1 } : { month, n: 1 });
+}
+
+/// EIA's weekly averages, through the proxy when it offers them (EIA sends no CORS header), every 6 hours.
+function loadBenchmarks() {
+  const base = proxyFor('benchmarks');
+  const b = app.benchmarks;
+  if (!base || b.pending || Date.now() - b.at < (b.error ? 30 * 60000 : 6 * 3600000)) return;
+  b.pending = true;
+  fetch(new URL('v1/fuel-benchmarks', base)).then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    .then((json) => {
+      if (typeof json?.weekOf !== 'string' || typeof json.regular !== 'object') throw new Error('not a summary');
+      Object.assign(b, { summary: { weekOf: json.weekOf, regular: json.regular, diesel: json.diesel ?? {} }, error: null });
+      lastViewHTML = '';
+      render();
+    })
+    .catch((e) => { b.error = e.message; })
+    .finally(() => { b.pending = false; b.at = Date.now(); });
 }
 
 /// Changes price settings (saved in the profile).
@@ -1473,7 +1502,7 @@ const actions = {
     const text = ($('#sheet-body [data-report="price"]')?.value ?? r.priceText ?? '').replace(/[$\s]/g, '');
     r.priceText = text;
     const out = await app.priceBook.report({ stationId: r.stationId, grade: r.grade, price: text === '' ? NaN : Number(text), payment: r.payment, member: r.member, stationName: r.name, place: r.place },
-      { share: r.share, near: r.near === true });
+      { share: r.share, near: r.near === true, benchmark: app.benchmark(r.grade)?.price ?? null });
     r.result = out;
     if (out.ok && !out.duplicate) toast(out.shared === 'sent' ? 'Price saved and shared' : 'Price saved on this device');
     lastViewHTML = '';

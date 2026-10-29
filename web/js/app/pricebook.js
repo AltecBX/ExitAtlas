@@ -65,11 +65,12 @@ export class PriceBook {
   }
 
   /// Saves a report on this device, and sends it to other drivers when `share` is set and the location
-  /// check passed. input: {stationId, grade, price, payment, member, stationName, place}.
+  /// check passed. input: {stationId, grade, price, payment, member, stationName, place}; benchmark: the
+  /// regional average for the grade (EIA), when known, for the sanity check.
   /// Returns {ok, problems, record, duplicate, shared: null (not sent), 'sent', or why it was not}.
-  async report(input, { share = false, near = false } = {}) {
+  async report(input, { share = false, near = false, benchmark = null } = {}) {
     const now = Math.floor(this.now() / 1000);
-    const check = validateReport({ stationId: input.stationId, grade: input.grade, price: input.price, payment: input.payment ?? null, member: Boolean(input.member), reportedAt: now }, { now });
+    const check = validateReport({ stationId: input.stationId, grade: input.grade, price: input.price, payment: input.payment ?? null, member: Boolean(input.member), reportedAt: now }, { now, benchmark });
     if (!check.ok) return { ok: false, problems: check.problems, record: null, shared: null };
     const record = {
       ...check.record, id: `own-${now}-${Math.random().toString(36).slice(2, 8)}`, reporter: 'me',

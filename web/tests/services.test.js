@@ -120,8 +120,8 @@ test('proxy URL and switches: https only, unreachable means not used', async () 
   assert.equal(proxyBase('not a url'), null);
   assert.equal(String(proxyBase('https://p.example/x?y=1')), 'https://p.example/x/');
   assert.equal(String(proxyBase('http://localhost:8787')), 'http://localhost:8787/');
-  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, wzdx: true, community: true, disabled: ['search'] }) }));
-  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, wzdx: true, community: true, disabled: ['search'] });
+  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, wzdx: true, community: true, benchmarks: true, disabled: ['search'] }) }));
+  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, wzdx: true, community: true, benchmarks: true, disabled: ['search'] });
   assert.equal(switchedOff(ok, 'search'), true);
   assert.equal(switchedOff(ok, 'routing'), false);
   assert.equal(await loadProxy('https://p.example', async () => { throw new Error('offline'); }), null);

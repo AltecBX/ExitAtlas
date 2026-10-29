@@ -20,4 +20,5 @@ Research date for external facts: 2026-10-27 (documents 1 to 8) and 2026-10-28 (
 | 14 | [Google Navigation and reporting](14_google_navigation_and_reporting.md) | The Google Navigation SDK experiment, Waze handoff, community reporting assessment and test plan |
 | 15 | [Premium navigation plan](15_premium_navigation_plan.md) | Audit of the Drive, Road Ahead, alert and SmartStop screens, and the Navigation and Focus View plan |
 | 16 | [Live traffic](16_live_traffic.md) | Traffic providers and their licenses verified, what Apple Maps gives the iOS app, the traffic engine, costs, and what is live |
+| 17 | [Gas prices at zero cost](17_gas_prices.md) | Free price sources verified (none is station level, licensed and US wide), driver reports on the device and shared on Cloudflare's free plan, freshness, SmartStop fill cost, Google prices off by default |
 | | [Research notes](research/) | Competitors, Apple platform, infrastructure and legal, with sources (2026-10-28) |

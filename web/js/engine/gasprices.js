@@ -189,6 +189,45 @@ export function sortStations(rows, sort = 'recommended') {
   });
 }
 
+/// EIA's weekly summary (gas_diesel_rss.xml, public domain): {weekOf: 'YYYY-MM-DD', regular: {area: price},
+/// diesel: {area: price}} where an area is 'US', a PADD ('1', '1A' ... '5') or a state code. Null when the
+/// text is not that summary. Context only: never a station's price (docs/17, 17.7).
+const EIA_AREAS = {
+  'U.S.': 'US', 'East Coast': '1', 'New England': '1A', 'Central Atlantic': '1B', 'Lower Atlantic': '1C', Midwest: '2', 'Gulf Coast': '3',
+  'Rocky Mountain': '4', 'West Coast': '5', California: 'CA', Colorado: 'CO', Florida: 'FL', Massachusetts: 'MA', Minnesota: 'MN',
+  'New York': 'NY', Ohio: 'OH', Texas: 'TX', Washington: 'WA',
+};
+export const EIA_AREA_NAMES = Object.freeze({
+  US: 'U.S.', 1: 'East Coast', '1A': 'New England', '1B': 'Central Atlantic', '1C': 'Lower Atlantic', 2: 'Midwest', 3: 'Gulf Coast', 4: 'Rocky Mountain', 5: 'West Coast',
+  CA: 'California', CO: 'Colorado', FL: 'Florida', MA: 'Massachusetts', MN: 'Minnesota', NY: 'New York', OH: 'Ohio', TX: 'Texas', WA: 'Washington',
+});
+export function parseEiaSummary(text) {
+  const date = /Data For (\d{1,2})\/(\d{1,2})\/(\d{2})/.exec(text ?? '');
+  if (!date) return null;
+  const out = { weekOf: `20${date[3]}-${date[1].padStart(2, '0')}-${date[2].padStart(2, '0')}`, regular: {}, diesel: {} };
+  let grade = null, part = null;
+  for (const raw of text.split(/<br\s*\/?>/i)) {
+    const line = raw.replace(/\s+/g, ' ').trim();
+    if (/Regular Gasoline/i.test(line)) { grade = 'regular'; part = null; continue; }
+    if (/Diesel/i.test(line)) { grade = 'diesel'; part = null; continue; }
+    if (/^(States|Cities)$/i.test(line)) { part = line.toLowerCase(); continue; }
+    const m = /^(\d+\.\d+)\s*\.+\s*(.+?)$/.exec(line);
+    if (!m || !grade || part === 'cities') continue;
+    const area = EIA_AREAS[m[2].replace(/\]\]>.*$/, '').trim()];
+    const price = Number(m[1]);
+    if (area && price > 0 && out[grade][area] == null) out[grade][area] = price;
+  }
+  return Object.keys(out.regular).length ? out : null;
+}
+
+/// The average to show for a state: the state's own when EIA publishes one, else its region's.
+export function benchmarkFor(summary, state, grade) {
+  const table = summary?.[grade === 'D' ? 'diesel' : 'regular'];
+  if (!table || (grade !== 'R' && grade !== 'D')) return null;
+  for (const area of [state, paddFor(state)]) if (area && table[area] != null) return { area, name: EIA_AREA_NAMES[area], price: table[area], weekOf: summary.weekOf };
+  return null;
+}
+
 /// EIA's weekly retail price regions (PADD) by state, for the regional average shown as context.
 const PADD = {
   '1A': ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'],

@@ -93,8 +93,8 @@ test('upstream errors pass through and are not cached', async () => {
 test('config: off switches and which services are available', async () => {
   const handle = createHandler();
   const res = await handle(new Request('https://proxy.test/v1/config', { headers: { Origin: ORIGIN } }), env({ DISABLED: 'search, prices' }));
-  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true, wzdx: true, community: false });
-  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false, wzdx: true, community: false });
+  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true, wzdx: true, community: false, benchmarks: true });
+  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false, wzdx: true, community: false, benchmarks: true });
   const pre = await handle(new Request('https://proxy.test/v1/gas-prices', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), env());
   assert.equal(pre.status, 204);
 });
@@ -132,4 +132,25 @@ test('work zone feeds: only the feeds in the app table, cached, refused for othe
   const failing = createHandler({ fetchImpl: upstream([], 500, 'oops'), cache: memoryCache() });
   assert.equal((await failing(get('/v1/wzdx/NJ'), env())).status, 502);
   assert.equal(calls.length, 1);
+});
+
+test('fuel benchmarks: EIA weekly summary parsed, cached, off with a switch, never a station price', async () => {
+  const rss = '<rss><channel><item><title>Data For 10/26/26</title><description><![CDATA[<br/>Regular Gasoline Retail Price<br/>(Dollars per Gallon)<br/>4.269  .. U.S.<br/>3.832  .... Lower Atlantic<br/>States<br/>4.017 .... Florida<br/>Cities<br/>4.077 .... Miami<br/>On-Highway Diesel Fuel Retail Price<br/>6.352  .. U.S.<br/>5.890 ....  Lower Atlantic]]></description></item></channel></rss>';
+  const calls = [];
+  const cache = memoryCache();
+  const handle = createHandler({ fetchImpl: async (url) => { calls.push(String(url)); return new Response(rss); }, cache });
+  const get = () => new Request('https://proxy.test/v1/fuel-benchmarks', { headers: { Origin: ORIGIN } });
+  const first = await handle(get(), env());
+  assert.equal(first.status, 200);
+  const body = await first.json();
+  assert.equal(body.weekOf, '2026-10-26');
+  assert.deepEqual(body.regular, { US: 4.269, '1C': 3.832, FL: 4.017 });
+  assert.deepEqual(body.diesel, { US: 6.352, '1C': 5.89 });
+  assert.match(body.source, /Energy Information Administration/);
+  assert.deepEqual(calls, ['https://www.eia.gov/petroleum/gasdiesel/includes/gas_diesel_rss.xml']);
+  assert.equal((await handle(get(), env())).headers.get('X-Cache'), 'hit');
+  assert.equal(calls.length, 1);
+  assert.equal((await handle(get(), env({ DISABLED: 'benchmarks' }))).status, 503);
+  const broken = createHandler({ fetchImpl: async () => new Response('not the summary'), cache: memoryCache() });
+  assert.equal((await broken(get(), env())).status, 502);
 });

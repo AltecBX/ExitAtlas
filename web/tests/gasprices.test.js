@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
-import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars } from '../js/engine/gasprices.js';
+import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars, parseEiaSummary, benchmarkFor } from '../js/engine/gasprices.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '../../Tests/ExitAtlasCoreTests/Fixtures/prices/cases.json'), 'utf8'));
@@ -79,4 +79,19 @@ test('price text keeps the tenths of a cent a pump posts', () => {
 
 test('regional average areas by state', () => {
   for (const [state, padd] of Object.entries(f.padd)) assert.equal(paddFor(state), padd, state);
+});
+
+test('EIA weekly summary: regions and states by grade, context for a state, nothing else', () => {
+  // Shape of eia.gov/petroleum/gasdiesel/includes/gas_diesel_rss.xml (values from the 10/26/26 release).
+  const rss = `<item><title>Data For 10/26/26</title><description><![CDATA[<br/>\t\tSummary Excerpt:<br/>Regular Gasoline Retail Price\t<br/>(Dollars per Gallon)<br/>
+    4.269  .. U.S.  <br/>4.022  ... East Coast  <br/>3.832  .... Lower Atlantic\t<br/>4.269 ... Midwest<br/> <br/>States<br/>4.017 .... Florida\t<br/>4.249 .... New York<br/>
+    Cities<br/>4.077 .... Miami<br/>4.178 .... New York City<br/><br/>On-Highway Diesel Fuel Retail Price  <br/>6.352  .. U.S.  <br/>5.890 ....  Lower Atlantic\t<br/>8.155 .... California\t\t]]></description></item>`;
+  const s = parseEiaSummary(rss);
+  assert.equal(s.weekOf, '2026-10-26');
+  assert.deepEqual(s.regular, { US: 4.269, 1: 4.022, '1C': 3.832, 2: 4.269, FL: 4.017, NY: 4.249 });
+  assert.deepEqual(s.diesel, { US: 6.352, '1C': 5.89, CA: 8.155 });
+  assert.deepEqual(benchmarkFor(s, 'GA', 'R'), { area: '1C', name: 'Lower Atlantic', price: 3.832, weekOf: '2026-10-26' });
+  assert.equal(benchmarkFor(s, 'FL', 'R').name, 'Florida', 'a state of its own first');
+  assert.equal(benchmarkFor(s, 'GA', 'P'), null, 'no premium in the summary: nothing, not the regular price');
+  assert.equal(parseEiaSummary('<html>not it</html>'), null);
 });

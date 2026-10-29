@@ -939,7 +939,15 @@ function compareCard(app, s) {
   const sim = app.priceBook.simulated.length ? '<div class="sim-tag">SIMULATED PRICES · test data, not real</div>' : '';
   return `<div class="card compare" data-testid="price-compare">${sim}<div class="row"><b style="flex:1">${h(GRADE_NAMES[o.grade])} · ${o.payment}</b><span class="muted tiny">${list.length} ${list.length === 1 ? 'stop' : 'stops'} in ${app.exitsUI.window} mi</span></div>${chips}</div>
     ${list.length ? `<div class="list">${sorted.slice(0, 20).map(row).join('')}</div>` : `<div class="card empty">No gas listed in the next ${app.exitsUI.window} miles. Try a longer window.</div>`}
-    ${shared}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Prices are reports with their time and source, not verified pump prices.' : 'No current reports for these stations. Tap a station to add the price you see.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
+    ${shared}${benchmarkLine(app, o.grade)}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Prices are reports with their time and source, not verified pump prices.' : 'No current reports for these stations. Tap a station to add the price you see.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
+}
+
+/// EIA's regional average as context: never a station's price, always with its week.
+function benchmarkLine(app, grade) {
+  const b = app.benchmark(grade);
+  if (!b) return '';
+  const week = new Date(`${b.weekOf}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  return `<p class="muted tiny" style="margin:6px 4px 0" data-testid="benchmark">${h(b.name)} average, ${h(GRADE_NAMES[grade].toLowerCase())}: ${h(dollars(b.price))} (EIA, week of ${h(week)}). Context only, never a station's price.</p>`;
 }
 
 /// A station's prices for every grade, with their sources, and the driver's own reports there.
