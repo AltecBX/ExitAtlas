@@ -187,11 +187,17 @@ final class ScreenshotTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         sleep(3)
 
-        // The one tap restroom stop.
+        // The one tap restroom stop. A tap while the screen is still turning back can be lost, so wait for the
+        // button to settle and tap again once if the sheet has not opened.
         let restroom = app.buttons["restroomButton"].firstMatch
         XCTAssertTrue(restroom.waitForExistence(timeout: 5), "No restroom button on the Drive screen")
-        restroom.tap()
-        XCTAssertTrue(app.navigationBars["Restroom stop"].waitForExistence(timeout: 10), "Restroom stop sheet did not open")
+        let sheet = app.navigationBars["Restroom stop"]
+        for _ in 0..<2 where !sheet.exists {
+            for _ in 0..<10 where !restroom.isHittable { usleep(300_000) }
+            restroom.tap()
+            _ = sheet.waitForExistence(timeout: 6)
+        }
+        XCTAssertTrue(sheet.exists, "Restroom stop sheet did not open")
         sleep(2)
         snap("1i Restroom stop", dark)
         app.buttons["Done"].firstMatch.tap()
