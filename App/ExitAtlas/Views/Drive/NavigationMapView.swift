@@ -31,10 +31,9 @@ struct NavigationMapView: View {
                 MapPolyline(coordinates: coordinates(poly.slice(from: max(0, progress - 40_000), to: progress)))
                     .stroke(Theme.routePassed, style: StrokeStyle(lineWidth: traffic ? 4 : 6, lineCap: .round, lineJoin: .round))
                 let ahead = coordinates(poly.slice(from: progress, to: min(poly.length, progress + 160_000)))
-                if !traffic {
-                    MapPolyline(coordinates: ahead)
-                        .stroke(Theme.routeCasing, style: StrokeStyle(lineWidth: 13, lineCap: .round, lineJoin: .round))
-                }
+                // Always both lines, in this order: a casing added later would be drawn over the route.
+                MapPolyline(coordinates: ahead)
+                    .stroke(traffic ? Color.clear : Theme.routeCasing, style: StrokeStyle(lineWidth: traffic ? 1 : 13, lineCap: .round, lineJoin: .round))
                 MapPolyline(coordinates: ahead)
                     .stroke(Theme.route.opacity(traffic ? 0.55 : 1), style: StrokeStyle(lineWidth: traffic ? 4 : 7, lineCap: .round, lineJoin: .round))
             }

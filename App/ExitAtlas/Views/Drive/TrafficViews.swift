@@ -6,19 +6,25 @@ import SwiftUI
 enum TrafficText {
     static func usesTraffic(_ s: TripSnapshot) -> Bool { s.arrivalBasis == .traffic || s.arrivalBasis == .trafficThenPace }
 
-    /// The journey panel's label after the arrival time: "+12 min traffic", "with traffic" or "arrival".
+    /// The journey panel's short label after the arrival time: "+12 min" (traffic, amber), else "arrival". The
+    /// symbol before it says the time includes traffic; VoiceOver reads `arrivalSpoken`.
     static func arrivalLabel(_ s: TripSnapshot, extra: (seconds: Double, to: String, at: Date)?) -> String {
-        guard usesTraffic(s) else { return "arrival" }
-        if let extra { return "+\(Int((extra.seconds / 60).rounded())) min traffic" }
-        return "with traffic"
+        if usesTraffic(s), let extra { return "+\(Int((extra.seconds / 60).rounded())) min" }
+        return "arrival"
+    }
+
+    static func arrivalSpoken(_ s: TripSnapshot, extra: (seconds: Double, to: String, at: Date)?) -> String {
+        guard usesTraffic(s) else { return "arrival, based on your pace" }
+        if let extra { return "arrival with traffic, \(Int((extra.seconds / 60).rounded())) minutes added by traffic \(extra.to)" }
+        return "arrival with traffic"
     }
 
     static func detail(_ s: TripSnapshot, state: TripController.TrafficState, extra: (seconds: Double, to: String, at: Date)?) -> String {
         if let r = s.traffic {
             let minutes = max(0, Int(s.timestamp.timeIntervalSince(r.measuredAt) / 60))
             var parts = ["\(r.source.name) estimate, \(minutes < 1 ? "just now" : "\(minutes) min ago")."]
-            if let extra { parts.append("Traffic adds about \(Int((extra.seconds / 60).rounded())) min before \(extra.to).") }
-            if s.arrivalBasis == .trafficThenPace { parts.append("Beyond the last point Apple timed, your pace.") }
+            if let extra { parts.append("Traffic adds about \(Int((extra.seconds / 60).rounded())) min \(extra.to).") }
+            if s.arrivalBasis == .trafficThenPace { parts.append("Beyond the last point timed, your pace.") }
             return parts.joined(separator: " ")
         }
         switch state {

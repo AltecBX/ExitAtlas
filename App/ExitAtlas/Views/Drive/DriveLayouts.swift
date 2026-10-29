@@ -275,8 +275,11 @@ struct JourneyPanel: View {
             } else {
                 metric(Format.milesValue(snapshot.remaining), "mi left")
                 Spacer(minLength: 6)
+                let traffic = TrafficText.usesTraffic(snapshot)
                 metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), TrafficText.arrivalLabel(snapshot, extra: trip.trafficExtra),
-                       tint: trip.trafficExtra != nil && TrafficText.usesTraffic(snapshot) ? Theme.amber : Theme.secondaryText)
+                       tint: traffic && trip.trafficExtra != nil ? Theme.amber : Theme.secondaryText, symbol: traffic ? "car.2.fill" : nil)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(Format.time(snapshot.eta, relativeTo: snapshot.timestamp)) \(TrafficText.arrivalSpoken(snapshot, extra: trip.trafficExtra))")
                 Spacer(minLength: 6)
                 metric("\(snapshot.statesAhead.count)", snapshot.statesAhead.count == 1 ? "state" : "states")
             }
@@ -288,8 +291,10 @@ struct JourneyPanel: View {
         .accessibilityIdentifier("tripStrip")
     }
 
-    private func metric(_ value: String, _ label: String, tint: Color = Theme.secondaryText) -> some View {
+    private func metric(_ value: String, _ label: String, tint: Color = Theme.secondaryText, symbol: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
+            // The arrival includes traffic: a small car symbol in the route color before the time.
+            if let symbol { Image(systemName: symbol).font(.caption2.weight(.bold)).foregroundStyle(Theme.route) }
             Text(value).font(Theme.number(16, weight: .heavy)).lineLimit(1)
             Text(label).font(.caption.weight(tint == Theme.secondaryText ? .regular : .bold)).foregroundStyle(tint).lineLimit(1)
         }

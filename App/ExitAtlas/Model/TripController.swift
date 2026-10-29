@@ -780,7 +780,7 @@ final class TripController {
                                           measurements: measurements, source: .init(id: "demo", name: "Simulated traffic"))
         self.session = session
         if let last = session.traffic?.checkpoints.last, let cp = checkpoints.first(where: { $0.along == last.along }) {
-            trafficExtra = (last.seconds - last.seconds / 1.2, cp.name, now)
+            trafficExtra = (last.seconds - last.seconds / 1.2, cp.place, now)
         }
         trafficState = session.traffic.map { .ok($0.measuredAt) } ?? .unavailable("No simulated checkpoints")
         // At the last fix's time: the frozen demo does not move on.

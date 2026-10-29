@@ -127,7 +127,7 @@ final class ScreenshotTests: XCTestCase {
             XCTAssertTrue(drive(app), "Drive screen did not appear")
             let strip = app.descendants(matching: .any)["tripStrip"].firstMatch
             XCTAssertTrue(strip.waitForExistence(timeout: 20), "No trip strip")
-            let traffic = NSPredicate(format: "label CONTAINS[c] 'traffic'")
+            let traffic = NSPredicate(format: "label CONTAINS[c] 'with traffic'")
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: traffic, object: strip)], timeout: 30), .completed,
                            "The arrival never said it includes traffic: \(strip.label)")
             sleep(3)

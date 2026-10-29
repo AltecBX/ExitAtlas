@@ -63,7 +63,7 @@ Checked 2026-10-29. "Verified here" means the clause was read in the provider's 
 
 - **iOS: Apple Maps traffic.** It is licensed for this use, costs nothing and needs no key. It gives:
   1. The traffic layer on the Navigation View, with a Traffic button and a Settings switch.
-  2. Traffic aware times from `calculateETA` to checkpoints on the current leg (the next state line, the next planned stop or the destination). A checkpoint time is used only when Apple's `distance` matches the route's own distance to that point, so a time for a different road is never used.
+  2. Traffic aware times from `calculateETA` to checkpoints on the current leg, up to 100 mi ahead (the next state line, the next planned stop or the destination). A checkpoint time is used only when Apple's `distance` matches the route's own distance to that point, so a time for a different road is never used.
   3. The extra time Apple estimates to the next checkpoint. This is the ETA time minus Apple's ideal conditions time for the same two points, both checked against the route. It is shown only when it is at least 3 minutes.
 
   Apple gives no slowdown locations, so iOS shows no "Slow traffic ahead, 8 mi" alerts, speaks no traffic and offers no faster routes. Saying otherwise would mean inventing delays.
@@ -103,12 +103,12 @@ Checked 2026-10-29. "Verified here" means the clause was read in the provider's 
 
 ### iOS checkpoints, as built
 
-- **Up to three checkpoints on the leg being driven:**
+- **Up to three checkpoints on the leg being driven, at most 100 mi ahead:**
   - just past the next state line;
-  - a point 40 mi ahead, when the nearest checkpoint is more than 60 mi away;
-  - the next planned stop, or the destination.
+  - a point 40 mi ahead, when no checkpoint falls between 20 and 60 mi;
+  - the next planned stop or the destination, or the point 100 mi ahead when they are farther.
 
-  Each is a point on the route polyline, so Apple times the same carriageway.
+  Farther out, Apple's estimate is a forecast more than today's traffic, so the driver's pace takes over beyond the last checkpoint ("With traffic, then your pace"). Each checkpoint is a point on the route polyline, so Apple times the same carriageway.
 - **Matching.** A time is kept only when Apple's distance is within 2% (at least 1 km) of the route's distance to that point. Times out of route order are dropped.
 - **Between checkpoints.** Times between two checkpoints follow the route's modeled time between them. Nothing is spread from a whole route total.
 - **Extra time.** It is measured to the farthest matched checkpoint, against Apple's ideal conditions time on the same pair of points.
