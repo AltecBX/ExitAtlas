@@ -332,8 +332,12 @@ private struct FuelCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Eyebrow(text: (electric ? "Charging" : "Fuel") + (smart?.overnight == true ? " · Overnight" : ""), color: color)
                     Text(headline).font(.headline).lineLimit(2)
-                    if let pick = smart?.primary { SmartStopConfidence(pick: pick, overnight: smart?.overnight == true) }
+                    if let pick = smart?.primary {
+                        SmartStopConfidence(pick: pick, overnight: smart?.overnight == true)
+                        CandidatePriceLine(candidate: pick.candidate)
+                    }
                     Text(detail).font(.subheadline).foregroundStyle(Theme.secondaryText).lineLimit(2)
+                    if let smart { CheaperNote(result: smart, compact: true) }
                 }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right").foregroundStyle(Theme.secondaryText)

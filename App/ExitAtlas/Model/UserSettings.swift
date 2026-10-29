@@ -86,6 +86,17 @@ final class UserSettings {
     var suggestFasterRoutes: Bool { didSet { save() } }
     var minSavingMinutes: Double { didSet { save() } }
 
+    // Gas prices (docs/17): compare reported prices for the driver's payment kind, up to an age, tell when another
+    // stop saves at least a minimum on a fill, and the sources: own reports, shared reports, Google (paid, off).
+    var comparePrices: Bool { didSet { save() } }
+    var pricePayment: String { didSet { save() } }
+    var priceMaxAgeHours: Double { didSet { save() } }
+    var tellCheaper: Bool { didSet { save() } }
+    var minSavingsDollars: Double { didSet { save() } }
+    var ownPriceReports: Bool { didSet { save() } }
+    var communityPrices: Bool { didSet { save() } }
+    var googlePrices: Bool { didSet { save() } }
+
     /// Google Maps Platform key for gas prices (Places API New). Empty means prices are off. Keychain.
     var googleKey: String { didSet { keychain.set(googleKey, for: "googleKey") } }
     /// NREL developer key for the charger search; empty uses the demo key (10 an hour). Keychain.
@@ -144,6 +155,14 @@ final class UserSettings {
         announceTraffic = s.announceTraffic
         suggestFasterRoutes = s.suggestFasterRoutes
         minSavingMinutes = s.minSavingMinutes
+        comparePrices = s.comparePrices
+        pricePayment = s.pricePayment
+        priceMaxAgeHours = s.priceMaxAgeHours
+        tellCheaper = s.tellCheaper
+        minSavingsDollars = s.minSavingsDollars
+        ownPriceReports = s.ownPriceReports
+        communityPrices = s.communityPrices
+        googlePrices = s.googlePrices
         // A local, not self.keychain: self is not fully initialized until the keys are set.
         if !demo { Self.moveKeysToKeychain(keys) }
         googleKey = keys.get("googleKey") ?? ""
@@ -221,6 +240,14 @@ final class UserSettings {
         s.announceTraffic = announceTraffic
         s.suggestFasterRoutes = suggestFasterRoutes
         s.minSavingMinutes = minSavingMinutes
+        s.comparePrices = comparePrices
+        s.pricePayment = pricePayment
+        s.priceMaxAgeHours = priceMaxAgeHours
+        s.tellCheaper = tellCheaper
+        s.minSavingsDollars = minSavingsDollars
+        s.ownPriceReports = ownPriceReports
+        s.communityPrices = communityPrices
+        s.googlePrices = googlePrices
         return s
     }
 
@@ -298,6 +325,14 @@ final class UserSettings {
         announceTraffic = s.announceTraffic
         suggestFasterRoutes = s.suggestFasterRoutes
         minSavingMinutes = s.minSavingMinutes
+        comparePrices = s.comparePrices
+        pricePayment = s.pricePayment
+        priceMaxAgeHours = s.priceMaxAgeHours
+        tellCheaper = s.tellCheaper
+        minSavingsDollars = s.minSavingsDollars
+        ownPriceReports = s.ownPriceReports
+        communityPrices = s.communityPrices
+        googlePrices = s.googlePrices
         loading = false
         save()
         return (problems, plans)

@@ -71,24 +71,60 @@ public extension SmartStop {
         return best?.0
     }
 
+    /// How prices are compared: the driver's grade and payment, and how old a report may be.
+    struct PriceOptions: Sendable {
+        public var grade: GasPriceFeed.Grade
+        public var payment: GasPrices.Payment
+        public var maxAgeHours: Double
+        public var now: Date
+
+        public init(grade: GasPriceFeed.Grade, payment: GasPrices.Payment = .credit, maxAgeHours: Double = 24, now: Date) {
+            self.grade = grade
+            self.payment = payment
+            self.maxAgeHours = maxAgeHours
+            self.now = now
+        }
+    }
+
+    /// The price a stop shows for the driver's grade: reported prices, plus Google's when the driver looked
+    /// it up and Google says when it was updated (kept in memory only). Nil: price unavailable. Same rule as
+    /// stopPrice in web/js/app/smartstops.js.
+    static func stopPrice(_ ctx: TripContext, stationId: String, live: GasPriceFeed.Station? = nil, grade: GasPriceFeed.Grade? = nil) -> GasPrices.StationPrice? {
+        guard let o = ctx.priceOptions else { return nil }
+        let g = grade ?? o.grade
+        var records = ctx.priceRecords[stationId] ?? []
+        if let live, let p = live.prices[g], let updated = p.updated {
+            records.append(GasPrices.Record(id: "google:\(live.id):\(g.code)", stationId: stationId, grade: g.code, price: p.dollars, payment: nil,
+                                            reportedAt: updated, reporter: nil, source: .init(id: "google", name: "Google Maps", kind: .google)))
+        }
+        return GasPrices.stationPrice(records, stationId: stationId, grade: g.code, now: o.now, payment: o.payment, maxAgeHours: o.maxAgeHours)
+    }
+
     /// Everything the candidate builders need from the trip.
     struct TripContext {
         public var plan: TripPlan
         public var snapshot: TripSnapshot
         public var dataset: InterstateDataset
         public var stations: StationFacts?
-        /// Live Google stations by exit id, where prices were already looked up.
+        /// Live Google stations by exit id, where the driver looked prices up (Google Maps prices on).
         public var live: [String: [GasPriceFeed.Station]]
         public var grade: GasPriceFeed.Grade
+        /// Reported prices by station id (the driver's own, and SIMULATED demo prices), and how to read them;
+        /// nil options when comparing prices is off (docs/17).
+        public var priceRecords: [String: [GasPrices.Record]]
+        public var priceOptions: PriceOptions?
 
         public init(plan: TripPlan, snapshot: TripSnapshot, dataset: InterstateDataset, stations: StationFacts?,
-                    live: [String: [GasPriceFeed.Station]] = [:], grade: GasPriceFeed.Grade = .regular) {
+                    live: [String: [GasPriceFeed.Station]] = [:], grade: GasPriceFeed.Grade = .regular,
+                    priceRecords: [String: [GasPrices.Record]] = [:], priceOptions: PriceOptions? = nil) {
             self.plan = plan
             self.snapshot = snapshot
             self.dataset = dataset
             self.stations = stations
             self.live = live
             self.grade = grade
+            self.priceRecords = priceRecords
+            self.priceOptions = priceOptions
         }
 
         func eta(_ along: Double) -> Date {
@@ -117,13 +153,16 @@ public extension SmartStop {
                 let fact = ctx.stations?[g.place.id]
                 let brand = fact?.b ?? g.place.brand
                 let live = live(nearby, place: g.place, brand: brand)
+                let sp = stopPrice(ctx, stationId: g.place.id, live: live)
+                let current = sp?.state == .current ? sp : nil
                 let routed = g.detourBasis == .routedOneWayDoubled
                 out.append(Candidate(
                     id: g.place.id, name: g.place.displayName, brand: brand, kind: .station, exitID: exit.id, exitLabel: exit.label,
                     along: x.along, ahead: ahead, arrival: eta.addingTimeInterval((g.detourSeconds ?? 0) / 2), timeZone: zone,
                     detourMinutes: routed ? g.detourSeconds.map { $0 / 60 } : nil,
                     rangeOnArrival: rangeLeft.map { $0 - ahead - g.detourMeters / 2 },
-                    price: live?.prices[ctx.grade]?.dollars,
+                    price: current?.record.price, pricePayment: current?.record.payment?.rawValue, priceText: current?.text,
+                    priceSource: current?.record.source.name, priceInfo: sp, detourMeters: g.detourMeters,
                     osmHours: fact?.h, osmChecked: fact?.hc, osmToilets: fact?.t, gone: fact?.gone,
                     livePeriods: live?.periods, liveRestroom: live?.restroom,
                     brandHours: fact?.ah, brandToilets: fact?.at, listedBy: fact?.ab,
@@ -143,10 +182,14 @@ public extension SmartStop {
             let fuel = r.kind == .plaza && !r.gas.isEmpty
             if fuelOnly ? !fuel : (fuel || r.kind == .parking) { return nil }
             let ahead = r.distanceAlongRoute - d
+            let sp = fuel ? stopPrice(ctx, stationId: r.id) : nil
+            let current = sp?.state == .current ? sp : nil
             return Candidate(
                 id: r.id, name: r.title, brand: r.gas.first ?? "", otherNames: r.gas, kind: fuel ? .plaza : .rest,
                 along: r.distanceAlongRoute, ahead: ahead, arrival: ctx.eta(r.distanceAlongRoute), timeZone: ctx.zone(r.distanceAlongRoute),
                 rangeOnArrival: rangeLeft.map { $0 - ahead },
+                price: current?.record.price, pricePayment: current?.record.payment?.rawValue, priceText: current?.text,
+                priceSource: current?.record.source.name, priceInfo: sp, detourMeters: 0,
                 plazaHours: r.hours, plazaToilets: r.amenities[.toilets], truckSpaces: r.fhwaTruckSpaces)
         }
     }

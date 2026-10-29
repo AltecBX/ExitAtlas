@@ -155,6 +155,68 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// Gas prices (docs/17) with SIMULATED prices, labeled as such: Road Ahead's price comparison with the
+    /// cheaper stop note, a station's prices, a report refused and then saved, and the price settings with
+    /// Google Maps prices off by default.
+    func testPrices() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "140", "-overnight", "auto", "-alertsOff", "-drive", "map", "-demoPrices"]
+                + (dark ? ["-forceDark"] : [])
+            app.launch()
+            XCTAssertTrue(drive(app), "Drive screen did not appear")
+            sleep(3)
+            app.tabBars.buttons["Ahead"].tap()
+            XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+            app.buttons["filter-fuel"].firstMatch.tap()
+            let compare = app.descendants(matching: .any)["comparePrices"].firstMatch
+            XCTAssertTrue(compare.waitForExistence(timeout: 15), "No price comparison under Fuel")
+            XCTAssertTrue(app.staticTexts["SIMULATED PRICES · test data, not real"].firstMatch.waitForExistence(timeout: 10),
+                          "Simulated prices are not labeled as simulated")
+            sleep(2)
+            snap("2h Road Ahead prices", dark)
+            for _ in 0..<4 where !app.buttons["priceSort-price"].firstMatch.isHittable { app.swipeUp() }
+            app.buttons["priceSort-price"].firstMatch.tap()
+            sleep(1)
+            snap("2i Road Ahead lowest price", dark)
+            let row = app.buttons["priceRow"].firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "No station rows")
+            row.tap()
+            XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10), "No station price sheet")
+            sleep(1)
+            snap("2j Station prices", dark)
+            app.buttons["reportPrice"].firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Report a price"].waitForExistence(timeout: 10), "No report sheet")
+            let field = app.textFields["reportPriceField"].firstMatch
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.tap()
+            field.typeText("31")
+            app.buttons["savePrice"].firstMatch.tap()
+            let message = app.staticTexts["reportMessage"].firstMatch
+            XCTAssertTrue(message.waitForExistence(timeout: 5) && message.label.contains("price per gallon"), "An out of range price was not refused: \(message.label)")
+            field.tap()
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2) + "3.159")
+            app.buttons["savePrice"].firstMatch.tap()
+            let saved = NSPredicate(format: "label CONTAINS[c] 'Saved on this iPhone'")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: message)], timeout: 5), .completed,
+                           "The report was not saved: \(message.label)")
+            snap("2k Report a price", dark)
+            app.buttons["Close"].firstMatch.tap()
+            sleep(1)
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
+            app.buttons["settingsButton"].firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            let google = app.switches["googlePricesToggle"].firstMatch
+            for _ in 0..<12 where !(google.exists && google.isHittable) { app.swipeUp() }
+            XCTAssertTrue(google.exists, "No Google prices switch")
+            XCTAssertEqual(google.value as? String, "0", "Google Maps prices are not off by default")
+            sleep(1)
+            snap("6g Price settings", dark)
+            app.terminate()
+        }
+    }
+
     /// Waits for either Drive presentation.
     private func drive(_ app: XCUIApplication) -> Bool {
         app.descendants(matching: .any)["journeyPanel"].firstMatch.waitForExistence(timeout: 90)

@@ -141,6 +141,9 @@ final class AppModel {
                 trip.injectDemoTraffic()
             }
         }
+        // -demoPrices: SIMULATED gas prices at the first stations ahead, labeled "Simulated test data" wherever
+        // they show and never saved, for screenshots of price comparison.
+        if args.contains("-demoPrices") { trip.demoPrices = true }
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
         // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {

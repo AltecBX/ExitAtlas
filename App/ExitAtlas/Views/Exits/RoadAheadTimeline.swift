@@ -472,7 +472,10 @@ struct BestStopCard: View {
     @Environment(TripController.self) private var trip
     let result: SmartStop.Result
     let title: String
+    /// Prices and the cheaper stop note (not for restroom stops).
+    var prices = true
     @State private var expanded = false
+    @State private var station: StationRef?
 
     var body: some View {
         if let p = result.primary {
@@ -497,8 +500,10 @@ struct BestStopCard: View {
                     ConfidenceLine(status: p.evaluation.hours.status.rawValue, label: p.evaluation.hours.label)
                     ConfidenceLine(status: p.evaluation.restroom.rawValue, label: p.evaluation.restroom.label)
                     Text(SmartStopText.detour(c)).font(.caption).foregroundStyle(Theme.secondaryText)
+                    if prices { CandidatePriceLine(candidate: c) }
                 }
                 if let notice = result.notice { Text(notice).font(.caption.weight(.semibold)).foregroundStyle(Theme.amber) }
+                if prices { CheaperNote(result: result) }
                 Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
                     HStack {
                         Text("Why this stop" + (alternatives.isEmpty ? "" : " · \(alternatives.count) \(alternatives.count == 1 ? "alternative" : "alternatives")"))
@@ -522,6 +527,10 @@ struct BestStopCard: View {
                     }
                 }
                 HStack(spacing: 10) {
+                    if prices, trip.priceOptions != nil, c.kind != .rest {
+                        Button { station = StationRef(id: c.id) } label: { buttonLabel("Prices") }.buttonStyle(.plain)
+                            .accessibilityIdentifier("stopPrices")
+                    }
                     if let id = c.exitID, let exit = trip.plan?.exits.first(where: { $0.id == id }) {
                         NavigationLink(value: exit) { buttonLabel("Exit details") }.buttonStyle(.plain)
                     } else if let r = trip.plan?.restAreas.first(where: { $0.id == c.id }) {
@@ -534,6 +543,7 @@ struct BestStopCard: View {
             // A container, so the ids of the buttons inside stay theirs.
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("bestStopCard")
+            .sheet(item: $station) { StationPricesView(id: $0.id) }
         }
     }
 

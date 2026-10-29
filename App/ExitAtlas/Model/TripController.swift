@@ -87,6 +87,10 @@ final class TripController {
     @ObservationIgnored let limits = SpeedLimitService()
     @ObservationIgnored let chargers = ChargerService()
     @ObservationIgnored let prices = GasPriceService()
+    /// The driver's own price reports on this iPhone, and SIMULATED demo prices (docs/17).
+    @ObservationIgnored let priceReports = PriceReportStore()
+    /// -demoPrices: SIMULATED prices at the first stations ahead, for screenshots.
+    @ObservationIgnored var demoPrices = false
     /// Road alert sources for the active trip (NWS weather; others when connected).
     @ObservationIgnored let roadAlerts = RoadAlertService()
     /// Current weather where you are, while a trip runs (NWS).
@@ -122,6 +126,7 @@ final class TripController {
         chargers.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onCall = { PriceCallCounter.count() }
+        priceReports.onUpdate = { [weak self] in self?.feedsVersion += 1 }
     }
 
     func attach(data: BundledData) {
@@ -348,6 +353,7 @@ final class TripController {
     private func publish(_ snap: TripSnapshot) {
         snapshot = snap
         if mode == .trip { considerTraffic(snap) }
+        if demoPrices { seedDemoPrices() }
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
             announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead,
@@ -460,11 +466,34 @@ final class TripController {
 
     private var rejectedNow: Set<String> { rejectedTripID == tripID ? rejectedStops : [] }
 
-    /// SmartStop's view of the trip: exits, rest areas, station facts, and Google data already loaded.
+    /// SmartStop's view of the trip: exits, rest areas, station facts, reported prices, and Google data the
+    /// driver looked up.
     func stopContext() -> SmartStop.TripContext? {
         guard let plan, let snapshot, let interstates, let settings else { return nil }
         return SmartStop.TripContext(plan: plan, snapshot: snapshot, dataset: interstates, stations: data?.stations,
-                                     live: prices.loadedStations, grade: settings.gasGrade)
+                                     live: prices.loadedStations, grade: settings.gasGrade,
+                                     priceRecords: priceReports.records(includeOwn: settings.ownPriceReports), priceOptions: priceOptions)
+    }
+
+    /// What prices are compared on: the driver's grade and payment, reports up to their age limit. Nil when
+    /// comparing prices is off or the vehicle is electric.
+    var priceOptions: SmartStop.PriceOptions? {
+        guard let settings, settings.comparePrices, settings.vehicle?.isElectric != true else { return nil }
+        return SmartStop.PriceOptions(grade: settings.gasGrade, payment: GasPrices.Payment(rawValue: settings.pricePayment) ?? .credit,
+                                      maxAgeHours: settings.priceMaxAgeHours, now: Date())
+    }
+
+    /// Tank and mpg for the cost of a fill (gas vehicles with both known).
+    var fillVehicle: (tankGallons: Double, mpg: Double)? {
+        guard let v = settings?.vehicle, !v.isElectric, let tank = v.tankGallons, tank > 0, v.milesPerGallon > 0 else { return nil }
+        return (tank, v.milesPerGallon)
+    }
+
+    /// Changes with the reports, the price settings and the minute (report ages).
+    private var priceKey: String {
+        guard let s = settings else { return "" }
+        return "\(priceReports.version)|\(s.comparePrices)\(s.pricePayment)\(s.priceMaxAgeHours)\(s.tellCheaper)\(s.minSavingsDollars)\(s.ownPriceReports)|"
+            + "\(s.gasGrade.rawValue)|\(Int(Date().timeIntervalSince1970 / 60))"
     }
 
     /// SmartStop for the fuel stop: gas vehicles with a range reading, when a stop is needed. One
@@ -476,10 +505,11 @@ final class TripController {
         let rejected = rejectedNow
         let key = "\(ctx.plan.route.id)|\(ctx.snapshot.timestamp.timeIntervalSince1970)|\(range)|\(feedsVersion)|\(rejected.sorted())|"
             + "\(settings.favoriteBrands)|\(settings.maxDetourMinutes)|\(settings.require24Hours)|\(settings.requireRestroom)|"
-            + "\(settings.priceOverBrand)|\(settings.overnightMode)\(settings.overnightStart)\(settings.overnightEnd)|\(settings.bufferMiles)"
+            + "\(settings.priceOverBrand)|\(settings.overnightMode)\(settings.overnightStart)\(settings.overnightEnd)|\(settings.bufferMiles)|\(priceKey)"
         if let memo = smartMemo, memo.key == key { return memo.result }
         let result = SmartStop.choose(SmartStop.fuelCandidates(ctx, rangeLeft: range), preferences: SmartStop.Preferences(settings.values),
-                                      context: .fuel, reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected)
+                                      context: .fuel, reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected,
+                                      vehicle: fillVehicle)
         smartMemo = (key, result)
         return result
     }
@@ -534,6 +564,11 @@ final class TripController {
     /// The best stop in the next `miles` (restroom stops add rest areas and rank the restroom first).
     /// Recomputed every quarter mile or minute (Road Ahead and the restroom sheet ask on every update).
     func bestStopAhead(miles: Double, restrooms: Bool = false) -> SmartStop.Result? {
+        bestStopEntry(miles: miles, restrooms: restrooms)?.result
+    }
+
+    /// The result and the stations and fuel plazas it looked at, cached together.
+    private func bestStopEntry(miles: Double, restrooms: Bool) -> (result: SmartStop.Result?, stations: [SmartStop.Candidate])? {
         guard let settings, let ctx = stopContext() else { return nil }
         let range = settings.vehicle?.isElectric == true ? nil : rangeLeft
         let rejected = rejectedNow
@@ -541,26 +576,86 @@ final class TripController {
                    "\(Int(ctx.snapshot.timestamp.timeIntervalSince1970 / 60))", "\(range.map { Int($0 / 400) } ?? -1)", "\(feedsVersion)",
                    "\(rejected.sorted())", "\(settings.favoriteBrands)", "\(settings.maxDetourMinutes)", "\(settings.require24Hours)",
                    "\(settings.requireRestroom)", "\(settings.priceOverBrand)", settings.overnightMode, settings.overnightStart, settings.overnightEnd,
-                   "\(settings.bufferMiles)", "\(settings.gasGrade)"].joined(separator: "|")
+                   "\(settings.bufferMiles)", "\(settings.gasGrade)", priceKey].joined(separator: "|")
         if let hit = bestStopMemo[key] { return hit }
         var prefs = SmartStop.Preferences(settings.values)
         if restrooms { prefs.requireRestroom = "always" }
-        let result = SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: miles, rangeLeft: range, restrooms: restrooms), preferences: prefs,
+        let candidates = SmartStop.aheadCandidates(ctx, miles: miles, rangeLeft: range, restrooms: restrooms)
+        let result = SmartStop.choose(candidates, preferences: prefs,
                                       context: .ahead, purpose: restrooms ? .restroom : .fuel,
-                                      reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected)
+                                      reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected,
+                                      vehicle: restrooms ? nil : fillVehicle)
         if bestStopMemo.count > 8 { bestStopMemo.removeAll() }
-        bestStopMemo[key] = result
-        return result
+        let entry = (result: Optional(result), stations: restrooms ? [] : candidates.filter { $0.kind != .rest })
+        bestStopMemo[key] = entry
+        return entry
     }
 
-    @ObservationIgnored private var bestStopMemo: [String: SmartStop.Result?] = [:]
+    @ObservationIgnored private var bestStopMemo: [String: (result: SmartStop.Result?, stations: [SmartStop.Candidate])] = [:]
 
-    /// Loads Google prices, hours and restrooms for the SmartStop picks' exits (with a key).
-    func loadSmartStopDetails() {
-        guard let key = settings?.googleKey, !key.isEmpty, let sm = smartStop, let plan else { return }
-        for id in ([sm.primary] + sm.alternatives.map { Optional($0) }).compactMap({ $0?.candidate.exitID }) {
-            if let exit = plan.exits.first(where: { $0.id == id }) { prices.load(exit: exit, apiKey: key) }
+    /// Every station and fuel plaza in the next `miles`, with its price, and SmartStop's order for them
+    /// (Compare Prices in Road Ahead).
+    func priceStations(miles: Double) -> (stations: [SmartStop.Candidate], order: [String]) {
+        let entry = bestStopEntry(miles: max(60, miles), restrooms: false)
+        let window = miles * Geodesy.metersPerMile
+        let stations = (entry?.stations ?? []).filter { ($0.ahead ?? 0) > 0 && ($0.ahead ?? 0) <= window }
+        return (stations, entry?.result?.order ?? [])
+    }
+
+    /// A station or fuel plaza on the route by id (its price sheet): from the stops ahead, else any exit on the route.
+    func findStation(id: String) -> SmartStop.Candidate? {
+        if let c = priceStations(miles: 100).stations.first(where: { $0.id == id }) { return c }
+        guard let ctx = stopContext() else { return nil }
+        return SmartStop.stationCandidates(ctx, window: ctx.plan.route.length, rangeLeft: nil).first { $0.id == id }
+    }
+
+    /// Meters per second at the last GPS fix (the report sheet asks before saving while moving).
+    var currentSpeed: Double? { lastSample?.speed }
+
+    /// A station's price for one grade (its sheet shows every grade), even with comparing off: reports, and
+    /// Google's when the driver checked prices at its exit.
+    func stationPrice(_ c: SmartStop.Candidate, grade: GasPriceFeed.Grade) -> GasPrices.StationPrice? {
+        guard var ctx = stopContext(), let settings else { return nil }
+        ctx.priceOptions = priceOptions ?? SmartStop.PriceOptions(grade: grade, payment: GasPrices.Payment(rawValue: settings.pricePayment) ?? .credit,
+                                                                  maxAgeHours: settings.priceMaxAgeHours, now: Date())
+        return SmartStop.stopPrice(ctx, stationId: c.id, live: googleStation(for: c), grade: grade)
+    }
+
+    /// Google's record for a station, when the driver checked Google prices at its exit.
+    func googleStation(for c: SmartStop.Candidate) -> GasPriceFeed.Station? {
+        guard let exitID = c.exitID, let stations = prices.loadedStations[exitID], let exit = plan?.exits.first(where: { $0.id == exitID }),
+              let place = services(for: exit).first(where: { $0.place.id == c.id })?.place else { return nil }
+        return SmartStop.live(stations, place: place, brand: c.brand)
+    }
+
+    /// Google Maps prices for an exit: paid, so only when the driver turned them on and asked (docs/17).
+    func checkGooglePrices(exitID: String) {
+        guard let settings, settings.googlePrices, !settings.googleKey.isEmpty, let exit = plan?.exits.first(where: { $0.id == exitID }) else { return }
+        prices.load(exit: exit, apiKey: settings.googleKey)
+    }
+
+    /// SIMULATED prices for the demo: a current one, one three drivers agree on, an old one, and the fuel stop
+    /// pick, so every state shows. Never saved. Re-seeded when the first stations ahead change.
+    func seedDemoPrices() {
+        guard demoPrices, let settings else { return }
+        let ahead = priceStations(miles: 60).stations
+            .filter { $0.kind == .station }.sorted { ($0.ahead ?? 0) < ($1.ahead ?? 0) }
+        var picks = Array(ahead.prefix(3))
+        if let p = smartStop?.primary?.candidate, !picks.contains(where: { $0.id == p.id }) { picks.append(p) }
+        let have = Set(priceReports.simulated.map(\.stationId))
+        guard !picks.isEmpty, !picks.allSatisfy({ have.contains($0.id) }) else { return }
+        let seeds: [(price: Double, age: Double, count: Int)] = [(3.099, 20 * 60, 1), (2.899, 2 * 3600, 3), (3.189, 30 * 3600, 1), (3.299, 40 * 60, 1)]
+        let now = Date()
+        var out: [GasPrices.Record] = []
+        for (i, c) in picks.enumerated() where i < seeds.count {
+            let (price, age, n) = seeds[i]
+            for k in 0..<n {
+                out.append(GasPrices.Record(id: "sim:\(c.id):\(k)", stationId: c.id, grade: settings.gasGrade.code, price: price, payment: .credit,
+                                            reportedAt: now.addingTimeInterval(-age - Double(k) * 600), reporter: "sim\(k)",
+                                            source: PriceReportStore.simulatedSource))
+            }
         }
+        priceReports.simulated = out
     }
 
     /// Where to stop for fuel or a charge, for the current position and range.
@@ -619,10 +714,9 @@ final class TripController {
                 table.nextChange(after: snapshot.progress, within: 2 * Geodesy.metersPerMile))
     }
 
-    /// Cached gas prices near an exit, loading them when a key is set.
+    /// Google Maps prices near an exit the driver checked (never looked up here).
     func gasPrices(at exit: RouteExit) -> GasPriceService.Entry? {
         _ = feedsVersion
-        if let key = settings?.googleKey, !key.isEmpty { prices.load(exit: exit, apiKey: key) }
         return prices.entry(for: exit.id)
     }
 

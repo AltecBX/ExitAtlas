@@ -854,6 +854,10 @@ const BRAND_TAGS = [
   [/chevron/i, '#0054a4', '#fff', 'CHEVRON'], [/sheetz/i, '#d71920', '#fff', 'SHEETZ'], [/racetrac/i, '#003da5', '#fff', 'RACETRAC'],
   [/circle k/i, '#da291c', '#fff', 'CIRCLE K'], [/speedway/i, '#d71920', '#fff', 'SPEEDWAY'], [/marathon/i, '#003da5', '#fff', 'MARATHON'],
   [/quiktrip|\bqt\b/i, '#d71920', '#fff', 'QT'], [/buc-?ee'?s/i, '#ffd100', '#d71920', "BUC-EE'S"], [/costco/i, '#005daa', '#fff', 'COSTCO'],
+  [/citgo/i, '#e31837', '#fff', 'CITGO'], [/valero/i, '#005a9c', '#ffc72c', 'VALERO'], [/7-?eleven/i, '#008061', '#fff', '7-ELEVEN'],
+  [/murphy/i, '#0055a5', '#fff', 'MURPHY'], [/\bgulf\b/i, '#f47b20', '#fff', 'GULF'], [/texaco/i, '#e2231a', '#fff', 'TEXACO'],
+  [/phillips 66/i, '#d71920', '#fff', 'P66'], [/conoco/i, '#d71920', '#fff', 'CONOCO'], [/casey'?s/i, '#d71920', '#fff', "CASEY'S"],
+  [/cumberland/i, '#00703c', '#fff', 'CUMB FARMS'], [/\bhess\b/i, '#00843d', '#fff', 'HESS'], [/sinclair/i, '#00843d', '#fff', 'SINCLAIR'],
 ];
 
 function brandTag(x) {
@@ -1284,6 +1288,8 @@ export function exitsView(app) {
 
   let rows;
   let top = '';
+  // Under Fuel, the price comparison comes after the timeline, so urgent alerts and gas gaps stay at the top.
+  let after = '';
   if (f === 'states') {
     rows = statesTimeline(app, s, alerts.filter(showAlert));
     top = '<p class="muted tiny" style="margin:0 4px">Every state ahead on this route, whatever the distance window.</p>';
@@ -1329,15 +1335,15 @@ export function exitsView(app) {
     events.sort((x, y) => x.d - y.d || x.o - y.o);
     rows = events.map((e) => e.html);
     if (f === 'all' || f === 'fuel' || f === 'rest') top = bestStopCard(app, s, { restroom: f === 'rest' });
-    if (compare) top += compareCard(app, s);
+    if (compare) after = compareCard(app, s);
   }
   const status = alertStatus(intel, { open: f === 'alerts' });
   let list;
   if (rows.length) list = `<ol class="tl" aria-label="Road ahead, in route order">${rows.join('')}</ol>`;
-  else if (f === 'fuel' && top.includes('data-testid="price-compare"')) list = '';
+  else if (after) list = '';
   else if (f === 'alerts') list = `<div class="card empty"><div class="t">${alertEmptyTitle(intel, ui.window)}</div>${h(alertEmptyText(intel))}</div>`;
   else list = `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${f === 'all' ? 'Try a longer window.' : `Nothing matches ${FILTER_NAMES[f]} in this window. Try a longer one.`}</div>`;
-  return `<div class="stack ahead">${f === 'states' ? '' : windowSeg}${filters}${note}${status}${top}${list}${tools}${attribution()}</div>`;
+  return `<div class="stack ahead">${f === 'states' ? '' : windowSeg}${filters}${note}${status}${top}${list}${after}${tools}${attribution()}</div>`;
 }
 
 /// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
