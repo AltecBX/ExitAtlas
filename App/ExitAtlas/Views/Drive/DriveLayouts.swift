@@ -406,7 +406,7 @@ struct FocusDriveView: View {
     private var instruments: some View {
         let limit = trip.speedLimit
         return HStack(alignment: .center, spacing: 10) {
-            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver, size: 90)
+            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver, size: verticalSizeClass == .compact ? 80 : 90)
             VStack(spacing: 4) {
                 SpeedLimitSign(limit: limit.mph, loading: limit.state == .loading, scale: 0.78)
                 if let next = limit.next {
