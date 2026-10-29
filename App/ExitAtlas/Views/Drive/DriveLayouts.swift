@@ -329,7 +329,8 @@ struct NavigationDriveView: View {
                     }
                     .frame(maxWidth: 380)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8)
+                // Sideways the tab bar floats over the bottom edge; keep the journey panel clear of it.
+                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 22)
             } else {
                 VStack(spacing: 10) {
                     GuidanceBanner(snapshot: snapshot, openExit: openExit)
@@ -367,8 +368,9 @@ struct NavigationDriveView: View {
 
 // MARK: Focus View
 
-/// Everything a driver needs on one screen, no map: instruments, the journey panel with the state ribbon,
-/// the next exit (or the maneuver when one is near), one adaptive card, and labeled Fuel and Restroom buttons.
+/// Everything a driver needs on one screen, no map: instruments with the one tap Fuel and Restroom buttons,
+/// the journey panel with the state ribbon, the next exit (or the maneuver when one is near) and one adaptive
+/// card. Sideways: instruments and the journey on the left, the exit and the card on the right.
 struct FocusDriveView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(TripController.self) private var trip
@@ -384,8 +386,8 @@ struct FocusDriveView: View {
     var body: some View {
         if verticalSizeClass == .compact {
             HStack(alignment: .top, spacing: 12) {
-                VStack(spacing: 10) { instruments; journey }
-                VStack(spacing: 10) { exitRow; if let card { card }; actions }
+                VStack(spacing: 8) { instruments; JourneyPanel(snapshot: snapshot, emphasis: focus.focus == .border, openTrip: openTrip) }
+                VStack(spacing: 8) { exitRow; if let card { card } }
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("focusDrive")
@@ -395,7 +397,6 @@ struct FocusDriveView: View {
                 journey
                 exitRow
                 if let card { card }
-                actions
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("focusDrive")
@@ -420,14 +421,19 @@ struct FocusDriveView: View {
                     Text(direction).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondaryText)
                 }
             }
-            .padding(.top, 22)
             Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 8) {
+                DrivePresentationToggle()
+                HStack(spacing: 8) {
+                    action("Fuel", symbol: "fuelpump.fill", id: "fuelButton", openFuel)
+                    action("Restroom stop", symbol: "figure.dress.line.vertical.figure", id: "restroomButton", openRestroom)
+                }
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
-        .overlay(alignment: .topTrailing) { DrivePresentationToggle().padding(8) }
     }
 
     private var journey: some View {
@@ -456,21 +462,17 @@ struct FocusDriveView: View {
         }
     }
 
-    private var actions: some View {
-        HStack(spacing: 10) {
-            action("Fuel", symbol: "fuelpump.fill", id: "fuelButton", openFuel)
-            action("Restroom", symbol: "figure.dress.line.vertical.figure", id: "restroomButton", openRestroom)
-        }
-    }
-
-    private func action(_ title: String, symbol: String, id: String, _ run: @escaping () -> Void) -> some View {
+    /// A one tap shortcut on the instruments card, the same round control as over the map.
+    private func action(_ label: String, symbol: String, id: String, _ run: @escaping () -> Void) -> some View {
         Button(action: run) {
-            Label(title, systemImage: symbol).font(.headline)
-                .frame(maxWidth: .infinity).padding(.vertical, 10)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
+            Image(systemName: symbol).font(.system(size: 17, weight: .semibold))
+                .frame(width: 40, height: 40)
+                .foregroundStyle(.primary)
+                .background(Theme.raised, in: Circle())
+                .overlay(Circle().stroke(Theme.cardStroke, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .accessibilityIdentifier(id)
     }
 }

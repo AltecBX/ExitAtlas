@@ -93,7 +93,7 @@ struct NavigationMapView: View {
     private func follow(animated: Bool) {
         guard following, let poly = trip.plan?.route.polyline else { return }
         let p = snapshot.progress
-        let center = poly.coordinate(at: min(poly.length, p + 150))
+        let center = poly.coordinate(at: min(poly.length, p + 400))
         let camera = MapCamera(centerCoordinate: center.clCoordinate, distance: 4600,
                                heading: poly.bearing(at: p, window: 800), pitch: 52)
         if animated {

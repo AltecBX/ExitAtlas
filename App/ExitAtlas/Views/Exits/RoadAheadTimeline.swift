@@ -498,7 +498,19 @@ struct BestStopCard: View {
                     Text(SmartStopText.detour(c)).font(.caption).foregroundStyle(Theme.secondaryText)
                 }
                 if let notice = result.notice { Text(notice).font(.caption.weight(.semibold)).foregroundStyle(Theme.amber) }
-                DisclosureGroup(isExpanded: $expanded) {
+                Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                    HStack {
+                        Text("Why this stop" + (alternatives.isEmpty ? "" : " · \(alternatives.count) \(alternatives.count == 1 ? "alternative" : "alternatives")"))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right").font(.caption.weight(.bold)).rotationEffect(.degrees(expanded ? 90 : 0))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("whyThisStop")
+                if expanded {
                     VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(Array((p.reasons + (p.nextOption.map { ["Next option \(Format.miles($0)) later"] } ?? [])).enumerated()), id: \.offset) { _, r in
@@ -507,12 +519,7 @@ struct BestStopCard: View {
                         }
                         ForEach(Array(alternatives.enumerated()), id: \.offset) { _, x in alternative(x) }
                     }
-                    .padding(.top, 6)
-                } label: {
-                    Text("Why this stop" + (alternatives.isEmpty ? "" : " · \(alternatives.count) \(alternatives.count == 1 ? "alternative" : "alternatives")"))
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
                 }
-                .accessibilityIdentifier("whyThisStop")
                 HStack(spacing: 10) {
                     if let id = c.exitID, let exit = trip.plan?.exits.first(where: { $0.id == id }) {
                         NavigationLink(value: exit) { buttonLabel("Exit details") }.buttonStyle(.plain)
@@ -523,6 +530,8 @@ struct BestStopCard: View {
                 }
             }
             .timelineCard(stroke: Theme.success.opacity(0.55))
+            // A container, so the ids of the buttons inside stay theirs.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("bestStopCard")
         }
     }
