@@ -372,11 +372,14 @@ struct NavigationDriveView: View {
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { openArea = $0 }
     }
 
-    /// The map's safe area: everything outside the open stretch. Until both are measured, none.
+    /// The map's safe area: everything outside the open stretch. Until both are measured, none. When the open
+    /// stretch is a thin band (sideways, under the banner), only its sides count: the vehicle stays in the open
+    /// column, centered top to bottom.
     private var openInsets: EdgeInsets {
-        guard mapFrame.width > 0, openArea.width > 0, openArea.height > 40 else { return EdgeInsets() }
-        return EdgeInsets(top: max(0, openArea.minY - mapFrame.minY), leading: max(0, openArea.minX - mapFrame.minX),
-                          bottom: max(0, mapFrame.maxY - openArea.maxY), trailing: max(0, mapFrame.maxX - openArea.maxX))
+        guard mapFrame.width > 0, openArea.width > 40 else { return EdgeInsets() }
+        let tall = openArea.height > 80
+        return EdgeInsets(top: tall ? max(0, openArea.minY - mapFrame.minY) : 0, leading: max(0, openArea.minX - mapFrame.minX),
+                          bottom: tall ? max(0, mapFrame.maxY - openArea.maxY) : 0, trailing: max(0, mapFrame.maxX - openArea.maxX))
     }
 
     private var speed: some View {
