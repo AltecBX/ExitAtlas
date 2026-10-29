@@ -86,6 +86,12 @@ public enum GasPrices {
 
     public enum State: String, Sendable { case current, old, expired }
 
+    /// "$3.09", or "$3.099" when the price has tenths of a cent (as posted at most US pumps).
+    public static func dollars(_ v: Double) -> String {
+        let mills = Int((v * 1000).rounded())
+        return mills % 10 != 0 ? String(format: "$%.3f", Double(mills) / 1000) : String(format: "$%.2f", Double(mills) / 1000)
+    }
+
     /// How current a record is: current (compared), old (shown greyed, never compared), expired (dropped).
     public static func freshness(reportedAt: Date, now: Date, maxAgeHours: Double = 24, rules: Rules = Rules()) -> (state: State, text: String) {
         let age = max(0, now.timeIntervalSince(reportedAt))

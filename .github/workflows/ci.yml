@@ -50,6 +50,8 @@ jobs:
         run: node web/tests/layout/drive.layout.mjs
       - name: Road Ahead timeline, filters and alert sheet at phone sizes, light and dark
         run: node web/tests/layout/ahead.layout.mjs
+      - name: Gas prices (simulated) in Road Ahead, reports and settings, no paid requests
+        run: node web/tests/layout/prices.layout.mjs
 
   ios-app:
     name: iOS app build and screenshots (Xcode)

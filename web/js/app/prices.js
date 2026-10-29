@@ -1,6 +1,9 @@
 // Gas prices, business hours and restrooms near an exit from Google Places API (New) Nearby Search, using the
-// driver's own API key, or the owner's key proxy (infra/worker) when one is set. Google's terms: show Google attribution where these prices appear without a
-// Google map, never put them on a non-Google map, and do not store them (memory only, 15 minutes).
+// driver's own API key, or the owner's key proxy (infra/worker) when one is set. Google bills every lookup,
+// so this is off by default (Settings, Gas prices, Google Maps prices) and runs only when the driver taps
+// "Check Google Maps prices" for an exit, never by itself (docs/17). Google's terms: show Google attribution
+// where these prices appear without a Google map, never put them on a non-Google map, and do not store them
+// (memory only, 15 minutes); they never go into the shared driver reports.
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
 // Hours and the restroom field ride on the same request: Google bills a Nearby Search once, at the
@@ -32,8 +35,9 @@ export function parsePlaces(json) {
 }
 
 export class GasPrices {
-  constructor({ getKey, getProxy = () => null, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null } = {}) {
+  constructor({ getKey, getProxy = () => null, allowed = () => false, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null } = {}) {
     this.getKey = getKey;
+    this.allowed = allowed;
     this.getProxy = getProxy;
     this.fetchImpl = fetchImpl;
     this.now = now;
@@ -41,8 +45,9 @@ export class GasPrices {
     this.cache = new Map(); // exit id -> {at, stations, error, pending}
   }
 
-  /// Prices come through the proxy when it is set and offers them, else with the driver's key.
-  get enabled() { return Boolean(this.getProxy() || this.getKey()); }
+  /// On only when the driver turned Google Maps prices on, and then through the proxy when it is set and
+  /// offers them, else with the driver's key.
+  get enabled() { return Boolean(this.allowed() && (this.getProxy() || this.getKey())); }
 
   /// Cached result for an exit: {stations, error, at} or null when not loaded yet.
   peek(exitId) {
@@ -53,7 +58,7 @@ export class GasPrices {
   /// Loads prices for the gas stations within 1.6 km of an exit (one request, then 15 minutes cached).
   async load(exit) {
     const key = this.getKey(), proxy = this.getProxy();
-    if (!key && !proxy) return null;
+    if (!this.allowed() || (!key && !proxy)) return null;
     const c = this.cache.get(exit.id);
     if (c && (c.pending || this.now() - c.at < TTL)) return c.pending ?? c;
     const pending = (async () => {

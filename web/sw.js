@@ -4,7 +4,7 @@
 const CACHE = 'exitatlas-v26';
 const APP_FILES = [
   './', 'index.html', 'css/tokens.css', 'css/app.css', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
-  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weathericons.js', 'js/app/navmap.js',
+  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/pricebook.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weathericons.js', 'js/app/navmap.js',
   'js/engine/geo.js', 'js/engine/datasets.js', 'js/engine/exits.js', 'js/engine/route.js',
   'js/engine/tracking.js', 'js/engine/trip.js', 'js/engine/discovery.js', 'js/engine/osrm.js', 'js/engine/fuel.js', 'js/engine/restareas.js', 'js/engine/discover.js', 'js/engine/travels.js', 'js/engine/datamanifest.js', 'js/engine/profile.js',
   'js/engine/openinghours.js', 'js/engine/smartstop.js', 'js/engine/roadintel.js', 'js/engine/alertsources.js', 'js/engine/dashboard.js', 'js/engine/weather.js', 'js/engine/handoff.js', 'js/engine/guidance.js', 'js/engine/traffic.js', 'js/engine/gasprices.js',

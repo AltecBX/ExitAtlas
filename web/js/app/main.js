@@ -1,11 +1,11 @@
 // ExitAtlas web controller: feeds GPS (or simulated) fixes to the engine, publishes snapshots,
 // reroutes when the driver leaves the route, and runs discovery mode. Mirrors TripController.swift.
-import { METERS_PER_MILE as MILE } from '../engine/geo.js';
+import { METERS_PER_MILE as MILE, distance } from '../engine/geo.js';
 import { TripPlan, TripSession } from '../engine/trip.js';
 import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
-import { gasGaps } from '../engine/restareas.js';
+import { gasGaps, restAreaTitle } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
 import { drawTripCard, shareCanvas } from './sharecard.js';
 import { TripLedger, PaceModel } from '../engine/tracking.js';
@@ -13,8 +13,9 @@ import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
 import { GasPrices, GRADES } from './prices.js';
+import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
-import { fuelCandidates, aheadCandidates } from './smartstops.js';
+import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
@@ -79,7 +80,13 @@ const app = {
   rejectedStops: [],
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
-  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), onCall: countPriceCall }),
+  /// Google Maps prices: paid, off unless the driver turns them on, and looked up only on a tap (docs/17).
+  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), allowed: () => app.settings.prices?.google === true, onCall: countPriceCall }),
+  /// Reported prices: the driver's own on this device, and shared driver reports when on (app/pricebook.js).
+  priceBook: new PriceBook({ store, getProxy: () => proxyFor('community'), sources: () => ({ own: app.settings.prices?.ownReports !== false, shared: app.settings.prices?.community === true }) }),
+  /// Road Ahead price comparison sort, and the price report sheet's state.
+  priceUI: { sort: 'recommended' },
+  report: null,
   /// The owner's key proxy when set in Settings and reachable: { base, prices, chargers, disabled }.
   proxy: null,
   chargers: { routeId: null, projected: [], loading: false, error: null, retryAt: 0 },
@@ -228,7 +235,48 @@ const app = {
 
   /// What SmartStop needs from the trip.
   stopContext() {
-    return { plan: this.plan, snapshot: this.snapshot, servicesFor: (e) => this.servicesFor(e), stations: this.data?.stations ?? null, prices: this.prices };
+    return { plan: this.plan, snapshot: this.snapshot, servicesFor: (e) => this.servicesFor(e), stations: this.data?.stations ?? null, prices: this.prices,
+      priceBook: this.priceBook, priceOptions: this.priceOptions() };
+  },
+
+  /// What prices are compared on: the driver's grade and payment, reports up to their age limit. Null when
+  /// comparing prices is off or the vehicle is electric.
+  priceOptions() {
+    const pr = this.settings.prices;
+    if (!pr || pr.compare === false || this.settings.vehicle?.ev) return null;
+    return { grade: this.gradeCode(), payment: pr.payment ?? 'credit', maxAgeHours: pr.maxAgeHours ?? 24, now: Math.floor(Date.now() / 1000) };
+  },
+
+  /// A station or fuel plaza on the route by id, for its price sheet: from the stops ahead, else any exit or
+  /// plaza on the route. With `live`, Google's record when the driver checked Google prices there.
+  findStation(id) {
+    if (!this.plan) return null;
+    const near = this.snapshot ? this.bestStopAhead(Math.max(60, this.exitsUI.window))?.stations?.find((c) => c.id === id) : null;
+    let x = near ? { ...near } : null;
+    if (!x) {
+      for (const e of this.plan.exits) {
+        const g = this.servicesFor(e).find((y) => y.place.id === id && y.place.category === 1);
+        if (g) { x = { id, name: placeDisplayName(g.place), brand: this.data?.stations?.get(id)?.b ?? g.place.brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate }; break; }
+      }
+    }
+    if (!x) {
+      const r = this.plan.restAreas.find((y) => y.id === id && y.gas.length);
+      if (r) x = { id, name: restAreaTitle(r), brand: r.gas[0] ?? '', kind: 'plaza', restArea: r, along: r.distanceAlongRoute, coordinate: r.coordinate };
+    }
+    if (x?.exit) x.live = liveFor(this.prices, x.exit, { coordinate: x.coordinate, name: x.name }, x.brand);
+    return x;
+  },
+
+  /// Tank and mpg for the cost of a fill (gas vehicles with both known), else null.
+  fillVehicle() {
+    const v = this.vehicleProfile();
+    return v && !v.ev && v.tankGallons > 0 && v.mpg > 0 ? { tankGallons: v.tankGallons, mpg: v.mpg } : null;
+  },
+
+  /// Changes whenever a price, a price setting or a Google lookup changes (cache keys below).
+  priceKey() {
+    const looked = [...this.prices.cache.values()].filter((c) => !c.pending).length;
+    return `${this.priceBook.version}|${looked}|${JSON.stringify(this.settings.prices)}|${this.gradeCode()}|${Math.floor(Date.now() / 60000)}`;
   },
 
   /// SmartStop for the fuel stop: gas vehicles with a range reading, when a stop is needed. One
@@ -237,12 +285,11 @@ const app = {
     const fp = this.fuelPlan();
     if (!fp || fp.ev || fp.status === 'destination') return null;
     const st = this.settings;
-    const priced = [...this.prices.cache.values()].filter((c) => !c.pending).length;
-    const key = `${this.fuelKey}|${this.rejectedStops.join()}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${priced}`;
+    const key = `${this.fuelKey}|${this.rejectedStops.join()}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${this.priceKey()}`;
     if (this.smartKey !== key) {
       this.smartKey = key;
-      const candidates = fuelCandidates(this.stopContext(), fp.range, GRADES[this.gradeCode()].key);
-      this.smartCache = smartStop(candidates, this.profile, { context: 'fuel', reserveMeters: st.bufferMiles * MILE, rejected: this.rejectedStops });
+      const candidates = fuelCandidates(this.stopContext(), fp.range);
+      this.smartCache = smartStop(candidates, this.profile, { context: 'fuel', reserveMeters: st.bufferMiles * MILE, rejected: this.rejectedStops, vehicle: this.fillVehicle() });
     }
     return this.smartCache;
   },
@@ -252,7 +299,7 @@ const app = {
     if (!this.plan || !this.snapshot) return null;
     // Recomputed every quarter mile or minute (Road Ahead and the restroom sheet ask on every render).
     const s = this.snapshot;
-    const key = `${miles}|${restrooms}|${Math.floor(s.progress / 400)}|${Math.floor(s.t / 60)}|${this.rejectedStops.join()}|${this.fuelKey}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${this.plan.route.length}|${[...this.prices.cache.values()].filter((c) => !c.pending).length}`;
+    const key = `${miles}|${restrooms}|${Math.floor(s.progress / 400)}|${Math.floor(s.t / 60)}|${this.rejectedStops.join()}|${this.fuelKey}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${this.plan.route.length}|${this.priceKey()}`;
     this.bestStopCache ??= new Map();
     if (this.bestStopCache.has(key)) return this.bestStopCache.get(key);
     if (this.bestStopCache.size > 8) this.bestStopCache.clear();
@@ -263,11 +310,15 @@ const app = {
 
   bestStopUncached(miles, restrooms) {
     const range = this.settings.vehicle?.ev ? null : this.rangeNow();
-    const candidates = aheadCandidates(this.stopContext(), miles, { rangeLeft: range, gradeKey: GRADES[this.gradeCode()].key, restrooms });
+    const candidates = aheadCandidates(this.stopContext(), miles, { rangeLeft: range, restrooms });
     const profile = restrooms ? { ...this.profile, fuel: { ...this.profile.fuel, requireRestroom: 'always' } } : this.profile;
-    return smartStop(candidates, profile, {
+    const result = smartStop(candidates, profile, {
       context: 'ahead', purpose: restrooms ? 'restroom' : 'fuel', reserveMeters: this.settings.bufferMiles * MILE, rejected: this.rejectedStops,
+      vehicle: restrooms ? null : this.fillVehicle(),
     });
+    // Every station and fuel plaza in the window, for the price comparison (Road Ahead, Fuel).
+    result.stations = restrooms ? [] : candidates.filter((c) => c.kind !== 'rest');
+    return result;
   },
 
   /// Overnight: the last stop listed open before a long stretch where the stops ahead are not, within
@@ -278,7 +329,7 @@ const app = {
     const key = `${Math.floor(s.progress / 800)}|${Math.floor(s.t / 300)}|${this.rejectedStops.join()}|${JSON.stringify(this.profile.overnight)}|${this.settings.gasGapMiles}|${this.plan.route.length}`;
     if (this.lastOpenKey !== key) {
       this.lastOpenKey = key;
-      const candidates = aheadCandidates(this.stopContext(), 150, { rangeLeft: null, gradeKey: GRADES[this.gradeCode()].key });
+      const candidates = aheadCandidates(this.stopContext(), 150, { rangeLeft: null });
       this.lastOpenCache = lastOpenBeforeGap(candidates, this.profile, {
         minLength: this.settings.gasGapMiles * MILE, windowEnd: Math.min(s.progress + 150 * MILE, this.plan.route.length), rejected: this.rejectedStops,
       });
@@ -338,6 +389,7 @@ function render() {
 }
 
 function renderNow() {
+  if (app.demoPrices && app.snapshot) seedSimulatedPrices();
   applyTheme();
   const highway = app.tab === 'drive' && app.mode === 'discovery' && app.plan?.route.title;
   $('#title').textContent = highway || TITLES[app.tab];
@@ -425,13 +477,7 @@ function applyTheme() {
 
 function openSheet(kind, arg = null) {
   app.sheet = { kind, arg };
-  if (kind === 'exit') loadPrices([app.plan?.exits.find((e) => e.id === arg)]);
-  if (kind === 'fuel') {
-    ensureChargers();
-    const fp = app.fuelPlan();
-    if (fp) loadPrices([fp.recommended, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
-    loadSmartPrices();
-  }
+  if (kind === 'fuel') ensureChargers();
   renderSheet();
   $('#sheet').scrollTop = 0;
   $('#sheet-backdrop').classList.add('open');
@@ -447,12 +493,9 @@ function renderSheet() {
   else if (kind === 'discover') html = V.discoverSheet(app, arg);
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
-  else if (kind === 'fuel') {
-    html = V.fuelSheet(app);
-    const fp = app.fuelPlan();
-    if (fp) loadPrices([fp.recommended, fp.closestToTarget, ...fp.earlier, fp.lastChance].map((x) => x?.exit));
-    loadSmartPrices();
-  }
+  else if (kind === 'fuel') html = V.fuelSheet(app);
+  else if (kind === 'station') html = V.stationSheet(app, arg);
+  else if (kind === 'report') html = V.reportSheet(app);
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   else if (kind === 'weather') html = V.weatherSheet(app);
@@ -464,6 +507,7 @@ function renderSheet() {
 
 function closeSheet() {
   app.sheet = null;
+  app.report = null;
   $('#sheet-backdrop').classList.remove('open');
   $('#sheet').classList.remove('open');
 }
@@ -632,10 +676,15 @@ function openPlan(t) {
 
 // MARK: Prices and chargers
 
-/// Live prices, hours and restrooms for the SmartStop picks' exits (with a Google key or the proxy).
-function loadSmartPrices() {
+/// Shared driver reports for the stations SmartStop and the price comparison look at (free, budgeted on
+/// the owner's server; only when the driver turned them on). Re-renders when new ones arrive.
+function loadSharedPrices() {
+  if (!app.priceBook.sharedOn || !app.plan || !app.snapshot) return;
+  const ids = new Set();
   const sm = app.smartStop();
-  if (sm) loadPrices([sm.primary, ...sm.alternatives].map((x) => x?.exit));
+  for (const x of [sm?.primary, ...(sm?.alternatives ?? [])]) if (x) ids.add(x.id);
+  for (const c of app.bestStopAhead(Math.max(60, app.exitsUI.window))?.stations ?? []) ids.add(c.id);
+  app.priceBook.loadShared([...ids]).then((changed) => { if (changed) { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); } }).catch(() => {});
 }
 
 function countPriceCall() {
@@ -644,7 +693,37 @@ function countPriceCall() {
   store.set('ea.priceCalls', c.month === month ? { month, n: c.n + 1 } : { month, n: 1 });
 }
 
-/// Loads gas prices for exits on screen (gas cars only, with a Google key). Re-renders when they arrive.
+/// Changes price settings (saved in the profile).
+function setPrices(patch) {
+  app.settings.prices = { ...app.settings.prices, ...patch };
+  saveProfile();
+  lastViewHTML = '';
+  render();
+  if (app.sheet) renderSheet();
+}
+
+/// Shared reports need the driver at the station: one location reading, compared with the station, never
+/// sent anywhere. Simulated GPS cannot pass.
+function checkReportLocation() {
+  const r = app.report;
+  if (!r) return;
+  const fail = (note) => { if (app.report === r) { r.near = false; r.checking = false; r.nearNote = note; renderSheet(); } };
+  if (app.gps === 'simulation') return fail('Simulated GPS: sharing needs your real location at the station');
+  if (!navigator.geolocation || !r.coordinate) return fail('Location not available: saved on this device only');
+  r.checking = true;
+  renderSheet();
+  navigator.geolocation.getCurrentPosition((pos) => {
+    if (app.report !== r) return;
+    const d = distance({ lat: pos.coords.latitude, lon: pos.coords.longitude }, r.coordinate);
+    if (pos.coords.accuracy > 150) return fail('Your location is too rough to check: saved on this device only');
+    if (d > 250) return fail(`About ${miles(d)} from this station: saved on this device only`);
+    r.near = true; r.checking = false; r.nearNote = null;
+    renderSheet();
+  }, () => fail('Location not allowed: saved on this device only'), { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
+
+/// Google Maps prices for exits, only when the driver taps "Check Google Maps prices" (paid; off unless
+/// turned on in Settings). Re-renders when they arrive.
 function loadPrices(exits) {
   if (!app.prices.enabled || app.settings.vehicle?.ev) return;
   for (const e of exits) {
@@ -950,9 +1029,7 @@ function publish(snap) {
   considerFuelVoice();
   ensureLimits();
   ensureChargers();
-  const fp = app.fuelPlan();
-  if (fp?.recommended?.exit) loadPrices([fp.recommended.exit]);
-  loadSmartPrices();
+  loadSharedPrices();
 }
 
 /// Loads posted speed limits for the road just ahead (one request per about 50 miles).
@@ -1088,9 +1165,10 @@ async function findRoutes() {
   }
 }
 
-/// The simulated demo. For screenshots and checks: ?demo=<mile> starts at that mile, and ?demo&alert adds one
-/// SIMULATED crash 6 miles ahead, labeled as a simulated test alert everywhere it shows.
-async function runDemo({ mile = 355, alert = false } = {}) {
+/// The simulated demo. For screenshots and checks: ?demo=<mile> starts at that mile, ?demo&alert adds one
+/// SIMULATED crash 6 miles ahead, labeled as a simulated test alert everywhere it shows, and ?demo&prices adds
+/// SIMULATED gas prices at the first stations ahead, labeled "Simulated test data" (memory only).
+async function runDemo({ mile = 355, alert = false, prices = false } = {}) {
   try {
     const json = await loadDemoRouteJSON();
     const route = routeFromJSON(json, {
@@ -1099,6 +1177,8 @@ async function runDemo({ mile = 355, alert = false } = {}) {
     route.origin = { name: 'Miami, FL', coordinate: route.polyline.point(0) };
     route.destination = { name: 'Manhattan, NY', coordinate: route.polyline.point(route.polyline.pointCount - 1) };
     startTrip(route, { simulate: true, startMeters: mile * MILE });
+    // Seeded at render time, for the stations ahead then (the demo moves).
+    app.demoPrices = prices;
     if (alert) {
       const d = (mile + 6) * MILE;
       const hw = route.highwayAt(d);
@@ -1115,6 +1195,30 @@ async function runDemo({ mile = 355, alert = false } = {}) {
   } catch (e) {
     toast(`Demo failed: ${e.message}`);
   }
+}
+
+/// SIMULATED prices for the demo: a current one, a current one three drivers agree on, an old one, and
+/// stations without any, so every state shows. Never saved or sent.
+function seedSimulatedPrices() {
+  const ahead = (app.bestStopAhead(60)?.stations ?? []).filter((c) => c.kind === 'station' && c.ahead > 0).sort((a, b) => a.ahead - b.ahead);
+  // The fuel stop pick (when a range is entered) gets a price too, so the cheaper stop note can show.
+  const pick = app.smartStop()?.primary;
+  const plan = [[3.099, 20 * 60, 1], [2.899, 2 * 3600, 3], [3.189, 30 * 3600, 1], [3.299, 40 * 60, 1]];
+  const stations = ahead.slice(0, 3);
+  if (pick && !stations.some((c) => c.id === pick.id)) stations.push(pick);
+  const have = new Set(app.priceBook.simulated.map((r) => r.stationId));
+  if (stations.every((c) => have.has(c.id))) return;
+  const now = Math.floor(Date.now() / 1000);
+  const out = [];
+  stations.forEach((c, i) => {
+    const [price, age, n] = plan[i];
+    for (let k = 0; k < n; k++) {
+      out.push({ id: `sim:${c.id}:${k}`, stationId: c.id, grade: app.gradeCode(), price, currency: 'USD', payment: 'credit', member: false,
+        reportedAt: now - age - k * 600, reporter: `sim${k}`, source: SIMULATED_SOURCE });
+    }
+  });
+  app.priceBook.simulated = out;
+  app.priceBook.version++;
 }
 
 function itineraryText() {
@@ -1341,6 +1445,48 @@ const actions = {
   'save-plan'() { savePlan(); },
   'open-plan'(arg) { const t = app.places.plans[Number(arg)]; if (t) openPlan(t); },
   'remove-plan'(arg) { app.places.plans = app.places.plans.filter((_, i) => i !== Number(arg)); saveProfile(); render(); },
+  'price-sort'(arg) { app.priceUI.sort = arg; lastViewHTML = ''; render(); },
+  station(arg) { openSheet('station', arg); },
+  'price-pay'(arg) { setPrices({ payment: arg }); },
+  'price-age'(arg) { setPrices({ maxAgeHours: Number(arg) }); },
+  'price-min'(arg) { setPrices({ minSavingsDollars: Number(arg) }); },
+  'report-price'(arg) {
+    const [id, grade] = arg.split('|');
+    const x = app.findStation(id);
+    if (!x) return;
+    // Correcting: the driver's latest report for that grade, within the 30 minutes a correction is allowed.
+    const last = grade ? app.priceBook.own().filter((r) => r.stationId === id && r.grade === grade).sort((a, b) => b.reportedAt - a.reportedAt)[0] : null;
+    app.report = {
+      stationId: id, name: x.name, brand: x.brand, coordinate: x.coordinate,
+      place: x.exit ? exitTitle(x.exit) : x.kind === 'plaza' ? 'Service plaza' : '',
+      grade: grade || app.gradeCode(), payment: last?.payment ?? app.settings.prices?.payment ?? 'credit', member: Boolean(last?.member),
+      priceText: last ? String(last.price) : '', share: app.priceBook.sharedOn, near: null, checking: false, passenger: false, result: null,
+    };
+    openSheet('report');
+    if (app.report.share) checkReportLocation();
+  },
+  'report-grade'(arg) { if (app.report) { app.report.grade = arg; app.report.result = null; renderSheet(); } },
+  'report-pay'(arg) { if (app.report) { app.report.payment = arg; app.report.result = null; renderSheet(); } },
+  async 'report-save'() {
+    const r = app.report;
+    if (!r) return;
+    const text = ($('#sheet-body [data-report="price"]')?.value ?? r.priceText ?? '').replace(/[$\s]/g, '');
+    r.priceText = text;
+    const out = await app.priceBook.report({ stationId: r.stationId, grade: r.grade, price: text === '' ? NaN : Number(text), payment: r.payment, member: r.member, stationName: r.name, place: r.place },
+      { share: r.share, near: r.near === true });
+    r.result = out;
+    if (out.ok && !out.duplicate) toast(out.shared === 'sent' ? 'Price saved and shared' : 'Price saved on this device');
+    lastViewHTML = '';
+    render();
+    renderSheet();
+  },
+  'price-delete'(arg) { app.priceBook.remove(arg); toast('Report deleted'); lastViewHTML = ''; render(); renderSheet(); },
+  'google-prices'(arg) {
+    const exit = app.plan?.exits.find((e) => e.id === arg);
+    if (!exit || !app.prices.enabled) return;
+    loadPrices([exit]);
+    renderSheet();
+  },
   'skip-stop'(arg) {
     if (!app.rejectedStops.includes(arg)) app.rejectedStops.push(arg);
     toast('Skipped for this trip');
@@ -1512,6 +1658,19 @@ document.addEventListener('change', (ev) => {
     render();
     return;
   }
+  if (el.dataset?.price) {
+    setPrices({ [el.dataset.price]: el.checked });
+    if (el.dataset.price === 'community' && el.checked) loadSharedPrices();
+    return;
+  }
+  if (el.dataset?.report && app.report) {
+    const k = el.dataset.report;
+    if (k === 'price') { app.report.priceText = el.value; return; }
+    app.report[k] = el.checked;
+    if (k === 'share' && el.checked && app.report.near == null) checkReportLocation();
+    renderSheet();
+    return;
+  }
   if (el.dataset?.alert) {
     app.settings.alerts = { ...app.settings.alerts, [el.dataset.alert]: el.checked };
     saveProfile();
@@ -1633,7 +1792,7 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   if (params.has('demo')) {
     const mile = Number(params.get('demo'));
-    runDemo({ mile: Number.isFinite(mile) && mile > 0 && mile < 1280 ? mile : 355, alert: params.has('alert') });
+    runDemo({ mile: Number.isFinite(mile) && mile > 0 && mile < 1280 ? mile : 355, alert: params.has('alert'), prices: params.has('prices') });
   }
   render();
 }

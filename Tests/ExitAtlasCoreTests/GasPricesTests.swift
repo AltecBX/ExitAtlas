@@ -125,6 +125,12 @@ final class GasPricesTests: XCTestCase {
         }
     }
 
+    func testPriceText() throws {
+        for (v, text) in try fixture()["dollars"]!.object! {
+            XCTAssertEqual(GasPrices.dollars(Double(v)!), text.string!, v)
+        }
+    }
+
     func testRegionalAverageAreas() throws {
         for (state, padd) in try fixture()["padd"]!.object! {
             XCTAssertEqual(GasPrices.paddFor(state), padd.string, state)

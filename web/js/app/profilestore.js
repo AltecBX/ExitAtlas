@@ -119,7 +119,7 @@ export function settingsFromProfile(p) {
     requireRestroom: p.fuel.requireRestroom, priceOverBrand: p.fuel.priceOverBrand,
     overnightMode: p.overnight.mode, overnightStart: p.overnight.start, overnightEnd: p.overnight.end,
     favoriteHotels: [...p.favorites.hotels], favoriteRestaurants: [...p.favorites.restaurants],
-    alerts: { ...p.alerts },
+    alerts: { ...p.alerts }, prices: { ...p.prices },
   };
 }
 
@@ -142,6 +142,7 @@ export function applyToProfile(p, settings, places, exitLookaheadMiles) {
     out.defaultVehicleId = cur.id;
   }
   if (s.alerts) Object.assign(out.alerts, s.alerts);
+  if (s.prices) Object.assign(out.prices, s.prices);
   Object.assign(out.voice, {
     enabled: s.voice, stateLines: s.announceStateLines, exits: s.announceExits, fuel: s.announceFuel ?? out.voice.fuel,
     restAreas: s.announceRestAreas, gasGaps: s.announceGasGaps, timeZones: s.announceTimeZones,

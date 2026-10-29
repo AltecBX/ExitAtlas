@@ -6,6 +6,9 @@ import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
 import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
+import { GRADE_NAMES, PRICE_GRADES, PRICE_RULES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
+import { evaluateStop, brandIndex } from '../engine/smartstop.js';
+import { stopPrice, liveFor } from './smartstops.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
@@ -825,16 +828,202 @@ function smartSection(app, sm) {
     <div class="card smart${sm.lowRange ? ' low' : ''}">
       <div class="row" style="gap:12px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${p.brandRank !== null ? '★ ' : ''}${h(p.name)}</div>
         <div class="muted small">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
+      ${priceLine(app, p)}
       <ul class="smart-reasons">${p.reasons.map((r) => `<li>${h(r)}</li>`).join('')}${p.nextOption != null ? `<li>Next option ${miles(p.nextOption)} later</li>` : ''}</ul>
+      ${cheaperNote(app, sm)}
       <details class="facilities"><summary>What is known at arrival</summary>${facilityRows(p)}</details>
       <div class="btn-row">${p.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(p.exit.id)}">Exit details</button>` : p.restArea ? `<button class="btn sm" data-act="rest" data-arg="${h(p.restArea.id)}">Plaza details</button>` : ''}
+        ${app.priceOptions() ? `<button class="btn sm" data-act="station" data-arg="${h(p.id)}">Prices</button>` : ''}
         <button class="btn sm" data-act="skip-stop" data-arg="${h(p.id)}">Not this one</button></div>
       ${fav}
     </div>
     ${sm.alternatives.length ? `<div class="section-title">Alternatives</div><div class="list">${sm.alternatives.map(alt).join('')}</div>` : ''}
     ${pass.length ? `<p class="muted tiny" style="margin:4px 0 0">Passed over: ${h(pass.map(([r, n]) => `${n} ${r.charAt(0).toLowerCase() + r.slice(1)}`).join(', '))}.${app.rejectedStops.length ? ' <button class="linkish" data-act="unskip-stops">Offer skipped stops again</button>' : ''}</p>` : ''}
     <div class="list" style="margin-top:10px">${overnightRow(app)}</div>
-    <p class="note">Hours: Google Maps business hours when prices load (live), else OpenStreetMap (mapped by volunteers; the check date shows when). A station listed open 24 hours can still lock its restroom overnight, so restrooms show as open at arrival only at rest areas and service plazas with listed hours.</p>`;
+    <p class="note">Hours: Google Maps business hours when you check Google prices (live), else OpenStreetMap (mapped by volunteers; the check date shows when). A station listed open 24 hours can still lock its restroom overnight, so restrooms show as open at arrival only at rest areas and service plazas with listed hours.</p>`;
+}
+
+// MARK: Gas prices (docs/17)
+
+/// Brand colors for the small brand tag on price rows, so a favorite like Shell is found at a glance. A
+/// colored name only, not the brand's logo.
+const BRAND_TAGS = [
+  [/shell/i, '#fbce07', '#dd1d21', 'SHELL'], [/\bbp\b/i, '#009b3a', '#fff', 'BP'], [/exxon/i, '#e4002b', '#fff', 'EXXON'],
+  [/mobil/i, '#e4002b', '#fff', 'MOBIL'], [/wawa/i, '#c8102e', '#fff', 'WAWA'], [/pilot/i, '#d71920', '#fff', 'PILOT'],
+  [/flying j/i, '#d71920', '#fff', 'FLY J'], [/love'?s/i, '#ffd100', '#e31837', "LOVE'S"], [/sunoco/i, '#003da5', '#ffd100', 'SUNOCO'],
+  [/chevron/i, '#0054a4', '#fff', 'CHEVRON'], [/sheetz/i, '#d71920', '#fff', 'SHEETZ'], [/racetrac/i, '#003da5', '#fff', 'RACETRAC'],
+  [/circle k/i, '#da291c', '#fff', 'CIRCLE K'], [/speedway/i, '#d71920', '#fff', 'SPEEDWAY'], [/marathon/i, '#003da5', '#fff', 'MARATHON'],
+  [/quiktrip|\bqt\b/i, '#d71920', '#fff', 'QT'], [/buc-?ee'?s/i, '#ffd100', '#d71920', "BUC-EE'S"], [/costco/i, '#005daa', '#fff', 'COSTCO'],
+];
+
+function brandTag(x) {
+  const name = `${x.brand ?? ''} ${x.name ?? ''}`;
+  const hit = BRAND_TAGS.find(([re]) => re.test(name));
+  const [bg, fg, label] = hit ? hit.slice(1) : ['var(--stroke)', 'var(--text)', (x.brand || x.name || '?').slice(0, 6).toUpperCase()];
+  return `<span class="brand-tag" style="background:${bg};color:${fg}" aria-hidden="true">${h(label)}</span>`;
+}
+
+/// Where a price came from, in a few words: "you", "ExitAtlas drivers (3)", "Google Maps".
+function priceSourceText(sp) {
+  const src = sp.record.source;
+  if (src.kind === 'own') return 'you';
+  if (src.kind === 'simulated') return 'SIMULATED test data';
+  if (src.kind === 'community') return `${src.name}${sp.confirmations ? ` (${sp.confirmations + 1})` : ''}`;
+  return src.name;
+}
+
+/// The line under a price: when it was reported, by whom, and anything that limits it.
+function priceMeta(sp) {
+  if (!sp) return '';
+  const parts = [sp.text, priceSourceText(sp)];
+  if (sp.paymentMatch === 'other') parts.push(`${sp.record.payment} price`);
+  else if (sp.paymentMatch === 'unspecified') parts.push('cash or credit not said');
+  if (sp.record.member) parts.push('member price');
+  if (sp.conflict) parts.push('reports differ');
+  if (sp.state !== 'current') parts.push('old, not compared');
+  return parts.join(' · ');
+}
+
+/// "$3.09 Regular" on the right of a row, greyed when old; "Price unavailable" without a report.
+function priceTag(sp, grade) {
+  if (!sp) return '<div class="ptag none">Price<br>unavailable</div>';
+  return `<div class="ptag${sp.state === 'current' ? '' : ' old'}"><div class="pv">${h(dollars(sp.record.price))}</div><div class="muted tiny">${h(GRADE_NAMES[grade])}</div></div>`;
+}
+
+/// One line for a stop's price in cards: the price and its source, or "Price unavailable".
+function priceLine(app, x) {
+  const o = app.priceOptions();
+  if (!o || !x || x.kind === 'charge') return '';
+  const sp = x.priceInfo ?? null;
+  if (!sp) return `<div class="price-line muted tiny">${h(GRADE_NAMES[o.grade])}: price unavailable</div>`;
+  return `<div class="price-line${sp.state === 'current' ? '' : ' old'}"><b>${h(dollars(sp.record.price))}</b> <span class="muted tiny">${h(GRADE_NAMES[o.grade])} · ${h(priceMeta(sp))}</span></div>`;
+}
+
+/// SmartStop's note when another stop saves at least the driver's minimum on a fill. A note only: the pick
+/// and the favorite brands stay as they are.
+function cheaperNote(app, sm) {
+  const ch = sm?.cheaper, p = sm?.primary;
+  if (!ch || !p) return '';
+  const o = app.priceOptions();
+  const where = `${ch.name}${ch.exit ? `, ${exitTitle(ch.exit)}` : ''}, ${ch.farther >= 0 ? `${milesValue(ch.farther)} mi farther` : `${milesValue(-ch.farther)} mi sooner`}`;
+  const keep = p.brandRank !== null ? `Your ${p.brand || p.name} preference stays as it is.` : 'Your favorite brands stay as they are.';
+  return `<div class="cheaper" data-testid="cheaper-note"><div class="small"><b class="amber-text">Cheaper stop:</b> ${h(where)}</div>
+    <div class="muted tiny">${h(dollars(ch.price.value))} ${h(GRADE_NAMES[o?.grade ?? 'R'].toLowerCase())}, ${h(ch.price.text.toLowerCase())} (${h(ch.price.source)}). Estimate: about $${ch.savings.toFixed(2)} less for a ${ch.gallons.toFixed(1)} gal fill, detour fuel included${ch.estimate ? ' (a detour was not measured)' : ''}. ${h(keep)}</div></div>`;
+}
+
+/// Road Ahead, Fuel: every station and fuel plaza in the window with its price for the driver's grade,
+/// sorted as asked. Unknown and old prices never sort as cheaper.
+function compareCard(app, s) {
+  const o = app.priceOptions();
+  if (!o) return '';
+  const r = app.bestStopAhead(Math.max(60, app.exitsUI.window));
+  const win = app.exitsUI.window * MILE;
+  const list = (r?.stations ?? []).filter((c) => c.ahead > 0 && c.ahead <= win);
+  const favorites = app.profile.fuel.brands ?? [];
+  const sort = SORTS.includes(app.priceUI.sort) ? app.priceUI.sort : 'recommended';
+  const rows = list.map((c) => ({ id: c.id, c, ahead: c.ahead, detourMinutes: c.detourMinutes, brandRank: brandIndex(c, favorites),
+    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo }));
+  const sorted = sortStations(rows, sort);
+  const label = (k) => (k === 'brand' && favorites[0] ? `${favorites[0]} first` : SORT_NAMES[k]);
+  const chips = `<div class="chips wrap" role="group" aria-label="Sort stations">${SORTS.map((k) => `<button class="chip${k === sort ? ' on' : ''}" data-act="price-sort" data-arg="${k}" aria-pressed="${k === sort}">${h(label(k))}</button>`).join('')}</div>`;
+  const row = ({ c, price }) => {
+    const e = evaluateStop(c, app.profile);
+    const detour = c.kind === 'plaza' ? 'On the highway' : c.detourMinutes != null ? `${c.detourMinutes < 1 ? 'under 1' : Math.round(c.detourMinutes)} min detour` : 'Detour not measured';
+    return `<button class="item pr-row" data-act="station" data-arg="${h(c.id)}">${brandTag(c)}<div class="main">
+      <div class="t">${h(c.name)} ${c.exit ? exitSign(c.exit.label, true) : ''} <span class="muted small">${milesValue(c.ahead)} mi</span></div>
+      <div class="tiny pr-facts">${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
+      ${price ? `<div class="tiny ${price.state === 'current' ? 'muted' : 'amber-text'}">${h(priceMeta(price))}</div>` : ''}</div>${priceTag(price, o.grade)}</button>`;
+  };
+  const shared = app.priceBook.sharedState === 'unavailable' ? '<p class="muted tiny" style="margin:6px 4px 0">Shared driver reports could not load just now; stations without your own report show as unavailable.</p>' : '';
+  const any = list.some((c) => c.priceInfo);
+  const sim = app.priceBook.simulated.length ? '<div class="sim-tag">SIMULATED PRICES · test data, not real</div>' : '';
+  return `<div class="card compare" data-testid="price-compare">${sim}<div class="row"><b style="flex:1">${h(GRADE_NAMES[o.grade])} · ${o.payment}</b><span class="muted tiny">${list.length} ${list.length === 1 ? 'stop' : 'stops'} in ${app.exitsUI.window} mi</span></div>${chips}</div>
+    ${list.length ? `<div class="list">${sorted.slice(0, 20).map(row).join('')}</div>` : `<div class="card empty">No gas listed in the next ${app.exitsUI.window} miles. Try a longer window.</div>`}
+    ${shared}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Prices are reports with their time and source, not verified pump prices.' : 'No current reports for these stations. Tap a station to add the price you see.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
+}
+
+/// A station's prices for every grade, with their sources, and the driver's own reports there.
+export function stationSheet(app, id) {
+  const x = app.findStation(id);
+  if (!x) return '<div class="empty">Station not found on this route.</div>';
+  const o = app.priceOptions() ?? { grade: app.gradeCode(), payment: app.settings.prices?.payment ?? 'credit', maxAgeHours: app.settings.prices?.maxAgeHours ?? 24, now: Math.floor(Date.now() / 1000) };
+  const ctx = { ...app.stopContext(), priceOptions: o };
+  const rows = PRICE_GRADES.map((g) => {
+    const sp = stopPrice({ ...ctx, priceOptions: { ...o, grade: g } }, id, x.live ?? null);
+    return `<div class="field"><span style="flex:1">${h(GRADE_NAMES[g])}${g === o.grade ? ' <span class="muted tiny">your grade</span>' : ''}${sp ? `<div class="muted tiny">${h(priceMeta(sp))}${sp.record.payment ? ` · ${h(sp.record.payment)}` : ''}</div>` : ''}</span>
+      ${sp ? `<b class="${sp.state === 'current' ? '' : 'muted'}" style="font-size:18px">${h(dollars(sp.record.price))}</b>` : '<span class="muted small">Price unavailable</span>'}</div>`;
+  }).join('');
+  const now = Math.floor(Date.now() / 1000);
+  const mine = app.priceBook.own().filter((r) => r.stationId === id).sort((a, b) => b.reportedAt - a.reportedAt);
+  const mineRows = mine.map((r) => `<div class="field"><span style="flex:1">${h(GRADE_NAMES[r.grade])} ${h(dollars(r.price))}<div class="muted tiny">${h(r.payment ?? 'cash or credit not said')}${r.member ? ' · member price' : ''} · ${h(new Date(r.reportedAt * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}${r.sharedId ? ' · shared' : ''}</div></span>
+    ${now - r.reportedAt <= PRICE_RULES.correctMinutes * 60 ? `<button class="btn sm" data-act="report-price" data-arg="${h(id)}|${h(r.grade)}">Correct</button>` : ''}<button class="btn sm" data-act="price-delete" data-arg="${h(r.id)}" aria-label="Delete this report">✕</button></div>`).join('');
+  const google = app.settings.prices?.google && x.exit && app.prices.enabled
+    ? `<button class="btn sm" data-act="google-prices" data-arg="${h(x.exit.id)}">Check Google Maps prices</button>` : '';
+  const gNote = x.live ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up when you asked. Not stored or shared.</p>' : '';
+  return `<div class="sheet-head">${brandTag(x)}<h2>${h(x.name)}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <p class="muted small" style="margin-top:0">${x.exit ? `${h(exitTitle(x.exit))} · ` : x.kind === 'plaza' ? 'Service plaza · ' : ''}<span data-along="${x.along}">${aheadText(app.snapshot, x.along)}</span></p>
+    <div class="section-title">Prices here</div><div class="list">${rows}</div>
+    <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="report-price" data-arg="${h(id)}">Report a price</button>${google}${x.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(x.exit.id)}">Exit details</button>` : ''}</div>
+    ${gNote}
+    ${mine.length ? `<div class="section-title">Your reports here</div><div class="list">${mineRows}</div>` : ''}
+    <p class="note">Prices are what drivers reported, with the time and source of each, not verified pump prices. Your reports stay on this device${app.priceBook.sharedOn ? '; ones you share go to other ExitAtlas drivers without your name or location and expire after 7 days' : ''}. Reports older than ${o.maxAgeHours} h are shown but not compared; after 7 days they are dropped. Grades are never mixed.</p>`;
+}
+
+const REPORT_PROBLEMS = {
+  station: 'Pick a station', grade: 'Pick a grade', 'price out of range': 'Enter the price per gallon, for example 3.099',
+  'far from the regional average': 'That price is far from the regional average; check it', payment: 'Pick cash or credit', time: 'The time is off', storage: 'This browser did not let ExitAtlas save it',
+};
+
+/// Report a price: a few taps, no photo, no account. Saved on this device; shared only when the driver
+/// turned shared reports on and the location check places them at the station.
+export function reportSheet(app) {
+  const r = app.report;
+  if (!r) return '';
+  const moving = app.gps === 'device' && (app.lastSpeed ?? 0) > 4.5; // about 10 mph
+  const blocked = moving && !r.passenger;
+  const shareRow = app.priceBook.sharedOn
+    ? `<label class="field"><span style="flex:1">Share with other ExitAtlas drivers<div class="muted tiny">${
+      r.near === true ? 'You are at this station (location checked)' : r.checking ? 'Checking your location…' : r.near === false ? h(r.nearNote ?? 'Not at this station: saved on this device only') : 'Needs a location check at the station'}</div></span>
+      <input type="checkbox" class="toggle" data-report="share" ${r.share ? 'checked' : ''}></label>` : '';
+  const done = r.result
+    ? `<div class="banner ${r.result.ok ? '' : 'warn'}" style="margin:10px 0 0">${r.result.ok ? `${r.result.duplicate ? 'Already saved: the same price within 30 minutes.' : 'Saved on this device.'}${r.result.shared ? ` Shared: ${h(r.result.shared)}.` : ''}` : h(r.result.problems.map((p) => REPORT_PROBLEMS[p] ?? p).join('. '))}</div>` : '';
+  return `<div class="sheet-head"><h2>Report a price</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <div class="card"><div class="row" style="gap:10px">${brandTag(r)}<div style="flex:1;min-width:0"><b>${h(r.name)}</b><div class="muted tiny">${h(r.place ?? '')}</div></div></div></div>
+    <div class="seg report-seg" style="margin-top:10px">${PRICE_GRADES.map((g) => `<button class="${r.grade === g ? 'on' : ''}" data-act="report-grade" data-arg="${g}">${h(GRADE_NAMES[g])}</button>`).join('')}</div>
+    <label class="report-price"><span class="sr-only">Price per gallon in dollars</span>$<input type="text" inputmode="decimal" autocomplete="off" data-report="price" placeholder="3.099" value="${h(r.priceText ?? '')}" maxlength="6"></label>
+    <div class="seg report-seg">${[['credit', 'Credit'], ['cash', 'Cash']].map(([k, n]) => `<button class="${r.payment === k ? 'on' : ''}" data-act="report-pay" data-arg="${k}">${n}</button>`).join('')}</div>
+    <div class="list" style="margin-top:10px"><label class="field"><span style="flex:1">Member or loyalty price</span><input type="checkbox" class="toggle" data-report="member" ${r.member ? 'checked' : ''}></label>
+      ${shareRow}
+      ${moving ? `<label class="field"><span style="flex:1"><b class="amber-text">You are moving.</b><div class="muted tiny">Report only when parked, or let a passenger do it.</div></span><span class="muted tiny" style="margin-right:6px">I'm a passenger</span><input type="checkbox" class="toggle" data-report="passenger" ${r.passenger ? 'checked' : ''}></label>` : ''}</div>
+    <button class="btn primary block" style="margin-top:12px" data-act="report-save" ${blocked ? 'disabled' : ''}>Save price</button>${done}
+    <p class="note">Saved on this device${app.priceBook.sharedOn ? ', and shared only when the switch above is on: no account, no name, no location, just the station, grade, price, payment and time' : ''}. You can correct it for 30 minutes. Enter the price on the pump, for example 3.099.</p>`;
+}
+
+function priceSettings(app) {
+  const pr = app.settings.prices ?? {};
+  const toggle = (key, label, note, on) => `<label class="field"><span style="flex:1">${h(label)}${note ? `<div class="muted tiny">${note}</div>` : ''}</span><input type="checkbox" class="toggle" data-price="${key}" ${on ? 'checked' : ''}></label>`;
+  const own = app.priceBook.own().length;
+  const proxyOffers = Boolean(app.proxy?.community);
+  const sharedNote = !app.proxy ? 'Needs the ExitAtlas server below (free plan, off until the owner sets it up)'
+    : !proxyOffers ? 'The server does not offer shared reports' : app.priceBook.sharedState === 'unavailable' ? 'On, but the last lookup failed' : 'From other ExitAtlas drivers: no account, reports expire after 7 days';
+  const calls = app.priceCalls();
+  const google = pr.google
+    ? `<div class="card small" style="margin-top:8px"><p style="margin-top:0"><b>Google Maps prices are on.</b> Google bills each lookup to the key's owner ($40 per 1,000 after 1,000 free a month at the Enterprise + Atmosphere tier; check Google's current pricing). ExitAtlas looks up an exit only when you tap "Check Google Maps prices", never by itself. This month: ${calls} lookups.</p>
+      <label class="row" style="gap:8px"><span style="flex:1">Google Maps API key</span><input type="password" autocomplete="off" data-secret="ea.googleKey" placeholder="Paste key" value="${h(app.secret('ea.googleKey'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
+      <p class="muted tiny">Restrict the key to this website and to Places API (New), and set a daily quota in Google Cloud. Prices show with Google Maps attribution, never on the map, and are not saved or shared.</p></div>` : '';
+  return `<div class="list">
+      ${toggle('compare', 'Compare prices', 'In Road Ahead, the fuel stop and station details', pr.compare !== false)}
+      <div class="field"><span style="flex:1">I usually pay</span>${seg('price-pay', [['credit', 'Credit'], ['cash', 'Cash']], pr.payment ?? 'credit', 150)}</div>
+      <div class="field"><span style="flex:1">Compare reports up to<div class="muted tiny">Older ones show greyed, never as the cheapest</div></span>${seg('price-age', [['6', '6 h'], ['12', '12 h'], ['24', '24 h']], String(pr.maxAgeHours ?? 24), 170)}</div>
+      ${toggle('tellCheaper', 'Tell me when another stop is cheaper', `By $${pr.minSavingsDollars ?? 2} or more on a fill; your favorite brands stay first`, pr.tellCheaper !== false)}
+      <div class="field"><span style="flex:1">Only when it saves at least</span>${seg('price-min', [['1', '$1'], ['2', '$2'], ['3', '$3'], ['5', '$5']], String(pr.minSavingsDollars ?? 2), 190)}</div></div>
+    <div class="section-title">Price sources</div><div class="list">
+      ${toggle('ownReports', 'Your reports', `On this device · ${own} saved`, pr.ownReports !== false)}
+      ${toggle('community', 'Shared driver reports', h(sharedNote), pr.community === true)}
+      ${toggle('google', 'Google Maps prices', 'Paid, billed to your own key. Off: never called', pr.google === true)}</div>
+    ${google}
+    <label class="field" style="margin-top:8px;border-radius:14px"><span style="flex:1">ExitAtlas server<div class="muted tiny">${app.proxy ? `Connected: shared reports ${app.proxy.community ? 'on' : 'off'}, Google prices ${app.proxy.prices ? 'on' : 'off'}, chargers ${app.proxy.chargers ? 'on' : 'off'}${app.proxy.disabled.length ? `; switched off: ${h(app.proxy.disabled.join(', '))}` : ''}.` : 'Optional. The owner\'s Cloudflare Worker (infra/worker) on the free plan, with daily limits.'}</div></span><input type="url" autocomplete="off" data-secret="ea.proxyURL" placeholder="https://" value="${h(app.secret('ea.proxyURL'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
+    <p class="note">No free, licensed source publishes station prices for the US (docs/17), so prices come from reports: yours, and other drivers' when shared reports are on. A station without a current report says "Price unavailable" and never ranks as cheaper. Regional averages are never shown as a station's price.</p>`;
 }
 
 function fuelCard(app, s) {
@@ -859,9 +1048,9 @@ function fuelCard(app, s) {
     const sm = app.smartStop(), p = sm.primary;
     body = `<div class="row" style="gap:10px;margin-top:2px">${smartSign(p)}<div style="flex:1;min-width:0">
         <div style="font-weight:700${sm.lowRange ? ';color:var(--amber)' : ''}">${sm.lowRange ? 'Fuel low: nearest' : 'Fuel stop'} · ${h(p.name)} · ${milesValue(p.ahead)} mi${p.brandRank !== null ? ' · ★' : ''}</div>
-        ${smartConfidence(p, sm)}
+        ${smartConfidence(p, sm)}${priceLine(app, p)}
         <div class="muted tiny">${h(smartArrival(app, p))}${p.detourMinutes != null ? ` · ${Math.round(p.detourMinutes)} min detour` : ''}</div></div></div>
-        ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}`;
+        ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}${cheaperNote(app, sm)}`;
   } else {
     const low = fp.status === 'low';
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);
@@ -884,12 +1073,13 @@ function stopName(x) {
   return stationNames(x);
 }
 
-/// Live price line for an exit (gas cars with a Google key): favorite brand first, then the cheapest.
+/// Google price line for an exit the driver checked (Google Maps prices on): favorite brand first, then the
+/// cheapest. Nothing until the driver taps to check.
 function priceInfo(app, exit) {
   if (!exit || !app.prices.enabled || app.settings.vehicle?.ev) return '';
   const c = app.prices.peek(exit.id);
-  if (!c) return '<div class="muted tiny">Loading prices…</div>';
-  if (c.error) return '<div class="muted tiny">Prices unavailable</div>';
+  if (!c) return '';
+  if (c.error) return '<div class="muted tiny">Google Maps prices unavailable</div>';
   const g = GRADES[app.gradeCode()];
   const priced = pricedForGrade(c.stations, g.key);
   if (!priced.length) return `<div class="muted tiny">No ${g.name.toLowerCase()} prices reported near this exit</div>`;
@@ -1022,18 +1212,20 @@ function bestStopCard(app, s, { restroom = false } = {}) {
   const title = restroom ? 'Best restroom stop ahead' : fuel?.primary ? (fuel.lowRange ? 'Fuel low: nearest stop' : 'Recommended fuel stop') : 'Best stop ahead';
   const alts = r.alternatives.slice(0, 2);
   const altRow = (x) => `<div class="bs-alt">${smartSign(x)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${h(smartWhere(x))} · ${h(detourText(x))}</div>
-      ${confLine(x.evaluation.hours.status, x.evaluation.hours.label)}${confLine(x.evaluation.restroom.status, x.evaluation.restroom.label)}</div>
+      ${confLine(x.evaluation.hours.status, x.evaluation.hours.label)}${confLine(x.evaluation.restroom.status, x.evaluation.restroom.label)}${restroom ? '' : priceLine(app, x)}</div>
       <button class="btn sm" data-act="skip-stop" data-arg="${h(x.id)}" aria-label="Not this one: ${h(x.name)}">Skip</button></div>`;
+  const priceButtons = !restroom && app.priceOptions() && p.kind !== 'rest'
+    ? `${app.exitsUI.filter === 'fuel' ? '' : '<button class="btn sm" data-act="ahead-filter" data-arg="fuel">Compare prices</button>'}<button class="btn sm" data-act="report-price" data-arg="${h(p.id)}">Report a price</button>` : '';
   return `<div class="card best-stop${fuel?.lowRange ? ' low' : ''}">
     <div class="row"><div class="eyebrow success-text" style="flex:1">${r.overnight ? '🌙 ' : ''}${h(title)}</div>${p.brandRank !== null ? '<span class="muted tiny">★ Favorite brand</span>' : ''}</div>
     <div class="row bs-main">${smartSign(p)}<div class="main"><div class="title-md">${h(p.name)}</div><div class="muted small">${h(smartArrival(app, p))}</div></div>${tlDist(p.ahead, null)}</div>
     ${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}${confLine(p.evaluation.restroom.status, p.evaluation.restroom.label)}
-    <div class="muted tiny bs-detour">${h(detourText(p))}</div>
-    ${r.notice ? `<div class="small amber-text" style="margin-top:6px">${h(r.notice)}</div>` : ''}
+    <div class="muted tiny bs-detour">${h(detourText(p))}</div>${restroom ? '' : priceLine(app, p)}
+    ${r.notice ? `<div class="small amber-text" style="margin-top:6px">${h(r.notice)}</div>` : ''}${restroom ? '' : cheaperNote(app, r)}
     <details class="bs-why"><summary>Why this stop${alts.length ? ` · ${alts.length} ${alts.length === 1 ? 'alternative' : 'alternatives'}` : ''}</summary>
       <ul class="smart-reasons">${p.reasons.map((x) => `<li>${h(x)}</li>`).join('')}${p.nextOption != null ? `<li>Next option ${miles(p.nextOption)} later</li>` : ''}</ul>
       ${alts.map(altRow).join('')}</details>
-    <div class="btn-row">${p.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(p.exit.id)}">Exit details</button>` : p.restArea ? `<button class="btn sm" data-act="rest" data-arg="${h(p.restArea.id)}">${p.kind === 'rest' ? 'Rest area' : 'Plaza'} details</button>` : ''}
+    <div class="btn-row">${priceButtons}${p.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(p.exit.id)}">Exit details</button>` : p.restArea ? `<button class="btn sm" data-act="rest" data-arg="${h(p.restArea.id)}">${p.kind === 'rest' ? 'Rest area' : 'Plaza'} details</button>` : ''}
       <button class="btn sm" data-act="skip-stop" data-arg="${h(p.id)}">Not this one</button></div></div>`;
 }
 
@@ -1094,12 +1286,15 @@ export function exitsView(app) {
     const pickTag = (p) => `<div class="rec-tag">${f === 'rest' ? '🚻 Best restroom stop' : sm?.primary ? '⛽ Recommended fuel stop' : '★ Best stop ahead'}</div>${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}`;
     const best = f === 'all' || f === 'fuel' || f === 'rest' ? (f === 'rest' ? app.bestStopAhead(Math.max(60, ui.window), { restrooms: true }) : sm?.primary ? sm : app.bestStopAhead(Math.max(60, ui.window))) : null;
     const bp = best?.primary ?? null;
+    // Fuel with prices compared: stations get their own sortable list (compareCard); the timeline keeps
+    // the gas gaps and alerts.
+    const compare = f === 'fuel' && !ev && Boolean(app.priceOptions());
     const events = [];
     const add = (d, o, html) => events.push({ d, o, html });
     if (f === 'all') {
       for (const x of s.itinerary) if (x.status === 'upcoming' && x.segment.startDistance - s.progress <= win) add(x.segment.startDistance, 0, stateTimelineRow(x, s));
     }
-    for (const u of s.upcomingExits) {
+    for (const u of compare ? [] : s.upcomingExits) {
       if (u.distance > win) break;
       const services = app.servicesFor(u.exit);
       const has = (c) => services.some((x) => x.place.category === c);
@@ -1109,7 +1304,7 @@ export function exitsView(app) {
       const tag = isPick ? pickTag(bp) : fuelStopID === u.exit.id ? '<div class="rec-tag">⛽ Planned fuel stop</div>' : '';
       add(u.exit.distanceAlongRoute, 1, exitTimelineRow(app, u, s, services, tag));
     }
-    for (const u of s.upcomingRestAreas) {
+    for (const u of compare ? [] : s.upcomingRestAreas) {
       if (u.distance > win) continue;
       const r = u.restArea;
       const show = f === 'all' || f === 'rest' || (f === 'fuel' && (ev ? r.ev.length : r.gas.length) > 0) || (f === 'food' && r.food.length > 0) || (f === 'ev' && r.ev.length > 0);
@@ -1126,10 +1321,12 @@ export function exitsView(app) {
     events.sort((x, y) => x.d - y.d || x.o - y.o);
     rows = events.map((e) => e.html);
     if (f === 'all' || f === 'fuel' || f === 'rest') top = bestStopCard(app, s, { restroom: f === 'rest' });
+    if (compare) top += compareCard(app, s);
   }
   const status = alertStatus(intel, { open: f === 'alerts' });
   let list;
   if (rows.length) list = `<ol class="tl" aria-label="Road ahead, in route order">${rows.join('')}</ol>`;
+  else if (f === 'fuel' && top.includes('data-testid="price-compare"')) list = '';
   else if (f === 'alerts') list = `<div class="card empty"><div class="t">${alertEmptyTitle(intel, ui.window)}</div>${h(alertEmptyText(intel))}</div>`;
   else list = `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${f === 'all' ? 'Try a longer window.' : `Nothing matches ${FILTER_NAMES[f]} in this window. Try a longer one.`}</div>`;
   return `<div class="stack ahead">${f === 'states' ? '' : windowSeg}${filters}${note}${status}${top}${list}${tools}${attribution()}</div>`;
@@ -1257,22 +1454,43 @@ export function aheadText(s, along) {
   return `${miles(ahead)} ahead · ${secs < 60 ? 'under 1 min' : duration(secs)} · `;
 }
 
+/// Reported prices at an exit's gas stations for the driver's grade, and Google Maps prices only when the
+/// driver turned them on and taps to check (paid).
 function priceSection(app, exit) {
   if (app.settings.vehicle?.ev) return '';
-  if (!app.prices.enabled) return '<p class="muted tiny">Live gas prices: add a Google Maps key in Settings.</p>';
+  const o = app.priceOptions();
+  const gas = app.servicesFor(exit).filter((x) => x.place.category === 1);
+  let html = '';
+  if (o && gas.length) {
+    const ctx = app.stopContext();
+    const rows = gas.map((x) => {
+      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand;
+      const sp = stopPrice(ctx, id, liveFor(app.prices, exit, x.place, brand));
+      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name: placeDisplayName(x.place), brand })}<div class="main"><div class="t">${h(placeDisplayName(x.place))}</div>
+        <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current report'}</div></div>${priceTag(sp, o.grade)}</button>`;
+    }).join('');
+    html += `<div class="section-title">⛽ Gas prices here</div><div class="list">${rows}</div>
+      <p class="muted tiny" style="margin:6px 4px 0">Reports with their time and source, not verified pump prices. Tap a station to report the price you see.</p>`;
+  }
+  if (app.settings.prices?.google) html += googleSection(app, exit);
+  return html;
+}
+
+function googleSection(app, exit) {
+  if (!app.prices.enabled) return '<p class="muted tiny">Google Maps prices are on, but no Google key or server is set (Settings, Gas prices).</p>';
   const c = app.prices.peek(exit.id);
-  if (!c) return '<div class="section-title">⛽ Gas prices near this exit</div><div class="card empty">Loading prices…</div>';
-  if (c.error) return `<div class="section-title">⛽ Gas prices near this exit</div><div class="card small">Prices unavailable: ${h(c.error)}</div>`;
+  if (!c) return `<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="google-prices" data-arg="${h(exit.id)}">${app.prices.cache.get(exit.id)?.pending ? 'Checking Google Maps…' : 'Check Google Maps prices (paid)'}</button></div>`;
+  if (c.error) return `<div class="section-title">Google Maps prices</div><div class="card small">Google Maps prices unavailable: ${h(c.error)}</div>`;
   const g = GRADES[app.gradeCode()];
   const rows = [...c.stations].sort((a, b) => (a.prices[g.key]?.value ?? 99) - (b.prices[g.key]?.value ?? 99)).map((st) => {
     const p = st.prices[g.key];
     const others = Object.entries(GRADES).filter(([, x]) => x.key !== g.key && st.prices[x.key]).map(([, x]) => `${x.name} ${priceText(st.prices[x.key])}`).join(' · ');
     const fav = matchesFavorite(st.name, app.settings.favoriteBrands);
-    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${ageText(p.updated)}` : 'No price reported'}${others ? ` · ${others}` : ''}</div></div>
+    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${ageText(p.updated)}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
       <div class="side"><div class="big">${p ? priceText(p) : '—'}</div></div></div>`;
   });
-  return `<div class="section-title">⛽ Gas prices near this exit</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
-    <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit. Not stored.</p>`;
+  return `<div class="section-title">Google Maps prices</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
+    <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up when you asked. Not stored or shared.</p>`;
 }
 
 function serviceRow(x) {
@@ -1447,7 +1665,7 @@ export function settingsView(app) {
     <div><div class="section-title">Overnight driving</div>${overnightSettings(app)}</div>
     <div><div class="section-title">Traffic</div>${trafficSettings()}</div>
     <div><div class="section-title">Road alerts</div>${alertSettings(app)}</div>
-    <div><div class="section-title">Gas prices</div><div class="card small">${priceSettings(app)}</div></div>
+    <div><div class="section-title">Gas prices</div>${priceSettings(app)}</div>
     <div><div class="section-title">Electric vehicles</div><div class="list">
       <div class="field"><span style="flex:1">Charging stops at</span><div class="seg" style="width:220px">${[['Tesla', 'Superchargers'], ['all', 'All DC fast']].map(([k, n]) => `<button class="${st.chargerNetwork === k ? 'on' : ''}" data-act="charger-network" data-arg="${k}">${n}</button>`).join('')}</div></div>
       <label class="field"><span style="flex:1">NREL key for charger lookups<div class="muted tiny">Optional. The built in demo key allows 10 lookups an hour; a free key from <a href="https://developer.nlr.gov/signup/" target="_blank" rel="noopener">developer.nlr.gov</a> allows far more.</div></span>
@@ -1468,11 +1686,11 @@ export function settingsView(app) {
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
-      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
+      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. When you check Google Maps prices, Google's business hours and restroom field for those stations.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
-      <p><b>Gas prices:</b> Google Maps Places API with your key (Settings, Gas prices). Off without a key.</p>
+      <p><b>Gas prices:</b> reports by you (on this device) and, when turned on, by other ExitAtlas drivers through the owner's server; each shows its time and source. Google Maps prices only when you turn them on and tap to check (paid, your key). No regional average is shown as a station's price.</p>
       <p><b>EV chargers:</b> U.S. DOE Alternative Fuels Data Center (developer.nlr.gov).</p>
       <p><b>Speed limits:</b> OpenStreetMap via the FOSSGIS Valhalla server.</p>
       <p style="margin-bottom:0" class="muted">Exit and services data are from July 2026 OpenStreetMap and can be out of date.</p></div></div>
@@ -1581,7 +1799,7 @@ export function fuelSheet(app) {
   }
   const favs = ev ? '' : `<div class="card"><div class="row"><div class="eyebrow" style="flex:1">Favorite gas</div><span class="muted tiny">${st.favoriteBrands.length ? 'Picked first when they keep your buffer' : 'None: any brand'}</span></div>
     <div class="chips" style="margin-top:8px">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].slice(0, 16).map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div></div>`;
-  const prices = !ev && fp?.stations.length && app.prices.enabled ? '<p class="attrib">Prices: <span class="gattr">Google Maps</span>. Not stored.</p>' : '';
+  const prices = !ev && app.prices.cache.size && app.prices.enabled ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up when you asked. Not stored or shared.</p>' : '';
   const others = fp && fp.stations.length
     ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
         <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${x.kind === 'charge' ? 'a' : 'button'}>`).join('')}</div>` : '';
@@ -1600,7 +1818,7 @@ export function fuelSheet(app) {
       <div class="seg">${[25, 50, 75, 100].map((b) => `<button type="button" class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div>
     </form>
     ${favs}${sm?.primary ? '' : plan}${prices}${others}
-    <p class="note">${ev ? `DC fast chargers within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center (${st.chargerNetwork === 'Tesla' ? 'Tesla Superchargers' : 'all networks'}). Detours are straight line estimates.` : 'Gas stations linked to interstate exits in OpenStreetMap. Detours count against your range.'}${!ev && !app.prices.enabled ? ' Live prices: add a Google Maps key in Settings.' : ''}</p></div>`;
+    <p class="note">${ev ? `DC fast chargers within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center (${st.chargerNetwork === 'Tesla' ? 'Tesla Superchargers' : 'all networks'}). Detours are straight line estimates.` : 'Gas stations linked to interstate exits in OpenStreetMap. Detours count against your range.'}${!ev && app.priceOptions() ? ' Prices are reports with their time and source (Settings, Gas prices).' : ''}</p></div>`;
 }
 
 function basisName(st, ev = false) {
@@ -1612,15 +1830,6 @@ export function gaugeText(step, v) {
   if (v.ev) return `${step * 5}% · ${Math.round(step / 20 * v.rangeMiles)} mi`;
   const label = ['Empty', '1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8', 'Full'][step];
   return `${label} · ${Math.round(step / 8 * v.tankGallons * v.mpg)} mi`;
-}
-
-function priceSettings(app) {
-  const calls = app.priceCalls();
-  return `<p style="margin-top:0">Live prices per station come from Google Maps (Places API), using your own key. Without a key, ExitAtlas shows stations but no prices.</p>
-    <label class="row" style="gap:8px"><span style="flex:1">Google Maps API key</span><input type="password" autocomplete="off" data-secret="ea.googleKey" placeholder="Paste key" value="${h(app.secret('ea.googleKey'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
-    <p class="muted tiny">Get one at console.cloud.google.com: create a project, enable "Places API (New)", add billing, create an API key, and restrict it to the website altecbx.github.io and to Places API (New). Google bills each price lookup at $40 per 1,000 after 1,000 free a month (Enterprise + Atmosphere tier). ExitAtlas looks up one exit at a time, at most every 15 minutes per exit. This month: ${calls} lookups.</p>
-    <p class="muted tiny">Prices are shown with Google Maps attribution, never on the map, and are not saved.</p>
-    <label class="row" style="gap:8px"><span style="flex:1">ExitAtlas key proxy<div class="muted tiny">${app.proxy ? `Connected: prices ${app.proxy.prices ? 'on' : 'off'}, chargers ${app.proxy.chargers ? 'on' : 'off'}${app.proxy.disabled.length ? `; switched off: ${h(app.proxy.disabled.join(', '))}` : ''}.` : 'Optional. The owner\'s Cloudflare Worker (infra/worker) with its own keys and daily limits.'}</div></span><input type="url" autocomplete="off" data-secret="ea.proxyURL" placeholder="https://" value="${h(app.secret('ea.proxyURL'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>`;
 }
 
 function paceSettings(app) {

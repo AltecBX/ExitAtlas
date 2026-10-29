@@ -17,7 +17,7 @@
 import { parseOpeningHours, weekFromPeriods, openAt, localTime } from './openinghours.js';
 import { inOvernightWindow } from './profile.js';
 import { matchesFavorite } from './fuel.js';
-import { fillCost, compareStops } from './gasprices.js';
+import { fillCost, compareStops, dollars } from './gasprices.js';
 
 export const HOURS_LABELS = Object.freeze({
   verified: 'Verified open at estimated arrival',
@@ -164,7 +164,7 @@ const ordinal = (i) => ORDINAL[i] ?? `${i + 1}th`;
 ///             purpose: 'fuel' (open pumps rank before restrooms) or 'restroom' (the restroom first),
 ///             reserveMeters, rejected: ids the driver turned down on this trip,
 ///             vehicle: {tankGallons, mpg} for the cost of a fill (null: no cost comparison)}
-/// Returns {primary, alternatives, considered, passed: {reason: count}, overnight, relaxed, lowRange,
+/// Returns {primary, alternatives, order: the ids of every stop kept, best first, considered, passed: {reason: count}, overnight, relaxed, lowRange,
 ///          favorite: why the first choice brand was not picked (or null), notice: what no stop offers,
 ///          cheaper: a stop that saves at least prices.minSavingsDollars on a fill over the primary, or null}.
 export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fuel', reserveMeters = 0, rejected = [], vehicle = null } = {}) {
@@ -241,7 +241,7 @@ export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fu
   }
   const out = (x) => (x ? { ...x.c, evaluation: x.e, brandRank: x.brand, reasons: reasons(x, profile, { needs, lowRange, reserveMeters }) } : null);
   const result = {
-    primary: out(primary), alternatives: alternatives.map(out), considered: candidates.length, passed,
+    primary: out(primary), alternatives: alternatives.map(out), order: ranked.map((x) => x.c.id), considered: candidates.length, passed,
     overnight: overnightAny, relaxed, lowRange, favorite: null, notice: null, cheaper: null,
   };
   if (!primary) return result;
@@ -297,7 +297,7 @@ function reasons(x, profile, { needs, lowRange, reserveMeters }) {
 }
 
 function priceReason(p) {
-  return `$${p.value.toFixed(2)} a gallon${p.text ? `, ${p.text.toLowerCase()}` : ''} (${p.source ?? 'source not stated'})`;
+  return `${dollars(p.value)} a gallon${p.text ? `, ${p.text.toLowerCase()}` : ''} (${p.source ?? 'source not stated'})`;
 }
 
 /// The stop that saves the most on a fill over the primary, when it saves at least the driver's minimum:

@@ -51,6 +51,12 @@ export function validateReport(input, { now, benchmark = null } = {}, rules = PR
   };
 }
 
+/// "$3.09", or "$3.099" when the price has tenths of a cent (as posted at most US pumps).
+export function dollars(v) {
+  const mills = Math.round(v * 1000);
+  return `$${mills % 10 ? (mills / 1000).toFixed(3) : (mills / 1000).toFixed(2)}`;
+}
+
 /// How current a record is: 'current' (seen within maxAgeHours: compared), 'old' (shown greyed, never
 /// compared), 'expired' (past keepDays: dropped). text: "Reported 18 minutes ago".
 export function freshness(record, now, maxAgeHours = 24, rules = PRICE_RULES) {

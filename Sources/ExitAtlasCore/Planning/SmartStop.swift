@@ -412,6 +412,8 @@ public enum SmartStop {
     public struct Result: Sendable {
         public var primary: Pick?
         public var alternatives: [Pick]
+        /// The ids of every stop kept, best first (the Recommended order when comparing prices).
+        public var order: [String]
         public var considered: Int
         /// Stops left out, by reason.
         public var passed: [String: Int]
@@ -536,13 +538,13 @@ public enum SmartStop {
             else if x.c.isPlaza { out.append("On the highway, no exit needed") }
             else { out.append("Detour not measured") }
             if let price = x.c.price {
-                out.append(String(format: "$%.2f a gallon", price) + (x.c.priceText.map { ", \($0.lowercased())" } ?? "") + " (\(x.c.priceSource ?? "source not stated"))")
+                out.append("\(GasPrices.dollars(price)) a gallon" + (x.c.priceText.map { ", \($0.lowercased())" } ?? "") + " (\(x.c.priceSource ?? "source not stated"))")
             }
             return out
         }
         func pick(_ x: Entry) -> Pick { Pick(candidate: x.c, evaluation: x.e, brandRank: x.brand, reasons: reasons(x), nextOption: nil) }
 
-        var result = Result(primary: primary.map(pick), alternatives: alternatives.map(pick), considered: candidates.count, passed: passed,
+        var result = Result(primary: primary.map(pick), alternatives: alternatives.map(pick), order: ranked.map(\.c.id), considered: candidates.count, passed: passed,
                             overnight: evaluated.contains { $0.e.overnight }, relaxed: relaxed, lowRange: lowRange, favorite: nil, notice: nil,
                             cheaper: nil)
         guard let primary else { return result }

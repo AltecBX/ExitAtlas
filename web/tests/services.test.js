@@ -33,8 +33,14 @@ test('Google Places prices: parsing, grade sort, one request per exit per 15 min
   assert.equal(ageText(Date.parse('2026-10-28T01:00:00Z'), Date.parse('2026-10-28T01:25:00Z')), '25 min ago');
 
   let now = 0, calls = 0, lastReq = null;
+  // Paid: off unless the driver turned Google Maps prices on, whatever key is stored (docs/17).
+  let fetched = 0;
+  const notAllowed = new GasPrices({ getKey: () => 'k', fetchImpl: async () => { fetched += 1; return { ok: true, status: 200, json: async () => placesJSON }; } });
+  assert.equal(notAllowed.enabled, false);
+  assert.equal(await notAllowed.load({ id: 'x0', coordinate: { lat: 31.2, lon: -81.5 } }), null);
+  assert.equal(fetched, 0, 'no Google request without the switch');
   const prices = new GasPrices({
-    getKey: () => 'k', now: () => now,
+    getKey: () => 'k', allowed: () => true, now: () => now,
     fetchImpl: async (url, opts) => { calls += 1; lastReq = { url, opts }; return { ok: true, status: 200, json: async () => placesJSON }; },
   });
   const exit = { id: 'x1', coordinate: { lat: 31.2, lon: -81.5 } };
@@ -51,13 +57,13 @@ test('Google Places prices: parsing, grade sort, one request per exit per 15 min
   now += 16 * 60 * 1000;
   await prices.load(exit);
   assert.equal(calls, 2, 'refreshed after 15 minutes');
-  const off = new GasPrices({ getKey: () => '' });
+  const off = new GasPrices({ getKey: () => '', allowed: () => true });
   assert.equal(off.enabled, false);
   assert.equal(await off.load(exit), null);
 });
 
 test('Google Places errors are reported, not thrown', async () => {
-  const prices = new GasPrices({ getKey: () => 'bad', fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'API key not valid' } }) }) });
+  const prices = new GasPrices({ getKey: () => 'bad', allowed: () => true, fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'API key not valid' } }) }) });
   const r = await prices.load({ id: 'x', coordinate: { lat: 1, lon: 1 } });
   assert.equal(r.error, 'API key not valid');
   assert.equal(r.stations.length, 0);
@@ -91,14 +97,15 @@ test('with the key proxy set, prices and chargers go through it and no key leave
   const base = proxyBase('https://exitatlas-proxy.example.workers.dev');
   const sent = [];
   const fetchImpl = async (url, opts) => { sent.push({ url: String(url), opts }); return { ok: true, status: 200, json: async () => ({ places: [] }) }; };
-  const prices = new GasPrices({ getKey: () => 'driver-key', getProxy: () => base, fetchImpl });
+  const prices = new GasPrices({ getKey: () => 'driver-key', getProxy: () => base, allowed: () => true, fetchImpl });
   assert.equal(prices.enabled, true);
   await prices.load({ id: 1, coordinate: { lat: 30.4, lon: -81.6 } });
   assert.equal(sent[0].url, 'https://exitatlas-proxy.example.workers.dev/v1/gas-prices');
   assert.deepEqual(JSON.parse(sent[0].opts.body), { lat: 30.4, lon: -81.6 });
   assert.ok(!JSON.stringify(sent[0].opts).includes('driver-key'));
   // Without a key of their own, the proxy alone turns prices on.
-  assert.equal(new GasPrices({ getKey: () => '', getProxy: () => base }).enabled, true);
+  assert.equal(new GasPrices({ getKey: () => '', getProxy: () => base, allowed: () => true }).enabled, true);
+  assert.equal(new GasPrices({ getKey: () => '', getProxy: () => base }).enabled, false, 'the proxy does not turn on paid prices by itself');
 
   const r = route('miami_to_manhattan');
   await fetchChargers(r.polyline, { apiKey: 'K', proxy: base, fetchImpl: async (url, opts) => { sent.push({ url: String(url), opts }); return { ok: true, status: 200, json: async () => ({ fuel_stations: [] }) }; } });
@@ -113,8 +120,8 @@ test('proxy URL and switches: https only, unreachable means not used', async () 
   assert.equal(proxyBase('not a url'), null);
   assert.equal(String(proxyBase('https://p.example/x?y=1')), 'https://p.example/x/');
   assert.equal(String(proxyBase('http://localhost:8787')), 'http://localhost:8787/');
-  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, wzdx: true, disabled: ['search'] }) }));
-  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, wzdx: true, disabled: ['search'] });
+  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, wzdx: true, community: true, disabled: ['search'] }) }));
+  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, wzdx: true, community: true, disabled: ['search'] });
   assert.equal(switchedOff(ok, 'search'), true);
   assert.equal(switchedOff(ok, 'routing'), false);
   assert.equal(await loadProxy('https://p.example', async () => { throw new Error('offline'); }), null);

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
-import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor } from '../js/engine/gasprices.js';
+import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars } from '../js/engine/gasprices.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '../../Tests/ExitAtlasCoreTests/Fixtures/prices/cases.json'), 'utf8'));
@@ -71,6 +71,10 @@ test('sorting: a station without a current price never sorts as cheaper', () => 
   const rows = f.sort.rows.map((r) => ({ ...r, ahead: r.aheadMiles * MILE,
     price: r.price ? stationPrice(f.records, r.price, 'R', { now: f.now, payment: 'credit' }) : null }));
   for (const [sort, ids] of Object.entries(f.sort.expect)) assert.deepEqual(sortStations(rows, sort).map((r) => r.id), ids, sort);
+});
+
+test('price text keeps the tenths of a cent a pump posts', () => {
+  for (const [v, text] of Object.entries(f.dollars)) assert.equal(dollars(Number(v)), text, v);
 });
 
 test('regional average areas by state', () => {
