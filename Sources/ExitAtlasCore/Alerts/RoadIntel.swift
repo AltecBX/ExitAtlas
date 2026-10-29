@@ -21,7 +21,7 @@ public enum RoadIntel {
             case .hazard: return "Hazard on the road"
             case .disabledVehicle: return "Disabled vehicle"
             case .construction: return "Work zone"
-            case .congestion: return "Major delay"
+            case .congestion: return "Traffic slowdown"
             case .police: return "Police reported"
             case .speedCamera: return "Speed camera"
             case .other: return "Road incident"
@@ -34,7 +34,8 @@ public enum RoadIntel {
         public var group: Group {
             switch self {
             case .closure, .construction: return .closures
-            case .crash, .hazard, .disabledVehicle, .congestion, .other: return .incidents
+            case .crash, .hazard, .disabledVehicle, .other: return .incidents
+            case .congestion: return .traffic
             case .weather, .flooding: return .weather
             case .police: return .police
             case .speedCamera: return .cameras
@@ -43,12 +44,14 @@ public enum RoadIntel {
     }
 
     public enum Group: String, Sendable, CaseIterable {
-        case closures, incidents, weather, police, cameras
+        case closures, incidents, traffic, weather, police, cameras
 
         public var label: String {
             switch self {
             case .closures: return "Closures and work zones"
             case .incidents: return "Crashes, hazards and delays"
+            // Measured slowdowns from a traffic provider (Trip/Traffic.swift), on the route and direction driven.
+            case .traffic: return "Traffic slowdowns"
             case .weather: return "Weather and flooding"
             case .police: return "Police reports"
             case .cameras: return "Speed cameras"
@@ -58,7 +61,8 @@ public enum RoadIntel {
         public var kinds: [Kind] { Kind.allCases.filter { $0.group == self } }
     }
 
-    public enum Verification: String, Sendable { case official, community, mapped }
+    /// measured: a traffic provider's own measurement on the route (Trip/Traffic.swift).
+    public enum Verification: String, Sendable { case official, measured, community, mapped }
     public enum Severity: String, Sendable { case severe, major, moderate, minor, unknown }
     public enum Tier: String, Sendable { case urgent, caution, info }
 
@@ -69,6 +73,8 @@ public enum RoadIntel {
         case polygon([[GeoCoordinate]])
         /// An area alert known only at sample points on the route.
         case points([GeoCoordinate])
+        /// Measured on the active route (its id) and direction by a traffic provider, in meters along it.
+        case route(routeId: String, from: Double, to: Double)
     }
 
     public struct Source: Sendable, Hashable {
@@ -97,6 +103,9 @@ public enum RoadIntel {
         public var detail: String?
         /// The provider's area description, for area alerts.
         public var area: String?
+        /// Traffic slowdowns: the provider's added time, when it gives one, and the speed it measured.
+        public var delaySeconds: Double?
+        public var speedMph: Double?
 
         public init(id: String, kind: Kind, description: String, source: Source, verification: Verification,
                     reportedAt: Date? = nil, updatedAt: Date? = nil, startsAt: Date? = nil, endsAt: Date? = nil, expiresAt: Date? = nil,
@@ -148,7 +157,7 @@ public enum RoadIntel {
             case .hazard: return "Road hazard ahead"
             case .disabledVehicle: return "Disabled vehicle ahead"
             case .construction: return "Work zone ahead"
-            case .congestion: return "Major delay ahead"
+            case .congestion: return severity == .severe ? "Stopped traffic ahead" : severity == .major ? "Heavy traffic ahead" : "Slow traffic ahead"
             case .police: return "Police reported ahead"
             case .speedCamera: return "Speed camera ahead"
             case .other: return "Road incident ahead"
@@ -307,6 +316,10 @@ public enum RoadIntel {
             return .ahead(start: lo, end: hi, directionKnown: true, approximate: true)
         case .line(let cs): return placeLine(cs, i, route, progress, rules)
         case .polygon(let rings): return placeArea(rings, route, progress, rules)
+        case .route(let routeId, let from, let to):
+            // Measured on this route and direction by a traffic provider: no position matching.
+            guard routeId == route.id.uuidString else { return .rejected("other route") }
+            return to > progress ? .ahead(start: max(from, progress), end: to, directionKnown: true) : .rejected("behind")
         }
     }
 
@@ -389,7 +402,7 @@ public enum RoadIntel {
 
     // MARK: Deduplication and status
 
-    static let verificationOrder: [Verification: Int] = [.official: 0, .community: 1, .mapped: 2]
+    static let verificationOrder: [Verification: Int] = [.official: 0, .measured: 1, .community: 2, .mapped: 3]
     static let severityOrder: [Severity: Int] = [.severe: 0, .major: 1, .moderate: 2, .minor: 3, .unknown: 4]
 
     /// One alert per real event: same family of kinds, same direction, overlapping or within `duplicate`.

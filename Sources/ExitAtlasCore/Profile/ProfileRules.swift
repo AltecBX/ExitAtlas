@@ -25,7 +25,11 @@ public enum ProfileRules {
             "voice": ["enabled": true, "stateLines": true, "exits": false, "fuel": true, "restAreas": true,
                       "gasGaps": true, "timeZones": true],
             // Road alerts by Settings group (RoadIntel.Group), and whether they are spoken.
-            "alerts": ["closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true],
+            "alerts": ["closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "traffic": true,
+                       "voice": true],
+            // Traffic (Trip/Traffic.swift, docs/16): the map layer, traffic in arrival times, spoken heavy traffic,
+            // and faster route offers saving at least minSavingMinutes.
+            "traffic": ["map": true, "eta": true, "voice": true, "suggestRoutes": true, "minSavingMinutes": 10],
         ]
     }
 
@@ -44,6 +48,11 @@ public enum ProfileRules {
 
     static func oneOf(_ v: JSONValue, _ list: [String]) -> JSONValue? {
         guard let s = v.string, list.contains(s) else { return nil }
+        return v
+    }
+
+    static func oneOf(_ v: JSONValue, _ list: [Double]) -> JSONValue? {
+        guard let n = v.number, list.contains(n) else { return nil }
         return v
     }
 
@@ -207,7 +216,8 @@ public enum ProfileRules {
             ("drivePresentation", { oneOf($0, ["map", "focus"]) }),
         ])
         section("voice", ["enabled", "stateLines", "exits", "fuel", "restAreas", "gasGaps", "timeZones"].map { ($0, bool) })
-        section("alerts", ["closures", "incidents", "weather", "police", "cameras", "voice"].map { ($0, bool) })
+        section("alerts", ["closures", "incidents", "weather", "police", "cameras", "traffic", "voice"].map { ($0, bool) })
+        section("traffic", ["map", "eta", "voice", "suggestRoutes"].map { ($0, bool) } + [("minSavingMinutes", { oneOf($0, [5, 10, 15, 20]) })])
         return (.object(out), problems)
     }
 

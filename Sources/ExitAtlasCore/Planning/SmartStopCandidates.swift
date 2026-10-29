@@ -92,7 +92,7 @@ public extension SmartStop {
         }
 
         func eta(_ along: Double) -> Date {
-            plan.eta(from: snapshot.progress, to: along, pace: snapshot.pace, now: snapshot.timestamp)
+            plan.eta(to: along, from: snapshot)
         }
 
         func zone(_ along: Double) -> TimeZone {

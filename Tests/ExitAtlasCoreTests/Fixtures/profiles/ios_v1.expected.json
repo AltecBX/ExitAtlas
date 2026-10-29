@@ -18,5 +18,6 @@
   "driving": {"speedAlertOver": 8, "exitLookaheadMiles": 40, "gasGapMiles": 50, "favoriteCategories": [],
               "avoidTolls": true, "keepAwake": true, "liveActivity": false, "theme": "auto", "drivePresentation": "map"},
   "voice": {"enabled": true, "stateLines": true, "exits": false, "fuel": false, "restAreas": true, "gasGaps": false, "timeZones": true},
-  "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true}
+  "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "traffic": true, "voice": true},
+  "traffic": {"map": true, "eta": true, "voice": true, "suggestRoutes": true, "minSavingMinutes": 10}
 }

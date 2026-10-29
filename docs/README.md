@@ -17,4 +17,7 @@ Research date for external facts: 2026-10-27 (documents 1 to 8) and 2026-10-28 (
 | 11 | [Release readiness](11_release_readiness.md) | Data versions, updates and rollback; the key proxy; App Store privacy, review risks and owner decisions |
 | 12 | [Profile and SmartStop audit](12_profile_and_smartstop_audit.md) | Saved preferences, migrations, Shell first, overnight rules, stop confidence |
 | 13 | [Road Intelligence audit](13_road_intelligence_audit.md) | Police source verdict, alert sources verified and potential, matching and status rules, community reporting assessment, costs, pull request plan |
+| 14 | [Google Navigation and reporting](14_google_navigation_and_reporting.md) | The Google Navigation SDK experiment, Waze handoff, community reporting assessment and test plan |
+| 15 | [Premium navigation plan](15_premium_navigation_plan.md) | Audit of the Drive, Road Ahead, alert and SmartStop screens, and the Navigation and Focus View plan |
+| 16 | [Live traffic](16_live_traffic.md) | Traffic providers and their licenses verified, what Apple Maps gives the iOS app, the traffic engine, costs, and what is live |
 | | [Research notes](research/) | Competitors, Apple platform, infrastructure and legal, with sources (2026-10-28) |

@@ -33,7 +33,10 @@ export function defaultProfile() {
     },
     voice: { enabled: true, stateLines: true, exits: false, fuel: true, restAreas: true, gasGaps: true, timeZones: true },
     // Road alerts by Settings group (engine/roadintel.js ALERT_GROUPS), and whether they are spoken.
-    alerts: { closures: true, incidents: true, weather: true, police: true, cameras: true, voice: true },
+    alerts: { closures: true, incidents: true, weather: true, police: true, cameras: true, traffic: true, voice: true },
+    // Live traffic (engine/traffic.js, docs/16): the map layer, traffic in arrival times, spoken heavy traffic,
+    // and faster route offers saving at least minSavingMinutes.
+    traffic: { map: true, eta: true, voice: true, suggestRoutes: true, minSavingMinutes: 10 },
   };
 }
 
@@ -177,6 +180,7 @@ export function normalizeProfile(raw) {
   });
   section('voice', Object.fromEntries(Object.keys(d.voice).map((k) => [k, bool])));
   section('alerts', Object.fromEntries(Object.keys(d.alerts).map((k) => [k, bool])));
+  section('traffic', { map: bool, eta: bool, voice: bool, suggestRoutes: bool, minSavingMinutes: (v) => oneOf(v, [5, 10, 15, 20]) });
   return { profile: out, problems };
 }
 

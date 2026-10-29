@@ -78,7 +78,7 @@ public struct StopPlanner: Sendable {
         var target: Date?
         if case let .timeAhead(seconds, _) = query.window { target = now.addingTimeInterval(seconds) }
         func eta(_ along: Double) -> Date {
-            now.addingTimeInterval(plan.eta(from: d, to: along, pace: pace, now: snapshot.timestamp).timeIntervalSince(snapshot.timestamp))
+            now.addingTimeInterval(plan.eta(from: d, to: along, pace: pace, now: snapshot.timestamp, traffic: snapshot.traffic).timeIntervalSince(snapshot.timestamp))
         }
         func isFavorite(_ name: String) -> Bool { !name.isEmpty && RangePlanner.matchesFavorite(name, favorites: query.favorites) }
         func make(match: AlongRouteMatch?, restArea: RouteRestArea?, along: Double, detour: Double, detourSeconds: Double,

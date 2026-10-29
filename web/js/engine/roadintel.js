@@ -4,12 +4,15 @@
 // Same rules as Sources/ExitAtlasCore/Alerts/RoadIntel.swift, tested on Tests/ExitAtlasCoreTests/Fixtures/roadintel.
 //
 // An incident (the common schema every provider converts to):
-//   {id, category, description, source: {id, name}, verification: 'official' | 'community' | 'mapped',
+//   {id, category, description, source: {id, name},
+//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped',
 //    reportedAt, updatedAt, startsAt, endsAt, expiresAt (unix seconds or null),
 //    geometry: {type: 'point', coordinate} | {type: 'line', coordinates} | {type: 'polygon', rings} |
-//              {type: 'points', coordinates} (an area alert known only at sample points on the route),
+//              {type: 'points', coordinates} (an area alert known only at sample points on the route) |
+//              {type: 'route', routeId, from, to} (measured on the active route by a traffic provider),
 //    road: 'I-95' | null, direction: 'N' | 'S' | 'E' | 'W' | 'both' | null, lanes: text | null,
-//    severity: 'minor' | 'moderate' | 'major' | 'severe' | 'unknown'}
+//    severity: 'minor' | 'moderate' | 'major' | 'severe' | 'unknown',
+//    delaySeconds (traffic slowdowns, when the provider gives one, else null)}
 // Matching never trusts distance alone: a point near the route must be on the same road and in the same
 // direction, so the other carriageway and parallel roads do not raise warnings.
 import { METERS_PER_MILE as MILE, angleDifference, initialBearing } from './geo.js';
@@ -24,7 +27,7 @@ export const ALERT_KINDS = Object.freeze({
   hazard: { label: 'Hazard on the road', group: 'incidents', rank: 5 },
   disabledVehicle: { label: 'Disabled vehicle', group: 'incidents', rank: 6 },
   construction: { label: 'Work zone', group: 'closures', rank: 7 },
-  congestion: { label: 'Major delay', group: 'incidents', rank: 8 },
+  congestion: { label: 'Traffic slowdown', group: 'traffic', rank: 8 },
   police: { label: 'Police reported', group: 'police', rank: 9 },
   speedCamera: { label: 'Speed camera', group: 'cameras', rank: 10 },
   other: { label: 'Road incident', group: 'incidents', rank: 11 },
@@ -33,7 +36,9 @@ export const ALERT_KINDS = Object.freeze({
 /// Settings switches, each covering some kinds.
 export const ALERT_GROUPS = Object.freeze({
   closures: { label: 'Closures and work zones', kinds: ['closure', 'construction'] },
-  incidents: { label: 'Crashes, hazards and delays', kinds: ['crash', 'hazard', 'disabledVehicle', 'congestion', 'other'] },
+  incidents: { label: 'Crashes, hazards and delays', kinds: ['crash', 'hazard', 'disabledVehicle', 'other'] },
+  // Measured slowdowns from a traffic provider (engine/traffic.js), on the route and direction driven.
+  traffic: { label: 'Traffic slowdowns', kinds: ['congestion'] },
   weather: { label: 'Weather and flooding', kinds: ['weather', 'flooding'] },
   police: { label: 'Police reports', kinds: ['police'] },
   cameras: { label: 'Speed cameras', kinds: ['speedCamera'] },
@@ -204,6 +209,11 @@ export function matchIncident(route, i, progress, rules = MATCH_RULES) {
   }
   if (g.type === 'line') return matchLine(route, g.coordinates, i, progress, rules);
   if (g.type === 'polygon') return matchArea(route, g.rings, progress, rules.window, rules);
+  // Measured on this route and direction by a traffic provider (engine/traffic.js): no position matching.
+  if (g.type === 'route') {
+    if (g.routeId !== route.id) return { why: 'other route' };
+    return g.to > progress ? { start: Math.max(g.from, progress), end: g.to, directionKnown: true } : { why: 'behind' };
+  }
   return { why: 'no location' };
 }
 
@@ -230,17 +240,18 @@ export function alertTier(i) {
 
 const HEADLINES = {
   closure: 'Road closed ahead', crash: 'Crash ahead', flooding: 'Flooding ahead', hazard: 'Road hazard ahead',
-  disabledVehicle: 'Disabled vehicle ahead', construction: 'Work zone ahead', congestion: 'Major delay ahead',
+  disabledVehicle: 'Disabled vehicle ahead', construction: 'Work zone ahead', congestion: 'Slow traffic ahead',
   police: 'Police reported ahead', speedCamera: 'Speed camera ahead', other: 'Road incident ahead',
 };
 
 /// The alert card's headline: what happened, in a few words.
 export function alertHeadline(i) {
   if (i.category === 'weather') return alertTier(i) === 'urgent' ? 'Severe weather ahead' : 'Weather alert';
+  if (i.category === 'congestion') return i.severity === 'severe' ? 'Stopped traffic ahead' : i.severity === 'major' ? 'Heavy traffic ahead' : 'Slow traffic ahead';
   return HEADLINES[i.category] ?? HEADLINES.other;
 }
 
-const VERIFICATION_ORDER = { official: 0, community: 1, mapped: 2 };
+const VERIFICATION_ORDER = { official: 0, measured: 1, community: 2, mapped: 3 };
 const SEVERITY_ORDER = { severe: 0, major: 1, moderate: 2, minor: 3, unknown: 4 };
 
 /// Keeps one alert per real event: same group of kinds, same direction, overlapping or within `duplicate`.

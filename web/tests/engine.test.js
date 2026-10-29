@@ -11,6 +11,7 @@ import { RegionSegmenter, RegionIndex } from '../js/engine/datasets.js';
 import { ExitMatcher, MatchingOptions, optionsForSource } from '../js/engine/exits.js';
 import { RouteProgressTracker, TripLedger, PaceModel } from '../js/engine/tracking.js';
 import { TripPlan, TripSession } from '../js/engine/trip.js';
+import { trafficSecondsTo } from '../js/engine/traffic.js';
 import { HighwayDiscovery, GPSSimulator } from '../js/engine/discovery.js';
 import { PlannedRoute, TravelTimeProfile, parseHighways, highwayLabel } from '../js/engine/route.js';
 import { serializeRoute, deserializeRoute } from '../js/engine/osrm.js';
@@ -302,6 +303,32 @@ test('snapshot: highway and direction, I-95 N in Georgia', () => {
   const s = miami().snapshot(onRoute(450 * METERS_PER_MILE), new TripLedger(), new PaceModel(), START);
   assert.equal(s.current.segment.code, 'GA');
   assert.equal(`${highwayLabel(s.highway.ref)} ${s.highway.direction}`, 'I-95 N');
+});
+
+test('snapshot with traffic: provider times where measured, pace beyond, and every time names its basis (simulated reading)', () => {
+  const plan = miami();
+  const d = 450 * METERS_PER_MILE, cp = d + 50 * METERS_PER_MILE, end = plan.route.length;
+  const pace = new PaceModel();
+  for (let i = 0; i < 60; i++) pace.observe(60, 66);
+  const reading = { routeId: plan.route.id, measuredAt: START - 60, fromAlong: d - 100, checkpoints: [{ along: cp, seconds: 4000 }],
+    source: { id: 'sim', name: 'Simulated traffic' } };
+  const s = plan.snapshot(onRoute(d), new TripLedger(), pace, START, { traffic: reading });
+  const timing = { modelSeconds: (a, b) => plan.route.timeProfile.secondsBetween(a, b), paceSeconds: (m) => pace.secondsFor(m) };
+  near(s.etaTo(cp) - START, trafficSecondsTo(reading, d, cp, timing), 1e-6);
+  assert.equal(s.basisTo(cp), 'traffic');
+  assert.equal(s.arrivalBasis, 'trafficThenPace');
+  // Beyond the reading: the driver's pace from where it ends, not from here (nothing counted twice).
+  const beyond = pace.secondsFor(timing.modelSeconds(d, end)) - pace.secondsFor(timing.modelSeconds(d, cp));
+  near(s.eta - s.etaTo(cp), beyond, 1e-6);
+  // Stale, or measured on another route: the pace based time, labeled as such.
+  const paced = plan.snapshot(onRoute(d), new TripLedger(), pace, START);
+  for (const r of [{ ...reading, measuredAt: START - 901 }, { ...reading, routeId: 'other' }]) {
+    const x = plan.snapshot(onRoute(d), new TripLedger(), pace, START, { traffic: r });
+    assert.equal(x.traffic, null);
+    assert.equal(x.eta, paced.eta);
+    assert.equal(x.arrivalBasis, 'pace');
+  }
+  assert.equal(plan.snapshot(onRoute(d), new TripLedger(), new PaceModel(), START).arrivalBasis, 'model');
 });
 
 test('time zones on Atlanta to Nashville', () => {

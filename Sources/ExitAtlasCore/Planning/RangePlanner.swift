@@ -188,7 +188,7 @@ public enum RangePlanner {
             let rangeOnArrival = range - ahead - c.detourMeters / 2
             guard rangeOnArrival >= 0 else { continue }
             stations.append(PlannedStop(candidate: c, ahead: ahead, rangeOnArrival: rangeOnArrival,
-                                        eta: plan.eta(from: d, to: c.along, pace: snapshot.pace, now: snapshot.timestamp)))
+                                        eta: plan.eta(from: d, to: c.along, pace: snapshot.pace, now: snapshot.timestamp, traffic: snapshot.traffic)))
         }
         var result = RangePlan(status: .none, range: range, buffer: bufferMeters, recommended: nil, earlier: [],
                                lastChance: nil, stations: stations, destinationSpare: nil, favoriteMissing: false,

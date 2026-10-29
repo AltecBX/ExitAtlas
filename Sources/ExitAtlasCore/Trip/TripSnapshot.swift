@@ -83,27 +83,54 @@ public struct TripSnapshot: Sendable {
     public let nextStop: (stop: RouteStop, distance: Double, eta: Date)?
     /// Actual driving history by state (survives reroutes). The last stint is the current state.
     public let drivenStints: [DrivenStint]
+    /// The traffic reading these times use (Trip/Traffic.swift), when one is usable now.
+    public let traffic: Traffic.Reading?
+    /// The driver's pace is known (recent driving, or earlier trips), not only routing road speeds.
+    public let paceKnown: Bool
+
+    /// What the arrival time at `target` is based on.
+    public func basis(to target: Double) -> Traffic.Basis {
+        Traffic.basis(traffic, usable: traffic != nil, target: target, paceKnown: paceKnown)
+    }
+
+    /// What the arrival at the destination is based on.
+    public var arrivalBasis: Traffic.Basis { basis(to: routeLength) }
 
     /// Meters until the next state line, or nil in the last state.
     public var distanceToNextBorder: Double? { current.flatMap { next == nil ? nil : $0.remainingMeters } }
 }
 
 public extension TripPlan {
-    /// Predicted arrival at `target` (meters along the route) from `d`: the modeled travel time
-    /// adjusted by the pace model, plus planned dwell at stops in between.
-    func eta(from d: Double, to target: Double, pace: PaceModel, now: Date) -> Date {
-        var seconds = pace.seconds(forModelSeconds: route.timeProfile.seconds(from: d, to: target))
+    /// Predicted arrival at `target` (meters along the route) from `d`: the provider's traffic times where a
+    /// usable reading covers the road, else the modeled travel time adjusted by the pace model, plus planned
+    /// dwell at stops in between.
+    func eta(from d: Double, to target: Double, pace: PaceModel, now: Date, traffic: Traffic.Reading? = nil) -> Date {
+        var seconds: Double
+        if let traffic {
+            seconds = Traffic.seconds(traffic, from: d, to: target, timing: Traffic.Timing(
+                modelSeconds: { route.timeProfile.seconds(from: $0, to: $1) }, paceSeconds: { pace.seconds(forModelSeconds: $0) }))
+        } else {
+            seconds = pace.seconds(forModelSeconds: route.timeProfile.seconds(from: d, to: target))
+        }
         for stop in route.stops where stop.distanceAlongRoute > d && stop.distanceAlongRoute < target {
             seconds += stop.plannedDwell
         }
         return now.addingTimeInterval(seconds)
     }
 
-    /// Builds the dashboard snapshot for the current match.
+    /// Predicted arrival at `target` from where the snapshot was taken, with its pace and traffic reading.
+    func eta(to target: Double, from snapshot: TripSnapshot) -> Date {
+        eta(from: snapshot.progress, to: target, pace: snapshot.pace, now: snapshot.timestamp, traffic: snapshot.traffic)
+    }
+
+    /// Builds the dashboard snapshot for the current match. `traffic` is the reading shown (after
+    /// Traffic.Stabilizer): used where it covers the road, if it is usable now.
     func snapshot(match: RouteMatch, ledger: TripLedger, pace: PaceModel, now: Date,
-                  exitLookahead: Double = 100 * Geodesy.metersPerMile, maxUpcomingExits: Int = 200) -> TripSnapshot {
+                  exitLookahead: Double = 100 * Geodesy.metersPerMile, maxUpcomingExits: Int = 200,
+                  traffic: Traffic.Reading? = nil) -> TripSnapshot {
         let d = min(max(match.distanceAlongRoute, 0), route.length)
-        func eta(to target: Double) -> Date { self.eta(from: d, to: target, pace: pace, now: now) }
+        let reading = Traffic.problem(traffic, routeId: route.id.uuidString, progress: d, now: now) == nil ? traffic : nil
+        func eta(to target: Double) -> Date { self.eta(from: d, to: target, pace: pace, now: now, traffic: reading) }
 
         let currentIndex = states.segmentIndex(at: d)
         let lastStint = ledger.stints.last
@@ -179,6 +206,7 @@ public extension TripPlan {
             nextRestArea: nextRestArea(after: d).map(upcomingRest),
             upcomingRestAreas: restAreas(after: d, upTo: d + exitLookahead).map(upcomingRest),
             borderCrossingsRemaining: ahead.count, statesAhead: statesAhead, nextStop: nextStop,
-            drivenStints: ledger.stints)
+            drivenStints: ledger.stints, traffic: reading,
+            paceKnown: pace.recentSpeed != nil || abs(pace.factor - 1) > 0.02)
     }
 }
