@@ -14,7 +14,7 @@ Nothing below is claimed to work on a phone until the device tests in 14.7 pass.
 | 4 | ExitAtlas state progress shown safely | Built on the experimental branch, compiles in CI; not verified | A panel below Google's map, never over it (14.5) |
 | 5 | Google branding and map rules | Designed in; to confirm on device | Google's map, header, footer and attribution are left untouched; no Google data leaves Google's map (14.4) |
 | 6 | Consent, billing, configuration | Built on the experimental branch | ExitAtlas consent sheet, then Google's own terms dialog (required, unmodified), then location and notification prompts; key in the Keychain; destinations counted per month (14.3, 14.6) |
-| 7 | The native app works without Google | By construction | The Google mode is a separate build (`ExitAtlasGoogle`); the regular `ExitAtlas` build does not link Google's SDK, and the Google build falls back to the native app without a key or consent |
+| 7 | The native app works without Google | Checked in CI; the fallback inside the Google build is not run on a device | The Google mode is a separate build (`ExitAtlasGoogle`). CI on the experimental branch (run 40817341060) found Google's SDK in the Google build and none in the regular `ExitAtlas` build, which also passed all its screenshot tests. The Google build falls back to the native app without a key or consent |
 | 8 | No claim before a real device test | Kept | 14.7 lists what to test; results get recorded there |
 
 ## 14.2 What the Navigation SDK does with disruptions
@@ -101,7 +101,7 @@ Record date, iOS version, phone and result for each line in this section.
 * No police or disruption data on CarPlay through the SDK; ExitAtlas's own CarPlay template work (docs/10) is unaffected.
 * Police availability by country is not published; U.S. availability needs the D1 drive.
 * The SDK needs iOS 16, Xcode 26 and background location; the app's App Privacy answers must add location shared with Google before an App Store release.
-* The SDK is commercial use only (14.4) and adds about 50 MB of Google libraries to the Google build (UNVERIFIED final size).
+* The SDK is commercial use only (14.4) and makes the app much larger. Measured in CI on 2026-10-29 (Debug, simulator): ExitAtlasGoogle.app 149 MB against 41 MB for the regular ExitAtlas.app. The App Store download size of a Release device build is not measured yet.
 * Google reports cannot be shown in ExitAtlas's own Road Ahead list, spoken by ExitAtlas, or used offline; they exist only inside Google's navigation screen.
 * One destination change is a billed request; changing stops repeatedly costs money.
 
