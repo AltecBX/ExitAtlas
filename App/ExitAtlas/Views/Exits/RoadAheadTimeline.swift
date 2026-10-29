@@ -429,6 +429,7 @@ struct AlertDetailView: View {
         let verification: String
         switch i.verification {
         case .official: verification = "Official source"
+        case .measured: verification = "Measured by a traffic provider on your route"
         case .community: verification = "Reported by drivers, not confirmed"
         case .mapped: verification = "Mapped work zone schedule"
         }

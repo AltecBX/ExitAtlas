@@ -11,6 +11,9 @@ struct NavigationMapView: View {
     let snapshot: TripSnapshot
     let alert: RoadIntel.Alert?
     @Binding var following: Bool
+    /// The map's safe area (the open stretch between the controls and the cards): the camera re-centers in it
+    /// when it changes, as when a card appears.
+    var framing = EdgeInsets()
     @State private var position: MapCameraPosition = .automatic
     /// The map's current heading, so the vehicle arrow keeps pointing along the road when the driver pans.
     @State private var cameraHeading: Double = 0
@@ -76,6 +79,7 @@ struct NavigationMapView: View {
         .onAppear { follow(animated: false) }
         .onChange(of: snapshot.progress) { _, _ in follow(animated: true) }
         .onChange(of: following) { _, on in if on { follow(animated: true) } }
+        .onChange(of: framing) { _, _ in follow(animated: true) }
         .accessibilityIdentifier("navigationMap")
     }
 
@@ -88,12 +92,13 @@ struct NavigationMapView: View {
         return trip.plan?.restAreas.first { $0.id == c.id }?.coordinate
     }
 
-    /// Centers the camera on the vehicle, tilted along the road: the vehicle sits in the open middle of the
-    /// screen, between the instruments and the bottom card, with the road ahead above it.
+    /// Centers the camera just ahead of the vehicle, tilted along the road. The Navigation View gives the map a
+    /// safe area that leaves out the controls and cards, and MapKit centers the camera in what is left, so the
+    /// vehicle sits in the open stretch of map with the road ahead above it, whatever the cards' heights.
     private func follow(animated: Bool) {
         guard following, let poly = trip.plan?.route.polyline else { return }
         let p = snapshot.progress
-        let center = poly.coordinate(at: min(poly.length, p + 275))
+        let center = poly.coordinate(at: min(poly.length, p + 120))
         let camera = MapCamera(centerCoordinate: center.clCoordinate, distance: 4600,
                                heading: poly.bearing(at: p, window: 800), pitch: 52)
         if animated {

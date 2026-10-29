@@ -310,16 +310,22 @@ struct NavigationDriveView: View {
     let openRestroom: () -> Void
     let openTrip: () -> Void
     @State private var following = true
+    /// The map's full frame and the part of it no card or control covers (global coordinates): the map
+    /// centers the vehicle in that open part, whatever the cards' heights.
+    @State private var mapFrame: CGRect = .zero
+    @State private var openArea: CGRect = .zero
 
     var body: some View {
         ZStack {
-            NavigationMapView(snapshot: snapshot, alert: alert, following: $following)
+            NavigationMapView(snapshot: snapshot, alert: alert, following: $following, framing: openInsets)
+                .safeAreaPadding(openInsets)
                 .ignoresSafeArea()
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { mapFrame = $0 }
             if verticalSizeClass == .compact {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         GuidanceBanner(snapshot: snapshot, openExit: openExit)
-                        Spacer(minLength: 0)
+                        openSpace
                         HStack(alignment: .bottom) { speed; Spacer(); controls(horizontal: true) }
                     }
                     VStack(spacing: 8) {
@@ -335,7 +341,7 @@ struct NavigationDriveView: View {
                 VStack(spacing: 10) {
                     GuidanceBanner(snapshot: snapshot, openExit: openExit)
                     HStack(alignment: .top) { speed; Spacer(); controls(horizontal: false) }
-                    Spacer(minLength: 0)
+                    openSpace
                     if let card { card }
                     JourneyPanel(snapshot: snapshot, emphasis: focus.focus == .border, openTrip: openTrip)
                 }
@@ -344,6 +350,20 @@ struct NavigationDriveView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("navigationDrive")
+    }
+
+    /// The open stretch of map between the controls and the cards, measured so the map can center on it.
+    private var openSpace: some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { openArea = $0 }
+    }
+
+    /// The map's safe area: everything outside the open stretch. Until both are measured, none.
+    private var openInsets: EdgeInsets {
+        guard mapFrame.width > 0, openArea.width > 0, openArea.height > 40 else { return EdgeInsets() }
+        return EdgeInsets(top: max(0, openArea.minY - mapFrame.minY), leading: max(0, openArea.minX - mapFrame.minX),
+                          bottom: max(0, mapFrame.maxY - openArea.maxY), trailing: max(0, mapFrame.maxX - openArea.maxX))
     }
 
     private var speed: some View {
