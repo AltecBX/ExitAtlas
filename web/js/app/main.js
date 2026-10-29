@@ -1479,7 +1479,7 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
 // anything less springs back. Sideways swipes, scrolling and the form fields keep working as before.
 {
   const sheet = $('#sheet'), backdrop = $('#sheet-backdrop');
-  let start = null, dragging = false, dy = 0, last = null, speed = 0;
+  let start = null, dragging = false, dy = 0, samples = [];
   sheet.addEventListener('touchstart', (e) => {
     start = e.touches.length === 1 && !e.target.closest('input, select, textarea')
       ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
@@ -1494,12 +1494,13 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
       if (my <= 0 || Math.abs(mx) > 2 * my || sheet.scrollTop > 0 || !e.cancelable) { start = null; return; }
       dragging = true;
       sheet.style.transition = 'none';
-      last = { y: my, t: e.timeStamp };
-      speed = 0;
+      samples = [];
     }
     e.preventDefault();
     dy = Math.max(0, my);
-    if (e.timeStamp > last.t) { speed = (my - last.y) / (e.timeStamp - last.t); last = { y: my, t: e.timeStamp }; }
+    // The last 100 ms of the pull give the release speed for a flick.
+    samples.push({ y: my, t: e.timeStamp });
+    while (samples.length > 2 && e.timeStamp - samples[0].t > 100) samples.shift();
     sheet.style.transform = `translateY(${dy}px)`;
     backdrop.style.opacity = String(1 - Math.min(dy / sheet.offsetHeight, 1));
   }, { passive: false });
@@ -1510,7 +1511,9 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
     sheet.style.transition = '';
     sheet.style.transform = '';
     backdrop.style.opacity = '';
-    const flick = dy > 40 && speed > 0.5 && e.timeStamp - last.t < 100;
+    const a = samples[0], b = samples[samples.length - 1];
+    const speed = b && b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+    const flick = dy > 40 && speed > 0.5 && e.timeStamp - b.t < 100;
     if (close && (dy > sheet.offsetHeight / 3 || flick)) closeSheet();
   };
   sheet.addEventListener('touchend', (e) => release(e, true));
