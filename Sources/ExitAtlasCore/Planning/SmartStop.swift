@@ -54,6 +54,9 @@ public enum SmartStop {
         public var require24Hours: String
         public var requireRestroom: String
         public var priceOverBrand: Bool
+        /// Note a stop that saves at least `minSavingsDollars` on a fill over the pick (prices compared at all).
+        public var tellCheaper: Bool
+        public var minSavingsDollars: Double
         /// "auto", "on" or "off", with the local window "HH:MM" to "HH:MM".
         public var overnightMode: String
         public var overnightStart: String
@@ -61,12 +64,14 @@ public enum SmartStop {
 
         public init(brands: [String] = ["Shell"], maxDetourMinutes: Double = 8, require24Hours: String = "overnight",
                     requireRestroom: String = "overnight", priceOverBrand: Bool = false, overnightMode: String = "auto",
-                    overnightStart: String = "00:00", overnightEnd: String = "04:00") {
+                    overnightStart: String = "00:00", overnightEnd: String = "04:00", tellCheaper: Bool = true, minSavingsDollars: Double = 2) {
             self.brands = brands
             self.maxDetourMinutes = maxDetourMinutes
             self.require24Hours = require24Hours
             self.requireRestroom = requireRestroom
             self.priceOverBrand = priceOverBrand
+            self.tellCheaper = tellCheaper
+            self.minSavingsDollars = minSavingsDollars
             self.overnightMode = overnightMode
             self.overnightStart = overnightStart
             self.overnightEnd = overnightEnd
@@ -75,7 +80,8 @@ public enum SmartStop {
         public init(_ s: ProfileSettings) {
             self.init(brands: s.favoriteBrands, maxDetourMinutes: s.maxDetourMinutes, require24Hours: s.require24Hours,
                       requireRestroom: s.requireRestroom, priceOverBrand: s.priceOverBrand, overnightMode: s.overnightMode,
-                      overnightStart: s.overnightStart, overnightEnd: s.overnightEnd)
+                      overnightStart: s.overnightStart, overnightEnd: s.overnightEnd, tellCheaper: s.comparePrices && s.tellCheaper,
+                      minSavingsDollars: s.minSavingsDollars)
         }
 
         /// True when Overnight Drive Mode applies at a local minute of the day (windows may cross midnight).
@@ -114,8 +120,14 @@ public enum SmartStop {
         public var detourMinutes: Double?
         /// Meters of range left on arrival; nil when no range is known.
         public var rangeOnArrival: Double?
-        /// Price per gallon for the driver's grade from Google, when known.
+        /// A current reported price per gallon for the driver's grade (old prices are never passed in to compete),
+        /// its payment kind ("cash", "credit" or nil), when it was seen ("Reported 20 minutes ago") and its source.
         public var price: Double?
+        public var pricePayment: String?
+        public var priceText: String?
+        public var priceSource: String?
+        /// The detour both ways in meters, for detour fuel.
+        public var detourMeters: Double?
         /// OpenStreetMap: opening_hours text, the date it was checked, the toilets tag, and why the
         /// station should not be offered (removed or no longer a gas station).
         public var osmHours: String?
@@ -140,6 +152,7 @@ public enum SmartStop {
         public init(id: String, name: String, brand: String = "", otherNames: [String] = [], kind: Kind = .station,
                     exitID: String? = nil, exitLabel: String? = nil, along: Double, ahead: Double? = nil, arrival: Date, timeZone: TimeZone,
                     detourMinutes: Double? = nil, rangeOnArrival: Double? = nil, price: Double? = nil,
+                    pricePayment: String? = nil, priceText: String? = nil, priceSource: String? = nil, detourMeters: Double? = nil,
                     osmHours: String? = nil, osmChecked: String? = nil, osmToilets: Bool? = nil, gone: String? = nil,
                     livePeriods: [GooglePeriod]? = nil, liveRestroom: Bool? = nil, liveSource: String = "Google Maps",
                     plazaHours: String? = nil, plazaToilets: Bool? = nil, truckSpaces: Int? = nil,
@@ -158,6 +171,10 @@ public enum SmartStop {
             self.detourMinutes = detourMinutes
             self.rangeOnArrival = rangeOnArrival
             self.price = price
+            self.pricePayment = pricePayment
+            self.priceText = priceText
+            self.priceSource = priceSource
+            self.detourMeters = detourMeters
             self.osmHours = osmHours
             self.osmChecked = osmChecked
             self.osmToilets = osmToilets
@@ -395,6 +412,8 @@ public enum SmartStop {
     public struct Result: Sendable {
         public var primary: Pick?
         public var alternatives: [Pick]
+        /// The ids of every stop kept, best first (the Recommended order when comparing prices).
+        public var order: [String]
         public var considered: Int
         /// Stops left out, by reason.
         public var passed: [String: Int]
@@ -407,11 +426,28 @@ public enum SmartStop {
         public var favorite: FavoriteNote?
         /// What no stop ahead offers (overnight restroom or hours).
         public var notice: String?
+        /// A stop that saves at least the driver's minimum on a fill over the primary, or nil.
+        public var cheaper: Cheaper?
+    }
+
+    /// A cheaper stop than the pick, for the same fill (see `cheaperStop`).
+    public struct Cheaper: Sendable {
+        public let candidate: Candidate
+        /// Dollars saved on the fill, and per gallon.
+        public let savings: Double
+        public let perGallon: Double
+        /// A detour was not measured.
+        public let estimate: Bool
+        /// Gallons in the fill compared.
+        public let gallons: Double
+        /// Meters past the pick (negative when before it).
+        public let farther: Double
     }
 
     /// Picks the stop. Candidates in route order; `rejected` holds ids the driver turned down on this trip.
+    /// `vehicle`: the tank and mpg for the cost of a fill (nil: no cost comparison).
     public static func choose(_ candidates: [Candidate], preferences p: Preferences, context: Context, purpose: Purpose = .fuel,
-                              reserveMeters: Double = 0, rejected: Set<String> = []) -> Result {
+                              reserveMeters: Double = 0, rejected: Set<String> = [], vehicle: (tankGallons: Double, mpg: Double)? = nil) -> Result {
         struct Entry { var c: Candidate; var e: Evaluation; var brand: Int? }
         let evaluated = candidates.map { Entry(c: $0, e: evaluate($0, preferences: p), brand: brandIndex($0, favorites: p.brands)) }
         var passed: [String: Int] = [:]
@@ -501,14 +537,45 @@ public enum SmartStop {
             if let d = x.c.detourMinutes { out.append(d < 1 ? "No detour" : "About \(Int(d.rounded())) min detour (twice the drive from the exit)") }
             else if x.c.isPlaza { out.append("On the highway, no exit needed") }
             else { out.append("Detour not measured") }
-            if let price = x.c.price, p.priceOverBrand { out.append(String(format: "$%.2f (Google Maps)", price)) }
+            if let price = x.c.price {
+                out.append("\(GasPrices.dollars(price)) a gallon" + (x.c.priceText.map { ", \($0.lowercased())" } ?? "") + " (\(x.c.priceSource ?? "source not stated"))")
+            }
             return out
         }
         func pick(_ x: Entry) -> Pick { Pick(candidate: x.c, evaluation: x.e, brandRank: x.brand, reasons: reasons(x), nextOption: nil) }
 
-        var result = Result(primary: primary.map(pick), alternatives: alternatives.map(pick), considered: candidates.count, passed: passed,
-                            overnight: evaluated.contains { $0.e.overnight }, relaxed: relaxed, lowRange: lowRange, favorite: nil, notice: nil)
+        var result = Result(primary: primary.map(pick), alternatives: alternatives.map(pick), order: ranked.map(\.c.id), considered: candidates.count, passed: passed,
+                            overnight: evaluated.contains { $0.e.overnight }, relaxed: relaxed, lowRange: lowRange, favorite: nil, notice: nil,
+                            cheaper: nil)
         guard let primary else { return result }
+
+        // A stop that saves at least the driver's minimum on a fill (see web/js/engine/smartstop.js cheaperStop):
+        // only stops the ranking kept, never one with worse hours or restroom confidence when they are needed,
+        // and the favorite brands stay as they are.
+        if p.tellCheaper, let vehicle, primary.c.price != nil {
+            func side(_ x: Entry) -> GasPrices.Side {
+                let r = GasPrices.Record(id: x.c.id, stationId: x.c.id, grade: "R", price: x.c.price!,
+                                         payment: x.c.pricePayment.flatMap(GasPrices.Payment.init(rawValue:)), reportedAt: Date(), reporter: nil,
+                                         source: .init(id: "x", name: x.c.priceSource ?? "", kind: .own))
+                let price = GasPrices.StationPrice(record: r, state: .current, text: "", paymentMatch: .exact, confirmations: 0, conflict: false)
+                let cost = GasPrices.fillCost(price: x.c.price!, rangeOnArrival: x.c.rangeOnArrival, tankGallons: vehicle.tankGallons, mpg: vehicle.mpg,
+                                              detourMeters: x.c.detourMeters ?? 0)
+                return GasPrices.Side(price: price, cost: cost, detourMeasured: x.c.detourMinutes != nil || x.c.isPlaza)
+            }
+            let base = side(primary)
+            var rules = GasPrices.SavingsRules()
+            rules.minDollars = p.minSavingsDollars
+            var best: (Entry, GasPrices.Comparison)?
+            for x in pool where x.c.id != primary.c.id && x.c.price != nil {
+                if needs(p.require24Hours, x) && x.e.hours.status.rank > primary.e.hours.status.rank { continue }
+                if needs(p.requireRestroom, x) && x.e.restroom.rank > primary.e.restroom.rank { continue }
+                if let cmp = GasPrices.compare(base, side(x), rules: rules), cmp.meaningful, cmp.savings > (best?.1.savings ?? -.infinity) { best = (x, cmp) }
+            }
+            if let (x, cmp) = best, let gallons = side(x).cost?.gallons {
+                result.cheaper = Cheaper(candidate: x.c, savings: cmp.savings, perGallon: cmp.perGallon, estimate: cmp.estimate,
+                                         gallons: gallons, farther: x.c.along - primary.c.along)
+            }
+        }
 
         // The next usable stop after the primary, so the driver knows what skipping it means.
         if let after = usable.filter({ $0.c.along > primary.c.along }).min(by: { $0.c.along < $1.c.along }) {

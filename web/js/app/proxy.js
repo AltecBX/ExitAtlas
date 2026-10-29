@@ -25,7 +25,7 @@ export async function loadProxy(text, fetchImpl = (...a) => fetch(...a)) {
     const res = await fetchImpl(new URL('v1/config', base), { cache: 'no-store' });
     if (!res.ok) return null;
     const c = await res.json();
-    return { base, prices: c.prices === true, chargers: c.chargers === true, wzdx: c.wzdx === true, disabled: Array.isArray(c.disabled) ? c.disabled : [] };
+    return { base, prices: c.prices === true, chargers: c.chargers === true, wzdx: c.wzdx === true, community: c.community === true, benchmarks: c.benchmarks === true, disabled: Array.isArray(c.disabled) ? c.disabled : [] };
   } catch {
     return null;
   }

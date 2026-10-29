@@ -1,228 +1,1642 @@
 {
-  "comment": "SmartStop fixtures shared by web/tests/smartstop.test.js and SmartStopTests.swift (acceptance test P). Miles and minutes for readability; arrival is UTC. The profile is the default profile with these sections merged in. Night arrival: 01:30 Thursday in New York.",
-  "profile": {"fuel": {"brands": ["Shell", "Wawa"], "reserveMiles": 50, "maxDetourMinutes": 8, "require24Hours": "overnight", "requireRestroom": "overnight", "priceOverBrand": false},
-              "overnight": {"mode": "auto", "start": "00:00", "end": "04:00"}},
-  "defaults": {"kind": "station", "timeZone": "America/New_York", "arrival": "2026-10-29T05:30:00Z", "detourMinutes": 3, "osm": {}},
-  "evaluations": [
-    {"name": "D. arrival in the station's own time zone, hours past midnight (Eastern)",
-     "candidate": {"id": "ny", "arrival": "2026-10-29T04:30:00Z", "osm": {"hours": "Mo-Su 06:00-01:00"}},
-     "expect": {"day": "Th", "time": "00:30", "overnight": true, "hours": "reported", "closesIn": 30}},
-    {"name": "D. the same moment at a Central time station is still the evening before",
-     "candidate": {"id": "chi", "arrival": "2026-10-29T04:30:00Z", "timeZone": "America/Chicago", "osm": {"hours": "Mo-Su 06:00-01:00"}},
-     "expect": {"day": "We", "time": "23:30", "overnight": false, "hours": "reported", "closesIn": 90}},
-    {"name": "D. after crossing into Central time: open by its own clock, closed by Eastern",
-     "candidate": {"id": "chi2", "arrival": "2026-10-29T05:45:00Z", "timeZone": "America/Chicago", "osm": {"hours": "Mo-Su 06:00-01:00"}},
-     "expect": {"day": "Th", "time": "00:45", "overnight": true, "hours": "reported", "closesIn": 15}},
-    {"name": "O. nothing listed: hours unavailable, never open",
-     "candidate": {"id": "none"},
-     "expect": {"hours": "unknown", "hoursLabel": "Hours unavailable", "restroom": "unknown"}},
-    {"name": "O. hours that do not parse count as unavailable",
-     "candidate": {"id": "bad", "osm": {"hours": "Mo-Su 00:00+"}},
-     "expect": {"hours": "unknown", "restroom": "unknown"}},
-    {"name": "E. 24 hour pumps with no restroom tag: restroom unknown",
-     "candidate": {"id": "e1", "osm": {"hours": "24/7", "checked": "2025-03-14"}},
-     "expect": {"hours": "reported", "hoursLabel": "Reported open, verification limited", "checked": "2025-03-14", "restroom": "unknown", "restroomLabel": "Restroom availability unknown"}},
-    {"name": "E. 24 hour pumps with a tagged restroom: available, hours unknown, never accessible",
-     "candidate": {"id": "e2", "osm": {"hours": "24/7", "toilets": true}},
-     "expect": {"hours": "reported", "restroom": "available", "restroomLabel": "Restroom listed, access hours unknown"}},
-    {"name": "Service plaza listed 24/7 with restrooms: restroom accessible at arrival",
-     "candidate": {"id": "plaza", "kind": "plaza", "detourMinutes": null, "plaza": {"hours": "24/7", "toilets": true, "truckSpaces": 40}},
-     "expect": {"hours": "reported", "restroom": "accessible", "restroomLabel": "Restroom listed, open at arrival per listed hours"}},
-    {"name": "Google lists the store open around the clock: verified",
-     "candidate": {"id": "g1", "live": {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}]}},
-     "expect": {"hours": "verified", "hoursLabel": "Verified open at estimated arrival", "restroom": "unknown"}},
-    {"name": "Store closed (Google) but pumps listed 24/7: pumps reported open",
-     "candidate": {"id": "g2", "osm": {"hours": "24/7"}, "live": {"periods": [{"open": {"day": 4, "hour": 6, "minute": 0}, "close": {"day": 4, "hour": 22, "minute": 0}}], "restroom": true}},
-     "expect": {"hours": "reported", "store": "closed", "pumps": "reported", "restroom": "available"}},
-    {"name": "Store closed (Google), nothing else listed: reported closed",
-     "candidate": {"id": "g3", "live": {"periods": [{"open": {"day": 4, "hour": 6, "minute": 0}, "close": {"day": 4, "hour": 22, "minute": 0}}]}},
-     "expect": {"hours": "closed", "hoursLabel": "Reported closed at estimated arrival"}},
-    {"name": "A. only the brand lists the hours, open around the clock: reported, listed by the brand with its date",
-     "candidate": {"id": "a1", "osm": {"brandHours": "Mo-Su 00:00-24:00", "listedBy": "Shell", "collected": "2026-10-17"}},
-     "expect": {"hours": "reported", "hoursLabel": "Reported open, verification limited", "hoursSource": "Listed by Shell", "checked": "2026-10-17", "pumpsSource": "Listed by Shell, collected 2026-10-17", "restroom": "unknown"}},
-    {"name": "A. OpenStreetMap closed at arrival, the brand listing open: they disagree, hours unavailable",
-     "candidate": {"id": "a2", "osm": {"hours": "Mo-Su 06:00-22:00", "brandHours": "24/7", "listedBy": "BP", "collected": "2026-10-17"}},
-     "expect": {"hours": "unknown", "pumps": "unknown", "note": "OpenStreetMap and the BP listing disagree", "pumpsSource": "OpenStreetMap and the BP listing disagree"}},
-    {"name": "A. both open, the listing collected after the mapper's check: the listing",
-     "candidate": {"id": "a3", "osm": {"hours": "24/7", "checked": "2024-05-01", "brandHours": "Mo-Su 00:00-24:00", "listedBy": "Love's", "collected": "2026-10-17"}},
-     "expect": {"hours": "reported", "hoursSource": "Listed by Love's", "checked": "2026-10-17"}},
-    {"name": "A. both open, a mapper checked after the listing was collected: OpenStreetMap",
-     "candidate": {"id": "a4", "osm": {"hours": "24/7", "checked": "2026-10-20", "brandHours": "24/7", "listedBy": "Sunoco", "collected": "2026-10-17"}},
-     "expect": {"hours": "reported", "hoursSource": "OpenStreetMap", "checked": "2026-10-20"}},
-    {"name": "A. both closed at arrival: reported closed",
-     "candidate": {"id": "a5", "osm": {"hours": "Mo-Su 05:00-23:00", "brandHours": "Mo-Su 06:00-22:00", "listedBy": "Valero", "collected": "2026-10-17"}},
-     "expect": {"hours": "closed", "hoursSource": "Listed by Valero"}},
-    {"name": "A. the brand lists a restroom: available, hours unknown, never accessible",
-     "candidate": {"id": "a6", "osm": {"brandToilets": true, "listedBy": "Circle K", "collected": "2026-10-17"}},
-     "expect": {"hours": "unknown", "restroom": "available", "restroomLabel": "Restroom listed, access hours unknown", "restroomSource": "Listed by Circle K, collected 2026-10-17"}},
-    {"name": "A. OpenStreetMap says no restroom, the brand lists one: unknown",
-     "candidate": {"id": "a7", "osm": {"toilets": false, "brandToilets": true, "listedBy": "Chevron", "collected": "2026-10-17"}},
-     "expect": {"restroom": "unknown", "restroomSource": "OpenStreetMap and the Chevron listing disagree"}},
-    {"name": "A. Google's restroom field comes before the brand listing",
-     "candidate": {"id": "a8", "osm": {"brandToilets": true, "listedBy": "Shell", "collected": "2026-10-17"}, "live": {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}], "restroom": false}},
-     "expect": {"hours": "verified", "restroom": "none", "restroomSource": "Google Maps"}},
-    {"name": "Freshness: hours a mapper checked more than a year before arrival may be out of date",
-     "candidate": {"id": "f1", "osm": {"hours": "24/7", "checked": "2025-03"}},
-     "expect": {"hours": "reported", "checked": "2025-03", "stale": true}},
-    {"name": "Freshness: a listing collected this month is current",
-     "candidate": {"id": "f2", "osm": {"brandHours": "24/7", "listedBy": "Wawa", "collected": "2026-10-17"}},
-     "expect": {"hours": "reported", "stale": false}}
-  ],
-  "rankings": [
-    {"name": "F. a closed Shell loses to an open alternative, and says why",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "wawa38", "name": "Wawa", "brand": "Wawa", "exitId": "38", "aheadMiles": 35, "rangeOnArrivalMiles": 120, "osm": {"hours": "24/7"}},
-       {"id": "shell42", "name": "Shell", "brand": "Shell", "exitId": "42", "aheadMiles": 40, "rangeOnArrivalMiles": 115, "osm": {"hours": "Mo-Su 06:00-22:00"}},
-       {"id": "sunoco50", "name": "Sunoco", "brand": "Sunoco", "exitId": "50", "aheadMiles": 48, "rangeOnArrivalMiles": 107}],
-     "expect": {"primary": "wawa38", "alternatives": ["sunoco50"], "passed": {"Reported closed at arrival": 1},
-                "favorite": {"id": "shell42", "reason": "Reported closed at arrival"}, "primaryHours": "reported",
-                "reasonsInclude": ["Wawa, your 2nd choice"]}},
-    {"name": "G. the Shell is beyond the range: a reachable alternative",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "exxon30", "name": "Exxon", "brand": "Exxon", "exitId": "30", "aheadMiles": 30, "rangeOnArrivalMiles": 80, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "wawa60", "name": "Wawa", "brand": "Wawa", "exitId": "60", "aheadMiles": 60, "rangeOnArrivalMiles": 50, "arrival": "2026-10-29T16:30:00Z"},
-       {"id": "shell120", "name": "Shell", "brand": "Shell", "exitId": "120", "aheadMiles": 120, "rangeOnArrivalMiles": -10, "arrival": "2026-10-29T17:30:00Z"}],
-     "expect": {"primary": "wawa60", "alternatives": ["exxon30"], "passed": {"Out of range": 1},
-                "favorite": {"id": "shell120", "reason": "Out of range"}}},
-    {"name": "H. a stop that would break the reserve is not chosen while one keeps it",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "exxon40", "name": "Exxon", "brand": "Exxon", "exitId": "40", "aheadMiles": 40, "rangeOnArrivalMiles": 90, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "shell100", "name": "Shell", "brand": "Shell", "exitId": "100", "aheadMiles": 100, "rangeOnArrivalMiles": 30, "arrival": "2026-10-29T17:00:00Z"}],
-     "expect": {"primary": "exxon40", "alternatives": [], "passed": {"Below your reserve": 1},
-                "favorite": {"id": "shell100", "reason": "Below your reserve"}, "lowRange": false}},
-    {"name": "H. every stop is below the reserve: the nearest, labeled with what is left",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "bp30", "name": "BP", "brand": "BP", "exitId": "30", "aheadMiles": 30, "rangeOnArrivalMiles": 45, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "shell60", "name": "Shell", "brand": "Shell", "exitId": "60", "aheadMiles": 60, "rangeOnArrivalMiles": 15, "arrival": "2026-10-29T16:30:00Z"}],
-     "expect": {"primary": "bp30", "alternatives": ["shell60"], "passed": {}, "relaxed": ["Below your reserve"], "lowRange": true,
-                "reasonsInclude": ["Arrive with about 45 mi, below your 50 mi reserve"]}},
-    {"name": "Overnight: the restroom with known hours ranks first",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "wawa20", "name": "Wawa", "brand": "Wawa", "exitId": "20", "aheadMiles": 20, "osm": {"hours": "24/7", "toilets": true}},
-       {"id": "shell30", "name": "Shell", "brand": "Shell", "exitId": "30", "aheadMiles": 30, "osm": {"hours": "24/7"}},
-       {"id": "plaza45", "name": "Molly Pitcher Service Area", "brand": "Sunoco", "kind": "plaza", "aheadMiles": 45, "detourMinutes": null,
-        "plaza": {"hours": "24/7", "toilets": true}}],
-     "expect": {"primary": "plaza45", "alternatives": ["wawa20", "shell30"], "primaryRestroom": "accessible", "notice": null,
-                "favorite": {"id": "shell30", "reason": "restroom availability unknown, and the recommended stop is better confirmed"}}},
-    {"name": "Overnight with nothing confirmed: says so, best available first",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "exxon10", "name": "Exxon", "brand": "Exxon", "exitId": "10", "aheadMiles": 10},
-       {"id": "shell25", "name": "Shell", "brand": "Shell", "exitId": "25", "aheadMiles": 25, "osm": {"hours": "24/7"}}],
-     "expect": {"primary": "shell25", "alternatives": ["exxon10"], "primaryRestroom": "unknown",
-                "notice": "No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops."}},
-    {"name": "Daytime: hours and restrooms do not outrank the first choice brand",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "wawa20", "name": "Wawa", "brand": "Wawa", "exitId": "20", "aheadMiles": 20, "arrival": "2026-10-29T16:00:00Z", "osm": {"hours": "24/7", "toilets": true}},
-       {"id": "shell30", "name": "Shell", "brand": "Shell", "exitId": "30", "aheadMiles": 30, "arrival": "2026-10-29T16:10:00Z"},
-       {"id": "plaza45", "name": "Molly Pitcher Service Area", "brand": "Sunoco", "kind": "plaza", "aheadMiles": 45, "detourMinutes": null,
-        "arrival": "2026-10-29T16:25:00Z", "plaza": {"hours": "24/7", "toilets": true}}],
-     "expect": {"primary": "shell30", "alternatives": ["wawa20", "plaza45"], "notice": null, "favorite": null,
-                "reasonsInclude": ["Shell, your 1st choice", "About 3 min detour (twice the drive from the exit)"]}},
-    {"name": "Overnight Drive Mode turned on by hand at noon",
-     "profile": {"overnight": {"mode": "on"}},
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "wawa20", "name": "Wawa", "brand": "Wawa", "exitId": "20", "aheadMiles": 20, "arrival": "2026-10-29T16:00:00Z", "osm": {"hours": "24/7", "toilets": true}},
-       {"id": "shell30", "name": "Shell", "brand": "Shell", "exitId": "30", "aheadMiles": 30, "arrival": "2026-10-29T16:10:00Z"}],
-     "expect": {"primary": "wawa20", "alternatives": ["shell30"], "primaryRestroom": "available",
-                "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."}},
-    {"name": "Skipped and passed stations are not offered again; removed stations never",
-     "options": {"context": "ahead", "rejected": ["shell30"]},
-     "candidates": [
-       {"id": "wawa0", "name": "Wawa", "brand": "Wawa", "exitId": "0", "aheadMiles": 0, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "shell30", "name": "Shell", "brand": "Shell", "exitId": "30", "aheadMiles": 30, "arrival": "2026-10-29T16:10:00Z"},
-       {"id": "shell35", "name": "Shell", "brand": "Shell", "exitId": "35", "aheadMiles": 35, "arrival": "2026-10-29T16:15:00Z", "osm": {"gone": "deleted"}},
-       {"id": "bp40", "name": "BP", "brand": "BP", "exitId": "40", "aheadMiles": 40, "arrival": "2026-10-29T16:20:00Z"}],
-     "expect": {"primary": "bp40", "alternatives": [], "passed": {"Already passed": 1, "You skipped it": 1, "No longer listed as a gas station": 1},
-                "favorite": {"id": "shell30", "reason": "You skipped it"}}},
-    {"name": "Detour limit: kept unless nothing else is left",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "detourMinutes": 14, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "wawa25", "name": "Wawa", "brand": "Wawa", "exitId": "25", "aheadMiles": 25, "detourMinutes": 3, "arrival": "2026-10-29T16:05:00Z"}],
-     "expect": {"primary": "wawa25", "alternatives": [], "passed": {"Detour over your limit": 1}, "favorite": {"id": "shell20", "reason": "Detour over your limit"}}},
-    {"name": "Detour limit relaxed when it is the only stop",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "detourMinutes": 14, "arrival": "2026-10-29T16:00:00Z"}],
-     "expect": {"primary": "shell20", "alternatives": [], "passed": {}, "relaxed": ["Detour over your limit"], "reasonsInclude": ["About 14 min detour (twice the drive from the exit)"]}},
-    {"name": "Cheaper fuel over brand, with prices from Google",
-     "profile": {"fuel": {"priceOverBrand": true}},
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "arrival": "2026-10-29T16:00:00Z", "price": 3.49},
-       {"id": "wawa25", "name": "Wawa", "brand": "Wawa", "exitId": "25", "aheadMiles": 25, "arrival": "2026-10-29T16:05:00Z", "price": 3.19},
-       {"id": "exxon30", "name": "Exxon", "brand": "Exxon", "exitId": "30", "aheadMiles": 30, "arrival": "2026-10-29T16:10:00Z"}],
-     "expect": {"primary": "wawa25", "alternatives": ["shell20", "exxon30"], "reasonsInclude": ["$3.19 (Google Maps)"],
-                "favorite": {"id": "shell20", "reason": "cheaper fuel was preferred"}}},
-    {"name": "Alternatives come from other exits first",
-     "options": {"context": "ahead"},
-     "candidates": [
-       {"id": "shellA", "name": "Shell", "brand": "Shell", "exitId": "A", "aheadMiles": 20, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "bpA", "name": "BP", "brand": "BP", "exitId": "A", "aheadMiles": 20, "detourMinutes": 2, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "wawaB", "name": "Wawa", "brand": "Wawa", "exitId": "B", "aheadMiles": 30, "arrival": "2026-10-29T16:10:00Z"}],
-     "expect": {"primary": "shellA", "alternatives": ["wawaB", "bpA"]}},
-    {"name": "Overnight restroom stop: a tagged rest area restroom outranks a 24 hour station without one",
-     "options": {"context": "ahead", "purpose": "restroom"},
-     "profile": {"fuel": {"requireRestroom": "always"}},
-     "candidates": [
-       {"id": "shell10", "name": "Shell", "brand": "Shell", "exitId": "10", "aheadMiles": 10, "osm": {"hours": "24/7"}},
-       {"id": "rest20", "name": "Rest Area", "kind": "rest", "aheadMiles": 20, "detourMinutes": null, "plaza": {"toilets": true}}],
-     "expect": {"primary": "rest20", "alternatives": ["shell10"], "primaryRestroom": "available",
-                "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."}},
-    {"name": "The same stops for fuel: open pumps rank first",
-     "options": {"context": "ahead", "purpose": "fuel"},
-     "profile": {"fuel": {"requireRestroom": "always"}},
-     "candidates": [
-       {"id": "shell10", "name": "Shell", "brand": "Shell", "exitId": "10", "aheadMiles": 10, "osm": {"hours": "24/7"}},
-       {"id": "rest20", "name": "Rest Area", "kind": "rest", "aheadMiles": 20, "detourMinutes": null, "plaza": {"toilets": true}}],
-     "expect": {"primary": "shell10", "alternatives": ["rest20"]}},
-    {"name": "Fuel context: among first choice stations, the later one uses the range",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "rangeOnArrivalMiles": 180, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "shell90", "name": "Shell", "brand": "Shell", "exitId": "90", "aheadMiles": 90, "rangeOnArrivalMiles": 110, "arrival": "2026-10-29T17:00:00Z", "detourMinutes": 5}],
-     "expect": {"primary": "shell90", "alternatives": ["shell20"], "favorite": null}},
-    {"name": "A. overnight, a Shell listed open by its brand beats an unlisted station, and the reason names the listing",
-     "options": {"context": "fuel"},
-     "candidates": [
-       {"id": "x1", "name": "Exxon", "brand": "Exxon", "exitId": "30", "aheadMiles": 30, "rangeOnArrivalMiles": 150},
-       {"id": "shellA", "name": "Shell", "brand": "Shell", "exitId": "36", "aheadMiles": 36, "rangeOnArrivalMiles": 144, "osm": {"brandHours": "Mo-Su 00:00-24:00", "listedBy": "Shell", "collected": "2026-10-17"}}],
-     "expect": {"primary": "shellA", "primaryHours": "reported", "reasonsInclude": ["Reported open, verification limited (listed by Shell, 2026-10)"]}}
-  ],
-  "lastOpen": [
-    {"name": "Overnight: the last stop listed open before 60 mi of stops not listed open", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
-     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 12, "osm": {"hours": "24/7"}},
-       {"id": "c", "aheadMiles": 20}, {"id": "d", "aheadMiles": 40}, {"id": "e", "aheadMiles": 72, "osm": {"hours": "24/7"}}],
-     "expect": {"stop": "b", "lengthMiles": 60, "unlisted": 2, "openEnded": false}},
-    {"name": "A stretch with no stops at all is a gas gap, left to its own warning", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
-     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 60, "osm": {"hours": "24/7"}}],
-     "expect": null},
-    {"name": "A stop reached after the overnight window ends the stretch", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
-     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 20, "arrival": "2026-10-29T07:30:00Z"},
-       {"id": "c", "aheadMiles": 35, "arrival": "2026-10-29T08:30:00Z"}, {"id": "d", "aheadMiles": 90, "arrival": "2026-10-29T09:30:00Z"}],
-     "expect": null},
-    {"name": "Nothing listed open to the end of the window", "options": {"minLengthMiles": 40, "windowEndMiles": 100},
-     "candidates": [{"id": "a", "aheadMiles": 10, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 30}, {"id": "c", "aheadMiles": 50}],
-     "expect": {"stop": "a", "lengthMiles": 90, "unlisted": 2, "openEnded": true}},
-    {"name": "A stop reported closed does not end the stretch, and a skipped stop does not count", "options": {"minLengthMiles": 40, "windowEndMiles": 150, "rejected": ["c"]},
-     "candidates": [{"id": "a", "aheadMiles": 10, "osm": {"hours": "24/7"}}, {"id": "b", "aheadMiles": 25, "osm": {"hours": "Mo-Su 06:00-22:00"}},
-       {"id": "c", "aheadMiles": 45, "osm": {"hours": "24/7"}}, {"id": "d", "aheadMiles": 70, "osm": {"hours": "24/7"}}],
-     "expect": {"stop": "a", "lengthMiles": 60, "unlisted": 1, "openEnded": false}},
-    {"name": "Daytime: stops reported closed are not an overnight stretch", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
-     "candidates": [{"id": "a", "aheadMiles": 5, "osm": {"hours": "24/7"}, "arrival": "2026-10-29T16:00:00Z"},
-       {"id": "b", "aheadMiles": 20, "osm": {"hours": "Mo-Su 06:00-10:00"}, "arrival": "2026-10-29T16:20:00Z"},
-       {"id": "c", "aheadMiles": 70, "osm": {"hours": "24/7"}, "arrival": "2026-10-29T17:00:00Z"}],
-     "expect": null},
-    {"name": "Only a stop listed open is named: unknown hours before the first open stop are not this warning", "options": {"minLengthMiles": 40, "windowEndMiles": 150},
-     "candidates": [{"id": "a", "aheadMiles": 5}, {"id": "b", "aheadMiles": 30}, {"id": "c", "aheadMiles": 80, "osm": {"hours": "24/7"}}],
-     "expect": null}
-  ]
+ "comment": "SmartStop fixtures shared by web/tests/smartstop.test.js and SmartStopTests.swift (acceptance test P). Miles and minutes for readability; arrival is UTC. The profile is the default profile with these sections merged in. Night arrival: 01:30 Thursday in New York.",
+ "profile": {
+  "fuel": {
+   "brands": [
+    "Shell",
+    "Wawa"
+   ],
+   "reserveMiles": 50,
+   "maxDetourMinutes": 8,
+   "require24Hours": "overnight",
+   "requireRestroom": "overnight",
+   "priceOverBrand": false
+  },
+  "overnight": {
+   "mode": "auto",
+   "start": "00:00",
+   "end": "04:00"
+  }
+ },
+ "defaults": {
+  "kind": "station",
+  "timeZone": "America/New_York",
+  "arrival": "2026-10-29T05:30:00Z",
+  "detourMinutes": 3,
+  "osm": {}
+ },
+ "evaluations": [
+  {
+   "name": "D. arrival in the station's own time zone, hours past midnight (Eastern)",
+   "candidate": {
+    "id": "ny",
+    "arrival": "2026-10-29T04:30:00Z",
+    "osm": {
+     "hours": "Mo-Su 06:00-01:00"
+    }
+   },
+   "expect": {
+    "day": "Th",
+    "time": "00:30",
+    "overnight": true,
+    "hours": "reported",
+    "closesIn": 30
+   }
+  },
+  {
+   "name": "D. the same moment at a Central time station is still the evening before",
+   "candidate": {
+    "id": "chi",
+    "arrival": "2026-10-29T04:30:00Z",
+    "timeZone": "America/Chicago",
+    "osm": {
+     "hours": "Mo-Su 06:00-01:00"
+    }
+   },
+   "expect": {
+    "day": "We",
+    "time": "23:30",
+    "overnight": false,
+    "hours": "reported",
+    "closesIn": 90
+   }
+  },
+  {
+   "name": "D. after crossing into Central time: open by its own clock, closed by Eastern",
+   "candidate": {
+    "id": "chi2",
+    "arrival": "2026-10-29T05:45:00Z",
+    "timeZone": "America/Chicago",
+    "osm": {
+     "hours": "Mo-Su 06:00-01:00"
+    }
+   },
+   "expect": {
+    "day": "Th",
+    "time": "00:45",
+    "overnight": true,
+    "hours": "reported",
+    "closesIn": 15
+   }
+  },
+  {
+   "name": "O. nothing listed: hours unavailable, never open",
+   "candidate": {
+    "id": "none"
+   },
+   "expect": {
+    "hours": "unknown",
+    "hoursLabel": "Hours unavailable",
+    "restroom": "unknown"
+   }
+  },
+  {
+   "name": "O. hours that do not parse count as unavailable",
+   "candidate": {
+    "id": "bad",
+    "osm": {
+     "hours": "Mo-Su 00:00+"
+    }
+   },
+   "expect": {
+    "hours": "unknown",
+    "restroom": "unknown"
+   }
+  },
+  {
+   "name": "E. 24 hour pumps with no restroom tag: restroom unknown",
+   "candidate": {
+    "id": "e1",
+    "osm": {
+     "hours": "24/7",
+     "checked": "2025-03-14"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "hoursLabel": "Reported open, verification limited",
+    "checked": "2025-03-14",
+    "restroom": "unknown",
+    "restroomLabel": "Restroom availability unknown"
+   }
+  },
+  {
+   "name": "E. 24 hour pumps with a tagged restroom: available, hours unknown, never accessible",
+   "candidate": {
+    "id": "e2",
+    "osm": {
+     "hours": "24/7",
+     "toilets": true
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "restroom": "available",
+    "restroomLabel": "Restroom listed, access hours unknown"
+   }
+  },
+  {
+   "name": "Service plaza listed 24/7 with restrooms: restroom accessible at arrival",
+   "candidate": {
+    "id": "plaza",
+    "kind": "plaza",
+    "detourMinutes": null,
+    "plaza": {
+     "hours": "24/7",
+     "toilets": true,
+     "truckSpaces": 40
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "restroom": "accessible",
+    "restroomLabel": "Restroom listed, open at arrival per listed hours"
+   }
+  },
+  {
+   "name": "Google lists the store open around the clock: verified",
+   "candidate": {
+    "id": "g1",
+    "live": {
+     "periods": [
+      {
+       "open": {
+        "day": 0,
+        "hour": 0,
+        "minute": 0
+       }
+      }
+     ]
+    }
+   },
+   "expect": {
+    "hours": "verified",
+    "hoursLabel": "Verified open at estimated arrival",
+    "restroom": "unknown"
+   }
+  },
+  {
+   "name": "Store closed (Google) but pumps listed 24/7: pumps reported open",
+   "candidate": {
+    "id": "g2",
+    "osm": {
+     "hours": "24/7"
+    },
+    "live": {
+     "periods": [
+      {
+       "open": {
+        "day": 4,
+        "hour": 6,
+        "minute": 0
+       },
+       "close": {
+        "day": 4,
+        "hour": 22,
+        "minute": 0
+       }
+      }
+     ],
+     "restroom": true
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "store": "closed",
+    "pumps": "reported",
+    "restroom": "available"
+   }
+  },
+  {
+   "name": "Store closed (Google), nothing else listed: reported closed",
+   "candidate": {
+    "id": "g3",
+    "live": {
+     "periods": [
+      {
+       "open": {
+        "day": 4,
+        "hour": 6,
+        "minute": 0
+       },
+       "close": {
+        "day": 4,
+        "hour": 22,
+        "minute": 0
+       }
+      }
+     ]
+    }
+   },
+   "expect": {
+    "hours": "closed",
+    "hoursLabel": "Reported closed at estimated arrival"
+   }
+  },
+  {
+   "name": "A. only the brand lists the hours, open around the clock: reported, listed by the brand with its date",
+   "candidate": {
+    "id": "a1",
+    "osm": {
+     "brandHours": "Mo-Su 00:00-24:00",
+     "listedBy": "Shell",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "hoursLabel": "Reported open, verification limited",
+    "hoursSource": "Listed by Shell",
+    "checked": "2026-10-17",
+    "pumpsSource": "Listed by Shell, collected 2026-10-17",
+    "restroom": "unknown"
+   }
+  },
+  {
+   "name": "A. OpenStreetMap closed at arrival, the brand listing open: they disagree, hours unavailable",
+   "candidate": {
+    "id": "a2",
+    "osm": {
+     "hours": "Mo-Su 06:00-22:00",
+     "brandHours": "24/7",
+     "listedBy": "BP",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "unknown",
+    "pumps": "unknown",
+    "note": "OpenStreetMap and the BP listing disagree",
+    "pumpsSource": "OpenStreetMap and the BP listing disagree"
+   }
+  },
+  {
+   "name": "A. both open, the listing collected after the mapper's check: the listing",
+   "candidate": {
+    "id": "a3",
+    "osm": {
+     "hours": "24/7",
+     "checked": "2024-05-01",
+     "brandHours": "Mo-Su 00:00-24:00",
+     "listedBy": "Love's",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "hoursSource": "Listed by Love's",
+    "checked": "2026-10-17"
+   }
+  },
+  {
+   "name": "A. both open, a mapper checked after the listing was collected: OpenStreetMap",
+   "candidate": {
+    "id": "a4",
+    "osm": {
+     "hours": "24/7",
+     "checked": "2026-10-20",
+     "brandHours": "24/7",
+     "listedBy": "Sunoco",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "hoursSource": "OpenStreetMap",
+    "checked": "2026-10-20"
+   }
+  },
+  {
+   "name": "A. both closed at arrival: reported closed",
+   "candidate": {
+    "id": "a5",
+    "osm": {
+     "hours": "Mo-Su 05:00-23:00",
+     "brandHours": "Mo-Su 06:00-22:00",
+     "listedBy": "Valero",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "closed",
+    "hoursSource": "Listed by Valero"
+   }
+  },
+  {
+   "name": "A. the brand lists a restroom: available, hours unknown, never accessible",
+   "candidate": {
+    "id": "a6",
+    "osm": {
+     "brandToilets": true,
+     "listedBy": "Circle K",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "unknown",
+    "restroom": "available",
+    "restroomLabel": "Restroom listed, access hours unknown",
+    "restroomSource": "Listed by Circle K, collected 2026-10-17"
+   }
+  },
+  {
+   "name": "A. OpenStreetMap says no restroom, the brand lists one: unknown",
+   "candidate": {
+    "id": "a7",
+    "osm": {
+     "toilets": false,
+     "brandToilets": true,
+     "listedBy": "Chevron",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "restroom": "unknown",
+    "restroomSource": "OpenStreetMap and the Chevron listing disagree"
+   }
+  },
+  {
+   "name": "A. Google's restroom field comes before the brand listing",
+   "candidate": {
+    "id": "a8",
+    "osm": {
+     "brandToilets": true,
+     "listedBy": "Shell",
+     "collected": "2026-10-17"
+    },
+    "live": {
+     "periods": [
+      {
+       "open": {
+        "day": 0,
+        "hour": 0,
+        "minute": 0
+       }
+      }
+     ],
+     "restroom": false
+    }
+   },
+   "expect": {
+    "hours": "verified",
+    "restroom": "none",
+    "restroomSource": "Google Maps"
+   }
+  },
+  {
+   "name": "Freshness: hours a mapper checked more than a year before arrival may be out of date",
+   "candidate": {
+    "id": "f1",
+    "osm": {
+     "hours": "24/7",
+     "checked": "2025-03"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "checked": "2025-03",
+    "stale": true
+   }
+  },
+  {
+   "name": "Freshness: a listing collected this month is current",
+   "candidate": {
+    "id": "f2",
+    "osm": {
+     "brandHours": "24/7",
+     "listedBy": "Wawa",
+     "collected": "2026-10-17"
+    }
+   },
+   "expect": {
+    "hours": "reported",
+    "stale": false
+   }
+  }
+ ],
+ "rankings": [
+  {
+   "name": "F. a closed Shell loses to an open alternative, and says why",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "wawa38",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "38",
+     "aheadMiles": 35,
+     "rangeOnArrivalMiles": 120,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "shell42",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "42",
+     "aheadMiles": 40,
+     "rangeOnArrivalMiles": 115,
+     "osm": {
+      "hours": "Mo-Su 06:00-22:00"
+     }
+    },
+    {
+     "id": "sunoco50",
+     "name": "Sunoco",
+     "brand": "Sunoco",
+     "exitId": "50",
+     "aheadMiles": 48,
+     "rangeOnArrivalMiles": 107
+    }
+   ],
+   "expect": {
+    "primary": "wawa38",
+    "alternatives": [
+     "sunoco50"
+    ],
+    "passed": {
+     "Reported closed at arrival": 1
+    },
+    "favorite": {
+     "id": "shell42",
+     "reason": "Reported closed at arrival"
+    },
+    "primaryHours": "reported",
+    "reasonsInclude": [
+     "Wawa, your 2nd choice"
+    ]
+   }
+  },
+  {
+   "name": "G. the Shell is beyond the range: a reachable alternative",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "exxon30",
+     "name": "Exxon",
+     "brand": "Exxon",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "rangeOnArrivalMiles": 80,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "wawa60",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "60",
+     "aheadMiles": 60,
+     "rangeOnArrivalMiles": 50,
+     "arrival": "2026-10-29T16:30:00Z"
+    },
+    {
+     "id": "shell120",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "120",
+     "aheadMiles": 120,
+     "rangeOnArrivalMiles": -10,
+     "arrival": "2026-10-29T17:30:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "wawa60",
+    "alternatives": [
+     "exxon30"
+    ],
+    "passed": {
+     "Out of range": 1
+    },
+    "favorite": {
+     "id": "shell120",
+     "reason": "Out of range"
+    }
+   }
+  },
+  {
+   "name": "H. a stop that would break the reserve is not chosen while one keeps it",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "exxon40",
+     "name": "Exxon",
+     "brand": "Exxon",
+     "exitId": "40",
+     "aheadMiles": 40,
+     "rangeOnArrivalMiles": 90,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell100",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "100",
+     "aheadMiles": 100,
+     "rangeOnArrivalMiles": 30,
+     "arrival": "2026-10-29T17:00:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "exxon40",
+    "alternatives": [],
+    "passed": {
+     "Below your reserve": 1
+    },
+    "favorite": {
+     "id": "shell100",
+     "reason": "Below your reserve"
+    },
+    "lowRange": false
+   }
+  },
+  {
+   "name": "H. every stop is below the reserve: the nearest, labeled with what is left",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "bp30",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "rangeOnArrivalMiles": 45,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell60",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "60",
+     "aheadMiles": 60,
+     "rangeOnArrivalMiles": 15,
+     "arrival": "2026-10-29T16:30:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "bp30",
+    "alternatives": [
+     "shell60"
+    ],
+    "passed": {},
+    "relaxed": [
+     "Below your reserve"
+    ],
+    "lowRange": true,
+    "reasonsInclude": [
+     "Arrive with about 45 mi, below your 50 mi reserve"
+    ]
+   }
+  },
+  {
+   "name": "Overnight: the restroom with known hours ranks first",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "wawa20",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "osm": {
+      "hours": "24/7",
+      "toilets": true
+     }
+    },
+    {
+     "id": "shell30",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "plaza45",
+     "name": "Molly Pitcher Service Area",
+     "brand": "Sunoco",
+     "kind": "plaza",
+     "aheadMiles": 45,
+     "detourMinutes": null,
+     "plaza": {
+      "hours": "24/7",
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "plaza45",
+    "alternatives": [
+     "wawa20",
+     "shell30"
+    ],
+    "primaryRestroom": "accessible",
+    "notice": null,
+    "favorite": {
+     "id": "shell30",
+     "reason": "restroom availability unknown, and the recommended stop is better confirmed"
+    }
+   }
+  },
+  {
+   "name": "Overnight with nothing confirmed: says so, best available first",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "exxon10",
+     "name": "Exxon",
+     "brand": "Exxon",
+     "exitId": "10",
+     "aheadMiles": 10
+    },
+    {
+     "id": "shell25",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": {
+    "primary": "shell25",
+    "alternatives": [
+     "exxon10"
+    ],
+    "primaryRestroom": "unknown",
+    "notice": "No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops."
+   }
+  },
+  {
+   "name": "Daytime: hours and restrooms do not outrank the first choice brand",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "wawa20",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "osm": {
+      "hours": "24/7",
+      "toilets": true
+     }
+    },
+    {
+     "id": "shell30",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "arrival": "2026-10-29T16:10:00Z"
+    },
+    {
+     "id": "plaza45",
+     "name": "Molly Pitcher Service Area",
+     "brand": "Sunoco",
+     "kind": "plaza",
+     "aheadMiles": 45,
+     "detourMinutes": null,
+     "arrival": "2026-10-29T16:25:00Z",
+     "plaza": {
+      "hours": "24/7",
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "shell30",
+    "alternatives": [
+     "wawa20",
+     "plaza45"
+    ],
+    "notice": null,
+    "favorite": null,
+    "reasonsInclude": [
+     "Shell, your 1st choice",
+     "About 3 min detour (twice the drive from the exit)"
+    ]
+   }
+  },
+  {
+   "name": "Overnight Drive Mode turned on by hand at noon",
+   "profile": {
+    "overnight": {
+     "mode": "on"
+    }
+   },
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "wawa20",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "osm": {
+      "hours": "24/7",
+      "toilets": true
+     }
+    },
+    {
+     "id": "shell30",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "arrival": "2026-10-29T16:10:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "wawa20",
+    "alternatives": [
+     "shell30"
+    ],
+    "primaryRestroom": "available",
+    "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."
+   }
+  },
+  {
+   "name": "Skipped and passed stations are not offered again; removed stations never",
+   "options": {
+    "context": "ahead",
+    "rejected": [
+     "shell30"
+    ]
+   },
+   "candidates": [
+    {
+     "id": "wawa0",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "0",
+     "aheadMiles": 0,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell30",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "arrival": "2026-10-29T16:10:00Z"
+    },
+    {
+     "id": "shell35",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "35",
+     "aheadMiles": 35,
+     "arrival": "2026-10-29T16:15:00Z",
+     "osm": {
+      "gone": "deleted"
+     }
+    },
+    {
+     "id": "bp40",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "40",
+     "aheadMiles": 40,
+     "arrival": "2026-10-29T16:20:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "bp40",
+    "alternatives": [],
+    "passed": {
+     "Already passed": 1,
+     "You skipped it": 1,
+     "No longer listed as a gas station": 1
+    },
+    "favorite": {
+     "id": "shell30",
+     "reason": "You skipped it"
+    }
+   }
+  },
+  {
+   "name": "Detour limit: kept unless nothing else is left",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "detourMinutes": 14,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "wawa25",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "detourMinutes": 3,
+     "arrival": "2026-10-29T16:05:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "wawa25",
+    "alternatives": [],
+    "passed": {
+     "Detour over your limit": 1
+    },
+    "favorite": {
+     "id": "shell20",
+     "reason": "Detour over your limit"
+    }
+   }
+  },
+  {
+   "name": "Detour limit relaxed when it is the only stop",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "detourMinutes": 14,
+     "arrival": "2026-10-29T16:00:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "alternatives": [],
+    "passed": {},
+    "relaxed": [
+     "Detour over your limit"
+    ],
+    "reasonsInclude": [
+     "About 14 min detour (twice the drive from the exit)"
+    ]
+   }
+  },
+  {
+   "name": "Cheaper fuel over brand, with prices from Google",
+   "profile": {
+    "fuel": {
+     "priceOverBrand": true
+    }
+   },
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "price": 3.49,
+     "priceSource": "Google Maps"
+    },
+    {
+     "id": "wawa25",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "arrival": "2026-10-29T16:05:00Z",
+     "price": 3.19,
+     "priceSource": "Google Maps"
+    },
+    {
+     "id": "exxon30",
+     "name": "Exxon",
+     "brand": "Exxon",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "arrival": "2026-10-29T16:10:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "wawa25",
+    "alternatives": [
+     "shell20",
+     "exxon30"
+    ],
+    "reasonsInclude": [
+     "$3.19 a gallon (Google Maps)"
+    ],
+    "favorite": {
+     "id": "shell20",
+     "reason": "cheaper fuel was preferred"
+    }
+   }
+  },
+  {
+   "name": "Alternatives come from other exits first",
+   "options": {
+    "context": "ahead"
+   },
+   "candidates": [
+    {
+     "id": "shellA",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "A",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "bpA",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "A",
+     "aheadMiles": 20,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "wawaB",
+     "name": "Wawa",
+     "brand": "Wawa",
+     "exitId": "B",
+     "aheadMiles": 30,
+     "arrival": "2026-10-29T16:10:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "shellA",
+    "alternatives": [
+     "wawaB",
+     "bpA"
+    ]
+   }
+  },
+  {
+   "name": "Overnight restroom stop: a tagged rest area restroom outranks a 24 hour station without one",
+   "options": {
+    "context": "ahead",
+    "purpose": "restroom"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell10",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "10",
+     "aheadMiles": 10,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "rest20",
+     "name": "Rest Area",
+     "kind": "rest",
+     "aheadMiles": 20,
+     "detourMinutes": null,
+     "plaza": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "rest20",
+    "alternatives": [
+     "shell10"
+    ],
+    "primaryRestroom": "available",
+    "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."
+   }
+  },
+  {
+   "name": "The same stops for fuel: open pumps rank first",
+   "options": {
+    "context": "ahead",
+    "purpose": "fuel"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell10",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "10",
+     "aheadMiles": 10,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "rest20",
+     "name": "Rest Area",
+     "kind": "rest",
+     "aheadMiles": 20,
+     "detourMinutes": null,
+     "plaza": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "shell10",
+    "alternatives": [
+     "rest20"
+    ]
+   }
+  },
+  {
+   "name": "Fuel context: among first choice stations, the later one uses the range",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "rangeOnArrivalMiles": 180,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell90",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "90",
+     "aheadMiles": 90,
+     "rangeOnArrivalMiles": 110,
+     "arrival": "2026-10-29T17:00:00Z",
+     "detourMinutes": 5
+    }
+   ],
+   "expect": {
+    "primary": "shell90",
+    "alternatives": [
+     "shell20"
+    ],
+    "favorite": null
+   }
+  },
+  {
+   "name": "A. overnight, a Shell listed open by its brand beats an unlisted station, and the reason names the listing",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "x1",
+     "name": "Exxon",
+     "brand": "Exxon",
+     "exitId": "30",
+     "aheadMiles": 30,
+     "rangeOnArrivalMiles": 150
+    },
+    {
+     "id": "shellA",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "36",
+     "aheadMiles": 36,
+     "rangeOnArrivalMiles": 144,
+     "osm": {
+      "brandHours": "Mo-Su 00:00-24:00",
+      "listedBy": "Shell",
+      "collected": "2026-10-17"
+     }
+    }
+   ],
+   "expect": {
+    "primary": "shellA",
+    "primaryHours": "reported",
+    "reasonsInclude": [
+     "Reported open, verification limited (listed by Shell, 2026-10)"
+    ]
+   }
+  },
+  {
+   "name": "Shell stays first; a cheaper BP that saves over $2 on a fill is noted (simulated prices)",
+   "options": {
+    "context": "fuel",
+    "vehicle": {
+     "tankGallons": 17,
+     "mpg": 34
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "rangeOnArrivalMiles": 120,
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceText": "Reported 20 minutes ago",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp25",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "arrival": "2026-10-29T16:05:00Z",
+     "rangeOnArrivalMiles": 115,
+     "price": 2.89,
+     "pricePayment": "credit",
+     "priceText": "Reported 2 hours ago",
+     "priceSource": "ExitAtlas drivers"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "reasonsInclude": [
+     "$3.09 a gallon, reported 20 minutes ago (You)"
+    ],
+    "cheaper": {
+     "id": "bp25",
+     "savings": 2.724,
+     "estimate": false
+    }
+   }
+  },
+  {
+   "name": "A few cents cheaper is not worth a note",
+   "options": {
+    "context": "fuel",
+    "vehicle": {
+     "tankGallons": 17,
+     "mpg": 34
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "rangeOnArrivalMiles": 120,
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp25",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "arrival": "2026-10-29T16:05:00Z",
+     "rangeOnArrivalMiles": 115,
+     "price": 3.01,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "cheaper": null
+   }
+  },
+  {
+   "name": "A cheaper stop out of range is never offered",
+   "options": {
+    "context": "fuel",
+    "vehicle": {
+     "tankGallons": 17,
+     "mpg": 34
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "rangeOnArrivalMiles": 10,
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp40",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "40",
+     "aheadMiles": 40,
+     "arrival": "2026-10-29T16:20:00Z",
+     "rangeOnArrivalMiles": -10,
+     "price": 2.49,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "cheaper": null,
+    "passed": {
+     "Out of range": 1
+    }
+   }
+  },
+  {
+   "name": "Overnight: a cheaper stop with no hours listed never replaces one listed open",
+   "options": {
+    "context": "fuel",
+    "vehicle": {
+     "tankGallons": 17,
+     "mpg": 34
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "rangeOnArrivalMiles": 120,
+     "osm": {
+      "hours": "24/7"
+     },
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp25",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "rangeOnArrivalMiles": 115,
+     "price": 2.49,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "cheaper": null
+   }
+  },
+  {
+   "name": "Cash and credit prices are not compared",
+   "options": {
+    "context": "fuel",
+    "vehicle": {
+     "tankGallons": 17,
+     "mpg": 34
+    }
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "rangeOnArrivalMiles": 120,
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp25",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "arrival": "2026-10-29T16:05:00Z",
+     "rangeOnArrivalMiles": 115,
+     "price": 2.69,
+     "pricePayment": "cash",
+     "priceSource": "You"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "cheaper": null
+   }
+  },
+  {
+   "name": "No tank size: no cost comparison, prices still shown",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "shell20",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "20",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T16:00:00Z",
+     "rangeOnArrivalMiles": 120,
+     "price": 3.09,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    },
+    {
+     "id": "bp25",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "25",
+     "aheadMiles": 25,
+     "arrival": "2026-10-29T16:05:00Z",
+     "rangeOnArrivalMiles": 115,
+     "price": 2.49,
+     "pricePayment": "credit",
+     "priceSource": "You"
+    }
+   ],
+   "expect": {
+    "primary": "shell20",
+    "cheaper": null,
+    "reasonsInclude": [
+     "$3.09 a gallon (You)"
+    ]
+   }
+  }
+ ],
+ "lastOpen": [
+  {
+   "name": "Overnight: the last stop listed open before 60 mi of stops not listed open",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "b",
+     "aheadMiles": 12,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "c",
+     "aheadMiles": 20
+    },
+    {
+     "id": "d",
+     "aheadMiles": 40
+    },
+    {
+     "id": "e",
+     "aheadMiles": 72,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": {
+    "stop": "b",
+    "lengthMiles": 60,
+    "unlisted": 2,
+    "openEnded": false
+   }
+  },
+  {
+   "name": "A stretch with no stops at all is a gas gap, left to its own warning",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "b",
+     "aheadMiles": 60,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": null
+  },
+  {
+   "name": "A stop reached after the overnight window ends the stretch",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "b",
+     "aheadMiles": 20,
+     "arrival": "2026-10-29T07:30:00Z"
+    },
+    {
+     "id": "c",
+     "aheadMiles": 35,
+     "arrival": "2026-10-29T08:30:00Z"
+    },
+    {
+     "id": "d",
+     "aheadMiles": 90,
+     "arrival": "2026-10-29T09:30:00Z"
+    }
+   ],
+   "expect": null
+  },
+  {
+   "name": "Nothing listed open to the end of the window",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 100
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 10,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "b",
+     "aheadMiles": 30
+    },
+    {
+     "id": "c",
+     "aheadMiles": 50
+    }
+   ],
+   "expect": {
+    "stop": "a",
+    "lengthMiles": 90,
+    "unlisted": 2,
+    "openEnded": true
+   }
+  },
+  {
+   "name": "A stop reported closed does not end the stretch, and a skipped stop does not count",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150,
+    "rejected": [
+     "c"
+    ]
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 10,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "b",
+     "aheadMiles": 25,
+     "osm": {
+      "hours": "Mo-Su 06:00-22:00"
+     }
+    },
+    {
+     "id": "c",
+     "aheadMiles": 45,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "d",
+     "aheadMiles": 70,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": {
+    "stop": "a",
+    "lengthMiles": 60,
+    "unlisted": 1,
+    "openEnded": false
+   }
+  },
+  {
+   "name": "Daytime: stops reported closed are not an overnight stretch",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     },
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "b",
+     "aheadMiles": 20,
+     "osm": {
+      "hours": "Mo-Su 06:00-10:00"
+     },
+     "arrival": "2026-10-29T16:20:00Z"
+    },
+    {
+     "id": "c",
+     "aheadMiles": 70,
+     "osm": {
+      "hours": "24/7"
+     },
+     "arrival": "2026-10-29T17:00:00Z"
+    }
+   ],
+   "expect": null
+  },
+  {
+   "name": "Only a stop listed open is named: unknown hours before the first open stop are not this warning",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5
+    },
+    {
+     "id": "b",
+     "aheadMiles": 30
+    },
+    {
+     "id": "c",
+     "aheadMiles": 80,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": null
+  }
+ ]
 }

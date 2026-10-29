@@ -62,6 +62,17 @@ public struct ProfileSettings: Sendable, Equatable {
     public var suggestFasterRoutes = true
     public var minSavingMinutes = 10.0
 
+    /// Gas prices (docs/17): compare reported prices, the usual payment, the oldest report that still competes,
+    /// telling when another stop beats the favorite by `minSavingsDollars` on a fill, and the sources.
+    public var comparePrices = true
+    public var pricePayment = "credit"
+    public var priceMaxAgeHours = 24.0
+    public var tellCheaper = true
+    public var minSavingsDollars = 2.0
+    public var ownPriceReports = true
+    public var communityPrices = false
+    public var googlePrices = false
+
     public init() {}
 
     /// The vehicle that plans fuel stops.
@@ -125,6 +136,15 @@ public struct ProfileSettings: Sendable, Equatable {
         announceTraffic = t["voice"]?.bool ?? true
         suggestFasterRoutes = t["suggestRoutes"]?.bool ?? true
         minSavingMinutes = t["minSavingMinutes"]?.number ?? 10
+        let pr = sec("prices")
+        comparePrices = pr["compare"]?.bool ?? true
+        pricePayment = pr["payment"]?.string ?? "credit"
+        priceMaxAgeHours = pr["maxAgeHours"]?.number ?? 24
+        tellCheaper = pr["tellCheaper"]?.bool ?? true
+        minSavingsDollars = pr["minSavingsDollars"]?.number ?? 2
+        ownPriceReports = pr["ownReports"]?.bool ?? true
+        communityPrices = pr["community"]?.bool ?? false
+        googlePrices = pr["google"]?.bool ?? false
     }
 
     /// The profile with these values written into it. Saved places keep their ids when the name and
@@ -175,6 +195,11 @@ public struct ProfileSettings: Sendable, Equatable {
         merge("traffic", [
             "map": .bool(trafficOnMap), "eta": .bool(trafficInETA), "voice": .bool(announceTraffic),
             "suggestRoutes": .bool(suggestFasterRoutes), "minSavingMinutes": .number(minSavingMinutes),
+        ])
+        merge("prices", [
+            "compare": .bool(comparePrices), "payment": .string(pricePayment), "maxAgeHours": .number(priceMaxAgeHours),
+            "tellCheaper": .bool(tellCheaper), "minSavingsDollars": .number(minSavingsDollars), "ownReports": .bool(ownPriceReports),
+            "community": .bool(communityPrices), "google": .bool(googlePrices),
         ])
         return ProfileRules.normalize(.object(p)).profile
     }

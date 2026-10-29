@@ -13,7 +13,12 @@ DAILY_PRICES = "200"
 CLIENT_DAILY_PRICES = "60"
 DAILY_CHARGERS = "200"
 CLIENT_DAILY_CHARGERS = "40"
-# Off switches the app reads from /v1/config: any of prices, chargers, routing, search.
+# Shared gas price reports (docs/17): daily budgets, well under the D1 Free limits. Leave as is unless the
+# numbers in README.md say otherwise.
+DAILY_PRICE_REPORTS = "2000"
+CLIENT_DAILY_PRICE_REPORTS = "20"
+DAILY_PRICE_READS = "5000"
+# Off switches the app reads from /v1/config: any of prices, chargers, routing, search, wzdx, community, benchmarks.
 DISABLED = ""
 ROUTING = "osrm-demo"
 SEARCH = "nominatim"
@@ -24,3 +29,10 @@ binding = "BUDGET"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"
 
 # Secrets (never in this file): npx wrangler secret put GOOGLE_KEY / NREL_KEY / CLIENT_SALT
+
+# Shared gas price reports (optional, off without it). Create with: npx wrangler d1 create exitatlas-prices,
+# paste the database_id here, uncomment, then run: npx wrangler d1 execute exitatlas-prices --remote --file schema.sql
+# [[d1_databases]]
+# binding = "PRICES_DB"
+# database_name = "exitatlas-prices"
+# database_id = "REPLACE_WITH_D1_DATABASE_ID"

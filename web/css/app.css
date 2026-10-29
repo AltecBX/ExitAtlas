@@ -394,6 +394,27 @@ a.btn { text-decoration: none; }
 /* Prices and charging */
 .price-line { font-size: 14px; margin-top: 3px; }
 .price-line b { font-variant-numeric: tabular-nums; }
+.price-line.old b { color: var(--text-2); font-weight: 600; }
+/* Gas prices (docs/17): brand tags, price tags, the comparison list, the cheaper note, the report sheet. */
+.brand-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 34px; padding: 0 5px; border-radius: 9px;
+  font: 900 9.5px/1 var(--num, system-ui); letter-spacing: 0.2px; flex: none; text-align: center; }
+.ptag { text-align: right; flex: none; min-width: 64px; }
+.ptag .pv { font: 800 21px var(--num, system-ui); font-variant-numeric: tabular-nums; }
+.ptag.old .pv { font-size: 16px; color: var(--text-2); }
+.ptag.none { font-size: 12px; font-weight: 700; color: var(--text-2); line-height: 1.25; }
+.pr-row { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.pr-row .t { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 700; }
+.pr-row .t .exit-sign { transform: scale(0.82); transform-origin: left center; }
+.pr-facts { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; }
+.pr-facts .conf { margin-top: 0; }
+.card.compare { padding: 12px 14px; }
+.card.compare .chips { margin-top: 8px; margin-bottom: 0; }
+.cheaper { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--amber-fill); }
+.report-seg { margin-top: 10px; }
+.report-price { display: flex; align-items: baseline; justify-content: center; gap: 2px; margin: 12px 0; padding: 10px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--stroke); font: 800 34px var(--num, system-ui); }
+.report-price input { width: 5.2ch; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .gattr { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; font-weight: 500; color: var(--text-2); }
 .charge-sign {
   display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 44px; flex: none;
@@ -722,3 +743,4 @@ body.nav-mode #banner { position: relative; z-index: 15; }
   .guide-dist { font-size: 26px; }
   .guide-text { font-size: 17px; -webkit-line-clamp: 1; }
 }
+.sim-tag { display: inline-block; margin-bottom: 8px; padding: 3px 8px; border-radius: 6px; background: #d02670; color: #fff; font: 800 10.5px var(--num, system-ui); letter-spacing: 0.4px; }

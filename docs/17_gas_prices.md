@@ -1,0 +1,128 @@
+# 17. Gas prices at zero cost
+
+Status, 2026-10-29: built on the website and in the shared engine (Swift and JavaScript); shared driver reports are written and tested on the Worker but not deployed. iOS parity: section 17.10.
+
+The goal: compare station prices along the route before getting off the interstate (Shell, Pilot, Exxon, BP, Wawa and the rest), and pick the best value counting price, distance, detour, range and hours, without any paid service, any billing account, or any data used against its terms.
+
+## 17.1 What the code had before (audit of main, 2b4b060)
+
+| Piece | Where | What it did | What changed |
+|---|---|---|---|
+| Google Places prices | `web/js/app/prices.js`, `App/ExitAtlas/Services/GasPriceService.swift` | Nearby Search with `fuelOptions`, the driver's own Google key or the owner's proxy; looked up automatically for the fuel stop exits whenever a key was stored | Off by default (`profile.prices.google = false`), never called automatically: only when the driver turns it on and taps "Check Google Maps prices" for an exit. Prices stay in memory, are never stored, and never go into shared reports. |
+| Price in SmartStop | `engine/smartstop.js`, `SmartStop.swift` | A raw Google price on a candidate, used only when "cheaper fuel over favorite brands" was on | A current reported price with its payment kind, time and source; the total cost of a fill; a cheaper stop note (17.6). |
+| Fuel planner | `engine/fuel.js`, `FuelPlanner.swift` | Range, buffer, favorite brands | Unchanged. |
+| Key proxy | `infra/worker` | Google and NREL keys, KV budgets, WZDx pass through | Adds `/v1/price-reports` on D1 (17.5). The Google endpoint is unchanged and only used when the owner sets a key and the driver turns Google prices on. |
+| Docs | `02_data_sources_and_licensing.md` | Google `fuelOptions` and iExit, OPIS as paid options; "drop prices older than 48 hours" | This document is the current price policy (24 hours by default, 17.4). |
+
+Open pull requests checked for overlap: none touch prices.
+
+## 17.2 Sources checked (2026-10-29)
+
+[V] read in the primary source; [NV] not verified. Spot checked again by hand: the OSM counts, the EIA download, D1's limits and OpenFuel's terms.
+
+| Source | Station prices | US coverage | Grades | Freshness | Format | Data license and reuse | Key and billing | Decision |
+|---|---|---|---|---|---|---|---|---|
+| [OpenFuel](https://www.openfuel.app/legal/terms) | Yes, driver reports | US; volume not published [NV] | 87, 89, 91, 93, diesel, E85 and others | Reports seen "within the last several hours" | No public API (only its own app backend) | §4: users grant "the public the same broad license" for prices; §7: the Service is licensed "for personal, non-commercial purposes"; §5: "If you want a research-scale extract of the public price database, contact us first" [V] | None | **Needs written permission** (ask support@openfuel.app for a feed and an explicit license). Not integrated. |
+| [coatless-data/club-gas-prices](https://github.com/coatless-data/club-gas-prices) | Yes, Costco and Sam's Club | 589 Costco and 531 Sam's Club US stations (29 Oct capture) | Regular, premium, diesel (mid at Sam's) | 4 captures a day | GitHub releases | Code MIT; "The data files carry no license claim"; collected from the retailers' sites, and [Costco's terms](https://www.costco.com/f/-/terms-and-conditions-of-use) forbid "data mining, robots ... to scrape or extract data" without written consent [V] | None | **Excluded**: a free scraper is not a reusable data source. |
+| [Pumperly](https://geiserx.github.io/Pumperly/data/coverage/) | Not in the US | "The United States has no fuel prices" [V] | n/a | n/a | REST | Code AGPL 3.0; hosted data terms not stated | None | **Excluded** for the US. |
+| OpenStreetMap | Stations yes, prices no | 110,550 `amenity=fuel`; the key `price` on 6 objects in the whole US ([taginfo](https://taginfo.geofabrik.de/north-america:us/api/4/keys/all?query=price), data to 28 Oct) [V, rechecked] | Fuel types only | Live edits | Dumps, API | ODbL 1.0 | None | **Used for stations** (already in the app, with attribution). No US prices. ExitAtlas reports keyed by OSM ids stay a separate dataset ([OSMF collective database guideline](https://osmfoundation.org/wiki/Licence/Community_Guidelines/Collective_Database_Guideline_Guideline)). |
+| [Open Prices](https://prices.openfoodfacts.org) | No fuel | 0 fuel prices; its units are per item or kilogram [V] | n/a | Daily dumps | REST, JSONL | ODbL | Read: none | **Excluded** (no data). |
+| [US EIA](https://www.eia.gov/petroleum/gasdiesel/) | No: regional averages | US, PADD 1A, 1B, 1C, 2 to 5, 9 states, 10 cities | Regular, mid, premium, diesel | Weekly, Monday 8 AM, published Tuesday | API v2 (free key), XLS and an RSS summary without a key ([RSS](https://www.eia.gov/petroleum/gasdiesel/includes/gas_diesel_rss.xml), 2.5 KB, rechecked) | Public domain; attribution with the date requested ([EIA](https://www.eia.gov/about/copyrights_reuse.php)) | None | **Used as context only** (17.7), never as a station's price. |
+| NYSERDA weekly averages | No: metro averages | NY and 16 metros | Regular | Weekly | Socrata | Sourced from the AAA Daily Fuel Gauge (OPIS) | None | Not used (third party data; EIA covers the need). |
+| AAA / OPIS | Averages on the site; stations under contract | National | All | Daily | Web | "personal, non-commercial use only" ([AAA](https://gasprices.aaa.com/about-aaa/)) | Contract | **Excluded**. |
+| GasBuddy | Yes | National | All | Live | No public license | Terms prohibit automated collection and reuse | Contract | **Excluded**; no unofficial endpoints, no scrapers, no paid Apify actors. |
+| [Love's Store & Fuel Prices API](https://developer.loves.com/) | Yes, Love's only | Love's stores | Not stated | Not stated | REST, OAuth | Access through a Love's sales representative; reuse terms not stated [V] | By request; fees not stated | **Needs written permission**. |
+| Other retailer sites (Costco, Sheetz, QuikTrip, BP; Wawa, Pilot, Shell, Exxon terms not readable) | Their own stations | Their own | Varies | Varies | Web only | Terms read prohibit scraping or non personal use [V where read] | n/a | **Excluded**. |
+| State and city open data | None found with station prices [NV, search] | | | | | | | Nothing to integrate. |
+
+**Verdict.** No source is free, legally reusable, station level and nationwide. So:
+
+* Integrated now: the driver's own reports (on the device), optional shared reports from ExitAtlas drivers (17.5), OSM stations (already in the app), EIA weekly averages as context.
+* Needs written permission before any code: OpenFuel, Love's.
+* Excluded: club-gas-prices data, GasBuddy, AAA and OPIS, retailer sites, Pumperly and Open Prices for US fuel.
+* Google Maps prices stay an option the driver pays for with their own key, off by default (17.8).
+
+## 17.3 The engine (`web/js/engine/gasprices.js`, `Sources/ExitAtlasCore/Planning/GasPrices.swift`)
+
+One record per observed price: station id, location (from the station, not the reporter), brand, grade (Regular, Midgrade, Premium, Diesel), price in dollars per gallon, currency, payment (cash, credit, or not said), member or loyalty price (kept separate), the time it was seen, the reporter (opaque), and the source `{id, name, kind: own | community | open | google | simulated}`.
+
+* Checks on every report: a grade, a price from $1.50 to $9.99 (rounded to a tenth of a cent), cash or credit or none, a time not in the future and not older than 7 days, and, when a regional average is known, within 50% of it.
+* Grades are never compared with each other. The grade is the driver's setting, else the vehicle's EPA fuel type.
+* One price per station and grade: the latest current report; the driver's payment kind first, then "not said", then the other kind (labeled "cash price"). Other current reports of the same price count as confirmations; a current report more than $0.10 apart is a conflict ("reports differ").
+* A repeat of the same price within 30 minutes is the same report; the same reporter's new price within 30 minutes replaces theirs (a correction).
+
+Tests: `Tests/ExitAtlasCoreTests/Fixtures/prices/cases.json`, one set of SIMULATED fixtures run by both `web/tests/gasprices.test.js` and `GasPricesTests.swift`.
+
+## 17.4 Freshness
+
+| Age | Shown | Compared |
+|---|---|---|
+| Up to the driver's limit (24 hours by default; 6 or 12 in Settings) | "Reported 18 minutes ago", "Reported 3 hours ago" | Yes |
+| Past the limit, up to 7 days | Greyed, "Reported yesterday · old, not compared" | Never: it cannot be the cheapest or win a ranking |
+| Past 7 days | Not shown | Dropped |
+| No report | "Price unavailable" | Sorts after every current price |
+
+A report is never called live or verified: the app says "Prices are reports with their time and source, not verified pump prices." Tapping a station shows each price's source, payment kind and time.
+
+## 17.5 Reporting prices
+
+**On the device (no server, no account).** Station details or a station row, "Report a price": grade, price, credit or cash, member price. Saved in the browser (`ea.priceReports`) or the app; corrected or deleted for 30 minutes from Station details. No photo. If the phone is moving faster than about 10 mph, saving waits for "I'm a passenger".
+
+**Shared (optional, off by default).** Only when the owner deploys the Worker with a D1 database and the driver turns "Shared driver reports" on.
+
+* The app sends the station, grade, price, payment, member flag, a random install id, and `near: true`. The location check happens on the phone: one reading within 250 m of the station (accuracy better than 150 m); the position is never sent. Simulated GPS cannot pass.
+* The server stores a salted hash of the install id and of the IP address (never the address), the station, grade, price, payment and time. It publishes a reporter id that is a hash of the install and the station, so one device's reports cannot be linked across stations. No names, profiles or social features.
+
+**Abuse prevention (operational plan).**
+
+| Risk | Control |
+|---|---|
+| Floods | Daily budgets: 2,000 reports for everyone, 20 per client (IP hash), 20 per install; 5,000 lookups a day. Over a budget the answer is 429 with the reset time, never a charge. |
+| Typos and jokes | Price range and grade checks; refused when $0.50 or more from the median of three or more current reports by others. |
+| Repeats and edits | Duplicates dropped; a correction within 30 minutes replaces the reporter's own report. |
+| Old data | Reports deleted after 7 days; counters after 2. |
+| Remote reports | Location check on the phone (an honest phone only; the budgets and the outlier check cover the rest). |
+| Coordinated false reports at a station with no other reports | Shown with "ExitAtlas drivers", the time, and the number of confirming reports; a conflict is labeled. Residual risk: accepted for a free community source and disclosed. |
+| Abuse found later | The owner can switch shared reports off for everyone (`DISABLED = "community"`, read through `/v1/config`) and delete rows by client hash with `wrangler d1 execute`. |
+| Free limits reached | D1 refuses queries after its daily free limits; the Worker answers 503 and the app shows "Shared driver reports could not load", never "no prices". |
+
+**Free plan limits** (checked 2026-10-29): Workers Free has 100,000 requests a day and 10 ms of CPU per request ([limits](https://developers.cloudflare.com/workers/platform/limits/)); D1 Free has 5 million rows read and 100,000 rows written a day, 5 GB, resetting at 00:00 UTC, and "When your account hits the daily read and/or write limits, you will not be able to run queries against D1" ([D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/)). The budgets keep the worst case at about 2.5 million rows read (5,000 lookups of at most 500 rows) and about 16,000 rows written (2,000 reports of about 8 writes), half or less of the free limits. Workers Free needs no payment method ("Start building for free — no credit card required", [workers.cloudflare.com](https://workers.cloudflare.com/)); going over a free limit fails the request (Error 1027 for Workers) rather than upgrading. Moving to Workers Paid is a separate step the owner would have to take; do not take it.
+
+## 17.6 SmartStop with prices
+
+* Total cost of a fill: gallons bought = tank size minus the fuel left on arrival (range at the stop divided by mpg); detour fuel = round trip detour miles divided by mpg, bought at the same pump. Cost = price times (gallons plus detour gallons). Labeled an estimate everywhere.
+* A cheaper stop is mentioned when it saves at least the driver's minimum ($2 by default; $1, $3 or $5 in Settings) and at least $0.05 a gallon, for the same gallons, both prices current and of the same payment kind.
+* It must be one the ranking kept: in range, inside the detour limit, with a restroom when one is required; overnight (12 to 4 AM by default) never one with worse listed hours or restroom confidence than the pick. Cheaper fuel never makes an out of range or closed stop the answer.
+* The pick does not change and the favorite brands are not touched: "Cheaper stop: Wawa, Exit 212, 3 mi farther. $2.899 regular, reported 2 hours ago (ExitAtlas drivers). Estimate: about $2.20 less for a 12.6 gal fill, detour fuel included. Your Shell preference stays as it is."
+* "Cheaper fuel over favorite brands" (an existing switch) still lets price rank above brand for drivers who want that.
+
+## 17.7 Regional averages (EIA)
+
+Weekly averages from the EIA's public domain summary appear only as context, for example "Lower Atlantic average, regular: $3.832 (EIA, week of Oct 26). Context only, never a station's price.", and as the sanity check on reports (a report more than 50% away is refused). They never fill a station's price, never rank a station, the week is always shown, and they are hidden once more than two weeks old. EIA publishes regular and diesel in this summary, so midgrade and premium have no context line. The EIA site sends no CORS header, so the Worker reads the summary (`/v1/fuel-benchmarks`, cached 6 hours; parser `parseEiaSummary` in `gasprices.js`).
+
+## 17.8 Google Maps prices
+
+Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default; with it on, a lookup happens only on "Check Google Maps prices" for an exit, at most once per exit per 15 minutes. Shown with Google Maps attribution in lists, never on the ExitAtlas map; held in memory only; never written to the device's reports or sent to the shared reports. Hours and the restroom field from the same lookup apply to those stations.
+
+## 17.9 Settings (profile `prices` section, website and iOS)
+
+`compare` (on), `payment` (credit), `maxAgeHours` (24), `tellCheaper` (on), `minSavingsDollars` (2), `ownReports` (on), `community` (off), `google` (off). Saved in the profile like every other setting; a profile from before gets these defaults and keeps its vehicles, Home, places, overnight settings and trip history (`web/tests/profile.test.js`, `ProfileTests`). Favorite brands and "Cheaper fuel over favorite brands" stay in the fuel section.
+
+## 17.10 Where prices show
+
+* Drive: the fuel card's pick with its price (or "price unavailable") and the cheaper stop note.
+* Road Ahead, Fuel: the recommended stop, then Compare Prices: every station and fuel plaza in the window with brand, exit, miles, price, grade, age, hours at arrival, restroom and detour; sorted by Recommended, Lowest price, Closest, Shortest detour, or the first favorite ("Shell first"). Urgent alerts and gas gaps stay below.
+* Fuel stop sheet: the pick's price, the note, a Prices button.
+* Station details: every grade with its source, the driver's own reports there, Report a price, and Check Google Maps prices when that is on.
+* Exit details: each gas station's price for the driver's grade.
+* Settings: Gas prices and Price sources.
+
+iOS: the engine, profile and SmartStop changes are shared and tested; the iOS screens (price lines, Compare Prices, report sheet, settings) follow in the next change, and `GasPriceService` follows the same off by default rule.
+
+## 17.11 What is real, what is simulated, what is missing
+
+* No station prices appear until someone reports one. On a first trip every station says "Price unavailable". That is the honest state of free US price data today.
+* Shared reports need the owner to deploy the Worker with D1 (README in `infra/worker`); until then the switch says it is not set up.
+* The EIA context line comes through the Worker, so it shows only once the Worker is deployed. Not tested against a deployed Worker; the parser is tested on the 10/26/26 release's format.
+* Screenshots and layout checks use SIMULATED prices (`?demo&prices`), labeled "SIMULATED PRICES · test data, not real" and "SIMULATED test data" on every price. They are never stored.
+* Proof of no paid calls: `web/tests/layout/prices.layout.mjs` stores a Google key, runs the price screens, and fails on any request to Google; `web/tests/services.test.js` checks that a stored key or the proxy alone never turns Google on; the Worker's price report tests fail if any outside fetch happens.

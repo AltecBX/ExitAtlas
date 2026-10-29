@@ -3,21 +3,109 @@
   "schema": 2,
   "updatedAt": null,
   "vehicles": [
-    {"id": "2015|toyota|camry|4-cyl-2.5-l-automatic-s6-", "year": 2015, "make": "Toyota", "model": "Camry",
-     "version": "4 cyl 2.5 L, Automatic (S6)", "epaId": null, "fuel": "R", "city": 25, "highway": 35, "combined": 28,
-     "tankGallons": 17, "tankSource": "verified", "evRangeMiles": 0, "evRangeHighwayMiles": 0,
-     "mpgBasis": "combined", "customMpg": null, "customRangeMiles": null}
+    {
+      "id": "2015|toyota|camry|4-cyl-2.5-l-automatic-s6-",
+      "year": 2015,
+      "make": "Toyota",
+      "model": "Camry",
+      "version": "4 cyl 2.5 L, Automatic (S6)",
+      "epaId": null,
+      "fuel": "R",
+      "city": 25,
+      "highway": 35,
+      "combined": 28,
+      "tankGallons": 17,
+      "tankSource": "verified",
+      "evRangeMiles": 0,
+      "evRangeHighwayMiles": 0,
+      "mpgBasis": "combined",
+      "customMpg": null,
+      "customRangeMiles": null
+    }
   ],
   "defaultVehicleId": "2015|toyota|camry|4-cyl-2.5-l-automatic-s6-",
-  "fuel": {"brands": ["Sheetz", "Shell"], "grade": null, "reserveMiles": 35, "maxDetourMinutes": 8,
-           "require24Hours": "overnight", "requireRestroom": "overnight", "priceOverBrand": false, "chargerNetwork": "all"},
-  "overnight": {"mode": "auto", "start": "00:00", "end": "04:00"},
-  "places": {"home": {"name": "Home", "lat": 40.7128, "lon": -74.006}, "saved": [],
-             "recent": [{"name": "Savannah, GA", "lat": 32.0809, "lon": -81.0912}], "plans": []},
-  "favorites": {"hotels": [], "restaurants": []},
-  "driving": {"speedAlertOver": 8, "exitLookaheadMiles": 40, "gasGapMiles": 50, "favoriteCategories": [],
-              "avoidTolls": true, "keepAwake": true, "liveActivity": false, "theme": "auto", "drivePresentation": "map"},
-  "voice": {"enabled": true, "stateLines": true, "exits": false, "fuel": false, "restAreas": true, "gasGaps": false, "timeZones": true},
-  "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "traffic": true, "voice": true},
-  "traffic": {"map": true, "eta": true, "voice": true, "suggestRoutes": true, "minSavingMinutes": 10}
+  "fuel": {
+    "brands": [
+      "Sheetz",
+      "Shell"
+    ],
+    "grade": null,
+    "reserveMiles": 35,
+    "maxDetourMinutes": 8,
+    "require24Hours": "overnight",
+    "requireRestroom": "overnight",
+    "priceOverBrand": false,
+    "chargerNetwork": "all"
+  },
+  "overnight": {
+    "mode": "auto",
+    "start": "00:00",
+    "end": "04:00"
+  },
+  "places": {
+    "home": {
+      "name": "Home",
+      "lat": 40.7128,
+      "lon": -74.006
+    },
+    "saved": [],
+    "recent": [
+      {
+        "name": "Savannah, GA",
+        "lat": 32.0809,
+        "lon": -81.0912
+      }
+    ],
+    "plans": []
+  },
+  "favorites": {
+    "hotels": [],
+    "restaurants": []
+  },
+  "driving": {
+    "speedAlertOver": 8,
+    "exitLookaheadMiles": 40,
+    "gasGapMiles": 50,
+    "favoriteCategories": [],
+    "avoidTolls": true,
+    "keepAwake": true,
+    "liveActivity": false,
+    "theme": "auto",
+    "drivePresentation": "map"
+  },
+  "voice": {
+    "enabled": true,
+    "stateLines": true,
+    "exits": false,
+    "fuel": false,
+    "restAreas": true,
+    "gasGaps": false,
+    "timeZones": true
+  },
+  "alerts": {
+    "closures": true,
+    "incidents": true,
+    "weather": true,
+    "police": true,
+    "cameras": true,
+    "traffic": true,
+    "voice": true
+  },
+  "traffic": {
+    "map": true,
+    "eta": true,
+    "voice": true,
+    "suggestRoutes": true,
+    "minSavingMinutes": 10
+  },
+  "prices": {
+    "compare": true,
+    "payment": "credit",
+    "maxAgeHours": 24,
+    "tellCheaper": true,
+    "minSavingsDollars": 2,
+    "ownReports": true,
+    "community": false,
+    "google": false
+  }
 }
