@@ -50,8 +50,17 @@ public struct ProfileSettings: Sendable, Equatable {
     public var announceTimeZones = true
 
     /// Road alert groups switched on (RoadIntel.Group raw values), and whether alerts are spoken.
-    public var alertGroups: [String: Bool] = ["closures": true, "incidents": true, "weather": true, "police": true, "cameras": true]
+    public var alertGroups: [String: Bool] = ["closures": true, "incidents": true, "traffic": true, "weather": true, "police": true,
+                                              "cameras": true]
     public var announceAlerts = true
+
+    /// Traffic (docs/16): Apple's traffic layer on the map, traffic aware arrival times, spoken heavy traffic,
+    /// and faster route offers saving at least `minSavingMinutes`.
+    public var trafficOnMap = true
+    public var trafficInETA = true
+    public var announceTraffic = true
+    public var suggestFasterRoutes = true
+    public var minSavingMinutes = 10.0
 
     public init() {}
 
@@ -110,6 +119,12 @@ public struct ProfileSettings: Sendable, Equatable {
         let a = sec("alerts")
         for g in alertGroups.keys { alertGroups[g] = a[g]?.bool ?? true }
         announceAlerts = a["voice"]?.bool ?? true
+        let t = sec("traffic")
+        trafficOnMap = t["map"]?.bool ?? true
+        trafficInETA = t["eta"]?.bool ?? true
+        announceTraffic = t["voice"]?.bool ?? true
+        suggestFasterRoutes = t["suggestRoutes"]?.bool ?? true
+        minSavingMinutes = t["minSavingMinutes"]?.number ?? 10
     }
 
     /// The profile with these values written into it. Saved places keep their ids when the name and
@@ -157,6 +172,10 @@ public struct ProfileSettings: Sendable, Equatable {
             "timeZones": .bool(announceTimeZones),
         ])
         merge("alerts", alertGroups.mapValues { JSONValue.bool($0) }.merging(["voice": .bool(announceAlerts)]) { $1 })
+        merge("traffic", [
+            "map": .bool(trafficOnMap), "eta": .bool(trafficInETA), "voice": .bool(announceTraffic),
+            "suggestRoutes": .bool(suggestFasterRoutes), "minSavingMinutes": .number(minSavingMinutes),
+        ])
         return ProfileRules.normalize(.object(p)).profile
     }
 }

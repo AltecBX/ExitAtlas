@@ -1,0 +1,111 @@
+{
+  "comment": "SIMULATED traffic readings for engine tests (web/js/engine/traffic.js, Sources/ExitAtlasCore/Trip/Traffic.swift). Not real traffic. model: modeled road speed by stretch (meters, m/s); pace: the pace model as one factor (predicted seconds = factor x modeled seconds).",
+  "model": [{"to": 10000, "mps": 10}, {"to": 20000, "mps": 30}, {"to": 200000, "mps": 25}],
+  "seconds": [
+    {"name": "target inside the reading: provider time from here, interpolated by modeled time",
+     "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 0, "checkpoints": [{"along": 20000, "seconds": 1800}]},
+     "pace": 1.1, "progress": 0, "target": 10000, "expect": 1350},
+    {"name": "driver past the reading's start: the part already driven is taken off",
+     "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "pace": 1.1, "progress": 21000, "target": 70000, "expect": 2940},
+    {"name": "target beyond the last checkpoint: provider time, then the driver's pace from where it ends",
+     "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 50000, "seconds": 1800}]},
+     "pace": 1.1, "progress": 21000, "target": 80000, "expect": 3060},
+    {"name": "two checkpoints: between them, the provider's own split",
+     "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 45000, "seconds": 900}, {"along": 70000, "seconds": 2700}]},
+     "pace": 1, "progress": 20000, "target": 57500, "expect": 1800},
+    {"name": "driver slightly behind the reading's start (GPS): counted from its start",
+     "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "pace": 1, "progress": 19900, "target": 70000, "expect": 3000}
+  ],
+  "problems": [
+    {"name": "usable", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "routeId": "r1", "progress": 25000, "now": 1500, "expect": null},
+    {"name": "stale after 15 minutes", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "routeId": "r1", "progress": 25000, "now": 1901, "expect": "stale"},
+    {"name": "after a reroute", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "routeId": "r2", "progress": 25000, "now": 1500, "expect": "other route"},
+    {"name": "driver behind where it was measured", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "routeId": "r1", "progress": 19000, "now": 1500, "expect": "behind"},
+    {"name": "every checkpoint passed", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]},
+     "routeId": "r1", "progress": 70000, "now": 1500, "expect": "passed"},
+    {"name": "no checkpoints", "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": []},
+     "routeId": "r1", "progress": 25000, "now": 1500, "expect": "empty"}
+  ],
+  "basis": [
+    {"usable": true, "lastAlong": 70000, "target": 60000, "paceKnown": true, "expect": "traffic"},
+    {"usable": true, "lastAlong": 70000, "target": 90000, "paceKnown": true, "expect": "trafficThenPace"},
+    {"usable": false, "lastAlong": 70000, "target": 60000, "paceKnown": true, "expect": "pace"},
+    {"usable": false, "lastAlong": 70000, "target": 60000, "paceKnown": false, "expect": "model"}
+  ],
+  "stability": {
+    "comment": "Each step offers a reading at a time and position; expect the arrival seconds at 70 km that the shown reading gives, and whether it changed. Pace factor 1.",
+    "routeId": "r1",
+    "steps": [
+      {"now": 1000, "progress": 20000, "reading": {"routeId": "r1", "measuredAt": 1000, "fromAlong": 20000, "checkpoints": [{"along": 70000, "seconds": 3000}]}, "expectSeconds": 3000, "changed": true},
+      {"now": 1300, "progress": 27500, "reading": {"routeId": "r1", "measuredAt": 1300, "fromAlong": 27500, "checkpoints": [{"along": 70000, "seconds": 2600}]}, "expectSeconds": 2600, "changed": true},
+      {"now": 1600, "progress": 35000, "reading": {"routeId": "r1", "measuredAt": 1600, "fromAlong": 35000, "checkpoints": [{"along": 70000, "seconds": 3300}]}, "expectSeconds": 2141.176, "changed": false},
+      {"now": 1700, "progress": 37500, "reading": {"routeId": "r1", "measuredAt": 1700, "fromAlong": 37500, "checkpoints": [{"along": 70000, "seconds": 1500}]}, "expectSeconds": 1988.235, "changed": false},
+      {"now": 1800, "progress": 40000, "reading": {"routeId": "r1", "measuredAt": 1800, "fromAlong": 40000, "checkpoints": [{"along": 70000, "seconds": 1300}]}, "expectSeconds": 1300, "changed": true},
+      {"now": 1900, "progress": 42000, "reading": null, "expectSeconds": 1213.333, "changed": false}
+    ]
+  },
+  "slowdowns": {
+    "routeId": "r1", "progress": 30000, "measuredAt": 5000, "source": {"id": "sim", "name": "Simulated traffic"},
+    "sections": [
+      {"from": 10000, "to": 20000, "level": "heavy", "delaySeconds": 300, "speedMph": 20},
+      {"from": 28000, "to": 33000, "level": "slow", "delaySeconds": 240, "speedMph": 38},
+      {"from": 40000, "to": 41000, "level": "slow", "delaySeconds": 30, "speedMph": 52},
+      {"from": 60000, "to": 65000, "level": "stopped", "delaySeconds": null, "speedMph": 4},
+      {"from": 70000, "to": 69000, "level": "heavy", "delaySeconds": 120, "speedMph": 15},
+      {"from": 80000, "to": 90000, "level": "unknown", "delaySeconds": 120, "speedMph": 15}
+    ],
+    "expect": [
+      {"id": "traffic:sim:r1:28000", "severity": "moderate", "description": "Slow traffic", "from": 28000, "to": 33000, "delaySeconds": 240, "headline": "Slow traffic ahead", "tier": "caution"},
+      {"id": "traffic:sim:r1:60000", "severity": "severe", "description": "Stopped traffic", "from": 60000, "to": 65000, "delaySeconds": null, "headline": "Stopped traffic ahead", "tier": "caution"}
+    ]
+  },
+  "alternatives": [
+    {"name": "saves 18 minutes, seen twice: offered with what changes",
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 6120, "meters": 166437, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": "Shell at Exit 5"}, "expect": {"offer": false, "reason": "waiting for a second check"}},
+       {"now": 300, "current": {"seconds": 7000, "meters": 152000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 5920, "meters": 158437, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": "Shell at Exit 5"},
+        "expect": {"offer": true, "savedSeconds": 1080, "extraMeters": 6437, "notes": ["4 mi longer", "No tolls listed", "Your Shell at Exit 5 is not on this route"]}}
+     ]},
+    {"name": "a few minutes faster is never offered",
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 6900, "meters": 158000, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "saving below the threshold"}},
+       {"now": 300, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 6900, "meters": 158000, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "saving below the threshold"}}
+     ]},
+    {"name": "on a long trip the saving must also be 5 percent of the time left",
+     "steps": [
+       {"now": 0, "current": {"seconds": 36000, "meters": 900000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 35100, "meters": 905000, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "saving below the threshold"}}
+     ]},
+    {"name": "an alternative that drops a planned stop is not offered",
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 5000, "meters": 150000, "tolls": false, "keepsStops": false, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "drops a planned stop"}}
+     ]},
+    {"name": "a known closure on the alternative rules it out",
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 5000, "meters": 150000, "tolls": false, "keepsStops": true, "closureAhead": true, "missesStop": null}, "expect": {"offer": false, "reason": "a closure on the alternative"}}
+     ]},
+    {"name": "tolls when the driver avoids tolls",
+     "prefs": {"avoidTolls": true},
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 5000, "meters": 150000, "tolls": true, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "tolls"}}
+     ]},
+    {"name": "far longer routes are not offered",
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 100000, "closureAhead": false}, "alternative": {"id": "a1", "seconds": 5000, "meters": 130000, "tolls": false, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "too much farther"}}
+     ]},
+    {"name": "Not now holds it back until it saves 10 minutes more; the driver's own threshold applies",
+     "prefs": {"minSavingSeconds": 900},
+     "steps": [
+       {"now": 0, "current": {"seconds": 7200, "meters": 160000, "closureAhead": true}, "alternative": {"id": "a1", "seconds": 6000, "meters": 161000, "tolls": null, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "waiting for a second check"}},
+       {"now": 300, "current": {"seconds": 7200, "meters": 160000, "closureAhead": true}, "alternative": {"id": "a1", "seconds": 6000, "meters": 161000, "tolls": null, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": true, "savedSeconds": 1200, "extraMeters": 1000, "notes": ["1 mi longer", "Avoids the closure ahead"]}, "then": "snooze"},
+       {"now": 600, "current": {"seconds": 7200, "meters": 160000, "closureAhead": true}, "alternative": {"id": "a1", "seconds": 5900, "meters": 161000, "tolls": null, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "snoozed"}},
+       {"now": 900, "current": {"seconds": 7200, "meters": 160000, "closureAhead": true}, "alternative": {"id": "a1", "seconds": 5300, "meters": 161000, "tolls": null, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": false, "reason": "waiting for a second check"}},
+       {"now": 1200, "current": {"seconds": 7200, "meters": 160000, "closureAhead": true}, "alternative": {"id": "a1", "seconds": 5300, "meters": 161000, "tolls": null, "keepsStops": true, "closureAhead": false, "missesStop": null}, "expect": {"offer": true, "savedSeconds": 1900, "extraMeters": 1000, "notes": ["1 mi longer", "Avoids the closure ahead"]}}
+     ]}
+  ]
+}
