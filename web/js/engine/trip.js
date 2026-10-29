@@ -5,6 +5,7 @@ import { ExitMatcher, optionsForSource } from './exits.js';
 import { matchRestAreas } from './restareas.js';
 import { matchDiscover } from './discover.js';
 import { RouteProgressTracker, TripLedger, PaceModel } from './tracking.js';
+import { readingProblem, trafficSecondsTo, etaBasis } from './traffic.js';
 
 function lowerBound(a, x) {
   let lo = 0, hi = a.length;
@@ -76,12 +77,17 @@ export class TripPlan {
     return index < this.timeZoneIDs.length ? this.timeZoneIDs[index] : null;
   }
 
-  /// Dashboard snapshot for the current match. Times are epoch seconds.
-  snapshot(match, ledger, pace, now, { exitLookahead = 100 * METERS_PER_MILE, maxUpcomingExits = 200 } = {}) {
+  /// Dashboard snapshot for the current match. Times are epoch seconds. `traffic` is the traffic reading
+  /// shown (engine/traffic.js, after stabilizeReading): used where it covers the road, if it is usable now.
+  snapshot(match, ledger, pace, now, { exitLookahead = 100 * METERS_PER_MILE, maxUpcomingExits = 200, traffic = null } = {}) {
     const route = this.route;
     const d = Math.min(Math.max(match.distanceAlongRoute, 0), route.length);
+    const reading = traffic && readingProblem(traffic, { routeId: route.id, progress: d, now }) === null ? traffic : null;
+    const timing = { modelSeconds: (a, b) => route.timeProfile.secondsBetween(a, b), paceSeconds: (m) => pace.secondsFor(m) };
+    const paceKnown = pace.recentSpeed !== null || Math.abs(pace.factor - 1) > 0.02;
+    const basisTo = (target) => etaBasis(reading, reading !== null, target, paceKnown);
     const eta = (target) => {
-      let seconds = pace.secondsFor(route.timeProfile.secondsBetween(d, target));
+      let seconds = reading ? trafficSecondsTo(reading, d, target, timing) : timing.paceSeconds(timing.modelSeconds(d, target));
       for (const stop of route.stops) {
         if (stop.distanceAlongRoute > d && stop.distanceAlongRoute < target) seconds += stop.plannedDwell ?? 0;
       }
@@ -146,6 +152,7 @@ export class TripPlan {
       t: now, match, routeLength: route.length, progress: d, remaining: route.length - d,
       drivenTotal: Math.max(ledger.totalMeters, d), eta: arrival, timeRemaining: arrival - now,
       paceFactor: pace.factor, paceRecent: pace.recentFactor, recentSpeed: pace.recentSpeed, etaTo: eta,
+      traffic: reading, basisTo, arrivalBasis: basisTo(route.length),
       highway: route.highwayAt(d), current, next, itinerary,
       nextExit: ne ? toUpcoming(ne) : null, upcomingExits,
       nextRestArea: nr ? toRest(nr) : null, upcomingRestAreas: this.restAreasBetween(d, d + exitLookahead).map(toRest),

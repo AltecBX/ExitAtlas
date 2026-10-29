@@ -23,7 +23,8 @@
     "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 25, "gasGapMiles": 40, "favoriteCategories": ["gas"],
                 "avoidTolls": false, "keepAwake": true, "liveActivity": true, "theme": "auto", "drivePresentation": "map"},
     "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": true, "gasGaps": true, "timeZones": true},
-    "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true}
+    "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "traffic": true, "voice": true},
+    "traffic": {"map": true, "eta": true, "voice": true, "suggestRoutes": true, "minSavingMinutes": 10}
   },
   "problems": ["vehicles[1]", "vehicles[2]", "defaultVehicleId", "fuel.grade", "fuel.reserveMiles", "fuel.require24Hours",
                "fuel.priceOverBrand", "overnight.start", "places.home", "places.recent", "favorites",

@@ -25,6 +25,7 @@ export function spokenMiles(meters) {
 export function duration(seconds) {
   const total = Math.max(0, Math.round(seconds / 60));
   const h = Math.floor(total / 60), m = total % 60;
+  if (total === 0) return 'under 1 min';
   if (h === 0) return `${m} min`;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }

@@ -16,6 +16,7 @@ import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
 import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
+import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
 import { weatherIcon, skyColors } from './weathericons.js';
 import { wazeLink } from '../engine/handoff.js';
@@ -449,7 +450,8 @@ function navView(app, s, f, extras) {
   const following = app.navMap?.following !== false;
   const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
-  const card = f.focus === 'border' ? borderApproachCard(s) : adaptiveCard(app, s, f, { exitShown: true });
+  // Near a state line the journey panel carries it (amber); the card shows the next item.
+  const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
@@ -460,16 +462,6 @@ function navView(app, s, f, extras) {
     <div class="nav-bottom">${offline}${extras.join('')}${card ? `<div class="nav-card">${card}</div>` : ''}
       ${journey(app, s, f)}</div>
   </div>`;
-}
-
-/// Approaching the state line (adaptive card "border"): the next state, miles and exits to it.
-function borderApproachCard(s) {
-  const cur = s.current, next = s.next;
-  if (!cur || !next) return '';
-  return `<div class="card focus-card border-card" role="status"><div class="eyebrow amber">🏁 Entering ${h(next.segment.displayName)}</div>
-    <div class="row" style="gap:12px;margin-top:6px"><div style="flex:1;min-width:0"><div class="title-md">${miles(cur.remainingMeters)} to the state line</div>
-      <div class="muted small">${cur.exitsRemaining} exit${cur.exitsRemaining === 1 ? '' : 's'} left in ${h(cur.segment.code ?? cur.segment.displayName)} · ${miles(next.totalMeters)} in ${h(next.segment.displayName)}</div></div>
-      ${badge(next.segment.code, true)}</div></div>`;
 }
 
 /// Focus View: everything a driver needs on one screen, no map: instruments, the state line, the next exit,
@@ -924,7 +916,9 @@ function paceNote(app, s) {
   if (s.recentSpeed) text = `Times follow your driving: ${Math.round(s.recentSpeed * 2.23694)} mph average over the last few minutes, blending into your trip pace for later stretches.`;
   else if (Math.abs(s.paceFactor - 1) > 0.02) text = 'Times use your usual pace from earlier trips until you have driven a few minutes.';
   else text = 'Times use routing road speeds until you have driven a few minutes, then follow your pace.';
-  return `<p class="muted tiny" style="margin:10px 0 0">${text}</p>`;
+  // What the arrival time is based on, always said (docs/16): never presented as traffic aware when it is not.
+  const basis = `<span class="pill basis${s.traffic ? ' ok' : ''}" data-basis="${s.arrivalBasis}"><span class="dot"></span>${h(BASIS_LABELS[s.arrivalBasis])}</span>`;
+  return `<div style="margin-top:10px">${basis}</div><p class="muted tiny" style="margin:8px 0 0">${text}</p>`;
 }
 
 // MARK: Road Ahead
@@ -1181,7 +1175,7 @@ export function alertSheet(app, id) {
   const zone = app.plan.timeZoneIDAt(a.start);
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
-  const verification = { official: 'Official source', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
+  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
   const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
@@ -1451,6 +1445,7 @@ export function settingsView(app) {
         <div class="seg" style="width:190px">${[25, 40, 60, 80].map((v) => `<button class="${st.gasGapMiles === v ? 'on' : ''}" data-act="gas-gap" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Favorite gas</div>${fuelPreferences(app)}</div>
     <div><div class="section-title">Overnight driving</div>${overnightSettings(app)}</div>
+    <div><div class="section-title">Traffic</div>${trafficSettings()}</div>
     <div><div class="section-title">Road alerts</div>${alertSettings(app)}</div>
     <div><div class="section-title">Gas prices</div><div class="card small">${priceSettings(app)}</div></div>
     <div><div class="section-title">Electric vehicles</div><div class="list">
@@ -1818,6 +1813,13 @@ function stationCredit(m) {
   return text;
 }
 
+/// Traffic on the website: none is licensed for it (docs/16), so this says so instead of offering switches
+/// that would do nothing. The traffic preferences stay in the profile for the iOS app.
+function trafficSettings() {
+  return `<div class="card small" data-testid="traffic-settings"><div style="font-weight:700">Not available on the website</div>
+    <p class="muted" style="margin:6px 0 0">No traffic provider we checked licenses its data for a navigation app on this map without a separate agreement (TomTom, HERE, Apple, Google, Azure and Mapbox; docs/16). Arrival times use your pace and say so. Road alerts still come from the official feeds below. The iOS app uses Apple Maps traffic.</p></div>`;
+}
+
 /// Road alert switches by group, with each group's source and status during a trip.
 function alertSettings(app) {
   const al = app.settings.alerts ?? {};
@@ -1827,6 +1829,7 @@ function alertSettings(app) {
       app.proxy?.wzdx ? '' : ` ${Object.keys(WZDX_FEEDS).filter((k) => !WZDX_FEEDS[k].cors).join(', ')} need the key proxy here.`} Other states: none yet (docs/13)`,
     incidents: 'No source connected yet: state 511 feeds need registration (docs/13)',
     weather: 'National Weather Service, public domain, checked every 10 minutes during a trip',
+    traffic: 'No licensed traffic source for the website (docs/16)',
     police: 'No authorized live source exists for ExitAtlas, so nothing is shown (docs/13)',
     cameras: 'No source connected yet',
   };
