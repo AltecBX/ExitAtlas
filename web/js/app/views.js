@@ -449,7 +449,8 @@ function navView(app, s, f, extras) {
   const following = app.navMap?.following !== false;
   const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
-  const card = f.focus === 'border' ? borderApproachCard(s) : adaptiveCard(app, s, f, { exitShown: true });
+  // Near a state line the journey panel carries it (amber); the card shows the next item.
+  const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
@@ -460,16 +461,6 @@ function navView(app, s, f, extras) {
     <div class="nav-bottom">${offline}${extras.join('')}${card ? `<div class="nav-card">${card}</div>` : ''}
       ${journey(app, s, f)}</div>
   </div>`;
-}
-
-/// Approaching the state line (adaptive card "border"): the next state, miles and exits to it.
-function borderApproachCard(s) {
-  const cur = s.current, next = s.next;
-  if (!cur || !next) return '';
-  return `<div class="card focus-card border-card" role="status"><div class="eyebrow amber">🏁 Entering ${h(next.segment.displayName)}</div>
-    <div class="row" style="gap:12px;margin-top:6px"><div style="flex:1;min-width:0"><div class="title-md">${miles(cur.remainingMeters)} to the state line</div>
-      <div class="muted small">${cur.exitsRemaining} exit${cur.exitsRemaining === 1 ? '' : 's'} left in ${h(cur.segment.code ?? cur.segment.displayName)} · ${miles(next.totalMeters)} in ${h(next.segment.displayName)}</div></div>
-      ${badge(next.segment.code, true)}</div></div>`;
 }
 
 /// Focus View: everything a driver needs on one screen, no map: instruments, the state line, the next exit,
