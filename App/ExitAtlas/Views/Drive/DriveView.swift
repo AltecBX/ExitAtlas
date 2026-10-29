@@ -118,7 +118,7 @@ private struct DriveDashboard: View {
     private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
         switch kind {
         case .alert:
-            if let a = trip.roadIntel?.focusAlert(progress: snapshot.progress) { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
+            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
         case .fuel:
             FuelCard { showFuel = true }
         case .stop:
@@ -338,7 +338,7 @@ private struct ThenStrip: View {
                 chip(Format.milesValue(next.distance) + " mi", next.exit.displayTitle) { selectedTab = .ahead }
             }
         case .alert:
-            if let a = focusAlert {
+            if let a = trip.roadIntel?.focusAlert(progress: snapshot.progress) {
                 chip(a.start > snapshot.progress ? Format.milesValue(a.start - snapshot.progress) + " mi" : nil,
                      AlertText.icon(a.incident.kind) + " " + AlertText.title(a.incident)) { selectedTab = .ahead }
             }
