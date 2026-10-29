@@ -75,7 +75,8 @@ final class SmartStopTests: XCTestCase {
             along: (x["alongMiles"]?.number ?? ahead ?? 0) * mile, ahead: ahead.map { $0 * mile },
             arrival: date(x["arrival"]!.string!), timeZone: TimeZone(identifier: x["timeZone"]!.string!)!,
             detourMinutes: x["detourMinutes"]?.number, rangeOnArrival: x["rangeOnArrivalMiles"]?.number.map { $0 * mile },
-            price: x["price"]?.number,
+            price: x["price"]?.number, pricePayment: x["pricePayment"]?.string, priceText: x["priceText"]?.string,
+            priceSource: x["priceSource"]?.string,
             osmHours: osm["hours"]?.string, osmChecked: osm["checked"]?.string, osmToilets: osm["toilets"]?.bool, gone: osm["gone"]?.string,
             livePeriods: try periods(live?["periods"]), liveRestroom: live?["restroom"]?.bool,
             plazaHours: plaza?["hours"]?.string, plazaToilets: plaza?["toilets"]?.bool, truckSpaces: plaza?["truckSpaces"]?.number.map { Int($0) },
@@ -148,7 +149,8 @@ final class SmartStopTests: XCTestCase {
             let context = SmartStop.Context(rawValue: options["context"]!.string!)!
             let purpose = SmartStop.Purpose(rawValue: options["purpose"]?.string ?? "fuel")!
             let r = SmartStop.choose(try c["candidates"]!.array!.map { try candidate(f, $0) }, preferences: prefs, context: context,
-                                     purpose: purpose, reserveMeters: reserve, rejected: Set(options["rejected"]?.array?.compactMap(\.string) ?? []))
+                                     purpose: purpose, reserveMeters: reserve, rejected: Set(options["rejected"]?.array?.compactMap(\.string) ?? []),
+                                     vehicle: options["vehicle"].map { (tankGallons: $0["tankGallons"]!.number!, mpg: $0["mpg"]!.number!) })
             let x = c["expect"]!
             XCTAssertEqual(r.primary?.candidate.id, x["primary"]?.string, "\(name): primary")
             if let alts = x["alternatives"]?.array {
@@ -164,6 +166,13 @@ final class SmartStopTests: XCTestCase {
                 XCTAssertEqual(r.favorite?.reason, fav["reason"]?.string, "\(name): favorite reason")
             }
             if let notice = x["notice"] { XCTAssertEqual(r.notice, notice.string, "\(name): notice") }
+            if let cheaper = x["cheaper"] {
+                if cheaper.isNull { XCTAssertNil(r.cheaper, "\(name): cheaper") } else {
+                    XCTAssertEqual(r.cheaper?.candidate.id, cheaper["id"]?.string, "\(name): cheaper")
+                    XCTAssertEqual(r.cheaper?.savings ?? 0, cheaper["savings"]!.number!, accuracy: 0.001, "\(name): savings")
+                    XCTAssertEqual(r.cheaper?.estimate, cheaper["estimate"]?.bool, "\(name): estimate")
+                }
+            }
             if let h = x["primaryHours"]?.string { XCTAssertEqual(r.primary?.evaluation.hours.status.rawValue, h, "\(name): hours") }
             if let rr = x["primaryRestroom"]?.string { XCTAssertEqual(r.primary?.evaluation.restroom.rawValue, rr, "\(name): restroom") }
             for reason in x["reasonsInclude"]?.array?.compactMap(\.string) ?? [] {

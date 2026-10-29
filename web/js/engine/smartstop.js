@@ -17,6 +17,7 @@
 import { parseOpeningHours, weekFromPeriods, openAt, localTime } from './openinghours.js';
 import { inOvernightWindow } from './profile.js';
 import { matchesFavorite } from './fuel.js';
+import { fillCost, compareStops } from './gasprices.js';
 
 export const HOURS_LABELS = Object.freeze({
   verified: 'Verified open at estimated arrival',
@@ -155,14 +156,18 @@ const ordinal = (i) => ORDINAL[i] ?? `${i + 1}th`;
 /// Picks the stop.
 ///   candidates: stops in route order, each {id, name, brand, kind, exitId, along (m), ahead (m), arrival,
 ///     timeZone, detourMinutes (measured round trip, null when not measured), rangeOnArrival (m, null
-///     when no range is known), price ({value, updated}, null), osm, live, plaza}
+///     when no range is known), detourMeters (both ways, for detour fuel), price (a current reported price
+///     for the driver's grade: {value, payment: 'cash' | 'credit' | null, text: "Reported 20 minutes ago",
+///     source: name}, or null; old prices are never passed in to compete), osm, live, plaza}
 ///   profile: the driver's profile (fuel and overnight sections)
 ///   options: {context: 'fuel' (use the range: later is better) or 'ahead' (nearer is better),
 ///             purpose: 'fuel' (open pumps rank before restrooms) or 'restroom' (the restroom first),
-///             reserveMeters, rejected: ids the driver turned down on this trip}
+///             reserveMeters, rejected: ids the driver turned down on this trip,
+///             vehicle: {tankGallons, mpg} for the cost of a fill (null: no cost comparison)}
 /// Returns {primary, alternatives, considered, passed: {reason: count}, overnight, relaxed, lowRange,
-///          favorite: why the first choice brand was not picked (or null), notice: what no stop offers}.
-export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fuel', reserveMeters = 0, rejected = [] } = {}) {
+///          favorite: why the first choice brand was not picked (or null), notice: what no stop offers,
+///          cheaper: a stop that saves at least prices.minSavingsDollars on a fill over the primary, or null}.
+export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fuel', reserveMeters = 0, rejected = [], vehicle = null } = {}) {
   const f = profile.fuel;
   const favorites = f.brands ?? [];
   const evaluated = candidates.map((c) => ({ c, e: evaluateStop(c, profile), brand: brandIndex(c, favorites) }));
@@ -237,9 +242,10 @@ export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fu
   const out = (x) => (x ? { ...x.c, evaluation: x.e, brandRank: x.brand, reasons: reasons(x, profile, { needs, lowRange, reserveMeters }) } : null);
   const result = {
     primary: out(primary), alternatives: alternatives.map(out), considered: candidates.length, passed,
-    overnight: overnightAny, relaxed, lowRange, favorite: null, notice: null,
+    overnight: overnightAny, relaxed, lowRange, favorite: null, notice: null, cheaper: null,
   };
   if (!primary) return result;
+  result.cheaper = cheaperStop(primary, pool, profile, vehicle, { needs });
 
   // The next usable stop after the primary, so the driver knows what skipping it means.
   const after = usable.filter((x) => x.c.along > primary.c.along).sort((a, b) => a.c.along - b.c.along)[0];
@@ -286,8 +292,45 @@ function reasons(x, profile, { needs, lowRange, reserveMeters }) {
   if (x.c.detourMinutes != null) out.push(x.c.detourMinutes < 1 ? 'No detour' : `About ${Math.round(x.c.detourMinutes)} min detour (twice the drive from the exit)`);
   else if (x.c.kind === 'plaza' || x.c.kind === 'rest') out.push('On the highway, no exit needed');
   else out.push('Detour not measured');
-  if (x.c.price?.value != null && f.priceOverBrand) out.push(`$${x.c.price.value.toFixed(2)} (Google Maps)`);
+  if (x.c.price?.value != null) out.push(priceReason(x.c.price));
   return out;
+}
+
+function priceReason(p) {
+  return `$${p.value.toFixed(2)} a gallon${p.text ? `, ${p.text.toLowerCase()}` : ''} (${p.source ?? 'source not stated'})`;
+}
+
+/// The stop that saves the most on a fill over the primary, when it saves at least the driver's minimum:
+/// both prices current and of the same payment kind, fill cost from the vehicle's tank and mpg with the
+/// detour fuel at each pump's price. Only stops the ranking kept (in range, within the detour limit, with
+/// the restroom asked for) are considered, and never one with worse hours or restroom confidence when the
+/// driver needs them (overnight), so cheaper fuel never trades away an open pump or a restroom. The
+/// driver's favorite brands are not changed: this is a note, not a new pick.
+function cheaperStop(primary, pool, profile, vehicle, { needs }) {
+  const pr = profile.prices ?? {};
+  if (pr.tellCheaper === false || pr.compare === false || primary.c.price?.value == null || !vehicle) return null;
+  const f = profile.fuel;
+  const side = (x) => ({
+    price: { record: { price: x.c.price.value, payment: x.c.price.payment ?? null }, state: 'current' },
+    cost: fillCost({ price: x.c.price.value, rangeOnArrival: x.c.rangeOnArrival, tankGallons: vehicle.tankGallons, mpg: vehicle.mpg, detourMeters: x.c.detourMeters ?? 0 }),
+    detourMeasured: x.c.detourMinutes != null || x.c.kind === 'plaza',
+  });
+  const base = side(primary);
+  let best = null;
+  for (const x of pool) {
+    if (x === primary || x.c.price?.value == null) continue;
+    if (needs(f.require24Hours, x) && HOURS_RANK[x.e.hours.status] > HOURS_RANK[primary.e.hours.status]) continue;
+    if (needs(f.requireRestroom, x) && RESTROOM_RANK[x.e.restroom.status] > RESTROOM_RANK[primary.e.restroom.status]) continue;
+    const cmp = compareStops(base, side(x), { minDollars: pr.minSavingsDollars ?? 2 });
+    if (cmp?.meaningful && (!best || cmp.savings > best.cmp.savings)) best = { x, cmp };
+  }
+  if (!best) return null;
+  const c = best.x.c;
+  return {
+    id: c.id, name: c.name, brand: c.brand, exitId: c.exitId ?? null, exit: c.exit ?? null, along: c.along, ahead: c.ahead, price: c.price,
+    savings: best.cmp.savings, perGallon: best.cmp.perGallon, estimate: best.cmp.estimate, gallons: side(best.x).cost.gallons,
+    farther: c.along - primary.c.along,
+  };
 }
 
 const listedOpen = (e) => e.hours.status === 'verified' || e.hours.status === 'reported';

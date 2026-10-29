@@ -55,7 +55,7 @@ function candidate(f, c) {
     ahead: x.aheadMiles != null ? x.aheadMiles * MILE : null,
     along: (x.alongMiles ?? x.aheadMiles ?? 0) * MILE,
     rangeOnArrival: x.rangeOnArrivalMiles != null ? x.rangeOnArrivalMiles * MILE : null,
-    price: x.price != null ? { value: x.price } : null,
+    price: x.price != null ? { value: x.price, payment: x.pricePayment ?? null, text: x.priceText ?? null, source: x.priceSource ?? null } : null,
   };
 }
 
@@ -91,6 +91,7 @@ test('F, G, H, P. SmartStop rankings on the shared fixtures', () => {
     const profile = setup(f, c.profile);
     const r = smartStop(c.candidates.map((x) => candidate(f, x)), profile, {
       context: c.options.context, purpose: c.options.purpose ?? 'fuel', rejected: c.options.rejected ?? [], reserveMeters: profile.fuel.reserveMiles * MILE,
+      vehicle: c.options.vehicle ?? null,
     });
     const x = c.expect;
     assert.equal(r.primary?.id ?? null, x.primary, `${c.name}: primary`);
@@ -98,6 +99,12 @@ test('F, G, H, P. SmartStop rankings on the shared fixtures', () => {
     if (x.passed) assert.deepEqual(r.passed, x.passed, `${c.name}: passed`);
     if (x.relaxed) assert.deepEqual(r.relaxed, x.relaxed, `${c.name}: relaxed`);
     if (x.lowRange !== undefined) assert.equal(r.lowRange, x.lowRange, `${c.name}: low range`);
+    if (x.cheaper === null) assert.equal(r.cheaper, null, `${c.name}: cheaper`);
+    if (x.cheaper) {
+      assert.equal(r.cheaper?.id, x.cheaper.id, `${c.name}: cheaper`);
+      assert.ok(Math.abs(r.cheaper.savings - x.cheaper.savings) < 0.001, `${c.name}: savings ${r.cheaper.savings}`);
+      assert.equal(r.cheaper.estimate, x.cheaper.estimate, `${c.name}: estimate`);
+    }
     if (x.favorite !== undefined) assert.deepEqual(r.favorite && { id: r.favorite.id, reason: r.favorite.reason }, x.favorite, `${c.name}: favorite`);
     if (x.notice !== undefined) assert.equal(r.notice, x.notice, `${c.name}: notice`);
     if (x.primaryHours) assert.equal(r.primary.evaluation.hours.status, x.primaryHours, `${c.name}: hours`);
