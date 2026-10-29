@@ -69,6 +69,11 @@ jobs:
           plutil -lint "$APP/PrivacyInfo.xcprivacy"
           test -f "$APP/Data/manifest.json"
           plutil -p "$APP/Info.plist" | grep -E "ITSAppUsesNonExemptEncryption|NSLocation" 
+          # The regular app never links Google's Navigation SDK (only ExitAtlasGoogle does, docs/14). The whole
+          # bundle is searched: Debug builds keep the app's code in ExitAtlas.debug.dylib, not the executable.
+          du -sh "$APP"
+          if grep -rlq GMSNavigationServices "$APP"; then echo "Google Navigation SDK found in the regular build"; exit 1; fi
+          echo "Regular build: no Google Navigation SDK"
       - name: Export screenshots
         if: always()
         run: |
@@ -83,3 +88,31 @@ jobs:
           name: screenshots
           path: screenshots
           if-no-files-found: warn
+
+  ios-google:
+    name: iOS Google navigation build (experimental, compile only)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: App
+        run: xcodegen generate
+      - name: Build the Google navigation app for the simulator
+        working-directory: App
+        run: |
+          xcodebuild -project ExitAtlas.xcodeproj -scheme ExitAtlasGoogle \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO -quiet build
+      - name: Check the Google build
+        run: |
+          APP=$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name ExitAtlasGoogle.app -type d | head -1)
+          echo "$APP"
+          du -sh "$APP"
+          plutil -p "$APP/Info.plist" | grep -E "CFBundleIdentifier|NSMotionUsageDescription|LSApplicationQueriesSchemes"
+          # Debug builds keep the code in ExitAtlasGoogle.debug.dylib, so the whole bundle is searched.
+          grep -rl GMSNavigationServices "$APP" | head -3
+          grep -rlq GMSNavigationServices "$APP"
+          echo "Google build: Navigation SDK linked"

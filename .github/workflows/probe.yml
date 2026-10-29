@@ -1,0 +1,19 @@
+name: Research probes
+
+# Measurements for the research docs (docs/14), run only when a probe changes. They print counts, never
+# positions, identities or content, and nothing the apps use comes from them.
+on:
+  pull_request:
+    paths: ['tools/probes/**', '.github/workflows/probe.yml']
+
+jobs:
+  roadbeacon:
+    name: Roadbeacon coverage (Nostr relays)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node tools/probes/roadbeacon_coverage.mjs
