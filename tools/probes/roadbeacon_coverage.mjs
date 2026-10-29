@@ -14,8 +14,9 @@ async function fetchAll(url, filter, { pages = 20, timeout = 15000 } = {}) {
   for (let p = 0; p < pages; p++) {
     const batch = await new Promise((resolve) => {
       const got = [];
-      let ws;
-      const done = (why) => { try { ws?.close(); } catch {} resolve({ got, why }); };
+      let ws, finished = false;
+      // Closing can fire the error handler again; finish once.
+      const done = (why) => { if (finished) return; finished = true; try { ws?.close(); } catch {} resolve({ got, why }); };
       const timer = setTimeout(() => done('timeout'), timeout);
       try { ws = new WebSocket(url); } catch (e) { clearTimeout(timer); return resolve({ got, why: `error ${e.message}` }); }
       ws.onopen = () => ws.send(JSON.stringify(['REQ', 'probe', { ...filter, until, limit: 500 }]));
