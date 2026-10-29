@@ -175,15 +175,19 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// Scrolls up until the element can be tapped, clear of the bottom edge: a row sitting at the very bottom
-    /// of the Settings sheet was reported hittable but the tap did not open it. Short slow drags that hold at
-    /// the end move the list a fixed distance; a swipe flings it and can carry the row past the top. The
-    /// drag runs down the left side, away from the switches.
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication, drags: Int = 8) -> Bool {
+    /// of the Settings sheet was reported hittable but the tap did not open it. While the element is off
+    /// screen, swipes (fast, far); once it is on screen, a short slow drag that holds at the end, since a
+    /// swipe would fling it past the top. The drag runs down the left side, away from the switches.
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, steps: Int = 12) -> Bool {
         func clear() -> Bool { element.exists && element.isHittable && element.frame.maxY < app.frame.maxY - 150 }
-        for _ in 0..<drags where !clear() {
-            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.72))
-            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.42))
-            from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+        for _ in 0..<steps where !clear() {
+            if element.exists && element.isHittable {
+                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.72))
+                let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.42))
+                from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+            } else {
+                app.swipeUp()
+            }
             sleep(1)
         }
         return element.exists && element.isHittable
