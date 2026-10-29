@@ -63,6 +63,8 @@ final class UserSettings {
     var keepAwake: Bool { didSet { save() } }
     /// "auto", "light" or "dark".
     var theme: String { didSet { save() } }
+    /// The Drive screen: "map" (Navigation View) or "focus" (the compact dashboard).
+    var drivePresentation: String { didSet { save() } }
 
     // Voice
     var voiceEnabled: Bool { didSet { save() } }
@@ -119,6 +121,7 @@ final class UserSettings {
         liveActivityEnabled = s.liveActivityEnabled
         keepAwake = s.keepAwake
         theme = s.theme
+        drivePresentation = s.drivePresentation
         voiceEnabled = s.voiceEnabled
         announceStateLines = s.announceStateLines
         announceExits = s.announceExits
@@ -190,6 +193,7 @@ final class UserSettings {
         s.liveActivityEnabled = liveActivityEnabled
         s.keepAwake = keepAwake
         s.theme = theme
+        s.drivePresentation = drivePresentation
         s.voiceEnabled = voiceEnabled
         s.announceStateLines = announceStateLines
         s.announceExits = announceExits
@@ -261,6 +265,7 @@ final class UserSettings {
         liveActivityEnabled = s.liveActivityEnabled
         keepAwake = s.keepAwake
         theme = s.theme
+        drivePresentation = s.drivePresentation
         voiceEnabled = s.voiceEnabled
         announceStateLines = s.announceStateLines
         announceExits = s.announceExits

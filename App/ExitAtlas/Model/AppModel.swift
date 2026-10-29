@@ -24,7 +24,8 @@ final class AppModel {
     let trip = TripController()
     /// Launch arguments for demos and UI screenshots: -demoTrip <miles> starts the bundled sample
     /// trip frozen at that mile; -overnight on|off|auto sets Overnight Drive Mode for it; -demoAlert adds one
-    /// simulated road alert, labeled as such; -alertsOff switches every road alert group off; -forceDark forces dark mode.
+    /// simulated road alert, labeled as such; -alertsOff switches every road alert group off; -drive map|focus picks the
+    /// Drive presentation; -forceDark forces dark mode.
     let forceDark = ProcessInfo.processInfo.arguments.contains("-forceDark")
 
     /// The running app's model, for Siri and Shortcuts intents (they run in this process).
@@ -112,6 +113,12 @@ final class AppModel {
         // -alertsOff: every road alert group off, so a live alert cannot take the focus card in a screenshot. Settings
         // persist between launches, so every other demo launch turns them back on.
         let alertsOn = !args.contains("-alertsOff")
+        // -drive map|focus: the Drive presentation for the demo (map unless given, since settings persist between launches).
+        if let d = args.firstIndex(of: "-drive"), d + 1 < args.count, ["map", "focus"].contains(args[d + 1]) {
+            settings.drivePresentation = args[d + 1]
+        } else {
+            settings.drivePresentation = "map"
+        }
         for g in RoadIntel.Group.allCases { settings.alertGroups[g.rawValue] = alertsOn }
         startDemo(atMiles: miles, frozen: true)
         // -demoAlert: one SIMULATED crash 6 miles ahead, labeled as such, for screenshots of the alert card.
