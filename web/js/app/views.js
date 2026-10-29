@@ -1045,7 +1045,7 @@ export function settingsView(app) {
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
-      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(`OpenStreetMap, tags checked ${app.data.stations.metadata.tags_fetched}: hours for ${app.data.stations.metadata.with_hours.toLocaleString('en-US')} and restroom tags for ${app.data.stations.metadata.with_toilets} of ${app.data.stations.metadata.count.toLocaleString('en-US')} stations; ${app.data.stations.metadata.gone} no longer listed as gas stations are never recommended`) : 'not loaded'}. Shown as reported, not verified. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
+      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
@@ -1380,6 +1380,14 @@ function profileSection(app) {
     <p class="muted tiny">The website and the iOS app keep separate profiles. To use the same one, export it here and import it there (or the other way). API keys are never included.</p>
     <div class="row" style="gap:8px"><button class="btn sm" data-act="export-profile">Export profile</button>
       <label class="btn sm" style="cursor:pointer">Import profile<input type="file" accept="application/json,.json" data-import hidden></label></div></div>`;
+}
+
+/// Where the station facts come from, with counts (stations.json meta).
+function stationCredit(m) {
+  const n = (v) => (v ?? 0).toLocaleString('en-US');
+  let text = `OpenStreetMap, tags checked ${m.tags_fetched}: hours for ${n(m.with_hours)} and restroom tags for ${n(m.with_toilets)} of ${n(m.count)} stations; ${n(m.gone)} no longer listed as gas stations are never recommended`;
+  if (m.brand_collected) text += `. The brands' own store listings, collected ${m.brand_collected} by All the Places (CC0): hours for ${n(m.with_brand_hours)} and restroom listings for ${n(m.with_brand_toilets)}`;
+  return text;
 }
 
 /// Road alert switches by group, with each group's source and status during a trip.

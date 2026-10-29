@@ -74,8 +74,13 @@ test('D, E, O. stop confidence at the arrival time, in the station\'s own time z
     if (x.restroomLabel) assert.equal(e.restroom.label, x.restroomLabel, c.name);
     if (x.store) assert.equal(e.facilities.find((y) => y.name === 'Store').status, x.store, c.name);
     if (x.pumps) assert.equal(e.facilities.find((y) => y.name === 'Pumps').status, x.pumps, c.name);
+    if (x.hoursSource) assert.equal(e.hours.source, x.hoursSource, c.name);
+    if (x.stale !== undefined) assert.equal(e.hours.stale, x.stale, c.name);
+    if (x.note) assert.equal(e.hours.note, x.note, c.name);
+    if (x.pumpsSource) assert.equal(e.facilities.find((y) => y.name === 'Pumps').source, x.pumpsSource, c.name);
+    if (x.restroomSource) assert.equal(e.facilities.find((y) => y.name === 'Restroom').source, x.restroomSource, c.name);
     // O: an unknown business is never shown as open, and no station restroom is shown open at arrival.
-    if (!c.candidate.osm?.hours && !c.candidate.live && !c.candidate.plaza) assert.equal(e.hours.status, 'unknown', c.name);
+    if (!c.candidate.osm?.hours && !c.candidate.osm?.brandHours && !c.candidate.live && !c.candidate.plaza) assert.equal(e.hours.status, 'unknown', c.name);
     if ((c.candidate.kind ?? 'station') === 'station') assert.notEqual(e.restroom.status, 'accessible', c.name);
   }
 });

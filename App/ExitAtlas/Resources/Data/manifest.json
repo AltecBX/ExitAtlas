@@ -1,9 +1,9 @@
 {
  "kind": "manifest",
  "schema": 1,
- "version": 202610282057,
- "content": "11ce33ff537396d23e2eb9a9a039dc7fb7f48e177b6eae44d21f00b82f16cf59",
- "generated_at": "2026-10-28T20:57:55+00:00",
+ "version": 202610290030,
+ "content": "7a8dfb47e548c76ec07d92c9bb89a4743cef574666b7852ad26e9793626f888f",
+ "generated_at": "2026-10-29T00:30:16+00:00",
  "files": {
   "states.eab": {
    "bytes": 2786240,
@@ -77,15 +77,15 @@
    "count": 1620
   },
   "stations.json": {
-   "bytes": 104044,
-   "sha256": "84b8e26d217dfce8ca300f047bb0c537217cc08785f81b5af47b6ece0957fe27",
+   "bytes": 511912,
+   "sha256": "728cc9d0b2d6dfa6460392f82f778615f4550052f46e8f1db1698c7b2078f924",
    "required": false,
    "role": "Gas station hours and restrooms",
    "kind": "stations",
-   "source": "OpenStreetMap, current tags from the OSM API for the gas stations in interstates.eax",
-   "license": "ODbL 1.0",
-   "attribution": "© OpenStreetMap contributors",
-   "generated_at": "2026-10-28T20:45:14Z",
+   "source": "OpenStreetMap, current tags from the OSM API for the gas stations in interstates.eax; brand store listings from All the Places",
+   "license": "ODbL 1.0 (OpenStreetMap facts); CC0 1.0 (All the Places facts)",
+   "attribution": "© OpenStreetMap contributors; All the Places (alltheplaces.xyz)",
+   "generated_at": "2026-10-29T00:22:51Z",
    "tags_fetched": "2026-10-28",
    "data_last_edit": "2026-10-28",
    "count": 19679

@@ -36,7 +36,37 @@
      "expect": {"hours": "reported", "store": "closed", "pumps": "reported", "restroom": "available"}},
     {"name": "Store closed (Google), nothing else listed: reported closed",
      "candidate": {"id": "g3", "live": {"periods": [{"open": {"day": 4, "hour": 6, "minute": 0}, "close": {"day": 4, "hour": 22, "minute": 0}}]}},
-     "expect": {"hours": "closed", "hoursLabel": "Reported closed at estimated arrival"}}
+     "expect": {"hours": "closed", "hoursLabel": "Reported closed at estimated arrival"}},
+    {"name": "A. only the brand lists the hours, open around the clock: reported, listed by the brand with its date",
+     "candidate": {"id": "a1", "osm": {"brandHours": "Mo-Su 00:00-24:00", "listedBy": "Shell", "collected": "2026-10-17"}},
+     "expect": {"hours": "reported", "hoursLabel": "Reported open, verification limited", "hoursSource": "Listed by Shell", "checked": "2026-10-17", "pumpsSource": "Listed by Shell, collected 2026-10-17", "restroom": "unknown"}},
+    {"name": "A. OpenStreetMap closed at arrival, the brand listing open: they disagree, hours unavailable",
+     "candidate": {"id": "a2", "osm": {"hours": "Mo-Su 06:00-22:00", "brandHours": "24/7", "listedBy": "BP", "collected": "2026-10-17"}},
+     "expect": {"hours": "unknown", "pumps": "unknown", "note": "OpenStreetMap and the BP listing disagree", "pumpsSource": "OpenStreetMap and the BP listing disagree"}},
+    {"name": "A. both open, the listing collected after the mapper's check: the listing",
+     "candidate": {"id": "a3", "osm": {"hours": "24/7", "checked": "2024-05-01", "brandHours": "Mo-Su 00:00-24:00", "listedBy": "Love's", "collected": "2026-10-17"}},
+     "expect": {"hours": "reported", "hoursSource": "Listed by Love's", "checked": "2026-10-17"}},
+    {"name": "A. both open, a mapper checked after the listing was collected: OpenStreetMap",
+     "candidate": {"id": "a4", "osm": {"hours": "24/7", "checked": "2026-10-20", "brandHours": "24/7", "listedBy": "Sunoco", "collected": "2026-10-17"}},
+     "expect": {"hours": "reported", "hoursSource": "OpenStreetMap", "checked": "2026-10-20"}},
+    {"name": "A. both closed at arrival: reported closed",
+     "candidate": {"id": "a5", "osm": {"hours": "Mo-Su 05:00-23:00", "brandHours": "Mo-Su 06:00-22:00", "listedBy": "Valero", "collected": "2026-10-17"}},
+     "expect": {"hours": "closed", "hoursSource": "Listed by Valero"}},
+    {"name": "A. the brand lists a restroom: available, hours unknown, never accessible",
+     "candidate": {"id": "a6", "osm": {"brandToilets": true, "listedBy": "Circle K", "collected": "2026-10-17"}},
+     "expect": {"hours": "unknown", "restroom": "available", "restroomLabel": "Restroom confirmed available, hours unknown", "restroomSource": "Listed by Circle K, collected 2026-10-17"}},
+    {"name": "A. OpenStreetMap says no restroom, the brand lists one: unknown",
+     "candidate": {"id": "a7", "osm": {"toilets": false, "brandToilets": true, "listedBy": "Chevron", "collected": "2026-10-17"}},
+     "expect": {"restroom": "unknown", "restroomSource": "OpenStreetMap and the Chevron listing disagree"}},
+    {"name": "A. Google's restroom field comes before the brand listing",
+     "candidate": {"id": "a8", "osm": {"brandToilets": true, "listedBy": "Shell", "collected": "2026-10-17"}, "live": {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}], "restroom": false}},
+     "expect": {"hours": "verified", "restroom": "none", "restroomSource": "Google Maps"}},
+    {"name": "Freshness: hours a mapper checked more than a year before arrival may be out of date",
+     "candidate": {"id": "f1", "osm": {"hours": "24/7", "checked": "2025-03"}},
+     "expect": {"hours": "reported", "checked": "2025-03", "stale": true}},
+    {"name": "Freshness: a listing collected this month is current",
+     "candidate": {"id": "f2", "osm": {"brandHours": "24/7", "listedBy": "Wawa", "collected": "2026-10-17"}},
+     "expect": {"hours": "reported", "stale": false}}
   ],
   "rankings": [
     {"name": "F. a closed Shell loses to an open alternative, and says why",
@@ -159,7 +189,13 @@
      "candidates": [
        {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "rangeOnArrivalMiles": 180, "arrival": "2026-10-29T16:00:00Z"},
        {"id": "shell90", "name": "Shell", "brand": "Shell", "exitId": "90", "aheadMiles": 90, "rangeOnArrivalMiles": 110, "arrival": "2026-10-29T17:00:00Z", "detourMinutes": 5}],
-     "expect": {"primary": "shell90", "alternatives": ["shell20"], "favorite": null}}
+     "expect": {"primary": "shell90", "alternatives": ["shell20"], "favorite": null}},
+    {"name": "A. overnight, a Shell listed open by its brand beats an unlisted station, and the reason names the listing",
+     "options": {"context": "fuel"},
+     "candidates": [
+       {"id": "x1", "name": "Exxon", "brand": "Exxon", "exitId": "30", "aheadMiles": 30, "rangeOnArrivalMiles": 150},
+       {"id": "shellA", "name": "Shell", "brand": "Shell", "exitId": "36", "aheadMiles": 36, "rangeOnArrivalMiles": 144, "osm": {"brandHours": "Mo-Su 00:00-24:00", "listedBy": "Shell", "collected": "2026-10-17"}}],
+     "expect": {"primary": "shellA", "primaryHours": "reported", "reasonsInclude": ["Reported open, verification limited (listed by Shell, 2026-10)"]}}
   ],
   "lastOpen": [
     {"name": "Overnight: the last stop listed open before 60 mi of stops not listed open", "options": {"minLengthMiles": 40, "windowEndMiles": 150},

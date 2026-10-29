@@ -13,13 +13,13 @@
    "result": {
     "primary": {
      "id": "way/349353181",
-     "hours": "unknown",
+     "hours": "reported",
      "restroom": "unknown"
     },
     "alternatives": [
      {
       "id": "node/13738150228",
-      "hours": "unknown",
+      "hours": "reported",
       "restroom": "unknown"
      },
      {
@@ -28,12 +28,12 @@
       "restroom": "unknown"
      }
     ],
-    "considered": 128,
+    "considered": 111,
     "passed": {
      "Reported closed at arrival": 8,
-     "Out of range": 29,
+     "Out of range": 25,
      "Below your reserve": 22,
-     "Detour over your limit": 9
+     "Detour over your limit": 1
     },
     "lowRange": false,
     "notice": null
@@ -51,30 +51,30 @@
    ],
    "result": {
     "primary": {
-     "id": "node/11292003153",
+     "id": "way/226931518",
      "hours": "reported",
-     "restroom": "unknown"
+     "restroom": "available"
     },
     "alternatives": [
      {
       "id": "node/11337029472",
       "hours": "reported",
-      "restroom": "unknown"
+      "restroom": "available"
      },
      {
-      "id": "node/10062365265",
+      "id": "node/2346487096",
       "hours": "reported",
       "restroom": "unknown"
      }
     ],
-    "considered": 86,
+    "considered": 82,
     "passed": {
+     "Reported closed at arrival": 6,
      "Out of range": 18,
-     "Reported closed at arrival": 1,
-     "Below your reserve": 26
+     "Below your reserve": 24
     },
     "lowRange": false,
-    "notice": "No stop ahead has a confirmed restroom. Restroom availability is unknown at these stops."
+    "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."
    }
   },
   {
@@ -105,13 +105,12 @@
       "restroom": "unknown"
      }
     ],
-    "considered": 123,
+    "considered": 105,
     "passed": {
-     "Reported closed at arrival": 1,
-     "Out of range": 23,
+     "Reported closed at arrival": 3,
+     "Out of range": 17,
      "No longer listed as a gas station": 1,
-     "Below your reserve": 39,
-     "Detour over your limit": 2
+     "Below your reserve": 29
     },
     "lowRange": false,
     "notice": null
@@ -130,7 +129,7 @@
     "primary": {
      "id": "way/1058410889",
      "hours": "unknown",
-     "restroom": "unknown"
+     "restroom": "available"
     },
     "alternatives": [
      {
@@ -141,13 +140,14 @@
      {
       "id": "node/3884270673",
       "hours": "unknown",
-      "restroom": "unknown"
+      "restroom": "available"
      }
     ],
-    "considered": 58,
+    "considered": 45,
     "passed": {
      "No longer listed as a gas station": 2,
-     "Out of range": 37,
+     "Reported closed at arrival": 1,
+     "Out of range": 30,
      "Detour over your limit": 1
     },
     "lowRange": true,
@@ -167,13 +167,13 @@
    "result": {
     "primary": {
      "id": "node/13738150228",
-     "hours": "unknown",
+     "hours": "reported",
      "restroom": "unknown"
     },
     "alternatives": [
      {
       "id": "way/349353181",
-      "hours": "unknown",
+      "hours": "reported",
       "restroom": "unknown"
      },
      {
@@ -183,7 +183,9 @@
      }
     ],
     "considered": 12,
-    "passed": {},
+    "passed": {
+     "Reported closed at arrival": 3
+    },
     "lowRange": false,
     "notice": null
    }
@@ -200,23 +202,23 @@
    ],
    "result": {
     "primary": {
-     "id": "rest-way/257649225",
-     "hours": "unknown",
+     "id": "node/12755562391",
+     "hours": "reported",
      "restroom": "available"
     },
     "alternatives": [
      {
-      "id": "rest-node/2085347964",
+      "id": "rest-way/257649225",
       "hours": "unknown",
       "restroom": "available"
      },
      {
-      "id": "way/1064860182",
-      "hours": "reported",
-      "restroom": "unknown"
+      "id": "rest-node/2085347964",
+      "hours": "unknown",
+      "restroom": "available"
      }
     ],
-    "considered": 17,
+    "considered": 15,
     "passed": {
      "Reported closed at arrival": 2,
      "Detour over your limit": 3

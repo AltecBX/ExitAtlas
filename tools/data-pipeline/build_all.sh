@@ -70,8 +70,19 @@ python3 build_regions.py tzones "$WORK/timezones_s10.geojson" "$OUT/timezones.ea
 python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.json" "$OUT/restareas.json" "$WORK/rest_area_classes.json"
 python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
-# Gas station hours, restrooms, rebrands and closures: current tags from the live OSM API (cached in the work dir).
-python3 build_stations.py "$OI_CSV" "$WORK/gas_tags.json" "$OUT/stations.json"
+# Brand store listings (All the Places, CC0): one GeoJSON file per fuel brand spider from a pinned weekly run.
+# Pilot Flying J and Buc-ee's returned no features in this run; Exxon, Mobil, Phillips 66, Citgo and
+# 7-Eleven spiders are not included yet (docs/13).
+ATP_RUN="2026-10-17-13-32-31"
+ATP_SPIDERS="bp chevron_us circle_k kwik_trip loves_us marathon_petroleum_us maverik murphy_usa_us quiktrip_us sheetz shell speedway_us sunoco_us valero wawa"
+mkdir -p "$WORK/atp/$ATP_RUN"
+for s in $ATP_SPIDERS; do
+  [ -s "$WORK/atp/$ATP_RUN/$s.geojson" ] || curl -fsSL "https://alltheplaces-data.openaddresses.io/runs/$ATP_RUN/output/$s.geojson" -o "$WORK/atp/$ATP_RUN/$s.geojson"
+done
+printf '{"run_id":"%s","start_time":"%sT%s:%s:%sZ"}\n' "$ATP_RUN" "${ATP_RUN:0:10}" "${ATP_RUN:11:2}" "${ATP_RUN:14:2}" "${ATP_RUN:17:2}" > "$WORK/atp/$ATP_RUN/latest.json"
+# Gas station hours, restrooms, rebrands and closures: current tags from the live OSM API (cached in the work
+# dir), and the brands' listed hours and restrooms.
+python3 build_stations.py "$OI_CSV" "$WORK/gas_tags.json" "$OUT/stations.json" "$WORK/atp/$ATP_RUN"
 python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicles.json"
 # Discover places come from the live Wikidata query service (cached per category in the work dir).
 mkdir -p "$WORK/wikidata"

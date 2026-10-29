@@ -133,8 +133,9 @@ const app = {
       if (g.place.category !== 1) return false;
       const f = stations?.get(g.place.id);
       if (f?.gone) return false;
-      if (!f?.h) return true;
-      const c = { id: g.place.id, kind: 'station', arrival: arrival + (g.detourSeconds ?? 0) / 2, timeZone: zone, osm: { hours: f.h } };
+      if (!f?.h && !f?.ah) return true;
+      const c = { id: g.place.id, kind: 'station', arrival: arrival + (g.detourSeconds ?? 0) / 2, timeZone: zone,
+        osm: { hours: f.h ?? null, checked: f.hc ?? null, brandHours: f.ah ?? null, listedBy: f.ab ?? null, collected: stations.metadata.brand_collected ?? null } };
       return evaluateStop(c, this.profile).hours.status !== 'closed';
     });
   },

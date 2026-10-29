@@ -718,9 +718,11 @@ final class TripController {
             guard g.place.category == .gas else { return false }
             let fact = data?.stations?[g.place.id]
             if fact?.gone != nil { return false }
-            guard let hours = fact?.h else { return true }
+            guard fact?.h != nil || fact?.ah != nil else { return true }
             let c = SmartStop.Candidate(id: g.place.id, name: g.place.displayName, along: stop.distance,
-                                        arrival: arrival.addingTimeInterval((g.detourSeconds ?? 0) / 2), timeZone: zone, osmHours: hours)
+                                        arrival: arrival.addingTimeInterval((g.detourSeconds ?? 0) / 2), timeZone: zone,
+                                        osmHours: fact?.h, osmChecked: fact?.hc, brandHours: fact?.ah, listedBy: fact?.ab,
+                                        brandCollected: data?.stations?.metadata.brand_collected)
             return SmartStop.evaluate(c, preferences: prefs).hours.status != .closed
         }
     }

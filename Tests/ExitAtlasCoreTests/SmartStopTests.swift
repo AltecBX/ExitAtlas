@@ -78,7 +78,9 @@ final class SmartStopTests: XCTestCase {
             price: x["price"]?.number,
             osmHours: osm["hours"]?.string, osmChecked: osm["checked"]?.string, osmToilets: osm["toilets"]?.bool, gone: osm["gone"]?.string,
             livePeriods: try periods(live?["periods"]), liveRestroom: live?["restroom"]?.bool,
-            plazaHours: plaza?["hours"]?.string, plazaToilets: plaza?["toilets"]?.bool, truckSpaces: plaza?["truckSpaces"]?.number.map { Int($0) })
+            plazaHours: plaza?["hours"]?.string, plazaToilets: plaza?["toilets"]?.bool, truckSpaces: plaza?["truckSpaces"]?.number.map { Int($0) },
+            brandHours: osm["brandHours"]?.string, brandToilets: osm["brandToilets"]?.bool, listedBy: osm["listedBy"]?.string,
+            brandCollected: osm["collected"]?.string)
     }
 
     /// D, E, O: stop confidence at the arrival time, in the station's own time zone.
@@ -103,8 +105,15 @@ final class SmartStopTests: XCTestCase {
             if let l = x["restroomLabel"]?.string { XCTAssertEqual(e.restroom.label, l, name) }
             if let s = x["store"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Store" }?.status, s, name) }
             if let s = x["pumps"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Pumps" }?.status, s, name) }
+            if let s = x["hoursSource"]?.string { XCTAssertEqual(e.hours.source, s, name) }
+            if let s = x["stale"]?.bool { XCTAssertEqual(e.hours.stale, s, name) }
+            if let s = x["note"]?.string { XCTAssertEqual(e.hours.note, s, name) }
+            if let s = x["pumpsSource"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Pumps" }?.source, s, name) }
+            if let s = x["restroomSource"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Restroom" }?.source, s, name) }
             // O: an unknown business is never shown as open, and no station restroom is shown open at arrival.
-            if cand.osmHours == nil && cand.livePeriods == nil && cand.plazaHours == nil { XCTAssertEqual(e.hours.status, .unknown, name) }
+            if cand.osmHours == nil && cand.brandHours == nil && cand.livePeriods == nil && cand.plazaHours == nil {
+                XCTAssertEqual(e.hours.status, .unknown, name)
+            }
             if cand.kind == .station { XCTAssertNotEqual(e.restroom, .accessible, name) }
         }
     }

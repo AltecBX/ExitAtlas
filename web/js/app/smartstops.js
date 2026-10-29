@@ -6,7 +6,7 @@ import { gasCandidates, matchesFavorite } from '../engine/fuel.js';
 import { placeDisplayName } from '../engine/datasets.js';
 import { restAreaTitle } from '../engine/restareas.js';
 
-/// stations.json: {meta, items: {placeId: {h, hc, t, b, gone}}}.
+/// stations.json: {meta, items: {placeId: {h, hc, t, b, gone, ah, at, ab}}} (build_stations.py).
 export class StationFacts {
   constructor(json) {
     if (json?.meta?.kind !== 'stations') throw new Error('not a station dataset');
@@ -32,9 +32,12 @@ export function liveFor(prices, exit, place, brand) {
   return best;
 }
 
+/// What OpenStreetMap and the brand's own listing (All the Places) say about a station.
 function osmFacts(stations, id) {
   const f = stations?.get(id);
-  return f ? { hours: f.h ?? null, checked: f.hc ?? null, toilets: f.t ?? null, gone: f.gone ?? null } : {};
+  return f ? { hours: f.h ?? null, checked: f.hc ?? null, toilets: f.t ?? null, gone: f.gone ?? null,
+    brandHours: f.ah ?? null, brandToilets: f.at ?? null, listedBy: f.ab ?? null,
+    collected: f.ah || f.at ? stations.metadata.brand_collected ?? null : null } : {};
 }
 
 /// Gas stations at exits from `d` to `d + window`, one candidate per station.
@@ -61,7 +64,18 @@ export function stationCandidates({ plan, snapshot, servicesFor, stations, price
       });
     }
   }
-  return out;
+  return onePerStation(out);
+}
+
+/// A station linked to two exits (a split interchange, or the next exit) is one stop: the exit with the
+/// shorter detour, or the first one when they are equal. Same rule in SmartStopCandidates.swift.
+function onePerStation(list) {
+  const best = new Map();
+  for (const c of list) {
+    const b = best.get(c.id);
+    if (!b || c.detourMeters < b.detourMeters) best.set(c.id, c);
+  }
+  return list.filter((c) => best.get(c.id) === c);
 }
 
 /// Service plazas with fuel (fuel stops) or every rest area and plaza (restroom stops) on the route.

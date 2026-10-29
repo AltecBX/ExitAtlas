@@ -6,8 +6,10 @@
 // Stop confidence is a status, never a score. Hours and restrooms are only what a source lists:
 //   Google Places business hours for the arrival day          "Verified open at estimated arrival"
 //   OpenStreetMap hours (community mapped, with a check date) "Reported open, verification limited"
-//   either source closed at the arrival time                  "Reported closed at estimated arrival"
-//   nothing listed, or hours that do not parse                "Hours unavailable"
+//   or the brand's own store listing (All the Places, with the date it was collected)
+//   a source closed at the arrival time (and none open)       "Reported closed at estimated arrival"
+//   nothing listed, hours that do not parse, or OpenStreetMap
+//   and the brand listing disagree at the arrival time        "Hours unavailable"
 // A restroom is "confirmed" only when tagged or listed. It is "accessible at estimated arrival" only
 // where its own hours are known: at rest areas and service plazas, whose listed hours are the
 // building's. A 24 hour gas station can still lock its restroom overnight, so a station restroom is
@@ -41,9 +43,36 @@ function hoursStatus(hours, local, kind) {
   return { status: kind, closesIn: r.closesIn };
 }
 
+/// A check or collection date ("2025", "2025-03", "2025-03-14") more than a year before the arrival: the
+/// hours are still shown, with "may be out of date".
+export function isStale(date, arrival) {
+  const m = /^(\d{4})(?:-(\d\d))?(?:-(\d\d))?/.exec(date ?? '');
+  if (!m) return false;
+  return arrival - Date.UTC(Number(m[1]), Number(m[2] ?? 1) - 1, Number(m[3] ?? 1)) / 1000 > 365 * 86400;
+}
+
+/// The pumps' hours from OpenStreetMap and the brand's listing: one source when only one lists them; when
+/// both do and agree, the more recently dated one (the listing unless a mapper checked the hours after it
+/// was collected); when they disagree at the arrival time, unknown, with a note saying so.
+function pumpsFrom(osm, local) {
+  const o = parseOpeningHours(osm.hours ?? null), b = parseOpeningHours(osm.brandHours ?? null);
+  const fromOsm = { ...hoursStatus(o, local, 'reported'), source: 'OpenStreetMap', checked: osm.checked ?? null, parsed: o };
+  const listing = `Listed by ${osm.listedBy ?? 'the brand'}`;
+  const fromBrand = { ...hoursStatus(b, local, 'reported'), source: listing, checked: osm.collected ?? null, parsed: b, listing: true };
+  if (!o && !b) return { status: 'unknown', closesIn: null, source: null, checked: null, parsed: null };
+  if (!b) return fromOsm;
+  if (!o) return fromBrand;
+  if (fromOsm.status !== fromBrand.status) {
+    return { status: 'unknown', closesIn: null, source: null, checked: null, parsed: null,
+      note: `OpenStreetMap and the ${osm.listedBy ?? 'brand'} listing disagree` };
+  }
+  return osm.checked && osm.collected && osm.checked > osm.collected ? fromOsm : fromBrand;
+}
+
 /// Everything known about one stop at its arrival time.
 ///   c: {id, name, brand, kind ('station' or 'plaza'), arrival (epoch s), timeZone,
-///       osm: {hours, checked, toilets, gone}, live: {periods, restroom, source}, plaza: {hours, toilets, truckSpaces}}
+///       osm: {hours, checked, toilets, gone, brandHours, brandToilets, listedBy, collected},
+///       live: {periods, restroom, source}, plaza: {hours, toilets, truckSpaces}}
 ///   profile: the driver's profile (overnight window)
 export function evaluateStop(c, profile) {
   const local = localTime(c.arrival, c.timeZone);
@@ -54,13 +83,13 @@ export function evaluateStop(c, profile) {
   const rest = c.kind === 'rest';
   const facilities = [];
 
-  // Pumps: the station's OpenStreetMap hours (or a plaza's hours, which cover its fuel).
-  const pumpsText = plaza ? plaza.hours : osm.hours;
-  const parsed = parseOpeningHours(pumpsText ?? null);
-  const pumps = hoursStatus(parsed, local, 'reported');
+  // Pumps: the station's OpenStreetMap hours and its brand listing (or a plaza's hours, which cover its fuel).
+  const pumps = plaza ? pumpsFrom({ hours: plaza.hours }, local) : pumpsFrom(osm, local);
+  const parsed = pumps.parsed;
   if (!rest) {
     facilities.push({ name: 'Pumps', status: pumps.status, label: HOURS_LABELS[pumps.status],
-      source: pumpsText ? 'OpenStreetMap' : null, checked: plaza ? null : (osm.checked ?? null), closesIn: pumps.closesIn });
+      source: pumps.note ?? (pumps.listing && pumps.checked ? `${pumps.source}, collected ${pumps.checked}` : pumps.source),
+      checked: plaza || pumps.listing ? null : pumps.checked, closesIn: pumps.closesIn });
   }
 
   // Store: the business hours Google lists for the arrival day (live, with the driver's key or the proxy).
@@ -75,22 +104,31 @@ export function evaluateStop(c, profile) {
   let hours;
   const liveSource = liveWeek ? (c.live.source ?? 'Google Maps') : null;
   if (store.status === 'verified') hours = { status: 'verified', closesIn: store.closesIn, source: liveSource };
-  else if (pumps.status === 'reported') hours = { status: 'reported', closesIn: pumps.closesIn, source: 'OpenStreetMap' };
-  else if (store.status === 'closed' || pumps.status === 'closed') hours = { status: 'closed', closesIn: null, source: store.status === 'closed' ? liveSource : 'OpenStreetMap' };
-  else hours = { status: 'unknown', closesIn: null, source: null };
+  else if (pumps.status === 'reported') hours = { status: 'reported', closesIn: pumps.closesIn, source: pumps.source };
+  else if (store.status === 'closed' || pumps.status === 'closed') hours = { status: 'closed', closesIn: null, source: store.status === 'closed' ? liveSource : pumps.source };
+  else hours = { status: 'unknown', closesIn: null, source: null, note: pumps.note ?? null };
   hours.label = HOURS_LABELS[hours.status];
-  hours.checked = hours.source === 'OpenStreetMap' && !plaza ? (osm.checked ?? null) : null;
+  hours.checked = hours.source && hours.source === pumps.source && !plaza ? pumps.checked : null;
+  hours.listing = Boolean(hours.source && hours.source === pumps.source && pumps.listing);
+  hours.stale = isStale(hours.checked, c.arrival);
   hours.holidays = Boolean(parsed?.holidays);
 
-  // Restroom: tagged in OpenStreetMap or listed by Google; its own hours only at plazas and rest areas.
-  const toilets = plaza ? plaza.toilets : (c.live?.restroom ?? osm.toilets ?? null);
+  // Restroom: listed by Google, tagged in OpenStreetMap, or listed by the brand, in that order; when
+  // OpenStreetMap says none and the brand lists one, unknown. Its own hours only at plazas and rest areas.
+  const brandListed = !plaza && osm.brandToilets === true;
+  let toilets, restroomSource;
+  if (plaza) [toilets, restroomSource] = [plaza.toilets ?? null, 'OpenStreetMap'];
+  else if (c.live?.restroom != null) [toilets, restroomSource] = [c.live.restroom, c.live.source ?? 'Google Maps'];
+  else if (osm.toilets === false && brandListed) [toilets, restroomSource] = [null, `OpenStreetMap and the ${osm.listedBy ?? 'brand'} listing disagree`];
+  else if (osm.toilets != null) [toilets, restroomSource] = [osm.toilets, 'OpenStreetMap'];
+  else if (brandListed) [toilets, restroomSource] = [true, `Listed by ${osm.listedBy ?? 'the brand'}${osm.collected ? `, collected ${osm.collected}` : ''}`];
+  else [toilets, restroomSource] = [null, null];
   let restroom;
   if (toilets === false) restroom = 'none';
   else if (toilets !== true) restroom = 'unknown';
   else if (plaza && pumps.status === 'reported') restroom = 'accessible';
   else restroom = 'available';
-  facilities.push({ name: 'Restroom', status: restroom, label: RESTROOM_LABELS[restroom],
-    source: toilets === null ? null : plaza || c.live?.restroom == null ? 'OpenStreetMap' : (c.live.source ?? 'Google Maps') });
+  facilities.push({ name: 'Restroom', status: restroom, label: RESTROOM_LABELS[restroom], source: toilets === null && !restroomSource?.endsWith('disagree') ? null : restroomSource });
   facilities.push({ name: 'Restroom hours', status: restroom === 'accessible' ? 'reported' : 'unknown',
     label: restroom === 'accessible' ? `Open at estimated arrival (the ${rest ? 'rest area' : 'plaza'}'s listed hours)` : 'Not listed', source: restroom === 'accessible' ? 'OpenStreetMap' : null });
   if (plaza) {
@@ -240,8 +278,9 @@ function reasons(x, profile, { needs, lowRange, reserveMeters }) {
   if (x.brand !== null) out.push(`${f.brands[x.brand]}, your ${ordinal(x.brand)} choice`);
   const h = x.e.hours;
   if (h.status === 'verified') out.push(`${h.label} (${h.source})`);
-  else if (h.status === 'reported') out.push(`${h.label}${h.checked ? ` (OpenStreetMap, checked ${h.checked.slice(0, 7)})` : ' (OpenStreetMap)'}`);
-  else out.push(h.label);
+  else if (h.status === 'reported' && h.listing) out.push(`${h.label} (${h.source.replace('Listed', 'listed')}${h.checked ? `, ${h.checked.slice(0, 7)}` : ''}${h.stale ? ', may be out of date' : ''})`);
+  else if (h.status === 'reported') out.push(`${h.label}${h.checked ? ` (OpenStreetMap, checked ${h.checked.slice(0, 7)}${h.stale ? ', may be out of date' : ''})` : ' (OpenStreetMap)'}`);
+  else out.push(`${h.label}${h.note ? ` (${h.note})` : ''}`);
   if (h.closesIn != null && h.closesIn <= 60) out.push(`Closes ${h.closesIn} min after you arrive`);
   if (x.e.restroom.status !== 'unknown' || needs(f.requireRestroom, x)) out.push(x.e.restroom.label);
   if (x.c.detourMinutes != null) out.push(x.c.detourMinutes < 1 ? 'No detour' : `${Math.round(x.c.detourMinutes)} min detour, round trip`);
