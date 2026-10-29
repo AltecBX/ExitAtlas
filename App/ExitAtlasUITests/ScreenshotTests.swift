@@ -6,6 +6,8 @@ import XCTest
 final class ScreenshotTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
+        // A test that failed while sideways leaves the simulator sideways; every test starts upright.
+        XCUIDevice.shared.orientation = .portrait
     }
 
     func testScreensLight() { capture(dark: false) }

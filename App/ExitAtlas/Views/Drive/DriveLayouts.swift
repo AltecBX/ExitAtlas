@@ -330,7 +330,11 @@ struct NavigationDriveView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         GuidanceBanner(snapshot: snapshot, openExit: openExit)
                         openSpace
-                        HStack(alignment: .bottom) { speed; Spacer(); controls(horizontal: true) }
+                        // One row when it fits beside the speed; else the buttons go on a row of their own above it.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .bottom) { speed; Spacer(minLength: 8); controls(horizontal: true) }
+                            VStack(alignment: .leading, spacing: 8) { controls(horizontal: true); speed }
+                        }
                     }
                     VStack(spacing: 8) {
                         Spacer(minLength: 0)
