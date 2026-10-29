@@ -811,7 +811,7 @@ export function exitDetail(app, exitId) {
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
-    <p class="note">Detours are round trip estimates from the exit. Routed values come from OpenStreetMap drive times (OpenInterstate reachability); others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
+    <p class="note">Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
 }
 
 export function restAreaDetail(app, id) {
@@ -861,8 +861,8 @@ function priceSection(app, exit) {
 function serviceRow(x) {
   const p = x.place;
   const detour = x.detourBasis === 'routed'
-    ? `Detour ${miles(x.detourMeters)} round trip${x.detourSeconds !== null ? ` · about ${duration(x.detourSeconds)}` : ''}`
-    : `Roughly ${miles(x.detourMeters)} round trip (straight line estimate)`;
+    ? `About ${miles(x.detourMeters)}${x.detourSeconds !== null ? `, ${duration(x.detourSeconds)}` : ''} detour (twice the drive from the exit)`
+    : `Roughly ${miles(x.detourMeters)} detour (straight line estimate)`;
   return `<div class="item"><div class="main"><div class="t">${h(placeDisplayName(p))}</div><div class="muted small">${detour}</div></div>
     <a class="btn sm" href="https://maps.apple.com/?daddr=${p.coordinate.lat},${p.coordinate.lon}&dirflg=d" target="_blank" rel="noopener" aria-label="Directions">Go</a></div>`;
 }

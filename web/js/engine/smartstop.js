@@ -283,7 +283,7 @@ function reasons(x, profile, { needs, lowRange, reserveMeters }) {
   else out.push(`${h.label}${h.note ? ` (${h.note})` : ''}`);
   if (h.closesIn != null && h.closesIn <= 60) out.push(`Closes ${h.closesIn} min after you arrive`);
   if (x.e.restroom.status !== 'unknown' || needs(f.requireRestroom, x)) out.push(x.e.restroom.label);
-  if (x.c.detourMinutes != null) out.push(x.c.detourMinutes < 1 ? 'No detour' : `${Math.round(x.c.detourMinutes)} min detour, round trip`);
+  if (x.c.detourMinutes != null) out.push(x.c.detourMinutes < 1 ? 'No detour' : `About ${Math.round(x.c.detourMinutes)} min detour (twice the drive from the exit)`);
   else if (x.c.kind === 'plaza' || x.c.kind === 'rest') out.push('On the highway, no exit needed');
   else out.push('Detour not measured');
   if (x.c.price?.value != null && f.priceOverBrand) out.push(`$${x.c.price.value.toFixed(2)} (Google Maps)`);

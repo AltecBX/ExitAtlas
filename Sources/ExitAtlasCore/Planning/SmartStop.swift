@@ -498,7 +498,7 @@ public enum SmartStop {
             }
             if let c = h.closesIn, c <= 60 { out.append("Closes \(c) min after you arrive") }
             if x.e.restroom != .unknown || needs(p.requireRestroom, x) { out.append(x.e.restroom.label) }
-            if let d = x.c.detourMinutes { out.append(d < 1 ? "No detour" : "\(Int(d.rounded())) min detour, round trip") }
+            if let d = x.c.detourMinutes { out.append(d < 1 ? "No detour" : "About \(Int(d.rounded())) min detour (twice the drive from the exit)") }
             else if x.c.isPlaza { out.append("On the highway, no exit needed") }
             else { out.append("Detour not measured") }
             if let price = x.c.price, p.priceOverBrand { out.append(String(format: "$%.2f (Google Maps)", price)) }

@@ -141,7 +141,7 @@ function stopReasons(x) {
     reasons.push(Math.abs(min) < 5 ? 'Right on time' : min < 0 ? `${-min} min early` : `${min} min late`);
   }
   if (x.restArea) reasons.push(x.restArea.side === 'both' ? 'On the highway, both directions' : 'On the highway, no detour');
-  else reasons.push(`Detour ${(x.detourMeters / METERS_PER_MILE).toFixed(1)} mi round trip`);
+  else reasons.push(`About ${(x.detourMeters / METERS_PER_MILE).toFixed(1)} mi detour (estimate)`);
   if (x.favorite) reasons.push('Favorite brand');
   if (x.restrooms === true) reasons.push('Restrooms listed');
   if (x.restrooms === false) reasons.push('No restrooms');

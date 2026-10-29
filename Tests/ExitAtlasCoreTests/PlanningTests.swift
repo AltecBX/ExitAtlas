@@ -56,7 +56,7 @@ final class PlanningTests: XCTestCase {
         }
         for r in results {
             XCTAssertEqual(r.score, abs(r.timeFromTarget!) + 2 * r.detourSeconds, accuracy: 1e-6)
-            XCTAssertTrue(r.reasons.contains { $0.hasPrefix("Detour ") })
+            XCTAssertTrue(r.reasons.contains { $0.hasPrefix("About ") && $0.hasSuffix("mi detour (estimate)") })
         }
     }
 

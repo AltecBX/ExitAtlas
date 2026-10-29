@@ -27,7 +27,7 @@ Starting point: `main` at f4aa220. This document answers the "Next generation ro
 | Voice | Exits, fuel, gaps, state lines | | `VoiceAnnouncements`, `announcer.js` | Serious alerts from 10 mi, others from 2 mi, once each; drivers' reports say "not confirmed" | | Voice tests in both engines |
 | Stop hours and restrooms | OSM hours (11.7% of 19,679 stations), Google hours on lists with a key, Stop Confidence labels, overnight rules | All the Places hours and restroom listings, convenience store join, closure flags, freshness dates | `SmartStop`, `OpeningHours` | Google hours and restroom details are never spoken (Google terms 3.2.3(a)(iv)) | ATP CC0; Overture CDLA; FSQ OS Apache 2.0; all free | Spoken answer tests |
 | Rest area status | Bundled rest areas, no live status | 511 status (GA, NC, AZ, NV, ID) | Rest area dataset | | Key plus written permission | |
-| True highway detours | One way OSRM drive doubled (`ExitServices.swift` line 36), labeled a round trip estimate | Exit to business to the correct entrance; return leg; added time | OpenInterstate reachability | | Valhalla (MIT) per state in CI; MKDirections on demand on iOS | Existing detour tests |
+| True highway detours | One way OSRM drive doubled (`ExitServices.swift` line 36); now labeled as that estimate ("About 3 min detour (twice the drive from the exit)") | Exit to business to the correct entrance; return leg; added time | OpenInterstate reachability | | Valhalla (MIT) per state in CI; MKDirections on demand on iOS | Existing detour tests |
 | Fuel cost comparison | `FuelPlanner` (Swift) with savings against the nearest priced station; web shows prices | Web port of the planner; detour fuel; reserve; per grade comparison in the UI | `FuelPlanner`, `fuel.js`, prices | | Google prices through the key proxy or the driver's key | FuelPlanner tests |
 | One tap restroom stop | `bestStopAhead(restrooms:)`, Siri "restroom" answer, SmartStop primary plus two alternatives | A single control on the Drive screen | SmartStop | | | SmartStop tests |
 | Route comparison | Up to 3 OSRM alternatives (web) and MapKit routes (iOS) with distance and time | Fuel cost, tolls, alerts, overnight gas, restrooms, gaps, Shell count per route | Planner | | Tolls need HERE (13.6) | |
@@ -117,7 +117,8 @@ Not built. A decision for the owner, after counsel review, before any code.
 | next | 3 | PennDOT RCRS through the Worker and D1, after registration; OSM and DC fixed cameras ("Enforcement cameras", may be incomplete) | Needs the PennDOT credential and the Worker deployed |
 | 14 | 4 | Stop data: brand listing hours and restrooms, freshness labels, one stop per station (13.8) | Next PR |
 | next | 4 | Convenience store join, Overture and FSQ closure flags, more brand spiders | Pipeline work |
-| next | 5 | True detours: relabel today's numbers as "about twice the one way drive"; Valhalla round trip per state in CI; MKDirections on demand for the picks on iOS | |
+| 14 | 5 | Relabel today's detours as estimates (twice the drive from the exit) | Next PR |
+| next | 5 | True detours: Valhalla round trip per state in CI; MKDirections on demand for the picks on iOS | |
 | next | 6 | One tap restroom stop (1 pick plus 2 alternatives, overnight rules); fuel cost comparison (web port of FuelPlanner, detour fuel, reserve) | |
 | next | 7 | TripReady line; route comparison (fuel, alerts, overnight gas, restrooms, gaps, Shell count; tolls only as "tolls on route" until HERE is approved) | |
 | next | 8 | Local diagnostics: on device log, review, redact, export, never uploaded without permission; recorded issues become fixtures | |

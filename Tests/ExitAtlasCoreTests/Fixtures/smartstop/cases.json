@@ -124,7 +124,7 @@
        {"id": "plaza45", "name": "Molly Pitcher Service Area", "brand": "Sunoco", "kind": "plaza", "aheadMiles": 45, "detourMinutes": null,
         "arrival": "2026-10-29T16:25:00Z", "plaza": {"hours": "24/7", "toilets": true}}],
      "expect": {"primary": "shell30", "alternatives": ["wawa20", "plaza45"], "notice": null, "favorite": null,
-                "reasonsInclude": ["Shell, your 1st choice", "3 min detour, round trip"]}},
+                "reasonsInclude": ["Shell, your 1st choice", "About 3 min detour (twice the drive from the exit)"]}},
     {"name": "Overnight Drive Mode turned on by hand at noon",
      "profile": {"overnight": {"mode": "on"}},
      "options": {"context": "ahead"},
@@ -152,7 +152,7 @@
      "options": {"context": "ahead"},
      "candidates": [
        {"id": "shell20", "name": "Shell", "brand": "Shell", "exitId": "20", "aheadMiles": 20, "detourMinutes": 14, "arrival": "2026-10-29T16:00:00Z"}],
-     "expect": {"primary": "shell20", "alternatives": [], "passed": {}, "relaxed": ["Detour over your limit"], "reasonsInclude": ["14 min detour, round trip"]}},
+     "expect": {"primary": "shell20", "alternatives": [], "passed": {}, "relaxed": ["Detour over your limit"], "reasonsInclude": ["About 14 min detour (twice the drive from the exit)"]}},
     {"name": "Cheaper fuel over brand, with prices from Google",
      "profile": {"fuel": {"priceOverBrand": true}},
      "options": {"context": "ahead"},
