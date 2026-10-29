@@ -228,4 +228,16 @@ final class RoadIntelTests: XCTestCase {
         guard case .rejected("other road") = place("MD 3BU") else { return XCTFail("business route") }
         guard case .ahead = place(nil) else { return XCTFail("no name") }
     }
+
+    func testAlertTiersAndHeadlines() throws {
+        let file = Fixtures.fixtureDirectory.appendingPathComponent("roadintel/tiers.json")
+        for c in try JSONValue(data: Data(contentsOf: file))["cases"]!.array! {
+            let kind = RoadIntel.Kind(rawValue: c["category"]!.string!)!
+            let severity = RoadIntel.Severity(rawValue: c["severity"]!.string!)!
+            let i = RoadIntel.Incident(id: "t", kind: kind, description: "", source: .init(id: "t", name: "t"), verification: .official,
+                                       reportedAt: nil, updatedAt: nil, geometry: nil, severity: severity)
+            XCTAssertEqual(i.tier.rawValue, c["tier"]!.string!, "\(kind) \(severity): tier")
+            XCTAssertEqual(i.headline, c["headline"]!.string!, "\(kind) \(severity): headline")
+        }
+    }
 }

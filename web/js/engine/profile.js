@@ -28,6 +28,8 @@ export function defaultProfile() {
     driving: {
       speedAlertOver: 5, exitLookaheadMiles: 25, gasGapMiles: 40, favoriteCategories: [],
       avoidTolls: false, keepAwake: true, liveActivity: true, theme: 'auto',
+      // The Drive screen: 'map' (Navigation View) or 'focus' (the compact dashboard).
+      drivePresentation: 'map',
     },
     voice: { enabled: true, stateLines: true, exits: false, fuel: true, restAreas: true, gasGaps: true, timeZones: true },
     // Road alerts by Settings group (engine/roadintel.js ALERT_GROUPS), and whether they are spoken.
@@ -171,6 +173,7 @@ export function normalizeProfile(raw) {
     favoriteCategories: (v) => (Array.isArray(v) ? [...new Set(v.filter((c) => SERVICE_CATEGORIES.includes(c)))] : undefined),
     avoidTolls: bool, keepAwake: bool, liveActivity: bool,
     theme: (v) => oneOf(v, ['auto', 'light', 'dark']),
+    drivePresentation: (v) => oneOf(v, ['map', 'focus']),
   });
   section('voice', Object.fromEntries(Object.keys(d.voice).map((k) => [k, bool])));
   section('alerts', Object.fromEntries(Object.keys(d.alerts).map((k) => [k, bool])));

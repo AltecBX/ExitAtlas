@@ -21,11 +21,11 @@
                "plans": [{"name": "Keep", "from": null, "stops": [{"name": "Stop", "lat": 1, "lon": 2}], "to": {"name": "End", "lat": 3, "lon": 4}}]},
     "favorites": {"hotels": [], "restaurants": []},
     "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 25, "gasGapMiles": 40, "favoriteCategories": ["gas"],
-                "avoidTolls": false, "keepAwake": true, "liveActivity": true, "theme": "auto"},
+                "avoidTolls": false, "keepAwake": true, "liveActivity": true, "theme": "auto", "drivePresentation": "map"},
     "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": true, "gasGaps": true, "timeZones": true},
     "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true}
   },
   "problems": ["vehicles[1]", "vehicles[2]", "defaultVehicleId", "fuel.grade", "fuel.reserveMiles", "fuel.require24Hours",
                "fuel.priceOverBrand", "overnight.start", "places.home", "places.recent", "favorites",
-               "driving.exitLookaheadMiles", "driving.theme", "voice.enabled"]
+               "driving.exitLookaheadMiles", "driving.theme", "driving.drivePresentation", "voice.enabled"]
 }

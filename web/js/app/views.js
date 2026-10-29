@@ -385,7 +385,8 @@ function focusCard(app, s, kind) {
     case 'lastOpen': return lastOpenCard(app, s);
     case 'overnight': return app.fuel ? fuelCard(app, s) : overnightCard(app, s);
     case 'restArea': return restAreaCard(s);
-    case 'exit': return nextExitCard(app, s);
+    // The state line card above already carries the approach to the border.
+    case 'exit': case 'border': return nextExitCard(app, s);
     default: return '';
   }
 }
