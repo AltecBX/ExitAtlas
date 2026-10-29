@@ -8,9 +8,13 @@
 //   GET  /v1/wzdx/<state>                 A state's work zone feed (WZDx, CC0, no key) for browsers that
 //                                         may not read it directly (no CORS). Only the feeds in the app's
 //                                         own table; cached for 2 minutes; passed through unparsed.
+//   POST /v1/price-reports {stationId, grade, price, payment, member, install, near}
+//   GET  /v1/price-reports?stations=a,b   Shared gas price reports from drivers (src/prices.js, docs/17), on a D1
+//                                         database bound as PRICES_DB; off without one.
 //   GET  /v1/config                       Provider switches for the app (see docs/11).
 // Setup and limits: infra/worker/README.md.
 import { WZDX_FEEDS } from '../../../web/js/engine/alertsources.js';
+import { postReport, getReports } from './prices.js';
 
 const GOOGLE = 'https://places.googleapis.com/v1/places:searchNearby';
 // Same fields as the app's own request (web/js/app/prices.js): billed once at the highest SKU.
@@ -53,6 +57,33 @@ export function createHandler({ fetchImpl = (...a) => fetch(...a), cache = null,
       // Streamed through without parsing (some feeds are several MB; parsing would cost CPU time).
       await cache?.put(key, new Response(res.clone().body, { headers: { 'Cache-Control': 'max-age=120' } }));
       return new Response(res.body, { status: 200, headers: { ...headers, 'X-Cache': 'miss' } });
+    }
+    if (url.pathname === '/v1/price-reports') {
+      if (!config(env).community) return reply(503, { error: 'shared price reports are not set up' });
+      try { return await priceReports(); } catch {
+        // D1 refuses queries once the free daily limits are used up (or is down): no reports until it
+        // answers again, never a charge (README).
+        return reply(503, { error: 'shared price reports are unavailable right now; they resume after midnight UTC at the latest' }, { 'Cache-Control': 'no-store' });
+      }
+    }
+    async function priceReports() {
+      const hash = (s) => sha256(`${env.CLIENT_SALT ?? ''}:${s}`);
+      if (request.method === 'GET') {
+        const key = new Request(`https://cache.exitatlas/price-reports?${url.searchParams.toString()}`);
+        const hit = await cache?.match(key);
+        if (hit) return reply(200, await hit.text(), { 'X-Cache': 'hit', 'Cache-Control': 'max-age=60' });
+        const [status, body] = await getReports(url, env, { nowMs: now(), hash });
+        const text = JSON.stringify(body);
+        if (status === 200) await cache?.put(key, new Response(text, { headers: { 'Cache-Control': 'max-age=60' } }));
+        return reply(status, text, { 'X-Cache': 'miss', 'Cache-Control': status === 200 ? 'max-age=60' : 'no-store' });
+      }
+      if (request.method === 'POST') {
+        if (Number(request.headers.get('Content-Length') ?? 0) > 2048) return reply(413, { error: 'request too large' });
+        const client = (await hash(`ip:${request.headers.get('CF-Connecting-IP') ?? 'unknown'}`)).slice(0, 16);
+        const [status, body] = await postReport(request, env, { nowMs: now(), client, hash });
+        return reply(status, body, { 'Cache-Control': 'no-store' });
+      }
+      return reply(405, { error: 'method not allowed' });
     }
     if (request.method !== 'POST') return reply(405, { error: 'method not allowed' });
     const length = Number(request.headers.get('Content-Length') ?? 0);
@@ -108,6 +139,7 @@ export function config(env) {
     prices: Boolean(env.GOOGLE_KEY) && !list(env.DISABLED).includes('prices'),
     chargers: Boolean(env.NREL_KEY) && !list(env.DISABLED).includes('chargers'),
     wzdx: !list(env.DISABLED).includes('wzdx'),
+    community: Boolean(env.PRICES_DB) && !list(env.DISABLED).includes('community'),
   };
 }
 

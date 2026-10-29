@@ -93,8 +93,8 @@ test('upstream errors pass through and are not cached', async () => {
 test('config: off switches and which services are available', async () => {
   const handle = createHandler();
   const res = await handle(new Request('https://proxy.test/v1/config', { headers: { Origin: ORIGIN } }), env({ DISABLED: 'search, prices' }));
-  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true, wzdx: true });
-  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false, wzdx: true });
+  assert.deepEqual(await res.json(), { routing: 'osrm-demo', search: 'nominatim', disabled: ['search', 'prices'], prices: false, chargers: true, wzdx: true, community: false });
+  assert.deepEqual(config({}), { routing: 'osrm-demo', search: 'nominatim', disabled: [], prices: false, chargers: false, wzdx: true, community: false });
   const pre = await handle(new Request('https://proxy.test/v1/gas-prices', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), env());
   assert.equal(pre.status, 204);
 });
