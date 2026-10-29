@@ -854,6 +854,10 @@ const BRAND_TAGS = [
   [/chevron/i, '#0054a4', '#fff', 'CHEVRON'], [/sheetz/i, '#d71920', '#fff', 'SHEETZ'], [/racetrac/i, '#003da5', '#fff', 'RACETRAC'],
   [/circle k/i, '#da291c', '#fff', 'CIRCLE K'], [/speedway/i, '#d71920', '#fff', 'SPEEDWAY'], [/marathon/i, '#003da5', '#fff', 'MARATHON'],
   [/quiktrip|\bqt\b/i, '#d71920', '#fff', 'QT'], [/buc-?ee'?s/i, '#ffd100', '#d71920', "BUC-EE'S"], [/costco/i, '#005daa', '#fff', 'COSTCO'],
+  [/citgo/i, '#e31837', '#fff', 'CITGO'], [/valero/i, '#005a9c', '#ffc72c', 'VALERO'], [/7-?eleven/i, '#008061', '#fff', '7-ELEVEN'],
+  [/murphy/i, '#0055a5', '#fff', 'MURPHY'], [/\bgulf\b/i, '#f47b20', '#fff', 'GULF'], [/texaco/i, '#e2231a', '#fff', 'TEXACO'],
+  [/phillips 66/i, '#d71920', '#fff', 'P66'], [/conoco/i, '#d71920', '#fff', 'CONOCO'], [/casey'?s/i, '#d71920', '#fff', "CASEY'S"],
+  [/cumberland/i, '#00703c', '#fff', 'CUMB FARMS'], [/\bhess\b/i, '#00843d', '#fff', 'HESS'], [/sinclair/i, '#00843d', '#fff', 'SINCLAIR'],
 ];
 
 function brandTag(x) {
