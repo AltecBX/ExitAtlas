@@ -10,10 +10,11 @@ import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
 import { travelStats } from '../engine/travels.js';
-import { dashboardFocus } from '../engine/dashboard.js';
+import { nextManeuver } from '../engine/guidance.js';
+import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { weatherLabel, windText } from '../engine/weather.js';
 import { weatherIcon, skyColors } from './weathericons.js';
@@ -50,9 +51,10 @@ const PLAQUE_ORDER = [1, 2, 3, 5, 8, 4, 6, 7];
 const BROWN = new Set([6, 7]);
 
 /// Service plaques: one tile per category with the nearest named places. Text only (no brand logos).
-export function servicePlaques(services, { names = 2, compact = false } = {}) {
+export function servicePlaques(services, { names = 2, compact = false, max = Infinity } = {}) {
   const tiles = [];
   for (const cat of PLAQUE_ORDER) {
+    if (tiles.length >= max) break;
     const items = services.filter((x) => x.place.category === cat).sort((a, b) => a.detourMeters - b.detourMeters);
     if (!items.length) continue;
     const named = [...new Set(items.map((x) => x.place.brand || x.place.name).filter((n) => n && n !== CATEGORY_NAMES[cat]))];
@@ -218,7 +220,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL). Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL); navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -281,27 +283,298 @@ function quickPlaces(app) {
   return rows.length ? `<div><div class="section-title">Where to?</div><div class="list">${rows.join('')}</div></div>` : '';
 }
 
-/// The Drive screen always has the same cards: instruments, state progress, one focus card chosen by
-/// engine/dashboard.js (fuel, planned stop, gas gap, overnight stop, rest area or next exit), a one line
-/// "Then" strip with the next two items, and the destination.
+/// The Drive screen in the driver's presentation (profile driving.drivePresentation): the Navigation View, map
+/// first, or the Focus View, the compact dashboard. Both share the guidance, the instruments, the state line,
+/// one adaptive card (engine/dashboard.js, held steady by FocusStabilizer) and the trip strip, and both fit a
+/// phone screen without scrolling.
 function dashboard(app, s) {
-  const discovery = app.mode === 'discovery';
-  const f = dashboardFocus(focusSignals(app, s));
-  const focus = focusCard(app, s, f.focus);
-  const strip = f.strip.length ? thenStrip(app, s, f.strip) : '';
-  // Two columns when the phone is sideways (instruments and focus left, state and destination right);
-  // in portrait the columns dissolve and the cards stack in order.
-  const parts = [
-    `<div class="dash-col left">${cluster(app, s)}${focus || strip ? `<div class="dash-focus stack" data-focus="${f.focus}">${focus}${strip}</div>` : ''}</div>`,
-    `<div class="dash-col right">${s.current ? `<div class="dash-border">${borderCard(s)}</div>` : ''}<div class="dash-dest">${destinationCard(app, s, discovery)}</div></div>`,
-  ];
+  const f = app.focusStabilizer.choose(focusSignals(app, s), s.t);
   const extras = [];
   if (s.match.status === 'offRoute' && !app.isRerouting && app.mode === 'trip') {
-    extras.push(`<div class="banner warn">You are off the planned route. ${app.gps === 'device' ? 'A new route is requested automatically when online.' : ''}</div>`);
+    extras.push(`<div class="banner warn">You are off the planned route.${app.gps === 'device' ? ' A new route is requested automatically when online.' : ''}</div>`);
   }
   if (app.lastError) extras.push(`<p class="amber-text small">${h(app.lastError)}</p>`);
-  extras.push(screenNote(app));
-  return `<div class="dash">${parts.join('')}<div class="dash-extras">${extras.join('')}</div></div>`;
+  return app.settings.drivePresentation === 'focus' ? focusView(app, s, f, extras) : navView(app, s, f, extras);
+}
+
+const ICONS = {
+  map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 18a9 9 0 1 1 15 0"/><path d="M12 13l4-5"/><circle cx="12" cy="13" r="1.5" fill="currentColor"/></svg>',
+  recenter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l7 19-7-4-7 4z" fill="currentColor"/></svg>',
+  fuel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16"/><path d="M3 21h13"/><path d="M6 9h8"/><path d="M15 8l3 2v8a1.5 1.5 0 0 0 3 0v-7l-3-3"/></svg>',
+  restroom: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="7" cy="4.5" r="2"/><path d="M5 8h4a1 1 0 0 1 1 1v6H8.6v6.5H5.4V15H4V9a1 1 0 0 1 1-1z"/><circle cx="17" cy="4.5" r="2"/><path d="M15.2 8h3.6a1 1 0 0 1 .96.73L21.5 15h-2.6v6.5h-3.8V15h-2.6l1.74-6.27A1 1 0 0 1 15.2 8z"/><rect x="11.5" y="3" width="1" height="18.5" rx=".5"/></svg>',
+};
+
+/// The small switch between the two presentations.
+function viewToggle(app) {
+  const v = app.settings.drivePresentation === 'focus' ? 'focus' : 'map';
+  const b = (k, label) => `<button class="${v === k ? 'on' : ''}" data-act="drive-view" data-arg="${k}" aria-label="${label}" aria-pressed="${v === k}">${ICONS[k === 'map' ? 'map' : 'gauge']}</button>`;
+  return `<div class="view-toggle" role="group" aria-label="Drive view">${b('map', 'Navigation view')}${b('focus', 'Focus view')}</div>`;
+}
+
+function roundButton(act, icon, label, extra = '') {
+  return `<button class="round-btn" data-act="${act}" ${extra} aria-label="${label}">${ICONS[icon]}</button>`;
+}
+
+/// Speed, the posted limit, how far over it is, and the next change.
+function speedInfo(app, s) {
+  const mph = app.speedNow();
+  const onRoute = s.match.status === 'onRoute';
+  const limits = app.limits;
+  const limit = onRoute && limits ? limits.at(s.progress) : null;
+  const limitState = !onRoute ? 'unknown' : limits ? limits.state(s.progress) : 'loading';
+  const over = mph !== null && limit !== null ? mph - limit : null;
+  const level = over === null || over <= 0 ? 'ok' : over <= app.settings.speedAlertOver ? 'warn' : 'over';
+  const next = onRoute && limits ? limits.nextChange(s.progress) : null;
+  return { mph, limit, limitState, level, next };
+}
+
+function limitSign(si, sm = false) {
+  return si.limit !== null
+    ? `<div class="limit-sign${sm ? ' sm' : ''}" aria-label="Speed limit ${si.limit}"><span class="t">SPEED<br>LIMIT</span><span class="v num">${si.limit}</span></div>`
+    : `<div class="limit-sign dim${sm ? ' sm' : ''}" aria-label="Speed limit not available"><span class="t">SPEED<br>LIMIT</span><span class="v num">${si.limitState === 'loading' ? '…' : '—'}</span></div>`;
+}
+
+/// The next maneuver within 10 miles from the route's own steps (engine/guidance.js), or null.
+function maneuverAhead(app, s) {
+  if (app.mode !== 'trip' || !app.plan) return null;
+  const route = app.plan.route;
+  return nextManeuver(route, s.progress, { within: 10 * MILE, destinationName: route.destination?.name ?? null, exits: app.plan.exits });
+}
+
+const ARROWS = {
+  straight: 'M12 21V5M6 10l6-6 6 6',
+  left: 'M17 21v-8a4 4 0 0 0-4-4H6M10 5L6 9l4 4',
+  right: 'M7 21v-8a4 4 0 0 1 4-4h7M14 5l4 4-4 4',
+  uturn: 'M8 21V9a4 4 0 0 1 8 0v4M12 10l4 4 4-4',
+  keepLeft: 'M14 21v-6L8 9V4M4 8l4-4 4 4M14 15l4-4',
+  keepRight: 'M10 21v-6l6-6V4M12 8l4-4 4 4M10 15L6 11',
+  exitRight: 'M8 21V8M8 13c0-4 3-7 8-7M12 3l4 3-4 3',
+  exitLeft: 'M16 21V8M16 13c0-4-3-7-8-7M12 3L8 6l4 3',
+  merge: 'M8 21v-5l8-8V4M12 8l4-4 4 4M16 21v-6',
+  arrive: 'M6 21V4M6 4h11l-2 4 2 4H6',
+  roundabout: 'M12 21v-5M12 10a3 3 0 1 0 0-.01M15 7l2-3M17 4h-3',
+};
+
+function arrowPath(m) {
+  if (m.kind === 'arrive') return ARROWS.arrive;
+  if (m.kind === 'roundabout') return ARROWS.roundabout;
+  if (m.kind === 'merge') return ARROWS.merge;
+  if (m.kind === 'exit') return m.side === 'left' ? ARROWS.exitLeft : ARROWS.exitRight;
+  if (m.kind === 'fork' || m.kind === 'ramp') return m.side === 'left' ? ARROWS.keepLeft : m.side === 'right' ? ARROWS.keepRight : ARROWS.straight;
+  return ARROWS[m.side] ?? ARROWS.straight;
+}
+
+/// "1.6 mi", "0.3 mi", "Now".
+function guideMiles(meters) {
+  const mi = meters / MILE;
+  if (mi < 0.1) return 'Now';
+  return `${mi < 10 ? mi.toFixed(1) : Math.round(mi)}<span> mi</span>`;
+}
+
+/// The words on the next exit's sign: its name, else the services there.
+function exitWords(app, exit) {
+  const services = app.servicesFor(exit);
+  const words = PLAQUE_ORDER.filter((c) => c <= 5 && services.some((x) => x.place.category === c)).map((c) => PLAQUE_WORDS[c].charAt(0) + PLAQUE_WORDS[c].slice(1).toLowerCase());
+  return { name: exit.name || null, services: words.join(' · '), html: words.length ? `<span class="svc-words">${words.map((x) => `<span>${h(x)}</span>`).join('')}</span>` : '' };
+}
+
+/// The guidance banner: the next maneuver when one comes within 10 miles, else the next exit, as a green
+/// guide sign. A second line keeps the other in view.
+function guidanceBanner(app, s) {
+  const m = maneuverAhead(app, s);
+  const ne = s.nextExit;
+  const hw = s.highway ? `${highwayLabel(s.highway.ref)} ${s.highway.direction}` : null;
+  if (m) {
+    const nextExit = ne && ne.distance < m.distance - 50 && m.kind !== 'exit'
+      ? `<button class="guide-sub" data-act="exit" data-arg="${h(ne.exit.id)}">Next exit · ${h(exitTitle(ne.exit))} · ${miles(ne.distance)}</button>` : '';
+    return `<div class="guide maneuver" role="status" aria-label="${h(m.text)} in ${h(miles(m.distance))}">
+      <svg class="guide-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${arrowPath(m)}"/></svg>
+      <div class="guide-main"><div class="guide-dist num">${guideMiles(m.distance)}</div><div class="guide-text">${h(m.text)}</div></div></div>${nextExit}`;
+  }
+  if (!ne) {
+    return hw ? `<div class="guide quiet" role="status"><div class="guide-main"><div class="guide-text">${h(hw)}</div><div class="guide-meta">No exits listed ahead on this road</div></div></div>` : '';
+  }
+  const w = exitWords(app, ne.exit);
+  const far = app.mode === 'trip' ? nextManeuver(app.plan.route, s.progress, { exits: [] }) : null;
+  const stay = hw ? `${h(hw)}${far ? ` for ${miles(far.distance)}` : ''}` : '';
+  return `<button class="guide exit" data-act="exit" data-arg="${h(ne.exit.id)}" aria-label="Next exit, ${h(exitTitle(ne.exit))}, ${h(miles(ne.distance))}">
+    <div class="guide-main">
+      <div class="guide-row">${exitSign(ne.exit.label, true)}<span class="guide-dist num">${guideMiles(ne.distance)}</span><span class="guide-time">${duration(ne.eta - s.t)}</span></div>
+      <div class="guide-text">${w.name ? h(w.name) : w.html || 'No services listed'}</div>
+      ${w.name && w.html ? `<div class="guide-meta">${w.html}</div>` : ''}
+    </div></button>${stay ? `<div class="guide-sub static">${stay}</div>` : ''}`;
+}
+
+/// The state line in one line: the next state, the miles and exits to it, the crossing time, the share of
+/// this state driven. Emphasized when the line is close (adaptive card "border").
+function stateLine(s, { emphasis = false, compact = false } = {}) {
+  const cur = s.current, next = s.next;
+  if (!cur) return '';
+  const pct = Math.round(Math.max(0, Math.min(1, cur.fractionComplete)) * 100);
+  if (!next) {
+    return `<div class="state-line${compact ? ' compact' : ''}"><div class="sl-head">${badge(cur.segment.code, true, true)}<span class="sl-name">Final state: ${h(cur.segment.displayName)}</span>
+      <span class="sl-miles num">${milesValue(cur.remainingMeters)}<span> mi</span></span></div>
+      <div class="sl-facts">${cur.exitsRemaining} exits left · ${pct}% driven</div>${progress(cur.fractionComplete)}</div>`;
+  }
+  const crossing = cur.exitTime !== null ? clock(cur.exitTime, cur.exitTimeZoneID, s.t) : null;
+  return `<div class="state-line${emphasis ? ' near' : ''}${compact ? ' compact' : ''}">
+    <div class="sl-head">${badge(cur.segment.code, true, true)}<span class="sl-arrow" aria-hidden="true">→</span>${badge(next.segment.code, false, true)}
+      <span class="sl-name">${h(next.segment.displayName)}${next.segment.isBrief ? ' <span class="amber-text tiny">brief</span>' : ''}</span>
+      <span class="sl-miles num">${milesValue(cur.remainingMeters)}<span> mi</span></span></div>
+    <div class="sl-facts"><b class="num">${cur.exitsRemaining}</b> exit${cur.exitsRemaining === 1 ? '' : 's'} left in ${h(cur.segment.code ?? 'this state')}${crossing ? ` · crossing ${crossing}` : ''} · ${pct}% of ${h(cur.segment.code ?? cur.segment.displayName)}</div>
+    ${progress(cur.fractionComplete)}</div>`;
+}
+
+/// Miles left, arrival and states left (or the corridor in discovery mode), opening the Trip tab.
+function tripStrip(app, s) {
+  const discovery = app.mode === 'discovery';
+  const left = discovery
+    ? `<span><b class="num">${milesValue(s.remaining)}</b> mi of corridor ahead</span>`
+    : `<span><b class="num">${milesValue(s.remaining)}</b> mi left</span><span><b class="num">${clock(s.eta, null, s.t)}</b> arrival</span><span><b class="num">${s.statesAhead.length}</b> state${s.statesAhead.length === 1 ? '' : 's'}</span>`;
+  return `<button class="trip-strip" data-act="tab" data-arg="${discovery ? 'ahead' : 'trip'}" aria-label="Trip">${left}</button>`;
+}
+
+/// The journey panel, the same in both presentations: the state line over the trip strip.
+function journey(app, s, f, { ribbon = false } = {}) {
+  if (!s.current) return `<div class="journey">${tripStrip(app, s)}</div>`;
+  return `<div class="journey${f.focus === 'border' ? ' near' : ''}">${ribbon ? `<div class="journey-ribbon">${stateRibbon(s)}</div>` : ''}${stateLine(s, { emphasis: f.focus === 'border', compact: !ribbon })}${tripStrip(app, s)}</div>`;
+}
+
+/// Fuel and the one tap restroom stop, labeled (Focus View).
+function actionRow() {
+  return `<div class="fv-actions"><button class="btn" data-act="sheet" data-arg="fuel">${ICONS.fuel}Fuel</button><button class="btn" data-act="sheet" data-arg="restroom">${ICONS.restroom}Restroom</button></div>`;
+}
+
+/// One adaptive card: the focus, or, when the focus already has its own place on screen (the next exit, the
+/// state line), the first strip item worth a card.
+function adaptiveCard(app, s, f, { exitShown }) {
+  const own = exitShown ? ['exit', 'border', 'none'] : ['border', 'none'];
+  let kind = f.focus;
+  if (own.includes(kind)) kind = f.strip.find((k) => ['alert', 'fuel', 'stop', 'gap', 'restArea'].includes(k)) ?? null;
+  if (!kind) return '';
+  return focusCard(app, s, kind);
+}
+
+/// Navigation View: the map fills the screen; guidance at the top, speed on the left, controls on the right,
+/// one adaptive card and the trip strip at the bottom. The map itself lives outside the view (navmap.js) so
+/// it survives re-renders; main.js feeds it navMapState().
+function navView(app, s, f, extras) {
+  const si = speedInfo(app, s);
+  const following = app.navMap?.following !== false;
+  const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
+    : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
+  const card = f.focus === 'border' ? borderApproachCard(s) : adaptiveCard(app, s, f, { exitShown: true });
+  return `<div class="nav-view" data-focus="${f.focus}">
+    <div class="nav-top">${guidanceBanner(app, s)}</div>
+    <div class="nav-mid">
+      <div class="nav-left"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>
+      <div class="nav-right">${viewToggle(app)}${following ? '' : roundButton('nav-recenter', 'recenter', 'Follow my position')}
+        ${roundButton('sheet', 'fuel', 'Fuel', 'data-arg="fuel"')}${roundButton('sheet', 'restroom', 'Restroom stop', 'data-arg="restroom"')}</div>
+    </div>
+    <div class="nav-bottom">${offline}${extras.join('')}${card ? `<div class="nav-card">${card}</div>` : ''}
+      ${journey(app, s, f)}</div>
+  </div>`;
+}
+
+/// Approaching the state line (adaptive card "border"): the next state, miles and exits to it.
+function borderApproachCard(s) {
+  const cur = s.current, next = s.next;
+  if (!cur || !next) return '';
+  return `<div class="card focus-card border-card" role="status"><div class="eyebrow amber">🏁 Entering ${h(next.segment.displayName)}</div>
+    <div class="row" style="gap:12px;margin-top:6px"><div style="flex:1;min-width:0"><div class="title-md">${miles(cur.remainingMeters)} to the state line</div>
+      <div class="muted small">${cur.exitsRemaining} exit${cur.exitsRemaining === 1 ? '' : 's'} left in ${h(cur.segment.code ?? cur.segment.displayName)} · ${miles(next.totalMeters)} in ${h(next.segment.displayName)}</div></div>
+      ${badge(next.segment.code, true)}</div></div>`;
+}
+
+/// Focus View: everything a driver needs on one screen, no map: instruments, the state line, the next exit,
+/// one adaptive card and the trip strip.
+function focusView(app, s, f, extras) {
+  const si = speedInfo(app, s);
+  const hw = s.highway;
+  const instruments = `<section class="card fv-instruments ${si.level}">
+    ${speedo(si.mph, si.limit, si.level)}
+    <div class="limit-col">${limitSign(si)}${si.next ? `<div class="limit-next"><b class="num">${si.next.mph}</b> in ${miles(si.next.distance)}</div>` : si.limit === null && si.limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : ''}</div>
+    <div class="road-col">${shield(hw?.ref, 40)}<div class="road-name">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
+      <div class="road-dir">${hw ? DIRECTION_WORDS[hw.direction] : 'roads'}</div></div>
+    ${viewToggle(app)}</section>`;
+  const ne = s.nextExit;
+  const m = maneuverAhead(app, s);
+  const exitRow = m ? `<div class="fv-guide">${guidanceBanner(app, s)}</div>` : ne ? compactExit(app, s, ne) : '';
+  const card = adaptiveCard(app, s, f, { exitShown: Boolean(exitRow) });
+  return `<div class="focus-view" data-focus="${f.focus}">
+    ${instruments}
+    ${journey(app, s, f, { ribbon: true })}
+    ${exitRow}
+    ${card ? `<div class="fv-card">${card}</div>` : ''}
+    ${actionRow()}
+    ${extras.length ? `<div class="stack">${extras.join('')}</div>` : ''}
+    ${screenNote(app)}
+  </div>`;
+}
+
+/// The next exit as a compact green guide sign: number, name or services, distance and time on one panel.
+function compactExit(app, s, ne) {
+  const services = app.servicesFor(ne.exit);
+  const w = exitWords(app, ne.exit);
+  return `<button class="card exit-card fv-exit" data-act="exit" data-arg="${h(ne.exit.id)}">
+    <div class="gsign compact" role="group" aria-label="Next exit ${h(exitTitle(ne.exit))}, ${h(miles(ne.distance))}">
+      <div class="gs-row">${exitSign(ne.exit.label, true)}<span class="gs-dist num">${guideMiles(ne.distance)}</span><span class="gs-time">${duration(ne.eta - s.t)}</span></div>
+      <div class="gsign-name">${w.name ? h(w.name) : w.html || 'No services listed'}</div></div>
+    ${services.length ? servicePlaques(services, { compact: true, max: 2 }) : ''}</button>`;
+}
+
+/// What the Navigation View map shows: the route, the vehicle, and the few places the screen points at.
+export function navMapState(app, s) {
+  const plan = app.plan;
+  const poly = plan.route.polyline;
+  const pos = poly.coordinateAt(Math.min(s.progress, poly.length));
+  const bearing = routeBearing(poly, s.progress);
+  const markers = [{ id: 'you', lat: pos.lat, lon: pos.lon, cls: 'you', rotate: bearing,
+    html: '<span class="puck"><svg viewBox="0 0 24 24"><path d="M12 2.5l7.5 18-7.5-4.2-7.5 4.2z" fill="var(--route)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></span>' }];
+  const ne = s.nextExit;
+  if (ne?.exit.coordinate) markers.push({ id: `exit-${ne.exit.id}`, lat: ne.exit.coordinate.lat, lon: ne.exit.coordinate.lon, cls: 'exit', anchor: 'bottom', html: exitSign(ne.exit.label, true) });
+  const a = focusAlertItem(app, s);
+  if (a && a.start - s.progress <= 50 * MILE) {
+    const c = poly.coordinateAt(Math.max(a.start, s.progress));
+    markers.push({ id: `alert-${a.incident.id}`, lat: c.lat, lon: c.lon, cls: `alert ${alertTier(a.incident)}`, html: `<span>${ALERT_ICONS[a.incident.category] ?? '⚠️'}</span>` });
+  }
+  const p = app.smartStop()?.primary;
+  const pc = p ? (p.place?.coordinate ?? p.exit?.coordinate ?? p.restArea?.coordinate) : null;
+  if (pc) markers.push({ id: `stop-${p.id}`, lat: pc.lat, lon: pc.lon, cls: 'stop', anchor: 'bottom', html: `<span>⛽ ${h(p.name)}</span>` });
+  if (s.nextStop) {
+    const c = s.nextStop.stop.waypoint.coordinate;
+    markers.push({ id: `planned-${s.nextStop.stop.id}`, lat: c.lat, lon: c.lon, cls: 'planned', anchor: 'bottom', html: `<span>📍 ${h(s.nextStop.stop.waypoint.name)}</span>` });
+  }
+  if (s.next?.segment.entryCoordinate) {
+    const c = s.next.segment.entryCoordinate;
+    markers.push({ id: `line-${s.next.segment.index}`, lat: c.lat, lon: c.lon, cls: 'line', html: `<span>${h(s.next.segment.code ?? '')}</span>` });
+  }
+  const mph = app.speedNow() ?? 60;
+  return { key: plan.route.id, poly, progress: s.progress, position: pos, bearing, zoom: mph > 45 ? 12.4 : 13.6, markers };
+}
+
+/// The one tap restroom stop: the best stop with a restroom listed in the next 60 miles and two alternatives,
+/// with what is known about its hours and its restroom (never "open" from a 24 hour listing alone).
+export function restroomSheet(app) {
+  const head = '<div class="sheet-head"><h2>🚻 Restroom stop</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>';
+  const r = app.bestStopAhead(60, { restrooms: true });
+  const note = '<p class="note">Restrooms: rest areas and service plazas list theirs; at stations, a restroom listed by the brand has unknown hours. A station listed open 24 hours can still lock its restroom overnight.</p>';
+  if (!r?.primary) return `${head}<div class="card empty"><div class="t">No stop with a listed restroom in the next 60 miles</div>Stops without a listing may still have one; check Road Ahead for the exits and rest areas coming up.</div>${note}${attribution()}`;
+  const go = (x) => {
+    const c = x.place?.coordinate ?? x.exit?.coordinate ?? x.restArea?.coordinate;
+    if (!c) return '';
+    return `<div class="btn-row" style="margin-top:10px"><a class="btn sm" href="https://maps.apple.com/?daddr=${c.lat},${c.lon}&dirflg=d" target="_blank" rel="noopener">Apple Maps</a>
+      <a class="btn sm" href="https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>`;
+  };
+  const one = (x, best) => `<div class="card stop-card${best ? ' best' : ''}">
+    ${best ? '<div class="eyebrow success-text">Best restroom stop ahead</div>' : ''}
+    <div class="row" style="gap:12px;margin-top:${best ? 8 : 0}px">${smartSign(x)}<div style="flex:1;min-width:0"><div class="title-md">${h(x.name)}</div>
+      <div class="muted small">${h(smartWhere(x))} · ${h(smartArrival(app, x))}</div></div></div>
+    <div style="margin-top:6px">${confLine(x.evaluation.hours.status, x.evaluation.hours.label)}${confLine(x.evaluation.restroom.status, x.evaluation.restroom.label)}</div>
+    ${go(x)}</div>`;
+  return `${head}${r.notice ? `<div class="banner warn" style="margin:0 0 10px">${h(r.notice)}</div>` : ''}
+    <div class="stack">${one(r.primary, true)}${r.alternatives.slice(0, 2).map((x) => one(x, false)).join('')}</div>${note}${attribution()}`;
 }
 
 /// What the focus rule needs from the trip.
@@ -328,6 +601,7 @@ function focusSignals(app, s) {
     fuel, overnight: inOvernightWindow(app.profile, localTime(s.t, zone).minute),
     lastOpen: app.lastOpenAhead()?.stop.ahead ?? null,
     alert: focusAlert(app, s),
+    border: s.next && s.current ? { distance: s.current.remainingMeters } : null,
   };
 }
 
@@ -340,7 +614,7 @@ function focusAlertItem(app, s) {
 
 function focusAlert(app, s) {
   const a = focusAlertItem(app, s);
-  return a ? { distance: Math.max(0, a.start - s.progress), serious: a.serious } : null;
+  return a ? { distance: Math.max(0, a.start - s.progress), serious: a.serious, id: a.incident.id } : null;
 }
 
 const ALERT_ICONS = { closure: '⛔', crash: '⚠️', flooding: '🌊', weather: '⛈️', hazard: '⚠️', disabledVehicle: '🚗', construction: '🚧', congestion: '🐢', police: '🚓', speedCamera: '📷', other: '⚠️' };
@@ -431,66 +705,7 @@ function lastOpenCard(app, s) {
     <div class="muted tiny" style="margin-top:6px">${after}</div></button>`;
 }
 
-/// Under the focus card: the next two things worth knowing, distance first, each opening its details.
-function thenStrip(app, s, kinds) {
-  const ev = Boolean(app.settings.vehicle?.ev);
-  const chip = (attrs, dist, text) => `<button class="then-item" ${attrs}>${dist ? `<b class="num">${dist}</b> ` : ''}${text}</button>`;
-  const item = (k) => {
-    switch (k) {
-      case 'fuel': {
-        const p = app.smartStop()?.primary;
-        if (p) return chip('data-act="sheet" data-arg="fuel"', `${milesValue(p.ahead)} mi`, `⛽ ${h(p.name)}`);
-        const rec = app.fuelPlan()?.recommended;
-        return rec ? chip('data-act="sheet" data-arg="fuel"', `${milesValue(rec.ahead)} mi`, `${ev ? '⚡' : '⛽'} ${h(stopName(rec))}`) : '';
-      }
-      case 'fuelEntry': return chip('data-act="sheet" data-arg="fuel"', '', ev ? '⚡ Enter range' : '⛽ Enter range');
-      case 'gap': {
-        const g = app.gasGapsAhead(s).find((x) => x.to > s.progress);
-        if (!g) return '';
-        const inside = g.from <= s.progress;
-        return chip('data-act="tab" data-arg="ahead"', inside ? '' : `${milesValue(g.from - s.progress)} mi`, `No gas for ${miles(g.to - Math.max(g.from, s.progress))}${g.open ? '+' : ''}`);
-      }
-      case 'stop': return s.nextStop ? chip('data-act="tab" data-arg="trip"', `${milesValue(s.nextStop.distance)} mi`, `📍 ${h(s.nextStop.stop.waypoint.name)}`) : '';
-      case 'alert': {
-        const a = focusAlertItem(app, s);
-        if (!a) return '';
-        const name = a.incident.category === 'weather' || a.incident.category === 'flooding' ? a.incident.description : ALERT_KINDS[a.incident.category].label;
-        return chip('data-act="tab" data-arg="ahead"', a.start > s.progress ? `${milesValue(a.start - s.progress)} mi` : '', `${ALERT_ICONS[a.incident.category] ?? '⚠️'} ${h(name)}`);
-      }
-      case 'restArea': return s.nextRestArea ? chip(`data-act="rest" data-arg="${h(s.nextRestArea.restArea.id)}"`, `${milesValue(s.nextRestArea.distance)} mi`, h(restAreaTitle(s.nextRestArea.restArea))) : '';
-      case 'exit': return s.nextExit ? chip(`data-act="exit" data-arg="${h(s.nextExit.exit.id)}"`, `${milesValue(s.nextExit.distance)} mi`, h(exitTitle(s.nextExit.exit))) : '';
-      default: return '';
-    }
-  };
-  const items = kinds.map(item).filter(Boolean);
-  return items.length ? `<div class="then-strip" aria-label="Then"><span class="then-label">Then</span>${items.join('')}</div>` : '';
-}
 
-/// The instrument cluster: speedometer, posted limit, highway and state.
-function cluster(app, s) {
-  const mph = app.speedNow();
-  const onRoute = s.match.status === 'onRoute';
-  const limits = app.limits;
-  const limit = onRoute && limits ? limits.at(s.progress) : null;
-  const limitState = !onRoute ? 'unknown' : limits ? limits.state(s.progress) : 'loading';
-  const over = mph !== null && limit !== null ? mph - limit : null;
-  const level = over === null || over <= 0 ? 'ok' : over <= app.settings.speedAlertOver ? 'warn' : 'over';
-  const next = onRoute && limits ? limits.nextChange(s.progress) : null;
-  const hw = s.highway;
-  const sign = limit !== null
-    ? `<div class="limit-sign" aria-label="Speed limit ${limit}"><span class="t">SPEED<br>LIMIT</span><span class="v num">${limit}</span></div>`
-    : `<div class="limit-sign dim" aria-label="Speed limit not available"><span class="t">SPEED<br>LIMIT</span><span class="v num">${limitState === 'loading' ? '…' : '—'}</span></div>`;
-  const nextLine = next ? `<div class="limit-next"><b class="num">${next.mph}</b> in ${miles(next.distance)}</div>`
-    : limit === null && limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : '';
-  return `<section class="card cluster ${level}">
-    ${speedo(mph, limit, level)}
-    <div class="limit-col">${sign}${nextLine}</div>
-    <div class="road-col">${shield(hw?.ref, 46)}
-      <div class="road-name">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
-      <div class="road-dir">${hw ? DIRECTION_WORDS[hw.direction] : 'roads'}</div>
-      <div class="road-state">${badge(s.current?.segment.code, true, true)}<span class="muted tiny">${app.mode === 'discovery' ? 'Discovery' : h(s.current?.segment.displayName ?? '')}</span></div>
-    </div></section>`;
-}
 
 /// Ring speedometer: 270 degree arc, value arc colored by the limit, tick at the posted limit.
 function speedo(mph, limit, level) {
@@ -535,32 +750,6 @@ function stateRibbon(s) {
     <div class="ribbon-labels">${labels}</div></div>`;
 }
 
-function borderCard(s) {
-  const cur = s.current, next = s.next;
-  let body;
-  if (next) {
-    const crossing = cur.exitTime !== null ? clock(cur.exitTime, cur.exitTimeZoneID, s.t) : '—';
-    const inTime = cur.exitTime !== null ? `in ${duration(cur.exitTime - s.t)}` : '';
-    body = `<div class="row top"><div style="flex:1;min-width:0"><div class="eyebrow">Next state</div><div class="title-xl">${h(next.segment.displayName)}</div></div>
-      ${next.segment.isBrief ? '<span class="amber-text small">Brief crossing</span>' : ''}</div>
-      <div class="metrics" style="margin-top:14px">
-        ${metric('To state line', milesValue(cur.remainingMeters), { unit: 'mi' })}
-        ${metric('Exits left', String(cur.exitsRemaining), { caption: `in ${cur.segment.code ?? 'this state'}` })}
-        ${metric('Crossing', crossing, { caption: inTime, size: 'sm' })}
-      </div>
-      ${cur.remainingMeters < 5 * MILE ? `<p class="amber-text" style="margin:12px 0 0">🏁 Entering ${h(next.segment.displayName)} in ${miles(cur.remainingMeters)}</p>` : ''}
-      <p class="muted small" style="margin:10px 0 0">You will drive ${miles(next.totalMeters)} in ${h(next.segment.displayName)}${next.plannedDuration !== null ? `, about ${duration(next.plannedDuration)}` : ''}.</p>`;
-  } else {
-    body = `<div class="eyebrow">Final state</div><div class="title-lg">${h(cur.segment.displayName)}</div>
-      <div class="metrics two" style="margin-top:12px">${metric(`Left in ${cur.segment.code ?? 'state'}`, milesValue(cur.remainingMeters), { unit: 'mi' })}
-      ${metric('Exits left', String(cur.exitsRemaining))}</div>`;
-  }
-  const pct = Math.round(Math.max(0, Math.min(1, cur.fractionComplete)) * 100);
-  return `<div class="card lg state-card">${stateRibbon(s)}${body}
-    <div class="state-progress"><div class="row"><span class="pct num">${pct}%</span><span class="muted small">of ${h(cur.segment.displayName)} driven</span><span class="spacer"></span><span class="muted small num">${miles(cur.drivenMeters)} of ${miles(cur.totalMeters)}</span></div>
-    ${progress(cur.fractionComplete)}
-    <div class="row muted small" style="margin-top:6px"><span>${miles(cur.remainingMeters)} left in ${h(cur.segment.code ?? cur.segment.displayName)}</span><span class="spacer"></span><span>${cur.exitCount} exits in ${h(cur.segment.code ?? 'state')}</span></div></div></div>`;
-}
 
 function nextExitCard(app, s) {
   const ne = s.nextExit;
@@ -745,18 +934,6 @@ function stationNames(st) {
   return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '');
 }
 
-function destinationCard(app, s, discovery) {
-  if (discovery) {
-    return `<div class="card"><div class="metrics two">${metric('Corridor ahead', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
-      ${metric('State lines', String(s.borderCrossingsRemaining), { caption: 'within lookahead', size: 'md' })}</div></div>`;
-  }
-  const stop = s.nextStop ? `<p class="muted small" style="margin:10px 0 0">Next stop: ${h(s.nextStop.stop.waypoint.name)}, ${miles(s.nextStop.distance)}, ${clock(s.nextStop.eta, null, s.t)}</p>` : '';
-  return `<div class="card"><div class="metrics">
-    ${metric('Remaining', milesValue(s.remaining), { unit: 'mi', size: 'md' })}
-    ${metric('Arrival', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}
-    ${metric('States left', String(s.statesAhead.length), { caption: s.statesAhead.slice(0, 4).join(' · '), size: 'md' })}
-  </div>${stop}${paceNote(app, s)}</div>`;
-}
 
 function paceNote(app, s) {
   let text;
@@ -960,7 +1137,7 @@ function tripOverview(app, plan, s) {
     ${discovery ? '' : metric('Arrive', clock(s.eta, null, s.t), { caption: duration(s.timeRemaining), size: 'sm' })}</div>
     ${discovery ? '' : `<div class="muted small" style="margin-top:10px">Total trip ${miles(s.drivenTotal + s.remaining)} · ${plural(new Set(plan.states.segments.filter((x) => x.code).map((x) => x.code)).size, 'state')} on the route${plan.restAreas.length ? ` · ${plural(plan.restAreasBetween(s.progress, plan.route.length).length, 'rest stop')} ahead on the highway` : ''}</div>`}`;
   const completed = s.drivenStints.slice(0, -1);
-  let html = `<div class="stack"><div class="card" style="padding:8px">${map}</div><div class="card">${summary}</div>`;
+  let html = `<div class="stack"><div class="card" style="padding:8px">${map}</div><div class="card">${summary}${discovery ? '' : paceNote(app, s)}</div>`;
   if (completed.length) {
     html += `<div><div class="section-title">Completed</div><div class="list">${completed.map((st) => `<div class="item">${badge(st.code)}<div class="main">${h(st.name)}</div><div class="side num muted">${miles(st.meters)}</div></div>`).join('')}</div></div>`;
   }
@@ -1095,7 +1272,8 @@ export function settingsView(app) {
       <div class="field"><span style="flex:1">Test the voice</span><button class="btn sm" data-act="test-voice">Speak</button></div></div></div>
     <div><div class="section-title">Screen</div><div class="list">
       ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
-      <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div></div></div>
+      <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
+      <div class="field"><span style="flex:1">Drive screen<div class="muted tiny">Map first, or the compact dashboard. Also on the Drive screen.</div></span><div class="seg" style="width:200px">${[['map', 'Map'], ['focus', 'Focus']].map(([k, n]) => `<button class="${(st.drivePresentation === 'focus' ? 'focus' : 'map') === k ? 'on' : ''}" data-act="drive-view" data-arg="${k}">${n}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Speedometer</div><div class="list">
       <div class="field"><span style="flex:1">Turn red when over the limit by<div class="muted tiny">Amber from 1 mph over. Limits are OpenStreetMap posted speeds via Valhalla; not every road has one.</div></span>
         <div class="seg" style="width:190px">${[0, 5, 10, 15].map((v) => `<button class="${st.speedAlertOver === v ? 'on' : ''}" data-act="speed-alert" data-arg="${v}">${v}</button>`).join('')}</div></div></div></div>

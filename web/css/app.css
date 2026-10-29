@@ -2,14 +2,16 @@
 :root {
   /* Colors, type sizes, spacing and radii come from tokens.css (generated from design/tokens.json). */
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  /* Elevation for surfaces floating over the map: soft, never glossy. */
+  --elev: 0 10px 28px -12px rgba(16, 24, 40, 0.28), 0 1px 2px rgba(16, 24, 40, 0.06);
   --radius: var(--radius-card);
   --tabbar-h: 58px;
   --num: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --shadow: none; }
+  :root:not([data-theme="light"]) { --shadow: none; --elev: 0 12px 32px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03); }
 }
-:root[data-theme="dark"] { --shadow: none; }
+:root[data-theme="dark"] { --shadow: none; --elev: 0 12px 32px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03); }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; font: -apple-system-body; }
@@ -343,28 +345,6 @@ a.btn { text-decoration: none; }
 .toast.show { opacity: 1; }
 .attrib { font-size: var(--type-caption); color: var(--text-2); padding: 4px 4px 0; }
 .note { font-size: var(--type-caption); color: var(--text-2); }
-/* Drive dash */
-.dash { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
-.dash-col { display: contents; }
-.dash .cluster { order: 1; }
-.dash .dash-border { order: 2; }
-.dash .dash-focus { order: 3; gap: 10px; }
-.dash .dash-dest { order: 4; }
-.dash-extras { order: 5; }
-.dash-extras:empty { display: none; }
-.cluster {
-  display: grid; grid-template-columns: 136px 70px minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px 16px;
-  background:
-    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--sign-green) 12%, transparent) 0%, transparent 55%),
-    var(--card);
-  transition: border-color .3s, box-shadow .3s;
-}
-.cluster.warn { border-color: color-mix(in srgb, var(--amber) 70%, var(--stroke)); }
-.cluster.over {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 35%, transparent), var(--shadow);
-  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--danger) 18%, transparent) 0%, transparent 60%), var(--card);
-}
 .speedo { position: relative; width: 136px; height: 136px; }
 .speedo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .speedo-track { fill: none; stroke: var(--chip); stroke-width: 13; stroke-linecap: round; }
@@ -393,21 +373,13 @@ a.btn { text-decoration: none; }
 .road-col { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .road-name { font: 900 26px/1.05 var(--num); letter-spacing: -0.5px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .road-dir { font: 700 15px var(--num); color: var(--text-2); }
-.road-state { display: flex; align-items: center; gap: 6px; margin-top: 6px; min-width: 0; }
-.road-state .tiny { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Phone mounted sideways: two columns, cluster and state line on the left. */
+/* Phone mounted sideways: a shorter app bar and tab bar. */
 @media (orientation: landscape) and (max-height: 560px) {
   :root { --tabbar-h: 46px; }
   .appbar { padding-top: calc(env(safe-area-inset-top) + 4px); padding-bottom: 4px; min-height: 40px; }
   .appbar h1 { font-size: 17px; }
   main { max-width: none; }
-  .dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .dash .card { padding: 12px 14px; }
-  .dash-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .road-name { font-size: 20px; }
-  .road-state .tiny { display: none; }
-  .dash-extras { grid-column: 1 / -1; }
   .title-xl { font-size: 28px; }
   .metric .value { font-size: 32px; }
   .tabbar { padding-top: 2px; padding-bottom: calc(2px + env(safe-area-inset-bottom)); }
@@ -416,7 +388,6 @@ a.btn { text-decoration: none; }
 }
 
 @media (max-width: 370px) {
-  .cluster { grid-template-columns: 116px 62px minmax(0, 1fr); gap: 8px; padding: 12px; }
   .speedo { width: 116px; height: 116px; }
   .speedo-num { top: 28px; font-size: 46px; }
   .speedo-unit { top: 78px; }
@@ -457,11 +428,6 @@ a.btn { text-decoration: none; }
 .fac .fv .conf { margin-top: 0; }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 
-/* Adaptive Drive screen: one focus card and a one line "Then" strip (never more cards) */
-.then-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 2px 2px; }
-.then-label { font: 700 var(--type-caption)/1 var(--num); letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-2); flex: none; }
-.then-item { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--stroke);
-  background: var(--card); color: var(--text); border-radius: 999px; padding: 8px 12px; font-size: var(--type-caption); font-weight: 650; cursor: pointer; }
 
 /* Road Ahead: the recommended stop marked in place, planned stops */
 .exit-row.rec { box-shadow: inset 4px 0 0 var(--sign-green); }
@@ -471,3 +437,233 @@ a.btn { text-decoration: none; }
 .list > .item.alert-row.serious, .alert-card.serious { border-color: var(--danger); }
 .list > .item.alert-row.serious { background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
 .alert-status { margin: 0; }
+
+/* Drive: Navigation View (map first) and Focus View (compact dashboard), docs/15. One adaptive card, the
+   guidance banner as a green guide sign, the state line and the trip strip; nothing a driver needs scrolls. */
+.success-text { color: var(--success); }
+/* An id selector, so MapLibre's own stylesheet (.maplibregl-map { position: relative }) cannot pull the map into the page flow. */
+#navmap.navmap { position: fixed; inset: 0; z-index: 0; display: none; background: var(--map-bg); }
+body.nav-mode #navmap.navmap { display: block; }
+body.nav-mode { padding-bottom: 0; background: var(--map-bg); }
+body.nav-mode .appbar { background: color-mix(in srgb, var(--bg) 74%, transparent); }
+body.nav-mode main { padding: 0; max-width: none; }
+.navmap .maplibregl-ctrl-bottom-right { bottom: var(--attr-bottom, 180px); right: var(--attr-right, 4px); }
+.navmap .maplibregl-ctrl-attrib { font-size: 10px; line-height: 1.3; background: color-mix(in srgb, var(--bg) 72%, transparent); color: var(--text-2); border-radius: 8px 0 0 8px; padding: 2px 6px; }
+.navmap .maplibregl-ctrl-attrib a { color: var(--text-2); }
+
+.nav-view {
+  position: fixed; z-index: 10; top: calc(var(--chrome-top, 60px) + 6px); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
+  left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); max-width: 720px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+}
+.nav-view button, .nav-view a, .nav-view .card, .nav-view .guide, .nav-view .nav-strip, .nav-view .speed-chip, .nav-view .nav-note, .nav-view .banner { pointer-events: auto; }
+.nav-top { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.nav-mid { flex: 1; min-height: 0; display: flex; justify-content: space-between; align-items: flex-start; }
+.nav-left { display: flex; gap: 8px; align-items: center; }
+.nav-right { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+.nav-bottom { display: flex; flex-direction: column; gap: 8px; }
+.nav-card .card { background: var(--raised); box-shadow: var(--elev); }
+.nav-card .card.alert-card.serious { border-color: var(--danger); }
+.journey { background: var(--raised); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: var(--elev); overflow: hidden; }
+.journey .state-line { padding: 10px 14px 9px; }
+.journey .trip-strip { border-top: 1px solid var(--stroke); }
+.journey.near { border-color: var(--amber); }
+.journey-ribbon { padding: 12px 14px 0; }
+.journey-ribbon .ribbon { margin-bottom: 4px; }
+.nav-view .journey { pointer-events: auto; }
+body.nav-mode #banner { position: relative; z-index: 15; }
+.nav-note { align-self: center; font-size: var(--type-caption); font-weight: 650; padding: 6px 12px; border-radius: 999px; background: var(--raised); color: var(--text-2); box-shadow: var(--elev); }
+
+/* Guidance: the next maneuver or the next exit, as a green guide sign. */
+.guide {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; cursor: pointer; color: var(--sign-ink);
+  background: var(--sign-green); border-radius: 18px; padding: 11px 14px 12px; font-family: var(--sign-font);
+  box-shadow: inset 0 0 0 2px var(--sign-green), inset 0 0 0 3.5px rgba(255, 255, 255, 0.9), var(--elev);
+}
+.guide.quiet { background: var(--raised); color: var(--text); box-shadow: var(--elev); border: 1px solid var(--stroke); cursor: default; }
+.guide.maneuver { cursor: default; }
+.guide-arrow { width: 46px; height: 46px; flex: none; }
+.guide-main { flex: 1; min-width: 0; }
+.guide-row { display: flex; align-items: center; gap: 10px; }
+.guide-dist { font: 800 30px/1 var(--sign-font); letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+.guide-dist span { font-size: 17px; font-weight: 700; margin-left: 1px; }
+.guide-time { margin-left: auto; font: 700 17px/1 var(--sign-font); opacity: 0.92; }
+.guide-text { font: 700 19px/1.18 var(--sign-font); margin-top: 5px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.guide.maneuver .guide-text { margin-top: 3px; }
+.guide-meta { font: 600 14px/1.2 var(--sign-font); opacity: 0.88; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Service words as on a sign, spaced evenly (the sign font's middle dot sits off center). */
+.svc-words { display: inline-flex; flex-wrap: wrap; column-gap: 12px; }
+.svc-words > span + span::before { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.75; margin: 0 8px 0 -8px; vertical-align: middle; }
+.guide .exit-sign { box-shadow: inset 0 0 0 2px var(--sign-green), inset 0 0 0 3.5px rgba(255, 255, 255, 0.95); }
+.guide-sub {
+  border: 1px solid var(--stroke); cursor: pointer; background: var(--raised); color: var(--text); font-weight: 650; font-size: var(--type-caption);
+  padding: 7px 12px; border-radius: 999px; box-shadow: var(--elev); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.guide-sub.static { cursor: default; color: var(--text-2); }
+
+/* Speed over the map */
+.speed-chip {
+  width: 68px; height: 68px; border-radius: 50%; background: var(--raised); border: 2px solid var(--stroke); box-shadow: var(--elev);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; transition: border-color .3s;
+}
+.speed-chip .num { font: 900 27px/1 var(--num); letter-spacing: -0.6px; }
+.speed-chip small { font: 800 9.5px var(--num); letter-spacing: 1px; color: var(--text-2); margin-top: 2px; }
+.speed-chip.warn { border-color: var(--amber); }
+.speed-chip.warn .num { color: var(--amber); }
+.speed-chip.over { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 35%, transparent), var(--elev); }
+.speed-chip.over .num { color: var(--danger); }
+.limit-sign.sm { width: 50px; padding: 4px 3px; border-width: 2.5px; }
+.limit-sign.sm .t { font-size: 7.5px; }
+.limit-sign.sm .v { font-size: 25px; margin-top: 2px; }
+
+/* Round controls and the presentation switch */
+.round-btn {
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--stroke); background: var(--raised); color: var(--text);
+  display: grid; place-items: center; box-shadow: var(--elev); cursor: pointer; padding: 0; flex: none;
+}
+.round-btn svg { width: 22px; height: 22px; }
+.view-toggle { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--raised); border: 1px solid var(--stroke); box-shadow: var(--elev); }
+.view-toggle button { width: 38px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.view-toggle button svg { width: 18px; height: 18px; }
+.view-toggle button.on { background: var(--accent); color: #fff; }
+
+/* Map markers: only what the screen points at */
+.nav-marker.you .puck { display: block; width: 30px; height: 30px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)); }
+.nav-marker.you .puck svg { width: 100%; height: 100%; }
+.nav-marker.exit .exit-sign { transform: scale(0.82); transform-origin: bottom center; }
+.nav-marker.alert span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-size: 17px; background: var(--amber-fill); border: 2px solid var(--amber); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.nav-marker.alert.urgent span { background: var(--danger-fill); border-color: var(--danger); }
+.nav-marker.alert.info span { background: var(--info-fill); border-color: var(--info); }
+.nav-marker.stop span, .nav-marker.planned span { display: inline-block; padding: 4px 8px; border-radius: 10px; background: var(--sign-blue); color: #fff; font-weight: 700; font-size: 12px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.nav-marker.planned span { background: var(--raised); color: var(--text); }
+.nav-marker.line span { display: inline-block; padding: 3px 7px; border-radius: 6px; background: var(--raised); color: var(--text); font: 900 12px var(--num); border: 1.5px solid var(--text-2); }
+
+/* The state line in one panel */
+.sl-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sl-arrow { color: var(--text-2); font-weight: 800; }
+.sl-name { flex: 1; min-width: 0; font: 800 17px/1.2 var(--num); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 4px; }
+.sl-miles { font: 800 26px/1 var(--num); letter-spacing: -0.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sl-miles span { font-size: 14px; color: var(--text-2); font-weight: 700; margin-left: 2px; letter-spacing: 0; }
+.sl-facts { font-size: var(--type-caption); color: var(--text-2); margin: 4px 0 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-facts b { color: var(--text); }
+.state-line .progress { height: 5px; }
+.state-line.near .sl-miles, .state-line.near .sl-name { color: var(--amber); }
+.state-line.compact .sl-miles { font-size: 22px; }
+
+/* Trip strip */
+.trip-strip { display: flex; width: 100%; gap: 12px; align-items: baseline; justify-content: space-between; border: 0; background: transparent; color: var(--text-2); font-size: var(--type-caption); padding: 9px 14px; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; }
+.trip-strip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.trip-strip b { color: var(--text); font: 800 16px var(--num); margin-right: 3px; }
+
+/* Focus View */
+.focus-view { display: flex; flex-direction: column; gap: 10px; }
+.fv-instruments { position: relative; display: grid; grid-template-columns: 104px 64px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 14px; }
+.fv-instruments .speedo { width: 104px; height: 104px; }
+.fv-instruments .speedo-num { top: 26px; font-size: 42px; }
+.fv-instruments .speedo-unit { top: 70px; font-size: 11px; }
+.fv-instruments .road-col { padding-top: 30px; }
+.fv-instruments .road-name { font-size: 22px; }
+.fv-instruments .view-toggle { position: absolute; top: 8px; right: 8px; box-shadow: none; background: var(--chip); border-color: transparent; }
+.fv-instruments.warn { border-color: color-mix(in srgb, var(--amber) 70%, var(--stroke)); }
+.fv-instruments.over { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 35%, transparent); }
+.fv-exit { padding: 8px; }
+.gsign.compact { margin-top: 0; padding: 10px 12px 9px; border-radius: 12px; }
+.gsign.compact .gs-row { display: flex; align-items: center; gap: 10px; }
+.gs-dist { font: 800 28px/1 var(--sign-font); font-variant-numeric: tabular-nums; }
+.gs-dist span { font-size: 15px; }
+.gs-time { margin-left: auto; font: 700 16px/1 var(--sign-font); }
+.gsign.compact .gsign-name { padding-right: 0; font-size: 18px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fv-exit .plaques.compact { margin: 8px 2px 0; flex-wrap: nowrap; overflow: hidden; }
+.fv-guide { display: flex; flex-direction: column; gap: 6px; }
+.focus-view .journey { background: linear-gradient(180deg, var(--navy), var(--card) 70%); box-shadow: var(--shadow); }
+.focus-view .journey .sl-name { font-size: 24px; letter-spacing: -0.3px; }
+.focus-view .journey .sl-miles { font-size: 36px; }
+.fv-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fv-actions .btn { background: var(--card); border: 1px solid var(--stroke); padding: 11px 12px; }
+.fv-actions .btn svg { width: 20px; height: 20px; }
+.fv-exit .plaques.compact .plaque { flex: none; }
+.fv-card .card .title-md, .nav-card .card .title-md { font-size: 18px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.nav-card .ra-unknown, .fv-card .ra-unknown, .nav-card .ra-card .ams { display: none; }
+
+@media (max-width: 370px) {
+  .fv-instruments { grid-template-columns: 92px 56px minmax(0, 1fr); gap: 8px; padding: 8px 10px; }
+  .fv-instruments .speedo { width: 92px; height: 92px; }
+  .fv-instruments .speedo-num { top: 22px; font-size: 36px; }
+  .fv-instruments .speedo-unit { top: 61px; }
+  .focus-view .journey .sl-name { font-size: 20px; }
+  .focus-view .journey .sl-miles { font-size: 30px; }
+  .guide-dist { font-size: 26px; }
+  .guide-text { font-size: 17px; }
+  .trip-strip b { font-size: 15px; }
+}
+
+/* Short screens (iPhone SE and similar): everything a driver needs still fits without scrolling. */
+@media (orientation: portrait) and (max-height: 700px) {
+  .fv-instruments { grid-template-columns: 88px 58px minmax(0, 1fr); padding: 8px 12px; }
+  .fv-instruments .speedo { width: 88px; height: 88px; }
+  .fv-instruments .speedo-num { top: 21px; font-size: 35px; }
+  .fv-instruments .speedo-unit { top: 58px; font-size: 10px; }
+  .fv-instruments .limit-sign { width: 56px; }
+  .fv-instruments .limit-sign .v { font-size: 28px; }
+  .fv-instruments .road-col { padding-top: 24px; }
+  .fv-instruments .road-name { font-size: 19px; }
+  .fv-instruments .shield { width: 34px; height: 34px; }
+  .focus-view .journey-ribbon { display: none; }
+  .focus-view .journey .sl-name { font-size: 20px; }
+  .focus-view .journey .sl-miles { font-size: 28px; }
+  .fv-exit .plaques { display: none; }
+  .gsign.compact .gsign-name { font-size: 16px; margin-top: 4px; }
+  .gs-dist { font-size: 24px; }
+  .focus-view { gap: 8px; }
+  .fv-actions .btn { padding: 9px 10px; }
+  .fv-card .card, .nav-card .card { padding: 10px 12px; }
+  .fv-card .card .title-md, .nav-card .card .title-md { -webkit-line-clamp: 1; font-size: 16px; }
+  .nav-card .card .muted.tiny, .fv-card .card .muted.tiny { display: none; }
+  .guide { padding: 9px 12px; }
+  .guide-dist { font-size: 26px; }
+  .guide-text { font-size: 17px; -webkit-line-clamp: 1; }
+  .speed-chip { width: 58px; height: 58px; }
+  .speed-chip .num { font-size: 23px; }
+  .journey .sl-facts { display: none; }
+  .journey .state-line .progress { margin-top: 6px; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .focus-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .focus-view > .fv-instruments, .focus-view > .journey { grid-column: 1; }
+  .focus-view > .fv-exit, .focus-view > .fv-guide, .focus-view > .fv-card, .focus-view > .fv-actions { grid-column: 2; }
+  .focus-view > .fv-instruments, .focus-view > .fv-exit, .focus-view > .fv-guide { grid-row: 1; }
+  .focus-view > .journey { grid-row: 2 / span 2; }
+  .focus-view > .fv-card { grid-row: 2; }
+  .focus-view > .fv-actions { grid-row: 3; }
+  .focus-view { gap: 8px; }
+  .fv-instruments { grid-template-columns: 84px 56px minmax(0, 1fr); padding: 6px 12px; }
+  .fv-instruments .speedo { width: 84px; height: 84px; }
+  .fv-instruments .speedo-num { top: 20px; font-size: 33px; }
+  .fv-instruments .speedo-unit { top: 55px; font-size: 10px; }
+  .fv-instruments .limit-sign { width: 54px; }
+  .fv-instruments .limit-sign .v { font-size: 27px; }
+  .fv-instruments .road-col { padding-top: 22px; }
+  .fv-instruments .road-name { font-size: 19px; }
+  .focus-view .journey-ribbon, .fv-exit .plaques, .journey .sl-facts { display: none; }
+  .focus-view .journey .sl-name { font-size: 19px; }
+  .focus-view .journey .sl-miles { font-size: 26px; }
+  .fv-actions .btn { padding: 8px 10px; }
+  .fv-card .card .title-md { -webkit-line-clamp: 1; font-size: 16px; }
+  .nav-right { flex-direction: row; }
+  .nav-mid { align-items: flex-end; }
+  .speed-chip { width: 56px; height: 56px; }
+  .speed-chip .num { font-size: 22px; }
+  .focus-view > .stack, .focus-view > .note { grid-column: 1 / -1; }
+  .nav-view { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); column-gap: 14px; max-width: none; }
+  .nav-top { grid-column: 1; grid-row: 1; }
+  .nav-mid { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; }
+  .nav-mid .nav-right { order: -1; flex-direction: row; align-self: flex-end; gap: 8px; }
+  .nav-mid .round-btn { width: 40px; height: 40px; }
+  .nav-mid .nav-left { align-self: flex-start; }
+  .nav-bottom { grid-column: 2; grid-row: 1 / span 2; justify-content: flex-end; }
+  .nav-bottom .journey .sl-facts { display: none; }
+  .guide { padding: 9px 12px; }
+  .guide-dist { font-size: 26px; }
+  .guide-text { font-size: 17px; -webkit-line-clamp: 1; }
+}

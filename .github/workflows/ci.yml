@@ -35,6 +35,20 @@ jobs:
         working-directory: infra/worker
         run: npm test
 
+  web-layout:
+    name: Web Drive layout (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install Playwright and Chromium
+        working-directory: web
+        run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - name: Drive screen at phone sizes, both presentations, light and dark
+        run: node web/tests/layout/drive.layout.mjs
+
   ios-app:
     name: iOS app build and screenshots (Xcode)
     runs-on: macos-latest
