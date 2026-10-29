@@ -146,6 +146,8 @@ struct GuidanceBanner: View {
                     .padding(12).frame(maxWidth: .infinity, alignment: .leading).floating()
             }
         }
+        // A container, so its id does not replace the ids of the exit sign and chips inside.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("guidanceBanner")
     }
 
@@ -247,6 +249,7 @@ struct JourneyPanel: View {
         }
         .floating()
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(emphasis ? Theme.amber : .clear, lineWidth: 1.5))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("journeyPanel")
     }
 
@@ -356,6 +359,7 @@ struct NavigationDriveView: View {
                 .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 8)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("navigationDrive")
     }
 
@@ -401,6 +405,7 @@ struct FocusDriveView: View {
                 VStack(spacing: 10) { instruments; journey }
                 VStack(spacing: 10) { exitRow; if let card { card }; actions }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("focusDrive")
         } else {
             VStack(spacing: 10) {
@@ -410,6 +415,7 @@ struct FocusDriveView: View {
                 if let card { card }
                 actions
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("focusDrive")
         }
     }
@@ -557,6 +563,7 @@ struct RestroomSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("restroomSheet")
     }
 

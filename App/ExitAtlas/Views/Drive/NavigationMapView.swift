@@ -30,36 +30,42 @@ struct NavigationMapView: View {
                     .stroke(Theme.route, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
             }
             if let line = snapshot.next?.segment, let code = line.code {
-                Annotation("", coordinate: line.entryCoordinate.clCoordinate) {
+                Annotation("State line, \(line.displayName)", coordinate: line.entryCoordinate.clCoordinate) {
                     StateBadge(code: code, compact: true)
                 }
+                .annotationTitles(.hidden)
             }
             if let exit = snapshot.nextExit?.exit {
-                Annotation("", coordinate: exit.coordinate.clCoordinate, anchor: .bottom) {
+                Annotation(exit.displayTitle, coordinate: exit.coordinate.clCoordinate, anchor: .bottom) {
                     ExitSign(label: exit.label, compact: true).scaleEffect(0.85, anchor: .bottom)
                 }
+                .annotationTitles(.hidden)
             }
             if let stop = snapshot.nextStop {
-                Annotation("", coordinate: stop.stop.waypoint.coordinate.clCoordinate, anchor: .bottom) {
+                Annotation("Planned stop, \(stop.stop.waypoint.name)", coordinate: stop.stop.waypoint.coordinate.clCoordinate, anchor: .bottom) {
                     MapPin(text: "📍 " + stop.stop.waypoint.name, fill: Theme.raised, ink: .primary)
                 }
+                .annotationTitles(.hidden)
             }
             if let pick = trip.smartStop?.primary, let c = stopCoordinate(pick.candidate) {
-                Annotation("", coordinate: c.clCoordinate, anchor: .bottom) {
+                Annotation("Recommended stop, \(pick.candidate.name)", coordinate: c.clCoordinate, anchor: .bottom) {
                     MapPin(text: "⛽ " + pick.candidate.name, fill: Theme.signBlue, ink: .white)
                 }
+                .annotationTitles(.hidden)
             }
             if let alert, let poly, alert.start - progress <= 50 * Geodesy.metersPerMile {
-                Annotation("", coordinate: poly.coordinate(at: max(alert.start, progress)).clCoordinate) {
+                Annotation(alert.incident.headline, coordinate: poly.coordinate(at: max(alert.start, progress)).clCoordinate) {
                     AlertMarker(alert: alert)
                 }
+                .annotationTitles(.hidden)
             }
             if let poly {
-                Annotation("", coordinate: poly.coordinate(at: progress).clCoordinate) {
+                Annotation("Your position", coordinate: poly.coordinate(at: progress).clCoordinate) {
                     VehiclePuck()
                         .rotationEffect(.degrees(poly.bearing(at: progress, window: 800) - cameraHeading))
                         .accessibilityLabel("Your position")
                 }
+                .annotationTitles(.hidden)
             }
         }
         .mapStyle(.standard(elevation: .realistic, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
