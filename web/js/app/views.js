@@ -865,7 +865,6 @@ export function exitDetail(app, exitId) {
   if (!exit) return '<div class="empty">Exit not found on this route.</div>';
   const s = app.snapshot;
   const services = app.servicesFor(exit);
-  const ahead = s ? exit.distanceAlongRoute - s.progress : null;
   let groups = '';
   for (let cat = 1; cat < CATEGORY_NAMES.length; cat++) {
     const items = services.filter((x) => x.place.category === cat);
@@ -874,19 +873,18 @@ export function exitDetail(app, exitId) {
   }
   const c = exit.coordinate;
   return `<div class="sheet-head">${exitSign(exit.label)}<h2>${h(exit.name || (exit.label ? 'Exit services' : exitTitle(exit)))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(exit.distanceAlongRoute) - s.t)} · ` : ''}${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
+    <p class="muted small" style="margin-top:0"><span data-along="${exit.distanceAlongRoute}">${aheadText(s, exit.distanceAlongRoute)}</span>${exit.highways.length ? h(exit.highways.join(' · ')) : ''}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(exitTitle(exit))}" target="_blank" rel="noopener">Apple Maps</a>
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
-    <p class="note">Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
+    <p class="note">Round trips are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
 }
 
 export function restAreaDetail(app, id) {
   const r = app.plan?.restAreas.find((x) => x.id === id);
   if (!r) return '<div class="empty">Rest area not found on this route.</div>';
   const s = app.snapshot;
-  const ahead = s ? r.distanceAlongRoute - s.progress : null;
   const c = r.coordinate;
   const badges = amenityBadges(r);
   const am = badges.length
@@ -898,7 +896,7 @@ export function restAreaDetail(app, id) {
     : r.fhwaTruckSpaces != null ? `${r.fhwaTruckSpaces} truck spaces (FHWA survey, 2019)` : null;
   const osm = r.records.map((x) => `<a href="https://www.openstreetmap.org/${h(x.id)}" target="_blank" rel="noopener">${h(x.id)}</a>`).join(', ');
   return `<div class="sheet-head">${restSign(r.kind)}<h2>${h(restAreaTitle(r))}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <p class="muted small" style="margin-top:0">${ahead !== null && ahead > 0 ? `${miles(ahead)} ahead · ${duration(s.etaTo(r.distanceAlongRoute) - s.t)} · ` : ''}${h(r.road)} · ${r.side === 'both' ? 'In the median or on an undivided road: serves both directions' : 'On your side of the highway'}</p>
+    <p class="muted small" style="margin-top:0"><span data-along="${r.distanceAlongRoute}">${aheadText(s, r.distanceAlongRoute)}</span>${h(r.road)} · ${r.side === 'both' ? 'In the median or on an undivided road: serves both directions' : 'On your side of the highway'}</p>
     <div class="btn-row"><a class="btn sm" href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=${encodeURIComponent(restAreaTitle(r))}" target="_blank" rel="noopener">Apple Maps</a>
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>
     <div class="section-title">Amenities listed</div>${am}
@@ -906,6 +904,17 @@ export function restAreaDetail(app, id) {
     ${names('Gas', '⛽', r.gas)}${names('Food', '🍴', r.food)}${names('EV charging', '⚡', r.ev)}
     ${trucks ? `<div class="section-title">🚛 Truck parking</div><div class="card small">${h(trucks)}</div>` : ''}
     <p class="note">Source: OpenStreetMap ${osm}${r.checked ? `, last checked by a mapper ${h(r.checked)}` : ''}${r.nameSource === 'fhwa' ? '. Name from the FHWA truck parking survey' : ''}. ExitAtlas cannot see closures; check state DOT notices for long trips.</p>${attribution()}`;
+}
+
+/// A sheet's distance to a place on the route: "2.4 mi ahead · 3 min · ", "Here now · " within a tenth of a
+/// mile, "Passed · " behind. Kept current while the sheet is open (main.js renderNow).
+export function aheadText(s, along) {
+  if (!s) return '';
+  const ahead = along - s.progress;
+  if (ahead < -0.1 * MILE) return 'Passed · ';
+  if (ahead < 0.1 * MILE) return 'Here now · ';
+  const secs = s.etaTo(along) - s.t;
+  return `${miles(ahead)} ahead · ${secs < 60 ? 'under 1 min' : duration(secs)} · `;
 }
 
 function priceSection(app, exit) {
@@ -929,8 +938,8 @@ function priceSection(app, exit) {
 function serviceRow(x) {
   const p = x.place;
   const detour = x.detourBasis === 'routed'
-    ? `About ${miles(x.detourMeters)}${x.detourSeconds !== null ? `, ${duration(x.detourSeconds)}` : ''} detour (twice the drive from the exit)`
-    : `Roughly ${miles(x.detourMeters)} detour (straight line estimate)`;
+    ? `About ${miles(x.detourMeters)}${x.detourSeconds !== null ? `, ${duration(x.detourSeconds)}` : ''} round trip`
+    : `Roughly ${miles(x.detourMeters)} round trip (straight line)`;
   return `<div class="item"><div class="main"><div class="t">${h(placeDisplayName(p))}</div><div class="muted small">${detour}</div></div>
     <a class="btn sm" href="https://maps.apple.com/?daddr=${p.coordinate.lat},${p.coordinate.lon}&dirflg=d" target="_blank" rel="noopener" aria-label="Directions">Go</a></div>`;
 }

@@ -17,7 +17,9 @@ struct ExitDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         if !exit.name.isEmpty { Text(exit.name).font(.headline) }
                         if let upcoming, let snapshot = trip.snapshot {
-                            Text("\(Format.miles(upcoming.distance)) ahead · \(Format.duration(upcoming.eta.timeIntervalSince(snapshot.timestamp)))")
+                            let secs = upcoming.eta.timeIntervalSince(snapshot.timestamp)
+                            Text(upcoming.distance < 0.1 * Geodesy.metersPerMile ? "Here now"
+                                 : "\(Format.miles(upcoming.distance)) ahead · \(secs < 60 ? "under 1 min" : Format.duration(secs))")
                                 .font(.subheadline).foregroundStyle(Theme.secondaryText)
                         }
                         if !exit.highways.isEmpty {
@@ -44,7 +46,7 @@ struct ExitDetailView: View {
                 }
             }
             Section {
-                Text("Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.")
+                Text("Round trips are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.")
                     .font(.caption).foregroundStyle(Theme.secondaryText)
                 DataAttribution()
             }
@@ -81,9 +83,9 @@ private struct ServiceRow: View {
         switch service.detourBasis {
         case .routedOneWayDoubled:
             let time = service.detourSeconds.map { ", \(Format.duration($0))" } ?? ""
-            return "About \(Format.miles(service.detourMeters))\(time) detour (twice the drive from the exit)"
+            return "About \(Format.miles(service.detourMeters))\(time) round trip"
         case .straightLineEstimate:
-            return "Roughly \(Format.miles(service.detourMeters)) detour (straight line estimate)"
+            return "Roughly \(Format.miles(service.detourMeters)) round trip (straight line)"
         }
     }
 
