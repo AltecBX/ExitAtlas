@@ -58,7 +58,7 @@ final class SmartStopAnswerTests: XCTestCase {
         let answer = TripAnswers.smartStop(gas, now: now, window: 60 * mile, restroom: true)
         XCTAssertTrue(answer.hasPrefix("The best match: "), answer)
         // Never says a station restroom is open at arrival; says what is unknown.
-        XCTAssertFalse(answer.contains("Restroom confirmed accessible") && gas.primary?.candidate.kind == .station, answer)
+        XCTAssertFalse(answer.contains("open at arrival per listed hours") && gas.primary?.candidate.kind == .station, answer)
         if gas.primary?.evaluation.restroom != .accessible { XCTAssertNotNil(gas.notice, answer) }
         // Restroom availability is spoken once, not in both the stop and the notice.
         if let p = gas.primary, gas.notice != nil { XCTAssertFalse(answer.contains(p.evaluation.restroom.label + "."), answer) }

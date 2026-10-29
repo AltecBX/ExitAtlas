@@ -70,7 +70,7 @@ const app = {
   planner: { from: null, to: null, stops: [], results: [], busy: false, error: null },
   places: placesFromProfile(loaded.profile),
   placeSearch: { field: 'to', index: null, query: '', results: [], busy: false, error: null },
-  exitsUI: { window: loaded.profile.driving.exitLookaheadMiles, category: null },
+  exitsUI: { window: loaded.profile.driving.exitLookaheadMiles, filter: 'all' },
   alongRoute: { categories: [], brand: '', window: 100, results: null },
   fuel: store.get('ea.fuel', null),
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
@@ -250,6 +250,18 @@ const app = {
   /// The best stop in the next `miles` (any vehicle; restroom stops add rest areas).
   bestStopAhead(miles, { restrooms = false } = {}) {
     if (!this.plan || !this.snapshot) return null;
+    // Recomputed every quarter mile or minute (Road Ahead and the restroom sheet ask on every render).
+    const s = this.snapshot;
+    const key = `${miles}|${restrooms}|${Math.floor(s.progress / 400)}|${Math.floor(s.t / 60)}|${this.rejectedStops.join()}|${this.fuelKey}|${JSON.stringify(this.profile.fuel)}|${JSON.stringify(this.profile.overnight)}|${this.plan.route.length}|${[...this.prices.cache.values()].filter((c) => !c.pending).length}`;
+    this.bestStopCache ??= new Map();
+    if (this.bestStopCache.has(key)) return this.bestStopCache.get(key);
+    if (this.bestStopCache.size > 8) this.bestStopCache.clear();
+    const result = this.bestStopUncached(miles, restrooms);
+    this.bestStopCache.set(key, result);
+    return result;
+  },
+
+  bestStopUncached(miles, restrooms) {
     const range = this.settings.vehicle?.ev ? null : this.rangeNow();
     const candidates = aheadCandidates(this.stopContext(), miles, { rangeLeft: range, gradeKey: GRADES[this.gradeCode()].key, restrooms });
     const profile = restrooms ? { ...this.profile, fuel: { ...this.profile.fuel, requireRestroom: 'always' } } : this.profile;
@@ -445,6 +457,7 @@ function renderSheet() {
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   else if (kind === 'weather') html = V.weatherSheet(app);
   else if (kind === 'restroom') html = V.restroomSheet(app);
+  else if (kind === 'alert') html = V.alertSheet(app, arg);
   $('#sheet-body').innerHTML = html;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
 }
@@ -753,6 +766,7 @@ function resetTripState() {
   app.serviceCache.clear();
   app.rejectedStops = [];
   app.smartKey = null;
+  app.bestStopCache = null;
   app.announcer.reset();
   app.roadAlerts.reset();
   app.weather.reset();
@@ -1169,7 +1183,8 @@ const actions = {
   },
   'close-sheet'() { closeSheet(); },
   'exits-window'(arg) { app.exitsUI.window = Number(arg); saveProfile(); lastExitsRender = 0; render(); },
-  'exits-cat'(arg) { app.exitsUI.category = arg === '' ? null : Number(arg); lastExitsRender = 0; render(); },
+  'ahead-filter'(arg) { app.exitsUI.filter = arg || 'all'; lastExitsRender = 0; render(); },
+  alert(arg) { openSheet('alert', arg); },
   share() {
     const text = itineraryText();
     if (navigator.share) navigator.share({ text }).catch(() => {});
