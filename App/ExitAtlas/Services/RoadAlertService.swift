@@ -45,8 +45,10 @@ final class RoadAlertService {
         let state: RoadIntel.ProviderState = coverage == nil ? .pending : coverage!.covered.isEmpty ? .unsupported : .ok
         list.append(RoadIntel.Provider(id: "wzdx", name: "State work zone feeds", kinds: AlertSources.wzdxKinds, state: state,
                                        fetchedAt: coverage?.at, maxAge: 86400, uncovered: coverage?.uncovered ?? []))
+        // The simulated source covers only its own kinds, so the other groups keep their real status
+        // (police and cameras stay "No source connected", never "No relevant reports").
         if !demoIncidents.isEmpty {
-            list.append(RoadIntel.Provider(id: "demo", name: "Simulated test alert", kinds: Set(RoadIntel.Kind.allCases), state: .ok,
+            list.append(RoadIntel.Provider(id: "demo", name: "Simulated test alert", kinds: Set(demoIncidents.map(\.kind)), state: .ok,
                                            fetchedAt: Date(), incidents: demoIncidents))
         }
         return list
