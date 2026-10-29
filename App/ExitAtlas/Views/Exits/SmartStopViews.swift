@@ -90,6 +90,7 @@ struct SmartStopSections: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
     let result: SmartStop.Result
+    @State private var station: StationRef?
 
     var body: some View {
         if let p = result.primary {
@@ -103,8 +104,10 @@ struct SmartStopSections: View {
                         Text((p.brandRank != nil ? "★ " : "") + p.candidate.name).font(.headline)
                         Text(SmartStopText.whereLine(p.candidate) + " · " + SmartStopText.arrival(p.candidate, now: trip.snapshot?.timestamp ?? Date()))
                             .font(.caption).foregroundStyle(Theme.secondaryText)
+                        CandidatePriceLine(candidate: p.candidate)
                     }
                 }
+                CheaperNote(result: result)
                 VStack(alignment: .leading, spacing: 4) {
                     // A neutral dot, not a checkmark: a reason can be "Hours unavailable" or "Detour not measured".
                     ForEach(p.reasons, id: \.self) { reason in
@@ -120,6 +123,9 @@ struct SmartStopSections: View {
                     ForEach(p.evaluation.facilities, id: \.name) { FacilityRow(facility: $0) }
                 }
                 .font(.subheadline)
+                if trip.priceOptions != nil {
+                    Button("Prices and reports") { station = StationRef(id: p.candidate.id) }.accessibilityIdentifier("pickPrices")
+                }
                 Button("Not this one", role: .destructive) { trip.skipStop(p.candidate.id) }
                 if let fav = result.favorite {
                     Text(favoriteNote(fav)).font(.footnote).foregroundStyle(Theme.secondaryText)
@@ -148,13 +154,14 @@ struct SmartStopSections: View {
         }
         Section {
             OvernightModeRow()
+                .sheet(item: $station) { StationPricesView(id: $0.id) }
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 if !result.passed.isEmpty { Text(passedNote) }
                 if !trip.rejectedStops.isEmpty {
                     Button("Offer skipped stops again") { trip.offerSkippedStopsAgain() }.font(.footnote)
                 }
-                Text("Hours: Google Maps business hours where prices were loaded (live), else OpenStreetMap (mapped by volunteers; the check date shows when). A station listed open 24 hours can still lock its restroom overnight, so restrooms show as open at arrival only at rest areas and service plazas with listed hours.")
+                Text("Hours: Google Maps business hours where you checked Google prices (live), else OpenStreetMap (mapped by volunteers; the check date shows when). A station listed open 24 hours can still lock its restroom overnight, so restrooms show as open at arrival only at rest areas and service plazas with listed hours.")
             }
         }
     }

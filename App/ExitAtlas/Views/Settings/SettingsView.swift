@@ -59,15 +59,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Fuel stops pick the last exit you reach with the buffer left, preferring your favorite brands in order. Each saved vehicle keeps its own MPG or range choice. Stretches without gas count exits with a gas station listed and service plazas with gas.")
                 }
-                Section {
-                    SecureField("Google Maps Platform key", text: $settings.googleKey)
-                        .autocorrectionDisabled().textInputAutocapitalization(.never)
-                    LabeledContent("Lookups this month", value: "\(PriceCallCounter.thisMonth)")
-                } header: {
-                    Text("Gas prices")
-                } footer: {
-                    Text("Optional. Prices per station near an exit from Google Maps (Places API New), billed to your own key after Google's monthly free allowance. One lookup per exit at most every 15 minutes. The key stays on this iPhone; prices are never stored.")
-                }
+                PriceSettingsRows()
                 Section {
                     Toggle("Tesla Superchargers only", isOn: $settings.teslaOnlyChargers)
                     SecureField("NREL key (optional)", text: $settings.nrelKey)
@@ -205,7 +197,7 @@ struct DataSourcesView: View {
                     .font(.subheadline)
             }
             Section("Live sources") {
-                Text("Gas prices: Google Maps, only with your own key, shown with their update time and never stored. EV chargers: U.S. DOE Alternative Fuels Data Center. Posted speed limits: OpenStreetMap through the public Valhalla server.")
+                Text("Gas prices: your own reports on this iPhone, each with its time and source; Google Maps prices only when you turn them on and tap to check (paid, your key), never stored. EV chargers: U.S. DOE Alternative Fuels Data Center. Posted speed limits: OpenStreetMap through the public Valhalla server.")
                     .font(.subheadline)
             }
             Section("Not live in this version") {

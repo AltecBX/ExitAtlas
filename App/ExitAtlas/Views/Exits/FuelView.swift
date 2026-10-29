@@ -2,8 +2,7 @@ import ExitAtlasCore
 import SwiftUI
 
 /// Fuel or charging stop from the range on the dashboard. Gas: SmartStop's recommendation and alternatives
-/// with their stop confidence; electric: the last charger reached with the buffer left. Live prices,
-/// hours and restrooms with the driver's key.
+/// with their stop confidence and reported prices; electric: the last charger reached with the buffer left.
 struct FuelView: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
@@ -80,7 +79,6 @@ struct FuelView: View {
                     }
                 }
             }
-            .onAppear { trip.loadSmartStopDetails() }
             .navigationTitle(electric ? "Charging Stop" : "Fuel Stop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -161,15 +159,16 @@ private struct StopRow: View {
     }
 }
 
-/// Gas prices near an exit from Google Maps with the driver's key (never stored).
+/// Google Maps prices near an exit: only with Google Maps prices on, and only after the driver taps to check
+/// (paid; never stored).
 private struct PriceLine: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
     let exit: RouteExit
 
     var body: some View {
-        if settings.googleKey.isEmpty {
-            Text("Live gas prices: add a Google Maps key in Settings.").font(.footnote).foregroundStyle(Theme.secondaryText)
+        if !settings.googlePrices || settings.googleKey.isEmpty {
+            EmptyView()
         } else if let entry = trip.gasPrices(at: exit) {
             if let error = entry.error {
                 Text("Prices unavailable: \(error)").font(.footnote).foregroundStyle(Theme.amber)
@@ -186,7 +185,8 @@ private struct PriceLine: View {
                 }
             }
         } else {
-            Label("Loading prices", systemImage: "fuelpump").font(.footnote).foregroundStyle(Theme.secondaryText)
+            Button { trip.checkGooglePrices(exitID: exit.id) } label: { Label("Check Google Maps prices (paid)", systemImage: "magnifyingglass") }
+                .font(.footnote)
         }
     }
 

@@ -12,6 +12,7 @@ struct ExitsView: View {
     @State private var showFuel = false
     @State private var showRestroom = false
     @State private var shownAlert: AlertRef?
+    @State private var priceStation: StationRef?
 
     static let windows: [Double] = [5, 10, 25, 50, 100]
 
@@ -61,10 +62,11 @@ struct ExitsView: View {
                                 if filter == .states {
                                     Text("Every state ahead on this route, whatever the distance window.").font(.caption).foregroundStyle(Theme.secondaryText)
                                 }
-                                if let best { BestStopCard(result: best.result, title: best.title) }
+                                if let best { BestStopCard(result: best.result, title: best.title, prices: filter != .rest) }
+                                if comparing { ComparePricesCard(station: $priceStation) }
                             }
                             .padding(.bottom, 12)
-                            if items.isEmpty {
+                            if items.isEmpty && !comparing {
                                 empty(alerts: alerts).padding(.bottom, 12)
                             }
                             ForEach(Array(items.enumerated()), id: \.element.id) { index, row in
@@ -105,6 +107,7 @@ struct ExitsView: View {
             .sheet(isPresented: $showFuel) { FuelView() }
             .sheet(isPresented: $showRestroom) { RestroomSheet() }
             .sheet(item: $shownAlert) { AlertDetailView(alertID: $0.id) }
+            .sheet(item: $priceStation) { StationPricesView(id: $0.id) }
         }
     }
 
@@ -203,6 +206,9 @@ struct ExitsView: View {
         .buttonStyle(.plain)
     }
 
+    /// Road Ahead, Fuel compares station prices (gas vehicles, comparing on).
+    private var comparing: Bool { filter == .fuel && settings.vehicle?.isElectric != true && trip.priceOptions != nil }
+
     /// The best stop card for the filter: the fuel recommendation when a stop is needed, else the best stop
     /// ahead (SmartStop, Shell first by default); under Rest, the best restroom stop.
     private func bestStop() -> (result: SmartStop.Result, title: String, tag: String)? {
@@ -242,7 +248,9 @@ struct ExitsView: View {
                 events.append((f.segment.startDistance, 0, .state(f, distance: f.segment.startDistance - s.progress, current: false)))
             }
         }
-        for u in s.upcomingExits where u.distance <= window {
+        // Fuel with prices compared: stations get their own sortable list (ComparePricesCard); the timeline
+        // keeps the gas gaps and alerts.
+        for u in s.upcomingExits where u.distance <= window && !comparing {
             let services = trip.services(for: u.exit)
             func has(_ c: PlaceCategory) -> Bool { services.contains { $0.place.category == c } }
             let isPick = pick?.candidate.exitID == u.exit.id
@@ -255,7 +263,7 @@ struct ExitsView: View {
             }
             if show { events.append((u.exit.distanceAlongRoute, 1, .exit(u))) }
         }
-        for u in s.upcomingRestAreas where u.distance <= window {
+        for u in s.upcomingRestAreas where u.distance <= window && !comparing {
             let r = u.restArea
             let show: Bool
             switch filter {

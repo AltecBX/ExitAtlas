@@ -85,6 +85,21 @@ public enum GasPriceFeed {
             }
         }
 
+        /// The grade's code in price reports ("R", "M", "P", "D"; docs/17).
+        public var code: String {
+            switch self {
+            case .regular: return "R"
+            case .midgrade: return "M"
+            case .premium: return "P"
+            case .diesel: return "D"
+            }
+        }
+
+        public init?(code: String) {
+            guard let g = Grade.allCases.first(where: { $0.code == code }) else { return nil }
+            self = g
+        }
+
         public init(_ fuel: VehicleCatalog.Fuel) {
             switch fuel {
             case .premium: self = .premium

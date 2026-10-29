@@ -28,7 +28,8 @@ public enum GasPrices {
     public enum Payment: String, Sendable, Codable { case cash, credit }
 
     public struct Source: Sendable, Codable, Equatable {
-        public enum Kind: String, Sendable, Codable { case own, community, open, google }
+        /// simulated: demo data for screenshots and checks, labeled wherever it shows and never stored.
+        public enum Kind: String, Sendable, Codable { case own, community, open, google, simulated }
         public var id: String
         public var name: String
         public var kind: Kind
