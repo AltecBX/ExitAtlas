@@ -17,10 +17,10 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, SmartStop, EV stops, rest areas, the adaptive Drive screen and the newer voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 104 tests pass on Linux, with the web's 90 tests covering the same cases in JavaScript. |
-| Key proxy (`infra/worker`) | 7 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
+| Engine (`Sources/ExitAtlasCore`) | 113 tests pass on Linux, with the web's 98 tests covering the same cases in JavaScript. |
+| Key proxy (`infra/worker`) | 8 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
-The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md).
+The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md). Road alerts, their sources and the next steps are in [docs/13_road_intelligence_audit.md](docs/13_road_intelligence_audit.md).
 
 ## Features
 
@@ -37,7 +37,8 @@ In both the web version and the iOS app unless marked.
 * Arrival and border times that follow your actual pace, with a personal prior from earlier trips.
 * Speedometer with the posted speed limit (OpenStreetMap) and an alert when you are over by your chosen margin.
 * Automatic reroute (miles per state survive it), and discovery mode when there is no destination.
-* Voice for state lines, time zone changes, rest areas, the last gas before a long stretch, fuel stops and exits, each with its own switch.
+* Road alerts on your road and in your direction only: weather and flooding warnings from the National Weather Service, and work zones and closures from official state feeds in 12 states (DE, IN, KY, LA, MD, MN, MO, MS, ND, NJ, WA, WI; on the website, six of them need the key proxy). Serious ones take the Drive screen; all are in Road Ahead with source, age and end time. Each kind has its own switch, and a source that fails says "Data unavailable", never "all clear". Police reports are not shown: no authorized source exists ([docs/13](docs/13_road_intelligence_audit.md)).
+* Voice for state lines, time zone changes, rest areas, the last gas before a long stretch, fuel stops, exits and road alerts, each with its own switch. Hours and restroom details from Google Maps are shown, never spoken (Google's terms).
 
 **Stops**
 * SmartStop: where to stop next for fuel, with one recommendation and up to two alternatives and the reasons for each. It uses your range and reserve, your brands in order (Shell first to start), the routed detour, and the hours and restrooms at your arrival time in that stop's time zone. Stops already passed, ones you skip, ones reported closed at arrival and ones no longer listed as gas stations are never offered, and it says why your first choice brand lost when it does.
@@ -146,6 +147,8 @@ Select your team under Signing, then run on an iPhone (iOS 17+). Use **Simulate*
 * **Web routing and search:** the OSRM demo server and Nominatim, both on OpenStreetMap data (ODbL), for light personal use under their usage policies.
 * **Speed limits:** OpenStreetMap `maxspeed`, via the FOSSGIS public Valhalla server.
 * **EV chargers:** U.S. DOE Alternative Fuels Data Center.
+* **Weather alerts:** National Weather Service (`api.weather.gov`), public domain.
+* **Work zones:** state DOT Work Zone Data Exchange (WZDx) feeds, CC0, credited by agency on every alert.
 * **Gas prices:** Google Maps Platform, with the driver's own key, under Google's terms. Prices are shown with attribution and never stored.
 * **iOS maps and routing:** Apple MapKit.
 
