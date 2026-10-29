@@ -137,7 +137,6 @@ private struct DriveDashboard: View {
     /// the guidance or exit row, the state line in the journey panel), the first strip item worth a card.
     private func card(_ focus: DashboardFocus.Result, exitShown: Bool) -> AnyView? {
         var kind: DashboardFocus.Kind? = focus.focus
-        if focus.focus == .border, settings.drivePresentation != "focus" { return AnyView(BorderApproachCard(snapshot: snapshot)) }
         if [.border, .none].contains(focus.focus) || (exitShown && focus.focus == .exit) {
             kind = focus.strip.first { [.alert, .fuel, .stop, .gap, .restArea].contains($0) }
         }

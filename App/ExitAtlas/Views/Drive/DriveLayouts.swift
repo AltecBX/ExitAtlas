@@ -238,7 +238,7 @@ struct JourneyPanel: View {
                         }
                         Spacer(minLength: 4)
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
-                            Text(Format.milesValue(current.remainingMeters)).font(Theme.number(large ? 36 : 25, weight: .heavy))
+                            Text(Format.milesValue(current.remainingMeters)).font(Theme.number(large ? 31 : 25, weight: .heavy))
                             Text("mi").font(.subheadline.weight(.bold)).foregroundStyle(Theme.secondaryText)
                         }
                         .foregroundStyle(emphasis ? Theme.amber : Color.primary)
@@ -289,29 +289,6 @@ struct JourneyPanel: View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(value).font(Theme.number(16, weight: .heavy)).lineLimit(1)
             Text(label).font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
-        }
-    }
-}
-
-/// Approaching the state line (adaptive card "border"): the next state, miles and exits to it.
-struct BorderApproachCard: View {
-    let snapshot: TripSnapshot
-
-    var body: some View {
-        if let current = snapshot.current, let next = snapshot.next {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Eyebrow(text: "🏁 Entering \(next.segment.displayName)", color: Theme.amber)
-                    Text("\(Format.miles(current.remainingMeters)) to the state line").font(.headline)
-                    Text("\(current.exitsRemaining) exit\(current.exitsRemaining == 1 ? "" : "s") left in \(current.segment.code ?? current.segment.displayName) · \(Format.miles(next.totalMeters)) in \(next.segment.displayName)")
-                        .font(.subheadline).foregroundStyle(Theme.secondaryText).lineLimit(2)
-                }
-                Spacer(minLength: 4)
-                StateBadge(code: next.segment.code, highlighted: true)
-            }
-            .card()
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("borderCard")
         }
     }
 }
@@ -413,7 +390,7 @@ struct FocusDriveView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("focusDrive")
         } else {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 instruments
                 journey
                 exitRow
@@ -428,9 +405,9 @@ struct FocusDriveView: View {
     private var instruments: some View {
         let limit = trip.speedLimit
         return HStack(alignment: .center, spacing: 10) {
-            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver, size: 104)
+            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver, size: 90)
             VStack(spacing: 4) {
-                SpeedLimitSign(limit: limit.mph, loading: limit.state == .loading, scale: 0.86)
+                SpeedLimitSign(limit: limit.mph, loading: limit.state == .loading, scale: 0.78)
                 if let next = limit.next {
                     Text("\(next.mph) in \(Format.miles(next.distance))").font(.caption2.monospacedDigit()).foregroundStyle(Theme.secondaryText)
                 }
@@ -443,10 +420,10 @@ struct FocusDriveView: View {
                     Text(direction).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondaryText)
                 }
             }
-            .padding(.top, 24)
+            .padding(.top, 22)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
@@ -465,15 +442,14 @@ struct FocusDriveView: View {
         if near {
             GuidanceBanner(snapshot: snapshot, openExit: openExit)
         } else if let ne = snapshot.nextExit {
+            let services = trip.services(for: ne.exit)
             Button { openExit(ne.exit) } label: {
-                VStack(alignment: .leading, spacing: 8) {
-                    CompactGuideSign(upcoming: ne, services: trip.services(for: ne.exit), now: snapshot.timestamp)
-                    ServicePlaques(services: trip.services(for: ne.exit), compact: true)
-                        .frame(maxHeight: 30, alignment: .top).clipped()
+                VStack(alignment: .leading, spacing: 6) {
+                    CompactGuideSign(upcoming: ne, services: services, now: snapshot.timestamp)
+                    if !services.isEmpty {
+                        ServicePlaques(services: services, compact: true).frame(maxHeight: 30, alignment: .top).clipped()
+                    }
                 }
-                .padding(8)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("nextExitRow")
@@ -490,7 +466,7 @@ struct FocusDriveView: View {
     private func action(_ title: String, symbol: String, id: String, _ run: @escaping () -> Void) -> some View {
         Button(action: run) {
             Label(title, systemImage: symbol).font(.headline)
-                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                .frame(maxWidth: .infinity).padding(.vertical, 10)
                 .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
         }

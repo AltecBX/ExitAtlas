@@ -66,13 +66,18 @@ struct AlertStatusView: View {
 
     var body: some View {
         DisclosureGroup(title, isExpanded: $open) {
-            ForEach(groups, id: \.self) { g in
-                let st = intel.status[g]
-                HStack(alignment: .firstTextBaseline) {
-                    Text(g.label).font(.caption.weight(.semibold)).frame(width: 130, alignment: .leading)
-                    Text((st?.label ?? "") + (st?.note.map { " · \($0)" } ?? "")).font(.caption).foregroundStyle(Theme.secondaryText)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(groups, id: \.self) { g in
+                    let st = intel.status[g]
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(g.label).font(.caption.weight(.semibold)).frame(width: 130, alignment: .leading)
+                        Text((st?.label ?? "") + (st?.note.map { " · \($0)" } ?? "")).font(.caption).foregroundStyle(Theme.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.subheadline)
         .accessibilityIdentifier("alertStatus")

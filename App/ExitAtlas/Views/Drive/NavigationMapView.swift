@@ -68,7 +68,8 @@ struct NavigationMapView: View {
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.standard(elevation: .realistic, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
+        // Flat terrain: the route and the markers draw at once, before (or without) map tiles on a weak signal.
+        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
         .mapControls { MapCompass().mapControlVisibility(.hidden) }
         .onMapCameraChange(frequency: .continuous) { context in cameraHeading = context.camera.heading }
         .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { _ in following = false })
@@ -87,13 +88,13 @@ struct NavigationMapView: View {
         return trip.plan?.restAreas.first { $0.id == c.id }?.coordinate
     }
 
-    /// Centers the camera a little ahead of the vehicle, so it sits low on the screen with the road ahead
-    /// above it, under the guidance banner.
+    /// Centers the camera on the vehicle, tilted along the road: the vehicle sits in the open middle of the
+    /// screen, between the instruments and the bottom card, with the road ahead above it.
     private func follow(animated: Bool) {
         guard following, let poly = trip.plan?.route.polyline else { return }
         let p = snapshot.progress
-        let center = poly.coordinate(at: min(poly.length, p + 1200))
-        let camera = MapCamera(centerCoordinate: center.clCoordinate, distance: 5200,
+        let center = poly.coordinate(at: min(poly.length, p + 150))
+        let camera = MapCamera(centerCoordinate: center.clCoordinate, distance: 4600,
                                heading: poly.bearing(at: p, window: 800), pitch: 52)
         if animated {
             withAnimation(.linear(duration: 0.8)) { position = .camera(camera) }

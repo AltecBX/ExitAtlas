@@ -547,6 +547,6 @@ struct BestStopCard: View {
     private func buttonLabel(_ text: String) -> some View {
         Text(text).font(.subheadline.weight(.semibold))
             .frame(maxWidth: .infinity).padding(.vertical, 10)
-            .background(Theme.raised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
