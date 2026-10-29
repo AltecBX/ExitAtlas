@@ -333,6 +333,8 @@ function renderNow() {
   if (cond) { cond.parentNode.classList.remove('tight'); cond.parentNode.classList.toggle('tight', cond.scrollWidth > cond.clientWidth + 1); }
   $('#title').hidden = Boolean(wx) && !highway;
   $('#status').innerHTML = V.statusPill(app);
+  const along = $('#sheet.open [data-along]');
+  if (along) along.textContent = V.aheadText(app.snapshot, Number(along.dataset.along));
   $('#end').hidden = app.mode === 'idle';
   $('#banner').innerHTML = app.gps === 'simulation' && app.mode !== 'idle'
     ? `<div class="banner">▶︎ Simulated drive at ${app.sim?.speedup ?? 30}× · sample route, not your GPS
@@ -378,6 +380,7 @@ function openSheet(kind, arg = null) {
     loadSmartPrices();
   }
   renderSheet();
+  $('#sheet').scrollTop = 0;
   $('#sheet-backdrop').classList.add('open');
   $('#sheet').classList.add('open');
 }
@@ -1470,6 +1473,49 @@ document.addEventListener('input', (ev) => {
 });
 
 $('#sheet-backdrop').addEventListener('click', closeSheet);
+
+// Swipe down to close, like an iOS sheet: a downward pull that starts with the sheet scrolled to the top
+// moves the sheet with the finger; letting go past a third of the way (or with a quick flick) closes it,
+// anything less springs back. Sideways swipes, scrolling and the form fields keep working as before.
+{
+  const sheet = $('#sheet'), backdrop = $('#sheet-backdrop');
+  let start = null, dragging = false, dy = 0, last = null, speed = 0;
+  sheet.addEventListener('touchstart', (e) => {
+    start = e.touches.length === 1 && !e.target.closest('input, select, textarea')
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    dragging = false;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (!start) return;
+    const t = e.touches[0], mx = t.clientX - start.x, my = t.clientY - start.y;
+    if (!dragging) {
+      if (mx === 0 && my === 0) return;
+      // Decided on the first move: once the browser starts scrolling, the move can no longer be taken over.
+      if (my <= 0 || Math.abs(mx) > 2 * my || sheet.scrollTop > 0 || !e.cancelable) { start = null; return; }
+      dragging = true;
+      sheet.style.transition = 'none';
+      last = { y: my, t: e.timeStamp };
+      speed = 0;
+    }
+    e.preventDefault();
+    dy = Math.max(0, my);
+    if (e.timeStamp > last.t) { speed = (my - last.y) / (e.timeStamp - last.t); last = { y: my, t: e.timeStamp }; }
+    sheet.style.transform = `translateY(${dy}px)`;
+    backdrop.style.opacity = String(1 - Math.min(dy / sheet.offsetHeight, 1));
+  }, { passive: false });
+  const release = (e, close) => {
+    if (!dragging) { start = null; return; }
+    start = null;
+    dragging = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    backdrop.style.opacity = '';
+    const flick = dy > 40 && speed > 0.5 && e.timeStamp - last.t < 100;
+    if (close && (dy > sheet.offsetHeight / 3 || flick)) closeSheet();
+  };
+  sheet.addEventListener('touchend', (e) => release(e, true));
+  sheet.addEventListener('touchcancel', (e) => release(e, false));
+}
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
