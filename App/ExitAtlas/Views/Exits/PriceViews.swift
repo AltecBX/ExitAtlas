@@ -54,6 +54,12 @@ struct BrandTag: View {
         ("speedway", Color(red: 0.84, green: 0.1, blue: 0.13), .white, "SPEEDWAY"), ("marathon", Color(red: 0, green: 0.24, blue: 0.65), .white, "MARATHON"),
         ("quiktrip", Color(red: 0.84, green: 0.1, blue: 0.13), .white, "QT"), ("buc-ee", Color(red: 1, green: 0.82, blue: 0), Color(red: 0.84, green: 0.1, blue: 0.13), "BUC-EE'S"),
         ("costco", Color(red: 0, green: 0.36, blue: 0.67), .white, "COSTCO"),
+        ("citgo", Color(red: 0.89, green: 0.09, blue: 0.22), .white, "CITGO"), ("valero", Color(red: 0, green: 0.35, blue: 0.61), Color(red: 1, green: 0.78, blue: 0.17), "VALERO"),
+        ("7-eleven", Color(red: 0, green: 0.5, blue: 0.38), .white, "7-ELEVEN"), ("murphy", Color(red: 0, green: 0.33, blue: 0.65), .white, "MURPHY"),
+        ("gulf", Color(red: 0.96, green: 0.48, blue: 0.13), .white, "GULF"), ("texaco", Color(red: 0.89, green: 0.14, blue: 0.1), .white, "TEXACO"),
+        ("phillips 66", Color(red: 0.84, green: 0.1, blue: 0.13), .white, "P66"), ("conoco", Color(red: 0.84, green: 0.1, blue: 0.13), .white, "CONOCO"),
+        ("casey", Color(red: 0.84, green: 0.1, blue: 0.13), .white, "CASEY'S"), ("cumberland", Color(red: 0, green: 0.44, blue: 0.24), .white, "CUMB FARMS"),
+        ("hess", Color(red: 0, green: 0.52, blue: 0.24), .white, "HESS"), ("sinclair", Color(red: 0, green: 0.52, blue: 0.24), .white, "SINCLAIR"),
     ]
 
     var body: some View {
