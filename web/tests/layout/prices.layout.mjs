@@ -56,6 +56,8 @@ for (const [label, width, height] of SIZES) {
     await page.waitForTimeout(500);
     await click('[data-act="ahead-filter"][data-arg="fuel"]');
     await page.waitForSelector('[data-testid="price-compare"]', { timeout: 20000 });
+    // The demo prices the fuel stop pick at the next render after the range is set.
+    await page.waitForSelector('[data-testid="cheaper-note"]', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(400);
     const fuel = await page.evaluate(() => ({
       width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
@@ -71,7 +73,7 @@ for (const [label, width, height] of SIZES) {
     if (!fuel.sim) fail('simulated prices are not labeled as simulated');
     if (!fuel.unavailable) fail('no station says "Price unavailable"');
     if (!/preference stays|favorite brands stay/.test(fuel.cheaper)) fail('the cheaper stop note is missing or does not keep the favorite');
-    if (!/Estimate/.test(fuel.cheaper)) fail('the saving is not labeled as an estimate');
+    if (!/Estimate/.test(fuel.cheaper)) fail(`the saving is not labeled as an estimate: ${fuel.cheaper}`);
 
     await click('[data-act="price-sort"][data-arg="price"]');
     await page.waitForTimeout(300);

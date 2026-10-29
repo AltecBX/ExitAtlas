@@ -63,7 +63,6 @@ struct ExitsView: View {
                                     Text("Every state ahead on this route, whatever the distance window.").font(.caption).foregroundStyle(Theme.secondaryText)
                                 }
                                 if let best { BestStopCard(result: best.result, title: best.title, prices: filter != .rest) }
-                                if comparing { ComparePricesCard(station: $priceStation) }
                             }
                             .padding(.bottom, 12)
                             if items.isEmpty && !comparing {
@@ -73,6 +72,9 @@ struct ExitsView: View {
                                 timelineRow(row, snapshot: snapshot, pick: best?.result.primary, pickTitle: best?.tag ?? "",
                                             first: index == 0, last: index == items.count - 1)
                             }
+                            // Under Fuel, the price comparison comes after the timeline, so urgent alerts and gas
+                            // gaps stay at the top.
+                            if comparing { ComparePricesCard(station: $priceStation).padding(.top, items.isEmpty ? 0 : 12) }
                             VStack(alignment: .leading, spacing: 12) {
                                 tools
                                 DataAttribution()
