@@ -57,7 +57,10 @@ def fetch_tags(place_ids, cache_path, batch=400, pause=1.5):
         for k in range(0, len(nums), batch):
             run(kind, nums[k:k + batch])
             save()
-    save()
+    # Saving only after a fetch keeps the file's date the date the tags were fetched (build_stations.py
+    # and build_rest_areas.py report it).
+    if todo:
+        save()
     result = dict(out)
     result["_missing"] = sorted(missing)
     return result

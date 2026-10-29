@@ -94,7 +94,7 @@ public struct StopPlanner: Sendable {
             if let restArea {
                 reasons.append(restArea.side == .both ? "On the highway, both directions" : "On the highway, no detour")
             } else {
-                reasons.append(String(format: "Detour %.1f mi round trip", detour / Geodesy.metersPerMile))
+                reasons.append(String(format: "About %.1f mi detour (estimate)", detour / Geodesy.metersPerMile))
             }
             if favorite { reasons.append("Favorite brand") }
             if restrooms == true { reasons.append("Restrooms listed") }

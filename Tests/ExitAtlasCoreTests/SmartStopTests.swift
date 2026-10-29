@@ -78,7 +78,9 @@ final class SmartStopTests: XCTestCase {
             price: x["price"]?.number,
             osmHours: osm["hours"]?.string, osmChecked: osm["checked"]?.string, osmToilets: osm["toilets"]?.bool, gone: osm["gone"]?.string,
             livePeriods: try periods(live?["periods"]), liveRestroom: live?["restroom"]?.bool,
-            plazaHours: plaza?["hours"]?.string, plazaToilets: plaza?["toilets"]?.bool, truckSpaces: plaza?["truckSpaces"]?.number.map { Int($0) })
+            plazaHours: plaza?["hours"]?.string, plazaToilets: plaza?["toilets"]?.bool, truckSpaces: plaza?["truckSpaces"]?.number.map { Int($0) },
+            brandHours: osm["brandHours"]?.string, brandToilets: osm["brandToilets"]?.bool, listedBy: osm["listedBy"]?.string,
+            brandCollected: osm["collected"]?.string)
     }
 
     /// D, E, O: stop confidence at the arrival time, in the station's own time zone.
@@ -103,8 +105,15 @@ final class SmartStopTests: XCTestCase {
             if let l = x["restroomLabel"]?.string { XCTAssertEqual(e.restroom.label, l, name) }
             if let s = x["store"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Store" }?.status, s, name) }
             if let s = x["pumps"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Pumps" }?.status, s, name) }
+            if let s = x["hoursSource"]?.string { XCTAssertEqual(e.hours.source, s, name) }
+            if let s = x["stale"]?.bool { XCTAssertEqual(e.hours.stale, s, name) }
+            if let s = x["note"]?.string { XCTAssertEqual(e.hours.note, s, name) }
+            if let s = x["pumpsSource"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Pumps" }?.source, s, name) }
+            if let s = x["restroomSource"]?.string { XCTAssertEqual(e.facilities.first { $0.name == "Restroom" }?.source, s, name) }
             // O: an unknown business is never shown as open, and no station restroom is shown open at arrival.
-            if cand.osmHours == nil && cand.livePeriods == nil && cand.plazaHours == nil { XCTAssertEqual(e.hours.status, .unknown, name) }
+            if cand.osmHours == nil && cand.brandHours == nil && cand.livePeriods == nil && cand.plazaHours == nil {
+                XCTAssertEqual(e.hours.status, .unknown, name)
+            }
             if cand.kind == .station { XCTAssertNotEqual(e.restroom, .accessible, name) }
         }
     }
@@ -207,6 +216,39 @@ final class SmartStopTests: XCTestCase {
             XCTAssertEqual(r.passed, x["passed"]!.object!.mapValues { Int($0.number!) }, "\(name): passed")
             XCTAssertEqual(r.lowRange, x["lowRange"]!.bool!, "\(name): low range")
             XCTAssertEqual(r.notice, x["notice"]?.string, "\(name): notice")
+        }
+    }
+
+    /// Overnight on the real route: the last stop listed open before a long stretch, through each time window in
+    /// route_expectations.json, as in the web engine. ScreenshotTests.testOvernightLastOpenStop launches the demo
+    /// at the mile for the current New York time.
+    func testLastOpenStopOnTheRealRouteThroughEachTimeWindow() throws {
+        let datasets = TripDatasets(states: Fixtures.states, timeZones: TimeZoneResolver(zones: Fixtures.timeZones),
+                                    interstates: Fixtures.interstates, restAreas: Fixtures.restAreas)
+        let plan = TripPlan(route: Fixtures.route("miami_to_manhattan"), datasets: datasets)
+        let stations = try StationFacts(contentsOf: Fixtures.dataDirectory.appendingPathComponent("stations.json"))
+        let x = try fixture("route_expectations")["lastOpen"]!
+        let midnight = try XCTUnwrap(ISO8601DateFormatter().date(from: x["midnight"]!.string!))
+        let prefs = SmartStop.Preferences(overnightMode: "on")
+        func minutes(_ hm: String) -> Int { Int(hm.prefix(2))! * 60 + Int(hm.suffix(2))! }
+        for w in x["windows"]!.array! {
+            let from = minutes(w["from"]!.string!)
+            let to = minutes(w["to"]!.string!) < from ? minutes(w["to"]!.string!) + 1440 : minutes(w["to"]!.string!)
+            for m in Array(stride(from: from, to: to, by: 15)) + [to] {
+                let now = midnight.addingTimeInterval(Double(m) * 60)
+                let at = "mile \(Int(w["atMiles"]!.number!)) at \(m / 60 % 24):\(String(format: "%02d", m % 60))"
+                let s = plan.snapshot(match: RouteMatch(status: .onRoute, distanceAlongRoute: w["atMiles"]!.number! * mile, offset: 0,
+                                                        isEstimated: false, timestamp: now, speed: 30),
+                                      ledger: TripLedger(), pace: PaceModel(), now: now)
+                let ctx = SmartStop.TripContext(plan: plan, snapshot: s, dataset: Fixtures.interstates, stations: stations)
+                let r = try XCTUnwrap(SmartStop.lastOpenBeforeGap(SmartStop.aheadCandidates(ctx, miles: 150, rangeLeft: nil), preferences: prefs,
+                                                                  minLength: x["gasGapMiles"]!.number! * mile,
+                                                                  windowEnd: min(s.progress + 150 * mile, plan.route.length)), "\(at): none")
+                XCTAssertEqual(r.stop.id, w["stop"]!.string!, at)
+                XCTAssertEqual(Int(((r.stop.ahead ?? 0) / mile).rounded()), Int(w["aheadMiles"]!.number!), at)
+                XCTAssertEqual(Int((r.length / mile).rounded()), Int(w["lengthMiles"]!.number!), at)
+                XCTAssertEqual(r.unlisted, Int(w["unlisted"]!.number!), at)
+            }
         }
     }
 }

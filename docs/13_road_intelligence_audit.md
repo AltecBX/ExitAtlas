@@ -27,7 +27,7 @@ Starting point: `main` at f4aa220. This document answers the "Next generation ro
 | Voice | Exits, fuel, gaps, state lines | | `VoiceAnnouncements`, `announcer.js` | Serious alerts from 10 mi, others from 2 mi, once each; drivers' reports say "not confirmed" | | Voice tests in both engines |
 | Stop hours and restrooms | OSM hours (11.7% of 19,679 stations), Google hours on lists with a key, Stop Confidence labels, overnight rules | All the Places hours and restroom listings, convenience store join, closure flags, freshness dates | `SmartStop`, `OpeningHours` | Google hours and restroom details are never spoken (Google terms 3.2.3(a)(iv)) | ATP CC0; Overture CDLA; FSQ OS Apache 2.0; all free | Spoken answer tests |
 | Rest area status | Bundled rest areas, no live status | 511 status (GA, NC, AZ, NV, ID) | Rest area dataset | | Key plus written permission | |
-| True highway detours | One way OSRM drive doubled (`ExitServices.swift` line 36), labeled a round trip estimate | Exit to business to the correct entrance; return leg; added time | OpenInterstate reachability | | Valhalla (MIT) per state in CI; MKDirections on demand on iOS | Existing detour tests |
+| True highway detours | One way OSRM drive doubled (`ExitServices.swift` line 36); now labeled as that estimate ("About 3 min detour (twice the drive from the exit)") | Exit to business to the correct entrance; return leg; added time | OpenInterstate reachability | | Valhalla (MIT) per state in CI; MKDirections on demand on iOS | Existing detour tests |
 | Fuel cost comparison | `FuelPlanner` (Swift) with savings against the nearest priced station; web shows prices | Web port of the planner; detour fuel; reserve; per grade comparison in the UI | `FuelPlanner`, `fuel.js`, prices | | Google prices through the key proxy or the driver's key | FuelPlanner tests |
 | One tap restroom stop | `bestStopAhead(restrooms:)`, Siri "restroom" answer, SmartStop primary plus two alternatives | A single control on the Drive screen | SmartStop | | | SmartStop tests |
 | Route comparison | Up to 3 OSRM alternatives (web) and MapKit routes (iOS) with distance and time | Fuel cost, tolls, alerts, overnight gas, restrooms, gaps, Shell count per route | Planner | | Tolls need HERE (13.6) | |
@@ -100,20 +100,40 @@ Not built. A decision for the owner, after counsel review, before any code.
 * **Mutation checks:** reading NJ road names instead of the text, matching streets to the highway, and counting closed shoulders as closed lanes each make a test fail.
 * Counts: Swift 113 tests, web 98, Worker 8, all passing.
 
-## 13.8 Pull request plan
+## 13.8 Stop data: brand listings and freshness (milestone 4)
+
+* **Data.** `build_stations.py` matches the 15 largest fuel brand spiders of All the Places (CC0, run 2026-10-17) to the bundled stations: same brand (either name a prefix of the other), nearest within 150 m. Hours come only from fuel or travel stop features, never from a store's hours; a restroom counts when the brand lists one at the station or its store. Result: listed hours for 7,898 of 19,679 stations (40.1%, from 2,295 or 11.7%), restroom listings for 3,268 (from 106 OpenStreetMap tags). The OpenStreetMap facts are unchanged.
+* **Rules (both engines, shared fixtures).** One source: that source. Both list the pumps and agree at the arrival time: the more recently dated (the listing, unless a mapper checked the hours after it was collected). They disagree: "Hours unavailable", with the note "OpenStreetMap and the Shell listing disagree"; never open, never closed. Restroom: Google, then OpenStreetMap, then the brand listing; OpenStreetMap "no" against a brand "yes" is unknown. A brand restroom is "confirmed available, hours unknown", never open at arrival. A check or collection date more than a year before arrival adds "may be out of date".
+* **Labels.** "Reported open, verification limited (listed by Shell, 2026-10)"; the facility row says "Listed by Shell, collected 2026-10-17". Never "Verified": a listing is what the brand says, not a visit.
+* **Effect on picks (real Miami to Manhattan route, recorded in both engines).** More stations are listed open, and overnight more list a restroom. Shell's own listings name a restroom for only 17% of its US stations (BP 86%, Chevron 95%), so overnight, when a restroom is required, a BP or Chevron that lists one can outrank a Shell that does not say; the reason line says why. One example: at mile 400 overnight the pick moved from a Shell (restroom unknown) to a BP listing a restroom. The overnight "last stop listed open" warning at mile 400 is gone: the 53 mile stretch with no stop listed open there is now covered by brand listings. On this route no single mile has such a stretch at every hour now, so the screenshot test picks its mile by the time in New York (mile 1035 by day, 599 at night; both engines check the windows).
+* **Bug fixed on the way.** A station linked to two exits was offered twice (250 of 1,584 candidates on the real route, 16%); it is now one stop at the exit with the shorter detour.
+* **Not in this step.** Store hours from brand listings, the OpenStreetMap convenience store join, Overture and Foursquare closure flags, missing spiders (Exxon, Mobil, Phillips 66, Citgo, 7-Eleven) and Pilot Flying J and Buc-ee's, whose spiders returned nothing in this run.
+
+## 13.9 Current weather (owner request)
+
+* **What.** The weather where you are, in the top bar of the Drive screen while a trip runs; tap for feels like, wind, humidity, the next 4 hours and the source. Web: it takes the place of the "Drive" title (next to a highway name in discovery mode it shows the symbol and temperature only), and the condition is dropped when it does not fit beside the status pill. iOS: the middle of the top bar, symbol and temperature, SF Symbols in multicolor.
+* **Source.** National Weather Service only: `/points` (rounded to 2 decimals, about 1 km) for the forecast grid, place name, time zone and station list; the latest observation of the nearest stations within 50 km, nearest first, stopping at the first that reported in the last 90 minutes with a temperature; the hourly forecast. Public domain, no key, CORS open, so no backend.
+* **Rules (both engines, shared fixtures).** An observation older than 90 minutes, or more than 10 minutes in the future, is never "now". Without one, this hour of the hourly forecast is shown, labeled "Forecast". Nothing current: nothing is shown, never an old value. Answers fetched more than 25 miles back are not shown. Feels like comes from the heat index or wind chill, shown only when it differs.
+* **Polling.** Only while a trip runs: every 10 minutes, or after 10 miles but not more than every 2 minutes (a simulated drive runs at 30 times speed), the point record again after 5 miles, backoff 1 to 30 minutes after failures. A failure keeps the last answers, which still age out under the 90 minute rule.
+* **Tested.** Real responses for Jacksonville, FL captured 2026-10-29 (`Tests/ExitAtlasCoreTests/Fixtures/weather`): the stale KNIP reading is skipped for KCRG, 72°F, feels like 73, cloudy, night, NE 11 mph, 88%; KNIP alone gives the 71°F forecast. The web app was also run on the live service on the demo route (light and dark). iOS screenshots come from CI and are skipped, not failed, when the service does not answer from the runner.
+
+## 13.10 Pull request plan
 
 | PR | Milestone | Content | State |
 |---|---|---|---|
-| 13 | 1 to 3 | This audit; alert engine; NWS; WZDx; Google voice fix; profile alert settings | This PR |
+| 13 | 1 to 3 | This audit; alert engine; NWS; WZDx; Google voice fix; profile alert settings | Merged |
 | next | 3 | PennDOT RCRS through the Worker and D1, after registration; OSM and DC fixed cameras ("Enforcement cameras", may be incomplete) | Needs the PennDOT credential and the Worker deployed |
-| next | 4 | Stop data: ATP hours and restroom listings, convenience store join, Overture and FSQ closure flags, freshness labels ("checked Apr 2025") | Pipeline work |
-| next | 5 | True detours: relabel today's numbers as "about twice the one way drive"; Valhalla round trip per state in CI; MKDirections on demand for the picks on iOS | |
+| 14 | 4 | Stop data: brand listing hours and restrooms, freshness labels, one stop per station (13.8) | This PR |
+| next | 4 | Convenience store join, Overture and FSQ closure flags, more brand spiders | Pipeline work |
+| 14 | 5 | Relabel today's detours as estimates (twice the drive from the exit) | This PR |
+| 14 | | Current weather on the Drive screen (13.9) | This PR |
+| next | 5 | True detours: Valhalla round trip per state in CI; MKDirections on demand for the picks on iOS | |
 | next | 6 | One tap restroom stop (1 pick plus 2 alternatives, overnight rules); fuel cost comparison (web port of FuelPlanner, detour fuel, reserve) | |
 | next | 7 | TripReady line; route comparison (fuel, alerts, overnight gas, restrooms, gaps, Shell count; tolls only as "tolls on route" until HERE is approved) | |
 | next | 8 | Local diagnostics: on device log, review, redact, export, never uploaded without permission; recorded issues become fixtures | |
 | later | | Community reports, only after 13.5 is decided | Owner and counsel |
 
-## 13.9 Decisions for the owner
+## 13.11 Decisions for the owner
 
 1. Deploy the key proxy Worker (free plan is enough for the work zone passthrough) so the website covers MD, NJ, KY, MN, MO and WI.
 2. Register for PennDOT RCRS and, if wanted, the IBI 511 keys; record each written permission in this repository before shipping.

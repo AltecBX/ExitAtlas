@@ -7,8 +7,10 @@ import Foundation
 /// Stop confidence is a status, never a score. Hours and restrooms are only what a source lists:
 ///   Google Places business hours for the arrival day          "Verified open at estimated arrival"
 ///   OpenStreetMap hours (community mapped, with a check date) "Reported open, verification limited"
-///   either source closed at the arrival time                  "Reported closed at estimated arrival"
-///   nothing listed, or hours that do not parse                "Hours unavailable"
+///   or the brand's own store listing (All the Places, with the date it was collected)
+///   a source closed at the arrival time (and none open)       "Reported closed at estimated arrival"
+///   nothing listed, hours that do not parse, or OpenStreetMap
+///   and the brand listing disagree at the arrival time        "Hours unavailable"
 /// A restroom is "confirmed" only when tagged or listed. It is "accessible at estimated arrival" only
 /// where its own hours are known: at rest areas and service plazas, whose listed hours are the
 /// building's. A 24 hour gas station can still lock its restroom overnight, so a station restroom is
@@ -120,6 +122,12 @@ public enum SmartStop {
         public var osmChecked: String?
         public var osmToilets: Bool?
         public var gone: String?
+        /// The brand's own store listing (All the Places): its hours for the station, whether it lists a
+        /// restroom, the brand as it names itself, and the date the listing was collected.
+        public var brandHours: String?
+        public var brandToilets: Bool?
+        public var listedBy: String?
+        public var brandCollected: String?
         /// Google Places, live: business hours for the coming week and the restroom field.
         public var livePeriods: [GooglePeriod]?
         public var liveRestroom: Bool?
@@ -134,7 +142,8 @@ public enum SmartStop {
                     detourMinutes: Double? = nil, rangeOnArrival: Double? = nil, price: Double? = nil,
                     osmHours: String? = nil, osmChecked: String? = nil, osmToilets: Bool? = nil, gone: String? = nil,
                     livePeriods: [GooglePeriod]? = nil, liveRestroom: Bool? = nil, liveSource: String = "Google Maps",
-                    plazaHours: String? = nil, plazaToilets: Bool? = nil, truckSpaces: Int? = nil) {
+                    plazaHours: String? = nil, plazaToilets: Bool? = nil, truckSpaces: Int? = nil,
+                    brandHours: String? = nil, brandToilets: Bool? = nil, listedBy: String? = nil, brandCollected: String? = nil) {
             self.id = id
             self.name = name
             self.brand = brand
@@ -159,6 +168,10 @@ public enum SmartStop {
             self.plazaHours = plazaHours
             self.plazaToilets = plazaToilets
             self.truckSpaces = truckSpaces
+            self.brandHours = brandHours
+            self.brandToilets = brandToilets
+            self.listedBy = listedBy
+            self.brandCollected = brandCollected
         }
 
         var isPlaza: Bool { kind == .plaza || kind == .rest }
@@ -182,6 +195,12 @@ public enum SmartStop {
         public var closesIn: Int?
         /// The listed hours have holiday rules that are not applied.
         public var holidays: Bool
+        /// Why the hours are unavailable when sources disagree.
+        public var note: String? = nil
+        /// The hours come from the brand's listing (`checked` is then the date it was collected).
+        public var listing = false
+        /// `checked` is more than a year before the arrival: shown, with "may be out of date".
+        public var stale = false
         public var label: String { status.label }
     }
 
@@ -205,6 +224,49 @@ public enum SmartStop {
         }
     }
 
+    /// A check or collection date ("2025", "2025-03", "2025-03-14") more than a year before the arrival: the
+    /// hours are still shown, with "may be out of date".
+    public static func isStale(_ date: String?, arrival: Date) -> Bool {
+        guard let date, date.count >= 4, let y = Int(date.prefix(4)) else { return false }
+        let parts = date.prefix(10).split(separator: "-").dropFirst().compactMap { Int($0) }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        guard let d = cal.date(from: DateComponents(year: y, month: parts.first ?? 1, day: parts.dropFirst().first ?? 1)) else { return false }
+        return arrival.timeIntervalSince(d) > 365 * 86400
+    }
+
+    struct Pumps {
+        var status: HoursStatus
+        var closesIn: Int?
+        var source: String?
+        var checked: String?
+        var parsed: OpeningHours?
+        var listing = false
+        var note: String?
+    }
+
+    /// The pumps' hours from OpenStreetMap and the brand's listing: one source when only one lists them; when
+    /// both do and agree, the more recently dated one (the listing unless a mapper checked the hours after it
+    /// was collected); when they disagree at the arrival time, unknown, with a note saying so.
+    static func pumps(hours: String?, checked: String?, brandHours: String?, listedBy: String?, collected: String?,
+                      weekday: Int, minute: Int) -> Pumps {
+        func at(_ h: OpeningHours?) -> (HoursStatus, Int?) {
+            guard let h else { return (.unknown, nil) }
+            let r = h.open(weekday: weekday, minute: minute)
+            return r.open ? (.reported, r.closesIn) : (.closed, nil)
+        }
+        let o = OpeningHours(osm: hours), b = OpeningHours(osm: brandHours)
+        let os = at(o), bs = at(b)
+        let fromOSM = Pumps(status: os.0, closesIn: os.1, source: "OpenStreetMap", checked: checked, parsed: o)
+        let fromBrand = Pumps(status: bs.0, closesIn: bs.1, source: "Listed by \(listedBy ?? "the brand")", checked: collected, parsed: b, listing: true)
+        if o == nil && b == nil { return Pumps(status: .unknown) }
+        guard b != nil else { return fromOSM }
+        guard o != nil else { return fromBrand }
+        if os.0 != bs.0 { return Pumps(status: .unknown, note: "OpenStreetMap and the \(listedBy ?? "brand") listing disagree") }
+        if let checked, let collected, checked > collected { return fromOSM }
+        return fromBrand
+    }
+
     /// Everything known about one stop at its arrival time.
     public static func evaluate(_ c: Candidate, preferences p: Preferences) -> Evaluation {
         let local = OpeningHours.localTime(c.arrival, in: c.timeZone)
@@ -217,13 +279,17 @@ public enum SmartStop {
             return r.open ? (kind, r.closesIn) : (.closed, nil)
         }
 
-        // Pumps: the station's OpenStreetMap hours (or a plaza's hours, which cover its fuel).
-        let pumpsText = c.isPlaza ? c.plazaHours : c.osmHours
-        let parsed = OpeningHours(osm: pumpsText)
-        let pumps = status(parsed, .reported)
+        // Pumps: the station's OpenStreetMap hours and its brand listing (or a plaza's hours, which cover its fuel).
+        let pumpsFound = c.isPlaza
+            ? Self.pumps(hours: c.plazaHours, checked: nil, brandHours: nil, listedBy: nil, collected: nil, weekday: local.weekday, minute: local.minute)
+            : Self.pumps(hours: c.osmHours, checked: c.osmChecked, brandHours: c.brandHours, listedBy: c.listedBy, collected: c.brandCollected,
+                         weekday: local.weekday, minute: local.minute)
+        let parsed = pumpsFound.parsed
+        let pumps = (pumpsFound.status, pumpsFound.closesIn)
         if !rest {
-            facilities.append(Facility(name: "Pumps", status: pumps.0.rawValue, label: pumps.0.label, source: pumpsText == nil ? nil : "OpenStreetMap",
-                                       checked: c.isPlaza ? nil : c.osmChecked, closesIn: pumps.1))
+            let source = pumpsFound.note ?? (pumpsFound.listing ? pumpsFound.checked.map { "\(pumpsFound.source ?? ""), collected \($0)" } ?? pumpsFound.source : pumpsFound.source)
+            facilities.append(Facility(name: "Pumps", status: pumps.0.rawValue, label: pumps.0.label, source: source,
+                                       checked: c.isPlaza || pumpsFound.listing ? nil : pumpsFound.checked, closesIn: pumps.1))
         }
         // Store: the business hours Google lists for the arrival day.
         let liveWeek = rest ? nil : c.livePeriods.flatMap { OpeningHours(googlePeriods: $0) }
@@ -238,23 +304,38 @@ public enum SmartStop {
         if store.0 == .verified {
             hours = Hours(status: .verified, source: liveSource, checked: nil, closesIn: store.1, holidays: false)
         } else if pumps.0 == .reported {
-            hours = Hours(status: .reported, source: "OpenStreetMap", checked: nil, closesIn: pumps.1, holidays: false)
+            hours = Hours(status: .reported, source: pumpsFound.source, checked: nil, closesIn: pumps.1, holidays: false)
         } else if store.0 == .closed || pumps.0 == .closed {
-            hours = Hours(status: .closed, source: store.0 == .closed ? liveSource : "OpenStreetMap", checked: nil, closesIn: nil, holidays: false)
+            hours = Hours(status: .closed, source: store.0 == .closed ? liveSource : pumpsFound.source, checked: nil, closesIn: nil, holidays: false)
         } else {
-            hours = Hours(status: .unknown, source: nil, checked: nil, closesIn: nil, holidays: false)
+            hours = Hours(status: .unknown, source: nil, checked: nil, closesIn: nil, holidays: false, note: pumpsFound.note)
         }
-        hours.checked = hours.source == "OpenStreetMap" && !c.isPlaza ? c.osmChecked : nil
+        let fromPumps = hours.source != nil && hours.source == pumpsFound.source
+        hours.checked = fromPumps && !c.isPlaza ? pumpsFound.checked : nil
+        hours.listing = fromPumps && pumpsFound.listing
+        hours.stale = isStale(hours.checked, arrival: c.arrival)
         hours.holidays = parsed?.holidays ?? false
 
-        // Restroom: tagged in OpenStreetMap or listed by Google; its own hours only at plazas and rest areas.
-        let toilets = c.isPlaza ? c.plazaToilets : (c.liveRestroom ?? c.osmToilets)
+        // Restroom: listed by Google, tagged in OpenStreetMap, or listed by the brand, in that order; when
+        // OpenStreetMap says none and the brand lists one, unknown. Its own hours only at plazas and rest areas.
+        let brandListed = !c.isPlaza && c.brandToilets == true
+        let toilets: Bool?
+        let restroomSource: String?
+        if c.isPlaza { toilets = c.plazaToilets; restroomSource = c.plazaToilets == nil ? nil : "OpenStreetMap" }
+        else if let r = c.liveRestroom { toilets = r; restroomSource = c.liveSource }
+        else if c.osmToilets == false && brandListed {
+            toilets = nil
+            restroomSource = "OpenStreetMap and the \(c.listedBy ?? "brand") listing disagree"
+        } else if let t = c.osmToilets { toilets = t; restroomSource = "OpenStreetMap" }
+        else if brandListed {
+            toilets = true
+            restroomSource = "Listed by \(c.listedBy ?? "the brand")" + (c.brandCollected.map { ", collected \($0)" } ?? "")
+        } else { toilets = nil; restroomSource = nil }
         let restroom: RestroomStatus
         if toilets == false { restroom = .none }
         else if toilets != true { restroom = .unknown }
         else if c.isPlaza && pumps.0 == .reported { restroom = .accessible }
         else { restroom = .available }
-        let restroomSource: String? = toilets == nil ? nil : (c.isPlaza || c.liveRestroom == nil ? "OpenStreetMap" : c.liveSource)
         facilities.append(Facility(name: "Restroom", status: restroom.rawValue, label: restroom.label, source: restroomSource))
         facilities.append(Facility(name: "Restroom hours", status: restroom == .accessible ? "reported" : "unknown",
                                    label: restroom == .accessible ? "Open at estimated arrival (the \(rest ? "rest area" : "plaza")'s listed hours)" : "Not listed",
@@ -409,12 +490,15 @@ public enum SmartStop {
             let h = x.e.hours
             switch h.status {
             case .verified: out.append("\(h.label) (\(h.source ?? "Google Maps"))")
-            case .reported: out.append(h.label + (h.checked.map { " (OpenStreetMap, checked \($0.prefix(7)))" } ?? " (OpenStreetMap)"))
-            default: out.append(h.label)
+            case .reported where h.listing:
+                let stale = h.stale ? ", may be out of date" : ""
+                out.append("\(h.label) (\((h.source ?? "").replacingOccurrences(of: "Listed", with: "listed"))\(h.checked.map { ", \($0.prefix(7))" } ?? "")\(stale))")
+            case .reported: out.append(h.label + (h.checked.map { " (OpenStreetMap, checked \($0.prefix(7))\(h.stale ? ", may be out of date" : ""))" } ?? " (OpenStreetMap)"))
+            default: out.append(h.label + (h.note.map { " (\($0))" } ?? ""))
             }
             if let c = h.closesIn, c <= 60 { out.append("Closes \(c) min after you arrive") }
             if x.e.restroom != .unknown || needs(p.requireRestroom, x) { out.append(x.e.restroom.label) }
-            if let d = x.c.detourMinutes { out.append(d < 1 ? "No detour" : "\(Int(d.rounded())) min detour, round trip") }
+            if let d = x.c.detourMinutes { out.append(d < 1 ? "No detour" : "About \(Int(d.rounded())) min detour (twice the drive from the exit)") }
             else if x.c.isPlaza { out.append("On the highway, no exit needed") }
             else { out.append("Detour not measured") }
             if let price = x.c.price, p.priceOverBrand { out.append(String(format: "$%.2f (Google Maps)", price)) }

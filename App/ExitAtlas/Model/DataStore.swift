@@ -60,9 +60,13 @@ struct BundledData: Sendable {
 
     var stationSummary: String? {
         guard let m = stations?.metadata else { return nil }
-        return "Opening hours for \(m.with_hours ?? 0) and restroom tags for \(m.with_toilets ?? 0) of \(m.count) gas stations from OpenStreetMap "
-            + "(tags checked \(m.tags_fetched ?? "unknown"), \(m.license)); \(m.gone ?? 0) no longer listed as gas stations are never recommended. "
-            + "Hours are as mapped by volunteers and shown as reported, not verified."
+        var text = "Opening hours for \(m.with_hours ?? 0) and restroom tags for \(m.with_toilets ?? 0) of \(m.count) gas stations from OpenStreetMap "
+            + "(tags checked \(m.tags_fetched ?? "unknown"), ODbL 1.0); \(m.gone ?? 0) no longer listed as gas stations are never recommended. "
+        if let collected = m.brand_collected {
+            text += "Hours for \(m.with_brand_hours ?? 0) and restroom listings for \(m.with_brand_toilets ?? 0) from the brands' own store listings, "
+                + "collected \(collected) by All the Places (CC0). "
+        }
+        return text + "Both are shown as reported, not verified; when they disagree at your arrival time, the hours show as unavailable."
     }
 
     var discoverSummary: String? {

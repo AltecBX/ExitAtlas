@@ -44,7 +44,7 @@ struct ExitDetailView: View {
                 }
             }
             Section {
-                Text("Detours are round trip estimates from the exit. Routed values come from OpenStreetMap drive times (OpenInterstate reachability); others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.")
+                Text("Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.")
                     .font(.caption).foregroundStyle(Theme.secondaryText)
                 DataAttribution()
             }
@@ -80,10 +80,10 @@ private struct ServiceRow: View {
     private var detourText: String {
         switch service.detourBasis {
         case .routedOneWayDoubled:
-            let time = service.detourSeconds.map { " · about \(Format.duration($0))" } ?? ""
-            return "Detour \(Format.miles(service.detourMeters)) round trip\(time)"
+            let time = service.detourSeconds.map { ", \(Format.duration($0))" } ?? ""
+            return "About \(Format.miles(service.detourMeters))\(time) detour (twice the drive from the exit)"
         case .straightLineEstimate:
-            return "Roughly \(Format.miles(service.detourMeters)) round trip (straight line estimate)"
+            return "Roughly \(Format.miles(service.detourMeters)) detour (straight line estimate)"
         }
     }
 

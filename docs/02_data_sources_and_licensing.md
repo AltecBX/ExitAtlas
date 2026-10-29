@@ -83,8 +83,8 @@ The driver's dashboard "miles to empty" is the primary range input in the app. I
 
 | Source | Key facts | Plan |
 |---|---|---|
-| NWS `api.weather.gov` | Public domain, no key, User Agent required. Query by area or county codes; zone codes alone miss county based polygon warnings ([guide](https://www.weather.gov/media/documentation/docs/NWS_Geolocation.pdf)) | Phase 3, via a small backend |
-| FHWA WZDx work zones | Registry on data.transportation.gov; feeds for FL, NC, VA, MD, DE, NJ, NY, PA Turnpike; none for GA and SC; spec license CC0 | Phase 3 |
+| NWS `api.weather.gov` | Public domain, no key, User Agent required. Query by area or county codes; zone codes alone miss county based polygon warnings ([guide](https://www.weather.gov/media/documentation/docs/NWS_Geolocation.pdf)) | In use, straight from the apps (CORS is open), only during a trip: alerts by point along the route ahead, and current weather where you are (point record rounded to about 1 km, latest observation of the nearest station that reported in the last 90 minutes, hourly forecast). No backend needed |
+| FHWA WZDx work zones | Registry on data.transportation.gov; feeds for FL, NC, VA, MD, DE, NJ, NY, PA Turnpike; none for GA and SC; spec license CC0 | In use; the feeds read and their coverage are in [docs/13](13_road_intelligence_audit.md) |
 | State 511 APIs | Keys, about 10 calls per minute, redistribution terms mostly unclear; PennDOT allows commercial use with credit | Phase 3, backend cache, written permission first |
 | TomTom, HERE incidents | TomTom 2,500 free/month; terms on non vendor maps UNVERIFIED | Later |
 | Waze for Cities | Government agencies and road operators only | No |

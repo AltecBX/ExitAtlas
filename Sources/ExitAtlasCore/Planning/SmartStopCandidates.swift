@@ -1,7 +1,8 @@
 import Foundation
 
 /// stations.json: what OpenStreetMap says today about the gas stations in interstates.eax (hours,
-/// restroom tag, rebrands, stations no longer listed). Built by tools/data-pipeline/build_stations.py.
+/// restroom tag, rebrands, stations no longer listed), and what the brands' own store listings say (All
+/// the Places: hours, restroom). Built by tools/data-pipeline/build_stations.py.
 public struct StationFacts: Sendable {
     public struct Fact: Sendable, Hashable, Decodable {
         /// opening_hours as written.
@@ -14,6 +15,10 @@ public struct StationFacts: Sendable {
         public let b: String?
         /// Why not to offer it: "deleted" or "not fuel".
         public let gone: String?
+        /// The brand's listed hours, whether it lists a restroom, and the brand as the listing names it.
+        public let ah: String?
+        public let at: Bool?
+        public let ab: String?
     }
 
     public struct Meta: Sendable, Decodable {
@@ -24,6 +29,10 @@ public struct StationFacts: Sendable {
         public let with_toilets: Int?
         public let gone: Int?
         public let license: String
+        /// When the brand listings were collected (the All the Places run date), and how many stations have them.
+        public let brand_collected: String?
+        public let with_brand_hours: Int?
+        public let with_brand_toilets: Int?
     }
 
     public let metadata: Meta
@@ -91,10 +100,13 @@ public extension SmartStop {
         }
     }
 
-    /// One candidate per gas station at the exits in the window.
+    /// One candidate per gas station at the exits in the window. A station linked to two exits (a split
+    /// interchange, or the next exit) is one stop: the exit with the shorter detour, or the first one when
+    /// they are equal (same rule as onePerStation in web/js/app/smartstops.js).
     static func stationCandidates(_ ctx: TripContext, window: Double, rangeLeft: Double?) -> [Candidate] {
         let d = ctx.snapshot.progress
         var out: [Candidate] = []
+        var detours: [Double] = []
         for x in RangePlanner.gasCandidates(plan: ctx.plan, from: d, range: window, dataset: ctx.dataset) {
             guard let exit = x.exit else { continue }
             let ahead = x.along - d
@@ -113,10 +125,15 @@ public extension SmartStop {
                     rangeOnArrival: rangeLeft.map { $0 - ahead - g.detourMeters / 2 },
                     price: live?.prices[ctx.grade]?.dollars,
                     osmHours: fact?.h, osmChecked: fact?.hc, osmToilets: fact?.t, gone: fact?.gone,
-                    livePeriods: live?.periods, liveRestroom: live?.restroom))
+                    livePeriods: live?.periods, liveRestroom: live?.restroom,
+                    brandHours: fact?.ah, brandToilets: fact?.at, listedBy: fact?.ab,
+                    brandCollected: fact?.ah != nil || fact?.at != nil ? ctx.stations?.metadata.brand_collected : nil))
+                detours.append(g.detourMeters)
             }
         }
-        return out
+        var best: [String: Int] = [:]
+        for (i, c) in out.enumerated() where best[c.id].map({ detours[i] < detours[$0] }) ?? true { best[c.id] = i }
+        return out.indices.filter { best[out[$0].id] == $0 }.map { out[$0] }
     }
 
     /// Service plazas with fuel (fuel stops), or rest areas and welcome centers (restroom stops).

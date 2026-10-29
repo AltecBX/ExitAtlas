@@ -15,6 +15,8 @@ import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
 import { ALERT_KINDS, ALERT_GROUPS, freshnessText } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
+import { weatherLabel, windText } from '../engine/weather.js';
+import { weatherIcon, skyColors } from './weathericons.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -134,6 +136,64 @@ function metric(title, value, { unit = '', caption = '', size = '' } = {}) {
 
 function progress(fraction, thick = false) {
   return `<div class="progress${thick ? ' thick' : ''}"><div style="width:${(Math.max(0, Math.min(1, fraction)) * 100).toFixed(1)}%"></div></div>`;
+}
+
+// MARK: Weather
+
+/// The weather pill in the top bar: symbol, temperature and the condition, with "Forecast" when no station
+/// near you reported recently. Compact (symbol and temperature) when the title is a highway name.
+export function weatherPill(app, { compact = false } = {}) {
+  const w = app.weatherNow();
+  if (!w || w.temperatureF == null) return '';
+  const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
+  const said = `${w.temperatureF} degrees, ${label}${w.source === 'forecast' ? ', forecast' : ''}`;
+  return `<button class="wx-pill${compact ? ' compact' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
+    ${weatherIcon(w.kind, w.isDay)}<span class="wx-temp num">${w.temperatureF}°</span>${label ? `<span class="wx-cond">${h(label)}</span>` : ''}${w.source === 'forecast' ? '<span class="wx-tag">Forecast</span>' : ''}</button>`;
+}
+
+/// "11 PM" in the time zone of the place.
+function hourText(t, zone) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', ...(zone ? { timeZone: zone } : {}) }).format(new Date(t * 1000));
+  } catch { return clock(t); }
+}
+
+/// The weather sheet: the sky card, the next hours and where the numbers come from.
+export function weatherSheet(app) {
+  const head = '<div class="sheet-head"><h2>Weather</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>';
+  const w = app.weatherNow();
+  if (!w || w.temperatureF == null) {
+    return `${head}<p class="muted">No current weather for where you are. ExitAtlas asks the National Weather Service while a trip runs, about every 10 minutes; nothing is shown when the answer is old or the service cannot be reached.</p>`;
+  }
+  const now = Date.now() / 1000;
+  const [top, bottom] = skyColors(w.kind, w.isDay);
+  const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
+  const wind = windText(w);
+  const metrics = [
+    w.feelsLikeF != null && w.feelsLikeF !== w.temperatureF ? ['Feels like', `${w.feelsLikeF}°`] : null,
+    wind ? ['Wind', wind] : null,
+    w.humidity != null ? ['Humidity', `${w.humidity}%`] : null,
+  ].filter(Boolean);
+  // Chance of rain under an hour when it is 20% or more (NWS forecasts say "slight chance" from 20%).
+  const next = w.next.filter((x) => x.temperatureF != null);
+  const rainy = next.some((x) => x.rainChance >= 20);
+  const hours = next.map((x) => `<div class="wx-hour">
+      <span class="wx-h">${h(hourText(x.at, w.timeZone))}</span>${weatherIcon(x.kind, x.isDay)}
+      <b class="num">${x.temperatureF}°</b>${rainy ? `<span class="wx-rain">${x.rainChance >= 20 ? `${x.rainChance}%` : ''}</span>` : ''}</div>`).join('');
+  const minutes = Math.max(0, Math.round((now - w.at) / 60));
+  const source = w.source === 'observed'
+    ? `Observed ${minutes < 1 ? 'just now' : `${minutes} min ago`} at ${h(w.station.name)}, ${miles(w.station.distance)} away. Next hours from the hourly forecast.`
+    : 'No weather station near you reported in the last 90 minutes, so this is the forecast for this hour.';
+  return `${head}<div class="wx-card" style="--sky-top:${top};--sky-bottom:${bottom}">
+    <div class="wx-place">${h(w.place ?? 'Where you are')}</div>
+    <div class="wx-hero"><div><div class="wx-big num">${w.temperatureF}°</div>
+      <div class="wx-cond-lg">${h(label)}${w.source === 'forecast' ? ' <span class="wx-tag">Forecast</span>' : ''}</div>
+      ${w.condition && w.condition.toLowerCase() !== label.toLowerCase() ? `<div class="wx-said">${h(w.condition)}</div>` : ''}</div>
+      ${weatherIcon(w.kind, w.isDay, 'wx-icon wx-hero-icon')}</div>
+    ${metrics.length ? `<div class="wx-metrics">${metrics.map(([k, v]) => `<div><span>${k}</span><b>${h(v)}</b></div>`).join('')}</div>` : ''}
+    ${hours ? `<div class="wx-hours">${hours}</div>` : ''}
+  </div>
+  <p class="note">${source} National Weather Service.</p>`;
 }
 
 export function statusPill(app) {
@@ -811,7 +871,7 @@ export function exitDetail(app, exitId) {
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a></div>
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
-    <p class="note">Detours are round trip estimates from the exit. Routed values come from OpenStreetMap drive times (OpenInterstate reachability); others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
+    <p class="note">Detours are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
 }
 
 export function restAreaDetail(app, id) {
@@ -861,8 +921,8 @@ function priceSection(app, exit) {
 function serviceRow(x) {
   const p = x.place;
   const detour = x.detourBasis === 'routed'
-    ? `Detour ${miles(x.detourMeters)} round trip${x.detourSeconds !== null ? ` · about ${duration(x.detourSeconds)}` : ''}`
-    : `Roughly ${miles(x.detourMeters)} round trip (straight line estimate)`;
+    ? `About ${miles(x.detourMeters)}${x.detourSeconds !== null ? `, ${duration(x.detourSeconds)}` : ''} detour (twice the drive from the exit)`
+    : `Roughly ${miles(x.detourMeters)} detour (straight line estimate)`;
   return `<div class="item"><div class="main"><div class="t">${h(placeDisplayName(p))}</div><div class="muted small">${detour}</div></div>
     <a class="btn sm" href="https://maps.apple.com/?daddr=${p.coordinate.lat},${p.coordinate.lon}&dirflg=d" target="_blank" rel="noopener" aria-label="Directions">Go</a></div>`;
 }
@@ -1045,7 +1105,7 @@ export function settingsView(app) {
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
-      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(`OpenStreetMap, tags checked ${app.data.stations.metadata.tags_fetched}: hours for ${app.data.stations.metadata.with_hours.toLocaleString('en-US')} and restroom tags for ${app.data.stations.metadata.with_toilets} of ${app.data.stations.metadata.count.toLocaleString('en-US')} stations; ${app.data.stations.metadata.gone} no longer listed as gas stations are never recommended`) : 'not loaded'}. Shown as reported, not verified. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
+      <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. With a Google key, Google's business hours and restroom field for the stations whose prices load.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
@@ -1380,6 +1440,14 @@ function profileSection(app) {
     <p class="muted tiny">The website and the iOS app keep separate profiles. To use the same one, export it here and import it there (or the other way). API keys are never included.</p>
     <div class="row" style="gap:8px"><button class="btn sm" data-act="export-profile">Export profile</button>
       <label class="btn sm" style="cursor:pointer">Import profile<input type="file" accept="application/json,.json" data-import hidden></label></div></div>`;
+}
+
+/// Where the station facts come from, with counts (stations.json meta).
+function stationCredit(m) {
+  const n = (v) => (v ?? 0).toLocaleString('en-US');
+  let text = `OpenStreetMap, tags checked ${m.tags_fetched}: hours for ${n(m.with_hours)} and restroom tags for ${n(m.with_toilets)} of ${n(m.count)} stations; ${n(m.gone)} no longer listed as gas stations are never recommended`;
+  if (m.brand_collected) text += `. The brands' own store listings, collected ${m.brand_collected} by All the Places (CC0): hours for ${n(m.with_brand_hours)} and restroom listings for ${n(m.with_brand_toilets)}`;
+  return text;
 }
 
 /// Road alert switches by group, with each group's source and status during a trip.
