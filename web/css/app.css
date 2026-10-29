@@ -243,6 +243,9 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .btn:disabled { opacity: 0.5; }
 .btn-row { display: flex; gap: 10px; }
 .btn-row > .btn { flex: 1; }
+/* Links styled as buttons (Apple Maps, Google Maps, Waze): no link underline; three in a row stay one line each. */
+a.btn { text-decoration: none; }
+.btn-row > .btn.sm { padding: 8px 6px; white-space: nowrap; min-width: 0; }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {

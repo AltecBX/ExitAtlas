@@ -164,6 +164,11 @@ const app = {
   },
 
 
+  /// The next stop or the destination still ahead on a planned trip, for handing off to Waze.
+  nextWaypoint() {
+    return this.mode === 'trip' ? remainingWaypoints()[0] ?? null : null;
+  },
+
   /// The weather where you are now (app/weather.js), only while a trip runs.
   weatherNow() {
     if (this.mode === 'idle' || !this.lastSample) return null;
