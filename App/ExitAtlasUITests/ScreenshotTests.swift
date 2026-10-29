@@ -174,9 +174,11 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
     }
 
-    /// Scrolls up until the element can be tapped.
+    /// Scrolls up until the element can be tapped, clear of the bottom edge: a row sitting at the very bottom
+    /// of the Settings sheet was reported hittable but the tap did not open it.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 5) -> Bool {
-        for _ in 0..<swipes where !(element.exists && element.isHittable) {
+        func clear() -> Bool { element.exists && element.isHittable && element.frame.maxY < app.frame.maxY - 150 }
+        for _ in 0..<swipes where !clear() {
             app.swipeUp()
             sleep(1)
         }
