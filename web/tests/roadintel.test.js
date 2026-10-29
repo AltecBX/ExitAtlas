@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { route } from './support.js';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
-import { matchIncident, roadIntel, directionCode, roadRef, freshnessText, isSerious } from '../js/engine/roadintel.js';
+import { matchIncident, roadIntel, directionCode, roadRef, freshnessText, isSerious, alertTier, alertHeadline } from '../js/engine/roadintel.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '../../Tests/ExitAtlasCoreTests/Fixtures/roadintel/cases.json'), 'utf8'));
@@ -194,4 +194,14 @@ test('work zone fetching: only states ahead, only during a trip, honest about co
   await ra.refresh(plan, 1000 * MILE);
   assert.equal(ra.wzdx.MD.error, 'feed not updated for over a day');
   assert.equal(status(1000 * MILE).state, 'unavailable');
+});
+
+test('alert tiers and headlines: red only for what is serious', () => {
+  const tiers = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
+    '../../Tests/ExitAtlasCoreTests/Fixtures/roadintel/tiers.json'), 'utf8'));
+  for (const c of tiers.cases) {
+    const i = { category: c.category, severity: c.severity };
+    assert.equal(alertTier(i), c.tier, `${c.category} ${c.severity}: tier`);
+    assert.equal(alertHeadline(i), c.headline, `${c.category} ${c.severity}: headline`);
+  }
 });

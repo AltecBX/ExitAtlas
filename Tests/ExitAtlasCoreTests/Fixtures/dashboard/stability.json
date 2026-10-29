@@ -1,0 +1,37 @@
+{"comment": "The adaptive card held steady between readings (FocusStabilizer), shared by web/tests/dashboard.test.js and DashboardFocusTests.swift. t in seconds, distances in miles. A card stays 30 s unless something more urgent wins two readings in a row; a serious alert within 10 mi or fuel below the reserve replaces it at once; a card with nothing left to show is replaced at once; an alert that disappears stays out for 10 minutes.",
+ "cases": [
+  {"name": "A minor alert at the 10 mile edge does not flicker", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "alert": {"distance": 10.2, "serious": false, "id": "a"}}, "expect": "exit", "held": false},
+   {"t": 1, "signals": {"nextExit": 3, "alert": {"distance": 9.9, "serious": false, "id": "a"}}, "expect": "exit", "held": true},
+   {"t": 2, "signals": {"nextExit": 3, "alert": {"distance": 10.1, "serious": false, "id": "a"}}, "expect": "exit", "held": false},
+   {"t": 3, "signals": {"nextExit": 3, "alert": {"distance": 9.95, "serious": false, "id": "a"}}, "expect": "exit", "held": true},
+   {"t": 4, "signals": {"nextExit": 3, "alert": {"distance": 9.9, "serious": false, "id": "a"}}, "expect": "alert", "held": false},
+   {"t": 5, "signals": {"nextExit": 3, "alert": {"distance": 10.05, "serious": false, "id": "a"}}, "expect": "alert", "held": true},
+   {"t": 6, "signals": {"nextExit": 3, "alert": {"distance": 10.04, "serious": false, "id": "a"}}, "expect": "alert", "held": true},
+   {"t": 34, "signals": {"nextExit": 3, "alert": {"distance": 10.1, "serious": false, "id": "a"}}, "expect": "exit", "held": false}]},
+  {"name": "A serious alert just ahead replaces a fuel card at once", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "fuel": {"range": 200, "reserve": 50, "stopAhead": 20}}, "expect": "fuel", "held": false},
+   {"t": 1, "signals": {"nextExit": 3, "fuel": {"range": 200, "reserve": 50, "stopAhead": 20}, "alert": {"distance": 6, "serious": true, "id": "b"}}, "expect": "alert", "held": false}]},
+  {"name": "Fuel below the reserve replaces the next exit at once", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "fuel": {"range": 80, "reserve": 50, "stopAhead": 60}}, "expect": "exit", "held": false},
+   {"t": 1, "signals": {"nextExit": 3, "fuel": {"range": 45, "reserve": 50, "stopAhead": 20}}, "expect": "fuel", "held": false}]},
+  {"name": "A less urgent card waits 30 seconds", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "fuel": {"range": 200, "reserve": 50, "stopAhead": 20}}, "expect": "fuel", "held": false},
+   {"t": 1, "signals": {"nextExit": 3, "fuel": {"range": 300, "reserve": 50, "stopAhead": 140}}, "expect": "fuel", "held": true},
+   {"t": 2, "signals": {"nextExit": 3, "fuel": {"range": 300, "reserve": 50, "stopAhead": 140}}, "expect": "fuel", "held": true},
+   {"t": 31, "signals": {"nextExit": 3, "fuel": {"range": 300, "reserve": 50, "stopAhead": 140}}, "expect": "exit", "held": false}]},
+  {"name": "A passed planned stop is replaced at once", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "plannedStop": 1}, "expect": "stop", "held": false},
+   {"t": 1, "signals": {"nextExit": 3}, "expect": "exit", "held": false}]},
+  {"name": "An alert that disappears stays out for 10 minutes", "steps": [
+   {"t": 0, "signals": {"nextExit": 3, "alert": {"distance": 5, "serious": false, "id": "c"}}, "expect": "alert", "held": false},
+   {"t": 10, "signals": {"nextExit": 3}, "expect": "exit", "held": false},
+   {"t": 60, "signals": {"nextExit": 3, "alert": {"distance": 4.8, "serious": false, "id": "c"}}, "expect": "exit", "held": false},
+   {"t": 61, "signals": {"nextExit": 3, "alert": {"distance": 4.7, "serious": false, "id": "c"}}, "expect": "exit", "held": false},
+   {"t": 620, "signals": {"nextExit": 3, "alert": {"distance": 2, "serious": false, "id": "c"}}, "expect": "exit", "held": true},
+   {"t": 621, "signals": {"nextExit": 3, "alert": {"distance": 1.9, "serious": false, "id": "c"}}, "expect": "alert", "held": false}]},
+  {"name": "The same reading twice gives the same answer", "steps": [
+   {"t": 0, "signals": {"nextExit": 3}, "expect": "exit", "held": false},
+   {"t": 0, "signals": {"nextExit": 3, "fuel": {"range": 45, "reserve": 50, "stopAhead": 20}}, "expect": "exit", "held": false},
+   {"t": 1, "signals": {"nextExit": 3, "fuel": {"range": 45, "reserve": 50, "stopAhead": 20}}, "expect": "fuel", "held": false}]}
+ ]}

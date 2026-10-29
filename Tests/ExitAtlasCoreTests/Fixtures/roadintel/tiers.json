@@ -1,0 +1,20 @@
+{"comment": "How loud each alert looks on the Drive screen and in Road Ahead (alertTier and alertHeadline in engine/roadintel.js, Incident.tier and headline in RoadIntel.swift). urgent is red, caution amber, info blue.",
+ "cases": [
+  {"category": "closure", "severity": "unknown", "tier": "urgent", "headline": "Road closed ahead"},
+  {"category": "crash", "severity": "major", "tier": "urgent", "headline": "Crash ahead"},
+  {"category": "crash", "severity": "moderate", "tier": "caution", "headline": "Crash ahead"},
+  {"category": "crash", "severity": "minor", "tier": "info", "headline": "Crash ahead"},
+  {"category": "weather", "severity": "severe", "tier": "urgent", "headline": "Severe weather ahead"},
+  {"category": "weather", "severity": "moderate", "tier": "caution", "headline": "Weather alert"},
+  {"category": "weather", "severity": "minor", "tier": "info", "headline": "Weather alert"},
+  {"category": "flooding", "severity": "major", "tier": "urgent", "headline": "Flooding ahead"},
+  {"category": "hazard", "severity": "unknown", "tier": "caution", "headline": "Road hazard ahead"},
+  {"category": "construction", "severity": "moderate", "tier": "caution", "headline": "Work zone ahead"},
+  {"category": "construction", "severity": "unknown", "tier": "info", "headline": "Work zone ahead"},
+  {"category": "construction", "severity": "minor", "tier": "info", "headline": "Work zone ahead"},
+  {"category": "congestion", "severity": "major", "tier": "caution", "headline": "Major delay ahead"},
+  {"category": "disabledVehicle", "severity": "unknown", "tier": "caution", "headline": "Disabled vehicle ahead"},
+  {"category": "police", "severity": "unknown", "tier": "caution", "headline": "Police reported ahead"},
+  {"category": "speedCamera", "severity": "unknown", "tier": "caution", "headline": "Speed camera ahead"},
+  {"category": "other", "severity": "unknown", "tier": "caution", "headline": "Road incident ahead"}
+ ]}

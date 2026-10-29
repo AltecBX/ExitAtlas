@@ -19,7 +19,7 @@
              "recent": [{"name": "Savannah, GA", "lat": 32.0809, "lon": -81.0912}], "plans": []},
   "favorites": {"hotels": [], "restaurants": []},
   "driving": {"speedAlertOver": 10, "exitLookaheadMiles": 50, "gasGapMiles": 60, "favoriteCategories": [],
-              "avoidTolls": false, "keepAwake": false, "liveActivity": true, "theme": "dark"},
+              "avoidTolls": false, "keepAwake": false, "liveActivity": true, "theme": "dark", "drivePresentation": "map"},
   "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": false, "gasGaps": true, "timeZones": true},
   "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true}
 }

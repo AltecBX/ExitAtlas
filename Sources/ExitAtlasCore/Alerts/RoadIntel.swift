@@ -60,6 +60,7 @@ public enum RoadIntel {
 
     public enum Verification: String, Sendable { case official, community, mapped }
     public enum Severity: String, Sendable { case severe, major, moderate, minor, unknown }
+    public enum Tier: String, Sendable { case urgent, caution, info }
 
     public enum Geometry: Sendable {
         case point(GeoCoordinate)
@@ -127,6 +128,31 @@ public enum RoadIntel {
         /// lanes open or does not say (those stay in Road Ahead).
         public var isNotable: Bool {
             isSerious || !(kind == .construction && (severity == .minor || severity == .unknown))
+        }
+
+        /// How loud an alert looks: urgent (red: closures, major or severe crashes, weather, flooding and
+        /// hazards), info (blue: work zones that leave the lanes open or do not say, anything minor), else caution.
+        public var tier: Tier {
+            if isSerious { return .urgent }
+            if !isNotable || severity == .minor { return .info }
+            return .caution
+        }
+
+        /// The alert card's headline: what happened, in a few words.
+        public var headline: String {
+            switch kind {
+            case .closure: return "Road closed ahead"
+            case .crash: return "Crash ahead"
+            case .flooding: return "Flooding ahead"
+            case .weather: return tier == .urgent ? "Severe weather ahead" : "Weather alert"
+            case .hazard: return "Road hazard ahead"
+            case .disabledVehicle: return "Disabled vehicle ahead"
+            case .construction: return "Work zone ahead"
+            case .congestion: return "Major delay ahead"
+            case .police: return "Police reported ahead"
+            case .speedCamera: return "Speed camera ahead"
+            case .other: return "Road incident ahead"
+            }
         }
 
         /// Expired or ended events are not current.

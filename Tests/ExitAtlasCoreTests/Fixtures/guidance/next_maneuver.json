@@ -1,0 +1,309 @@
+{
+ "comment": "The next maneuver from the route steps (Guidance, engine/guidance.js), on the real Miami to Manhattan OSRM route with its bundled exits. miles is the distance from the driver, rounded to a tenth. Shared by web/tests/guidance.test.js and GuidanceTests.swift.",
+ "route": "miami_to_manhattan",
+ "destination": "Manhattan, NY",
+ "cases": [
+  {
+   "atMiles": 0,
+   "expect": {
+    "miles": 0.2,
+    "kind": "turn",
+    "side": "left",
+    "road": "Southeast 10th Street",
+    "exitLabel": null,
+    "text": "Turn left onto Southeast 10th Street"
+   }
+  },
+  {
+   "atMiles": 1,
+   "expect": {
+    "miles": 0.1,
+    "kind": "ramp",
+    "side": "straight",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Take the ramp onto I-95 N"
+   }
+  },
+  {
+   "atMiles": 320,
+   "expect": {
+    "miles": 5.9,
+    "kind": "exit",
+    "side": "right",
+    "road": "SR-9B N",
+    "exitLabel": "333",
+    "text": "Take Exit 333 toward SR-9B N"
+   }
+  },
+  {
+   "atMiles": 326,
+   "expect": {
+    "miles": 0.2,
+    "kind": "fork",
+    "side": "right",
+    "road": "SR-9B N",
+    "exitLabel": null,
+    "text": "Keep right onto SR-9B N"
+   }
+  },
+  {
+   "atMiles": 340,
+   "expect": {
+    "miles": 13.1,
+    "kind": "exit",
+    "side": "right",
+    "road": "I-95 N",
+    "exitLabel": "36",
+    "text": "Take Exit 36 toward I-95 N"
+   }
+  },
+  {
+   "atMiles": 353.5,
+   "expect": {
+    "miles": 0.3,
+    "kind": "fork",
+    "side": "right",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Keep right onto I-95 N"
+   }
+  },
+  {
+   "atMiles": 354,
+   "expect": {
+    "miles": 0.6,
+    "kind": "merge",
+    "side": "left",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Merge onto I-95 N"
+   }
+  },
+  {
+   "atMiles": 900,
+   "expect": {
+    "miles": 12.7,
+    "kind": "fork",
+    "side": "right",
+    "road": "I-295 N",
+    "exitLabel": null,
+    "text": "Keep right onto I-295 N"
+   }
+  },
+  {
+   "atMiles": 950,
+   "expect": {
+    "miles": 4.5,
+    "kind": "exit",
+    "side": "left",
+    "road": "I-95 N",
+    "exitLabel": "43A",
+    "text": "Take Exit 43A toward I-95 N"
+   }
+  },
+  {
+   "atMiles": 955,
+   "expect": {
+    "miles": 1.9,
+    "kind": "merge",
+    "side": "right",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Merge onto I-95 N"
+   }
+  },
+  {
+   "atMiles": 1000,
+   "expect": {
+    "miles": 2.6,
+    "kind": "fork",
+    "side": "right",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Keep right to stay on I-95 N"
+   }
+  },
+  {
+   "atMiles": 1003,
+   "expect": {
+    "miles": 1.2,
+    "kind": "fork",
+    "side": "left",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Keep left to stay on I-95 N"
+   }
+  },
+  {
+   "atMiles": 1040,
+   "expect": {
+    "miles": 0.2,
+    "kind": "fork",
+    "side": "right",
+    "road": "I-395 N",
+    "exitLabel": null,
+    "text": "Keep right onto I-395 N"
+   }
+  },
+  {
+   "atMiles": 1052,
+   "expect": {
+    "miles": 0.6,
+    "kind": "fork",
+    "side": "left",
+    "road": "I-695 N",
+    "exitLabel": null,
+    "text": "Keep left onto I-695 N"
+   }
+  },
+  {
+   "atMiles": 1100,
+   "expect": {
+    "miles": 11.5,
+    "kind": "merge",
+    "side": "right",
+    "road": "I-95 N",
+    "exitLabel": null,
+    "text": "Merge onto I-95 N"
+   }
+  },
+  {
+   "atMiles": 1157.5,
+   "expect": {
+    "miles": 0.4,
+    "kind": "fork",
+    "side": "right",
+    "road": "I-295 N",
+    "exitLabel": null,
+    "text": "Keep right to stay on I-295 N"
+   }
+  },
+  {
+   "atMiles": 1160,
+   "expect": {
+    "miles": 2.6,
+    "kind": "fork",
+    "side": "left",
+    "road": "New Jersey Turnpike",
+    "exitLabel": null,
+    "text": "Keep left onto New Jersey Turnpike"
+   }
+  },
+  {
+   "atMiles": 1200,
+   "expect": {
+    "miles": 12.2,
+    "kind": "fork",
+    "side": "left",
+    "road": "New Jersey Turnpike",
+    "exitLabel": null,
+    "text": "Keep left to stay on New Jersey Turnpike"
+   }
+  },
+  {
+   "atMiles": 1270,
+   "expect": {
+    "miles": 4.8,
+    "kind": "exit",
+    "side": "right",
+    "road": "NJ-495 E",
+    "exitLabel": "16E",
+    "text": "Take Exit 16E toward NJ-495 E"
+   }
+  },
+  {
+   "atMiles": 1276,
+   "expect": {
+    "miles": 1.1,
+    "kind": "exit",
+    "side": "right",
+    "road": "NJ-495 E",
+    "exitLabel": null,
+    "text": "Take the exit on the right"
+   }
+  },
+  {
+   "atMiles": 1279.7,
+   "expect": {
+    "miles": 0.1,
+    "kind": "turn",
+    "side": "left",
+    "road": "West 36th Street",
+    "exitLabel": null,
+    "text": "Turn left onto West 36th Street"
+   }
+  },
+  {
+   "atMiles": 1280.75,
+   "expect": {
+    "miles": 0,
+    "kind": "arrive",
+    "side": "right",
+    "road": null,
+    "exitLabel": null,
+    "text": "Arrive at Manhattan, NY, on the right"
+   }
+  },
+  {
+   "atMiles": 400,
+   "withinMiles": 10,
+   "expect": null
+  }
+ ],
+ "sentences": {
+  "comment": "MapKit steps carry a sentence, shown as given; empty ones are skipped.",
+  "steps": [
+   [
+    0,
+    1000,
+    "",
+    ""
+   ],
+   [
+    1000,
+    30000,
+    "Keep left to continue on I-95 N",
+    ""
+   ],
+   [
+    31000,
+    500,
+    "Take exit 51 toward I-26 W",
+    ""
+   ],
+   [
+    31500,
+    200,
+    "Turn right onto Main St",
+    ""
+   ]
+  ],
+  "cases": [
+   {
+    "atMeters": 10,
+    "expect": {
+     "kind": "other",
+     "side": "left",
+     "text": "Keep left to continue on I-95 N"
+    }
+   },
+   {
+    "atMeters": 1200,
+    "expect": {
+     "kind": "other",
+     "side": "straight",
+     "text": "Take exit 51 toward I-26 W"
+    }
+   },
+   {
+    "atMeters": 31100,
+    "expect": {
+     "kind": "other",
+     "side": "right",
+     "text": "Turn right onto Main St"
+    }
+   }
+  ]
+ }
+}

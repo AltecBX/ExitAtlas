@@ -111,7 +111,7 @@ export function settingsFromProfile(p) {
   return {
     voice: p.voice.enabled, announceStateLines: p.voice.stateLines, announceExits: p.voice.exits, announceFuel: p.voice.fuel,
     announceRestAreas: p.voice.restAreas, announceGasGaps: p.voice.gasGaps, announceTimeZones: p.voice.timeZones,
-    keepAwake: p.driving.keepAwake, gasGapMiles: p.driving.gasGapMiles, theme: p.driving.theme,
+    keepAwake: p.driving.keepAwake, gasGapMiles: p.driving.gasGapMiles, theme: p.driving.theme, drivePresentation: p.driving.drivePresentation,
     speedAlertOver: p.driving.speedAlertOver, favoriteCategories: [...p.driving.favoriteCategories],
     vehicle: webVehicle(v), mpgBasis: v?.mpgBasis ?? 'highway', customMpg: v?.customMpg ?? null, customRange: v?.customRangeMiles ?? null,
     bufferMiles: p.fuel.reserveMiles, favoriteBrands: [...p.fuel.brands], chargerNetwork: p.fuel.chargerNetwork,
@@ -148,6 +148,7 @@ export function applyToProfile(p, settings, places, exitLookaheadMiles) {
   });
   Object.assign(out.driving, {
     keepAwake: s.keepAwake, gasGapMiles: s.gasGapMiles, theme: s.theme, speedAlertOver: s.speedAlertOver,
+    drivePresentation: s.drivePresentation ?? out.driving.drivePresentation,
     favoriteCategories: [...(s.favoriteCategories ?? out.driving.favoriteCategories)],
     exitLookaheadMiles: exitLookaheadMiles ?? out.driving.exitLookaheadMiles,
   });

@@ -220,6 +220,26 @@ export function isNotable(i) {
   return isSerious(i) || !(i.category === 'construction' && (i.severity === 'minor' || i.severity === 'unknown'));
 }
 
+/// How loud an alert looks: 'urgent' (red: closures, major or severe crashes, weather, flooding and hazards),
+/// 'info' (blue: work zones that leave the lanes open or do not say, anything minor), else 'caution' (amber).
+export function alertTier(i) {
+  if (isSerious(i)) return 'urgent';
+  if (!isNotable(i) || i.severity === 'minor') return 'info';
+  return 'caution';
+}
+
+const HEADLINES = {
+  closure: 'Road closed ahead', crash: 'Crash ahead', flooding: 'Flooding ahead', hazard: 'Road hazard ahead',
+  disabledVehicle: 'Disabled vehicle ahead', construction: 'Work zone ahead', congestion: 'Major delay ahead',
+  police: 'Police reported ahead', speedCamera: 'Speed camera ahead', other: 'Road incident ahead',
+};
+
+/// The alert card's headline: what happened, in a few words.
+export function alertHeadline(i) {
+  if (i.category === 'weather') return alertTier(i) === 'urgent' ? 'Severe weather ahead' : 'Weather alert';
+  return HEADLINES[i.category] ?? HEADLINES.other;
+}
+
 const VERIFICATION_ORDER = { official: 0, community: 1, mapped: 2 };
 const SEVERITY_ORDER = { severe: 0, major: 1, moderate: 2, minor: 3, unknown: 4 };
 

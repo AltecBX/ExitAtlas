@@ -20,6 +20,6 @@
              "plans": [{"name": "No destination", "stops": []}, {"name": "Keep", "stops": [{"name": "Bad"}, {"name": "Stop", "lat": 1, "lon": 2}],
                         "to": {"name": "End", "lat": 3, "lon": 4}, "from": "nowhere"}]},
   "favorites": [],
-  "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 1000, "favoriteCategories": ["gas", "casino", "gas"], "theme": "neon"},
+  "driving": {"speedAlertOver": 5, "exitLookaheadMiles": 1000, "favoriteCategories": ["gas", "casino", "gas"], "theme": "neon", "drivePresentation": "sideways"},
   "voice": {"enabled": "loud", "exits": true}
 }

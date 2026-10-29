@@ -38,6 +38,8 @@ public struct ProfileSettings: Sendable, Equatable {
     public var liveActivityEnabled = true
     /// "auto", "light" or "dark".
     public var theme = "auto"
+    /// The Drive screen: "map" (Navigation View) or "focus" (the compact dashboard).
+    public var drivePresentation = "map"
 
     public var voiceEnabled = true
     public var announceStateLines = true
@@ -96,6 +98,7 @@ public struct ProfileSettings: Sendable, Equatable {
         keepAwake = d["keepAwake"]?.bool ?? true
         liveActivityEnabled = d["liveActivity"]?.bool ?? true
         theme = d["theme"]?.string ?? "auto"
+        drivePresentation = d["drivePresentation"]?.string ?? "map"
         let v = sec("voice")
         voiceEnabled = v["enabled"]?.bool ?? true
         announceStateLines = v["stateLines"]?.bool ?? true
@@ -146,7 +149,7 @@ public struct ProfileSettings: Sendable, Equatable {
             "speedAlertOver": .number(speedAlertOver), "exitLookaheadMiles": .number(exitLookaheadMiles),
             "gasGapMiles": .number(gasGapMiles), "favoriteCategories": strs(favoriteCategories),
             "avoidTolls": .bool(avoidTolls), "keepAwake": .bool(keepAwake), "liveActivity": .bool(liveActivityEnabled),
-            "theme": .string(theme),
+            "theme": .string(theme), "drivePresentation": .string(drivePresentation),
         ])
         merge("voice", [
             "enabled": .bool(voiceEnabled), "stateLines": .bool(announceStateLines), "exits": .bool(announceExits),

@@ -149,7 +149,8 @@ private struct DriveDashboard: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("restAreaCard")
             }
-        case .exit:
+        case .exit, .border:
+            // The state line card above already carries the approach to the border.
             if let next = snapshot.nextExit {
                 NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
             }
