@@ -37,6 +37,10 @@ export function defaultProfile() {
     // Live traffic (engine/traffic.js, docs/16): the map layer, traffic in arrival times, spoken heavy traffic,
     // and faster route offers saving at least minSavingMinutes.
     traffic: { map: true, eta: true, voice: true, suggestRoutes: true, minSavingMinutes: 10 },
+    // Gas prices (engine/gasprices.js, docs/17): compare reported prices, the payment the driver usually uses,
+    // how old a report may be and still compete, telling when another stop beats the favorite by at least
+    // minSavingsDollars on a fill, and the price sources (own reports, shared reports, paid Google: off).
+    prices: { compare: true, payment: 'credit', maxAgeHours: 24, tellCheaper: true, minSavingsDollars: 2, ownReports: true, community: false, google: false },
   };
 }
 
@@ -181,6 +185,10 @@ export function normalizeProfile(raw) {
   section('voice', Object.fromEntries(Object.keys(d.voice).map((k) => [k, bool])));
   section('alerts', Object.fromEntries(Object.keys(d.alerts).map((k) => [k, bool])));
   section('traffic', { map: bool, eta: bool, voice: bool, suggestRoutes: bool, minSavingMinutes: (v) => oneOf(v, [5, 10, 15, 20]) });
+  section('prices', {
+    compare: bool, payment: (v) => oneOf(v, ['credit', 'cash']), maxAgeHours: (v) => oneOf(v, [6, 12, 24]), tellCheaper: bool,
+    minSavingsDollars: (v) => oneOf(v, [1, 2, 3, 5]), ownReports: bool, community: bool, google: bool,
+  });
   return { profile: out, problems };
 }
 

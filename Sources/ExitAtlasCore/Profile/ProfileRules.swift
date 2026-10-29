@@ -30,6 +30,11 @@ public enum ProfileRules {
             // Traffic (Trip/Traffic.swift, docs/16): the map layer, traffic in arrival times, spoken heavy traffic,
             // and faster route offers saving at least minSavingMinutes.
             "traffic": ["map": true, "eta": true, "voice": true, "suggestRoutes": true, "minSavingMinutes": 10],
+            // Gas prices (Planning/GasPrices.swift, docs/17): compare reported prices, the usual payment, how old a
+            // report may be and still compete, telling when another stop beats the favorite by minSavingsDollars on
+            // a fill, and the price sources (own reports, shared reports, paid Google: off).
+            "prices": ["compare": true, "payment": "credit", "maxAgeHours": 24, "tellCheaper": true, "minSavingsDollars": 2,
+                       "ownReports": true, "community": false, "google": false],
         ]
     }
 
@@ -218,6 +223,10 @@ public enum ProfileRules {
         section("voice", ["enabled", "stateLines", "exits", "fuel", "restAreas", "gasGaps", "timeZones"].map { ($0, bool) })
         section("alerts", ["closures", "incidents", "weather", "police", "cameras", "traffic", "voice"].map { ($0, bool) })
         section("traffic", ["map", "eta", "voice", "suggestRoutes"].map { ($0, bool) } + [("minSavingMinutes", { oneOf($0, [5, 10, 15, 20]) })])
+        section("prices", ["compare", "tellCheaper", "ownReports", "community", "google"].map { ($0, bool) } + [
+            ("payment", { oneOf($0, ["credit", "cash"]) }), ("maxAgeHours", { oneOf($0, [6, 12, 24]) }),
+            ("minSavingsDollars", { oneOf($0, [1, 2, 3, 5]) }),
+        ])
         return (.object(out), problems)
     }
 

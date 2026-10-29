@@ -1,0 +1,742 @@
+{
+ "comment": "SIMULATED gas prices for engine tests (web/js/engine/gasprices.js, Sources/ExitAtlasCore/Planning/GasPrices.swift). Not real prices.",
+ "now": 1800000000,
+ "validate": [
+  {
+   "name": "a normal report",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.099,
+    "payment": "credit",
+    "member": false
+   },
+   "benchmark": 3.02,
+   "ok": true,
+   "price": 3.099
+  },
+  {
+   "name": "rounded to a tenth of a cent",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.0994,
+    "payment": null
+   },
+   "benchmark": null,
+   "ok": true,
+   "price": 3.099
+  },
+  {
+   "name": "too cheap to be real",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 0.99
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "price out of range"
+   ]
+  },
+  {
+   "name": "too expensive to be real",
+   "input": {
+    "stationId": "shell209",
+    "grade": "P",
+    "price": 12.5
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "price out of range"
+   ]
+  },
+  {
+   "name": "far from the regional average",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 5.99
+   },
+   "benchmark": 3.02,
+   "ok": false,
+   "problems": [
+    "far from the regional average"
+   ]
+  },
+  {
+   "name": "no such grade",
+   "input": {
+    "stationId": "shell209",
+    "grade": "E",
+    "price": 3.09
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "grade"
+   ]
+  },
+  {
+   "name": "no station",
+   "input": {
+    "stationId": "",
+    "grade": "R",
+    "price": 3.09
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "station"
+   ]
+  },
+  {
+   "name": "unknown payment",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.09,
+    "payment": "check"
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "payment"
+   ]
+  },
+  {
+   "name": "seen in the future",
+   "input": {
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.09,
+    "reportedAt": 1800000600
+   },
+   "benchmark": null,
+   "ok": false,
+   "problems": [
+    "time"
+   ]
+  }
+ ],
+ "freshness": [
+  {
+   "age": 20,
+   "maxAgeHours": 24,
+   "state": "current",
+   "text": "Reported just now"
+  },
+  {
+   "age": 1080,
+   "maxAgeHours": 24,
+   "state": "current",
+   "text": "Reported 18 minutes ago"
+  },
+  {
+   "age": 14700,
+   "maxAgeHours": 24,
+   "state": "current",
+   "text": "Reported 4 hours ago"
+  },
+  {
+   "age": 25200,
+   "maxAgeHours": 6,
+   "state": "old",
+   "text": "Reported 7 hours ago"
+  },
+  {
+   "age": 108000,
+   "maxAgeHours": 24,
+   "state": "old",
+   "text": "Reported yesterday"
+  },
+  {
+   "age": 259200,
+   "maxAgeHours": 24,
+   "state": "old",
+   "text": "Reported 3 days ago"
+  },
+  {
+   "age": 691200,
+   "maxAgeHours": 24,
+   "state": "expired",
+   "text": "Reported 8 days ago"
+  }
+ ],
+ "records": [
+  {
+   "id": "r1",
+   "stationId": "shell209",
+   "grade": "R",
+   "price": 3.09,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799998800,
+   "reporter": "me",
+   "source": {
+    "id": "own",
+    "name": "You",
+    "kind": "own"
+   }
+  },
+  {
+   "id": "r2",
+   "stationId": "shell209",
+   "grade": "R",
+   "price": 3.05,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799906400,
+   "reporter": "me",
+   "source": {
+    "id": "own",
+    "name": "You",
+    "kind": "own"
+   }
+  },
+  {
+   "id": "r3",
+   "stationId": "shell209",
+   "grade": "D",
+   "price": 3.79,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799996400,
+   "reporter": "a",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r4",
+   "stationId": "shell209",
+   "grade": "R",
+   "price": 2.99,
+   "currency": "USD",
+   "payment": "credit",
+   "member": true,
+   "reportedAt": 1799998200,
+   "reporter": "b",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r5",
+   "stationId": "wawa212",
+   "grade": "R",
+   "price": 2.89,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799992800,
+   "reporter": "c",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r6",
+   "stationId": "wawa212",
+   "grade": "R",
+   "price": 2.89,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799994600,
+   "reporter": "d",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r7",
+   "stationId": "wawa212",
+   "grade": "R",
+   "price": 2.84,
+   "currency": "USD",
+   "payment": "cash",
+   "member": false,
+   "reportedAt": 1799989200,
+   "reporter": "e",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r8",
+   "stationId": "exxon212",
+   "grade": "R",
+   "price": 3.19,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799892000,
+   "reporter": "f",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r9",
+   "stationId": "bp215",
+   "grade": "R",
+   "price": 3.15,
+   "currency": "USD",
+   "payment": "credit",
+   "member": false,
+   "reportedAt": 1799222400,
+   "reporter": "g",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r10",
+   "stationId": "pilot221",
+   "grade": "R",
+   "price": 3.29,
+   "currency": "USD",
+   "payment": null,
+   "member": false,
+   "reportedAt": 1799996400,
+   "reporter": "h",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  },
+  {
+   "id": "r11",
+   "stationId": "pilot221",
+   "grade": "R",
+   "price": 3.49,
+   "currency": "USD",
+   "payment": null,
+   "member": false,
+   "reportedAt": 1799997600,
+   "reporter": "i",
+   "source": {
+    "id": "community",
+    "name": "ExitAtlas drivers",
+    "kind": "community"
+   }
+  }
+ ],
+ "stationPrice": [
+  {
+   "name": "the current report beats an older one",
+   "station": "shell209",
+   "grade": "R",
+   "payment": "credit",
+   "expect": {
+    "id": "r1",
+    "state": "current",
+    "paymentMatch": "exact",
+    "confirmations": 0,
+    "conflict": false
+   }
+  },
+  {
+   "name": "diesel is its own grade",
+   "station": "shell209",
+   "grade": "D",
+   "payment": "credit",
+   "expect": {
+    "id": "r3",
+    "state": "current",
+    "paymentMatch": "exact",
+    "confirmations": 0,
+    "conflict": false
+   }
+  },
+  {
+   "name": "no midgrade report: price unavailable",
+   "station": "shell209",
+   "grade": "M",
+   "payment": "credit",
+   "expect": null
+  },
+  {
+   "name": "member prices only when asked",
+   "station": "shell209",
+   "grade": "R",
+   "payment": "credit",
+   "member": true,
+   "expect": {
+    "id": "r4",
+    "state": "current",
+    "paymentMatch": "exact",
+    "confirmations": 0,
+    "conflict": false
+   }
+  },
+  {
+   "name": "two drivers saw the same credit price",
+   "station": "wawa212",
+   "grade": "R",
+   "payment": "credit",
+   "expect": {
+    "id": "r6",
+    "state": "current",
+    "paymentMatch": "exact",
+    "confirmations": 1,
+    "conflict": false
+   }
+  },
+  {
+   "name": "a cash driver gets the cash price",
+   "station": "wawa212",
+   "grade": "R",
+   "payment": "cash",
+   "expect": {
+    "id": "r7",
+    "state": "current",
+    "paymentMatch": "exact",
+    "confirmations": 0,
+    "conflict": false
+   }
+  },
+  {
+   "name": "only an old report: shown as old",
+   "station": "exxon212",
+   "grade": "R",
+   "payment": "credit",
+   "expect": {
+    "id": "r8",
+    "state": "old",
+    "paymentMatch": "exact",
+    "confirmations": 0,
+    "conflict": false
+   }
+  },
+  {
+   "name": "expired reports are gone",
+   "station": "bp215",
+   "grade": "R",
+   "payment": "credit",
+   "expect": null
+  },
+  {
+   "name": "conflicting reports: the newest, flagged",
+   "station": "pilot221",
+   "grade": "R",
+   "payment": "credit",
+   "expect": {
+    "id": "r11",
+    "state": "current",
+    "paymentMatch": "unspecified",
+    "confirmations": 0,
+    "conflict": true
+   }
+  }
+ ],
+ "addReport": [
+  {
+   "name": "a repeat within 30 minutes is not added",
+   "start": [
+    "r1"
+   ],
+   "add": {
+    "id": "n1",
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.09,
+    "payment": "credit",
+    "member": false,
+    "reportedAt": 1799999700,
+    "reporter": "me"
+   },
+   "expect": [
+    "r1"
+   ]
+  },
+  {
+   "name": "a correction within 30 minutes replaces the driver's own report",
+   "start": [
+    "r1"
+   ],
+   "add": {
+    "id": "n2",
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.19,
+    "payment": "credit",
+    "member": false,
+    "reportedAt": 1799999700,
+    "reporter": "me"
+   },
+   "expect": [
+    "n2"
+   ]
+  },
+  {
+   "name": "another driver's report of the same price is kept as a confirmation",
+   "start": [
+    "r1"
+   ],
+   "add": {
+    "id": "n3",
+    "stationId": "shell209",
+    "grade": "R",
+    "price": 3.09,
+    "payment": "credit",
+    "member": false,
+    "reportedAt": 1799999700,
+    "reporter": "zz"
+   },
+   "expect": [
+    "r1",
+    "n3"
+   ]
+  },
+  {
+   "name": "expired reports are dropped when a report is added",
+   "start": [
+    "r9",
+    "r1"
+   ],
+   "add": {
+    "id": "n4",
+    "stationId": "wawa212",
+    "grade": "D",
+    "price": 3.59,
+    "payment": "credit",
+    "member": false,
+    "reportedAt": 1800000000,
+    "reporter": "me"
+   },
+   "expect": [
+    "r1",
+    "n4"
+   ]
+  }
+ ],
+ "fill": [
+  {
+   "name": "a fill with a measured detour",
+   "price": 3.09,
+   "rangeOnArrivalMiles": 94,
+   "tankGallons": 17,
+   "mpg": 34,
+   "detourMiles": 1.2,
+   "expect": {
+    "gallons": 14.235,
+    "detourGallons": 0.035,
+    "total": 44.096
+   }
+  },
+  {
+   "name": "tank size unknown: no cost",
+   "price": 3.09,
+   "rangeOnArrivalMiles": 94,
+   "tankGallons": null,
+   "mpg": 34,
+   "detourMiles": 1.2,
+   "expect": null
+  }
+ ],
+ "compare": [
+  {
+   "name": "Wawa saves enough to mention",
+   "a": {
+    "price": 3.09,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "b": {
+    "price": 2.89,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.135,
+    "detourMeasured": false
+   },
+   "expect": {
+    "savings": 2.238,
+    "perGallon": 0.2,
+    "estimate": true,
+    "meaningful": true
+   }
+  },
+  {
+   "name": "a few cents is not worth a mention",
+   "a": {
+    "price": 3.09,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "b": {
+    "price": 3.03,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "expect": {
+    "savings": 0.758,
+    "perGallon": 0.06,
+    "estimate": false,
+    "meaningful": false
+   }
+  },
+  {
+   "name": "cash against credit is not compared",
+   "a": {
+    "price": 3.09,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "b": {
+    "price": 2.79,
+    "payment": "cash",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "expect": null
+  },
+  {
+   "name": "an old price is never compared",
+   "a": {
+    "price": 3.09,
+    "payment": "credit",
+    "state": "current",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "b": {
+    "price": 2.59,
+    "payment": "credit",
+    "state": "old",
+    "gallons": 12.6,
+    "detourGallons": 0.035,
+    "detourMeasured": true
+   },
+   "expect": null
+  }
+ ],
+ "sort": {
+  "rows": [
+   {
+    "id": "shell209",
+    "aheadMiles": 28,
+    "detourMinutes": 2,
+    "brandRank": 0,
+    "recommendedRank": 0,
+    "price": "shell209"
+   },
+   {
+    "id": "wawa212",
+    "aheadMiles": 31,
+    "detourMinutes": 3,
+    "brandRank": null,
+    "recommendedRank": 1,
+    "price": "wawa212"
+   },
+   {
+    "id": "exxon212",
+    "aheadMiles": 31,
+    "detourMinutes": 4,
+    "brandRank": null,
+    "recommendedRank": null,
+    "price": "exxon212"
+   },
+   {
+    "id": "bp215",
+    "aheadMiles": 35,
+    "detourMinutes": 2,
+    "brandRank": null,
+    "recommendedRank": 2,
+    "price": null
+   },
+   {
+    "id": "pilot221",
+    "aheadMiles": 41,
+    "detourMinutes": null,
+    "brandRank": null,
+    "recommendedRank": null,
+    "price": "pilot221"
+   }
+  ],
+  "expect": {
+   "recommended": [
+    "shell209",
+    "wawa212",
+    "bp215",
+    "exxon212",
+    "pilot221"
+   ],
+   "price": [
+    "wawa212",
+    "shell209",
+    "pilot221",
+    "exxon212",
+    "bp215"
+   ],
+   "closest": [
+    "shell209",
+    "exxon212",
+    "wawa212",
+    "bp215",
+    "pilot221"
+   ],
+   "detour": [
+    "shell209",
+    "bp215",
+    "wawa212",
+    "exxon212",
+    "pilot221"
+   ],
+   "brand": [
+    "shell209",
+    "exxon212",
+    "wawa212",
+    "bp215",
+    "pilot221"
+   ]
+  }
+ },
+ "padd": {
+  "GA": "1C",
+  "NY": "1B",
+  "MA": "1A",
+  "OH": "2",
+  "TX": "3",
+  "CO": "4",
+  "CA": "5",
+  "PR": null
+ }
+}
