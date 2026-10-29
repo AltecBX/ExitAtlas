@@ -95,6 +95,19 @@ Record date, iOS version, phone and result for each line in this section.
 | D7 | CarPlay | Guidance shows; disruptions do not (documented limit) |
 | F1 | Airplane mode, then start | Clear error and a way back; no "all clear" anywhere |
 | F2 | Wrong or unrestricted key | Google's error; the native app unaffected |
+| P6 | ExitAtlas panel content | Shows the current state, the next state, miles to the state line, exits left in the state, the next exit and, where it fits, the best stop ahead, all matching the native Drive screen |
+| G1 | GPS interaction | At three points on the drive, the ExitAtlas mile (panel) and Google's position agree within 0.2 mi; after End the native trip's miles per state continue without a gap or a jump |
+| V1 | One voice at a time | For 30 minutes of Google guidance no ExitAtlas announcement plays; after End the next ExitAtlas announcement plays normally |
+| B1 | Battery | Same phone, same brightness, screen on, charger off: battery percent used in 60 minutes of Google mode and in 60 minutes of the native Drive screen on comparable roads. Record both numbers; no claim about battery is made without them |
+| S1 | Build and download size | App Store Connect (TestFlight) "App Store file size" for Release builds of `ExitAtlasGoogle` and `ExitAtlas`, download and install size on the test phone |
+| C1 | Costs | After the test drives, the destinations counted in Settings equal the Navigation SDK requests in the Google Cloud console billing report for the same days, and the bill matches 14.3 |
+
+### 14.7.1 Recorded results
+
+Observed results only. A line is added after each test run; an empty table means no device test has run yet.
+
+| Date | Phone, iOS | Test | Observed |
+|---|---|---|---|
 
 ## 14.8 Platform limits
 
