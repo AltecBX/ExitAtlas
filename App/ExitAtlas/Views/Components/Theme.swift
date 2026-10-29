@@ -19,6 +19,18 @@ enum Theme {
     static let card = Tokens.card
     static let cardStroke = Tokens.stroke
     static let secondaryText = Tokens.text2
+    static let amberFill = Tokens.amberFill
+    static let raised = Tokens.raised
+    static let navy = Tokens.navy
+    static let info = Tokens.info
+    static let infoFill = Tokens.infoFill
+    static let dangerFill = Tokens.dangerFill
+    static let successFill = Tokens.successFill
+    static let accent = Tokens.accent
+    /// The route on the navigation map: ahead, its outline, and the part already driven.
+    static let route = Tokens.route
+    static let routeCasing = Tokens.routeCasing
+    static let routePassed = Tokens.routePassed
 
     /// Alternating route colors so state segments are visible on the map.
     static let segmentColors: [Color] = [Tokens.seg0, Tokens.seg1, Tokens.seg2, Tokens.seg3]
@@ -44,6 +56,14 @@ struct CardStyle: ViewModifier {
 
 extension View {
     func card(padding: CGFloat = 16) -> some View { modifier(CardStyle(padding: padding)) }
+
+    /// A surface floating over the map: raised, outlined, with a soft shadow (never glossy).
+    func floating(cornerRadius: CGFloat = 18) -> some View {
+        self
+            .background(Theme.raised, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))
+            .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
+    }
 }
 
 /// Small uppercase caption used above metrics.

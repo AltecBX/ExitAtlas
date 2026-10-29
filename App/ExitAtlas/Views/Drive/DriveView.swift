@@ -1,29 +1,36 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// The Drive screen: instruments, state progress, one focus card, the Then strip and the destination.
+/// The Drive screen: the Navigation View (map first) or the Focus View (the compact dashboard), the driver's
+/// choice saved in the profile; before a trip, the start cards.
 struct DriveView: View {
     @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     @Binding var selectedTab: RootView.Tab
     @State private var showWeather = false
 
     var body: some View {
+        let mapMode = trip.snapshot != nil && settings.drivePresentation != "focus"
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
-                    if let snapshot = trip.snapshot {
-                        DriveDashboard(selectedTab: $selectedTab, snapshot: snapshot)
-                    } else if trip.mode == .discovery {
-                        DiscoveryWaitingCard(status: trip.discoveryStatus)
-                    } else {
-                        StartCard(selectedTab: $selectedTab)
-                    }
-                    if let error = trip.lastError {
-                        Label(error, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(Theme.amber)
+            Group {
+                if let snapshot = trip.snapshot {
+                    DriveDashboard(selectedTab: $selectedTab, snapshot: snapshot)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            if trip.mode == .discovery {
+                                DiscoveryWaitingCard(status: trip.discoveryStatus)
+                            } else {
+                                StartCard(selectedTab: $selectedTab)
+                            }
+                            if let error = trip.lastError {
+                                Label(error, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(Theme.amber)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
             }
             .background(Theme.background.ignoresSafeArea())
             .simulationBanner(trip.isSimulating)
@@ -45,54 +52,56 @@ struct DriveView: View {
                 ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
             }
             .navigationBarTitleDisplayMode(.inline)
+            // Over the map the bar's own background goes, so the road shows under the controls.
+            .toolbarBackground(mapMode ? .hidden : .automatic, for: .navigationBar)
             .sheet(isPresented: $showWeather) { WeatherSheet() }
         }
     }
 }
 
-/// The Drive screen always has the same cards: instruments, state progress, one focus card chosen by
-/// DashboardFocus (fuel, planned stop, gas gap, overnight stop, rest area or next exit), a "Then" strip
-/// with the next two items, and the destination. Relevant items replace less urgent ones; nothing is added.
+/// The trip's Drive screen: one adaptive card chosen by DashboardFocus (alert, planned stop, gas gap, state
+/// line, fuel, last open stop, overnight stop, rest area or next exit) and held steady by its Stabilizer, in
+/// the driver's presentation. Relevant items replace less urgent ones; nothing is added.
 private struct DriveDashboard: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showFuel = false
+    @State private var showRestroom = false
     @State private var shownRestArea: RouteRestArea?
+    @State private var shownExit: RouteExit?
+    @State private var shownAlert: AlertRef?
+    @State private var stabilizer = DashboardFocus.Stabilizer()
     @Binding var selectedTab: RootView.Tab
     let snapshot: TripSnapshot
 
     var body: some View {
-        let discovery = trip.mode == .discovery
-        let focus = DashboardFocus.choose(signals)
+        let focus = stabilizer.choose(signals, at: snapshot.timestamp)
+        let mapMode = settings.drivePresentation != "focus"
         Group {
-            if verticalSizeClass == .compact {
-                // Phone mounted sideways: two columns, the instruments and state progress on the left.
-                HStack(alignment: .top, spacing: 14) {
-                    VStack(spacing: 14) {
-                        InstrumentCluster(snapshot: snapshot, discovery: discovery)
-                        if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
-                    }
-                    VStack(spacing: 14) {
-                        focusCard(focus.focus)
-                        ThenStrip(kinds: focus.strip, snapshot: snapshot, showFuel: $showFuel, shownRestArea: $shownRestArea, selectedTab: $selectedTab)
-                        DestinationRow(snapshot: snapshot, discovery: discovery)
-                    }
-                }
+            if mapMode {
+                NavigationDriveView(snapshot: snapshot, focus: focus, alert: focusAlert, card: card(focus, exitShown: true),
+                                    openExit: { shownExit = $0 }, openFuel: { showFuel = true },
+                                    openRestroom: { showRestroom = true }, openTrip: { selectedTab = .trip })
             } else {
-                VStack(spacing: 14) {
-                    InstrumentCluster(snapshot: snapshot, discovery: discovery)
-                    if let current = snapshot.current { BorderCard(snapshot: snapshot, current: current) }
-                    focusCard(focus.focus)
-                    ThenStrip(kinds: focus.strip, snapshot: snapshot, showFuel: $showFuel, shownRestArea: $shownRestArea, selectedTab: $selectedTab)
-                    DestinationRow(snapshot: snapshot, discovery: discovery)
+                ScrollView {
+                    FocusDriveView(snapshot: snapshot, focus: focus, card: card(focus, exitShown: true),
+                                   openExit: { shownExit = $0 }, openFuel: { showFuel = true },
+                                   openRestroom: { showRestroom = true }, openTrip: { selectedTab = .trip })
+                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 16)
                 }
             }
         }
-        .padding(.top, 8)
         .sheet(isPresented: $showFuel) { FuelView() }
+        .sheet(isPresented: $showRestroom) { RestroomSheet() }
         .sheet(item: $shownRestArea) { r in
             NavigationStack { RestAreaDetailView(restArea: r, showsDone: true) }
+        }
+        .sheet(item: $shownAlert) { AlertDetailView(alertID: $0.id) }
+        .sheet(item: $shownExit) { e in
+            NavigationStack {
+                ExitDetailView(exit: e)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { shownExit = nil } } }
+            }
         }
     }
 
@@ -116,17 +125,32 @@ private struct DriveDashboard: View {
             plannedStop: snapshot.nextStop?.distance, fuel: fuel,
             overnight: SmartStop.Preferences(settings.values).overnight(atMinute: minute),
             lastOpen: trip.lastOpenAhead?.stop.ahead,
-            alert: focusAlert.map { (distance: max(0, $0.start - progress), serious: $0.serious) })
+            alert: focusAlert.map { (distance: max(0, $0.start - progress), serious: $0.serious) },
+            alertID: focusAlert?.incident.id,
+            border: snapshot.next != nil ? snapshot.current?.remainingMeters : nil)
     }
 
     /// The alert the focus rule considers (RoadIntel.Result.focusAlert).
     private var focusAlert: RoadIntel.Alert? { trip.roadIntel?.focusAlert(progress: snapshot.progress) }
 
+    /// One adaptive card: the focus, or, when the focus already has its own place on screen (the next exit in
+    /// the guidance or exit row, the state line in the journey panel), the first strip item worth a card.
+    private func card(_ focus: DashboardFocus.Result, exitShown: Bool) -> AnyView? {
+        var kind: DashboardFocus.Kind? = focus.focus
+        if [.border, .none].contains(focus.focus) || (exitShown && focus.focus == .exit) {
+            kind = focus.strip.first { [.alert, .fuel, .stop, .gap, .restArea].contains($0) }
+        }
+        guard let kind else {
+            return trip.lastError.map { AnyView(Label($0, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(Theme.amber).padding(10).floating()) }
+        }
+        return AnyView(focusCard(kind))
+    }
+
     @ViewBuilder
     private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
         switch kind {
         case .alert:
-            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
+            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) { shownAlert = AlertRef(id: a.incident.id) } }
         case .fuel:
             FuelCard { showFuel = true }
         case .stop:
@@ -150,7 +174,6 @@ private struct DriveDashboard: View {
                 .accessibilityIdentifier("restAreaCard")
             }
         case .exit, .border:
-            // The state line card above already carries the approach to the border.
             if let next = snapshot.nextExit {
                 NextExitCard(upcoming: next, services: trip.services(for: next.exit), now: snapshot.timestamp)
             }
@@ -198,15 +221,17 @@ private struct AlertCard: View {
     let alert: RoadIntel.Alert
     let progress: Double
     let now: Date
+    let open: () -> Void
 
     var body: some View {
         let i = alert.incident
-        let hw = trip.plan?.route.highway(at: alert.start)
-        VStack(alignment: .leading, spacing: 6) {
-            Eyebrow(text: "\(AlertText.icon(i.kind)) \(alert.serious ? "Serious alert" : "Road alert")" + (hw.map { " · \($0.ref) \($0.direction.word)" } ?? ""))
+        let tier = i.tier
+        Button(action: open) {
             HStack(alignment: .top, spacing: 12) {
+                AlertIcon(kind: i.kind, tier: tier)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(AlertText.title(i)).font(.headline)
+                    Text(i.headline.uppercased()).font(.caption.weight(.heavy)).tracking(0.8).foregroundStyle(tier.color)
+                    if let road = AlertText.road(alert, plan: trip.plan) { Text(road).font(.headline) }
                     if let sub = AlertText.subtitle(i) { Text(sub).font(.subheadline) }
                     if i.verification == .community { Text("Reported by drivers, not confirmed").font(.subheadline).foregroundStyle(Theme.amber) }
                     if !alert.directionKnown { Text("Direction not reported").font(.caption).foregroundStyle(Theme.secondaryText) }
@@ -214,17 +239,16 @@ private struct AlertCard: View {
                         .font(.caption).foregroundStyle(Theme.secondaryText)
                 }
                 Spacer(minLength: 4)
-                if alert.start <= progress {
-                    Text("Now").font(.subheadline.weight(.heavy))
-                } else {
-                    Text(Format.milesValue(alert.start - progress)).font(Theme.number(28, weight: .heavy)) + Text(" mi").font(.caption).foregroundStyle(Theme.secondaryText)
-                }
+                TimelineDistance(meters: alert.start - progress)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+            .overlay(alignment: .leading) {
+                UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20, style: .continuous).fill(tier.color).frame(width: 4)
+            }
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(tier == .urgent ? Theme.danger : .clear, lineWidth: 1.5))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(alert.serious ? Theme.danger : .clear, lineWidth: 1.5))
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
         .accessibilityIdentifier("alertCard")
     }
 }
@@ -291,119 +315,7 @@ private struct OvernightRestroomCard: View {
     }
 }
 
-/// Under the focus card: the next two things worth knowing, distance first, each opening its details.
-private struct ThenStrip: View {
-    @Environment(TripController.self) private var trip
-    @Environment(UserSettings.self) private var settings
-    let kinds: [DashboardFocus.Kind]
-    let snapshot: TripSnapshot
-    @Binding var showFuel: Bool
-    @Binding var shownRestArea: RouteRestArea?
-    @Binding var selectedTab: RootView.Tab
 
-    var body: some View {
-        if !kinds.isEmpty {
-            HStack(spacing: 8) {
-                Text("THEN").font(.caption2.weight(.bold)).foregroundStyle(Theme.secondaryText)
-                ForEach(kinds, id: \.self) { kind in item(kind) }
-                Spacer(minLength: 0)
-            }
-            // A container, so the chips keep their own identifiers ("fuelChip") instead of taking this one.
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("thenStrip")
-        }
-    }
-
-    @ViewBuilder
-    private func item(_ kind: DashboardFocus.Kind) -> some View {
-        switch kind {
-        case .fuel:
-            if let p = trip.smartStop?.primary {
-                chip(Format.milesValue(p.candidate.ahead ?? 0) + " mi", "⛽ " + p.candidate.name) { showFuel = true }
-                    .accessibilityIdentifier("fuelChip")
-            } else if let rec = trip.rangePlan?.recommended {
-                chip(Format.milesValue(rec.ahead) + " mi", (rec.candidate.charger != nil ? "⚡ " : "⛽ ") + (rec.candidate.exit?.displayTitle ?? rec.candidate.charger?.station.name ?? "Stop")) { showFuel = true }
-                    .accessibilityIdentifier("fuelChip")
-            }
-        case .fuelEntry:
-            chip(nil, settings.vehicle?.isElectric == true ? "⚡ Enter range" : "⛽ Enter range") { showFuel = true }
-                .accessibilityIdentifier("fuelChip")
-        case .gap:
-            if let g = trip.gasGapsAhead().first(where: { $0.to > snapshot.progress }) {
-                let inside = g.from <= snapshot.progress
-                chip(inside ? nil : Format.milesValue(g.from - snapshot.progress) + " mi",
-                     "No gas for \(Format.miles(g.to - max(g.from, snapshot.progress)))\(g.open ? "+" : "")") { selectedTab = .ahead }
-            }
-        case .stop:
-            if let next = snapshot.nextStop {
-                chip(Format.milesValue(next.distance) + " mi", "📍 " + next.stop.waypoint.name) { selectedTab = .trip }
-            }
-        case .restArea:
-            if let rest = snapshot.nextRestArea {
-                chip(Format.milesValue(rest.distance) + " mi", rest.restArea.title) { shownRestArea = rest.restArea }
-            }
-        case .exit:
-            if let next = snapshot.nextExit {
-                chip(Format.milesValue(next.distance) + " mi", next.exit.displayTitle) { selectedTab = .ahead }
-            }
-        case .alert:
-            if let a = trip.roadIntel?.focusAlert(progress: snapshot.progress) {
-                chip(a.start > snapshot.progress ? Format.milesValue(a.start - snapshot.progress) + " mi" : nil,
-                     AlertText.icon(a.incident.kind) + " " + AlertText.title(a.incident)) { selectedTab = .ahead }
-            }
-        default:
-            EmptyView()
-        }
-    }
-
-    private func chip(_ distance: String?, _ text: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            (Text(distance.map { "\($0) " } ?? "").font(.caption.weight(.heavy).monospacedDigit()) + Text(text).font(.caption.weight(.semibold)))
-                .lineLimit(1)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Theme.card, in: Capsule())
-                .overlay(Capsule().stroke(Theme.cardStroke, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Speedometer, posted limit, highway and state.
-private struct InstrumentCluster: View {
-    @Environment(TripController.self) private var trip
-    @Environment(UserSettings.self) private var settings
-    let snapshot: TripSnapshot
-    let discovery: Bool
-
-    var body: some View {
-        let limit = trip.speedLimit
-        HStack(alignment: .center, spacing: 12) {
-            Speedometer(mph: trip.speedMPH, limit: limit.mph, alertOver: settings.speedAlertOver)
-            VStack(spacing: 6) {
-                SpeedLimitSign(limit: limit.mph, loading: limit.state == .loading)
-                if let next = limit.next {
-                    Text("\(next.mph) in \(Format.miles(next.distance))").font(.caption.monospacedDigit()).foregroundStyle(Theme.secondaryText)
-                } else if limit.mph == nil, limit.state == .unknown {
-                    Text("No limit data").font(.caption).foregroundStyle(Theme.secondaryText)
-                }
-            }
-            Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: 4) {
-                HighwayShield(ref: snapshot.highway?.ref, size: 46)
-                Text(snapshot.highway.map { $0.ref.description } ?? "Local roads")
-                    .font(.system(.title3, design: .rounded).weight(.heavy)).lineLimit(1).minimumScaleFactor(0.7)
-                if let direction = snapshot.highway?.direction.word {
-                    Text(direction).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondaryText)
-                }
-                HStack(spacing: 6) {
-                    StateBadge(code: snapshot.current?.segment.code, highlighted: true, compact: true)
-                    Text(discovery ? "Discovery" : (snapshot.current?.segment.displayName ?? "")).font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
-                }
-            }
-        }
-        .card(padding: 14)
-    }
-}
 
 /// Range left and the recommended fuel or charging stop; opens the fuel sheet.
 private struct FuelCard: View {
@@ -478,66 +390,6 @@ private struct FuelCard: View {
     }
 }
 
-/// The signature card: how far to the next state, how many exits until then, and progress.
-private struct BorderCard: View {
-    let snapshot: TripSnapshot
-    let current: SegmentForecast
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            StateRibbon(snapshot: snapshot)
-            if let next = snapshot.next {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Eyebrow(text: "Next state")
-                        Text(next.segment.displayName)
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                            .minimumScaleFactor(0.6).lineLimit(1)
-                    }
-                    Spacer()
-                    if next.segment.isBrief {
-                        Text("Brief crossing").font(.caption.weight(.semibold)).foregroundStyle(Theme.amber)
-                    }
-                }
-                HStack(alignment: .top, spacing: 12) {
-                    MetricTile(title: "To state line", value: Format.milesValue(current.remainingMeters), unit: "mi", valueSize: 40)
-                    MetricTile(title: "Exits left", value: "\(current.exitsRemaining)",
-                               caption: "in \(current.segment.code ?? "this state")", valueSize: 40)
-                    MetricTile(title: "Crossing", value: current.exitTime.map { Format.time($0, timeZoneID: current.exitTimeZoneID, relativeTo: snapshot.timestamp) } ?? "—",
-                               caption: current.exitTime.map { "in " + Format.duration($0.timeIntervalSince(snapshot.timestamp)) },
-                               valueSize: 20)
-                }
-                if current.remainingMeters < 5 * Geodesy.metersPerMile {
-                    Label("Entering \(next.segment.displayName) in \(Format.miles(current.remainingMeters))", systemImage: "flag.checkered")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.amber)
-                }
-                Text("You will drive \(Format.miles(next.totalMeters)) in \(next.segment.displayName)"
-                    + (next.plannedDuration.map { ", about " + Format.duration($0) } ?? "") + ".")
-                    .font(.subheadline).foregroundStyle(Theme.secondaryText)
-            } else {
-                Eyebrow(text: "Final state")
-                Text(current.segment.displayName).font(.system(size: 30, weight: .heavy, design: .rounded))
-                MetricTile(title: "Left in \(current.segment.code ?? "state")", value: Format.milesValue(current.remainingMeters), unit: "mi")
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(Int((min(max(current.fractionComplete, 0), 1) * 100).rounded()))%").font(Theme.number(20, weight: .heavy))
-                    Text("of \(current.segment.displayName) driven").font(.subheadline).foregroundStyle(Theme.secondaryText)
-                    Spacer()
-                    Text("\(Format.miles(current.drivenMeters)) of \(Format.miles(current.totalMeters))").font(.caption.monospacedDigit()).foregroundStyle(Theme.secondaryText)
-                }
-                StateProgressBar(fraction: current.fractionComplete)
-                HStack {
-                    Text("\(Format.miles(current.remainingMeters)) left in \(current.segment.code ?? current.segment.displayName)")
-                    Spacer()
-                    Text("\(current.exitCount) exits in \(current.segment.code ?? "state")")
-                }
-                .font(.caption).foregroundStyle(Theme.secondaryText)
-            }
-        }
-        .card(padding: 18)
-    }
-}
 
 /// The next rest area or service plaza with its verified amenities.
 private struct RestAreaCard: View {
@@ -618,27 +470,6 @@ private struct NextExitCard: View {
     }
 }
 
-private struct DestinationRow: View {
-    let snapshot: TripSnapshot
-    let discovery: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if discovery {
-                MetricTile(title: "Corridor ahead", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 24)
-                MetricTile(title: "State lines", value: "\(snapshot.borderCrossingsRemaining)", caption: "within lookahead", valueSize: 24)
-            } else {
-                MetricTile(title: "Remaining", value: Format.milesValue(snapshot.remaining), unit: "mi",
-                           caption: "of \(Format.miles(snapshot.drivenTotal + snapshot.remaining))", valueSize: 24)
-                MetricTile(title: "Arrival", value: Format.time(snapshot.eta, relativeTo: snapshot.timestamp),
-                           caption: Format.duration(snapshot.timeRemaining), valueSize: 20)
-                MetricTile(title: "States left", value: "\(snapshot.statesAhead.count)",
-                           caption: snapshot.statesAhead.prefix(4).joined(separator: " · "), valueSize: 24)
-            }
-        }
-        .card()
-    }
-}
 
 private struct DiscoveryWaitingCard: View {
     let status: String

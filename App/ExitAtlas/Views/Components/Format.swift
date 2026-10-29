@@ -19,6 +19,7 @@ enum Format {
     static func duration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int((seconds / 60).rounded()))
         let h = total / 60, m = total % 60
+        if total == 0 { return "under 1 min" }
         if h == 0 { return "\(m) min" }
         return m == 0 ? "\(h) h" : "\(h) h \(m) min"
     }

@@ -112,6 +112,11 @@ struct SettingsView: View {
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
                     }
+                    // Also switched from the Drive screen; saved in the profile either way.
+                    Picker("Drive screen", selection: $settings.drivePresentation) {
+                        Text("Map").tag("map")
+                        Text("Focus").tag("focus")
+                    }
                 }
                 Section("Routing") {
                     Toggle("Avoid tolls", isOn: $settings.avoidTolls)

@@ -503,15 +503,28 @@ final class TripController {
     }
 
     /// The best stop in the next `miles` (restroom stops add rest areas and rank the restroom first).
+    /// Recomputed every quarter mile or minute (Road Ahead and the restroom sheet ask on every update).
     func bestStopAhead(miles: Double, restrooms: Bool = false) -> SmartStop.Result? {
         guard let settings, let ctx = stopContext() else { return nil }
+        let range = settings.vehicle?.isElectric == true ? nil : rangeLeft
+        let rejected = rejectedNow
+        let key = [ctx.plan.route.id.uuidString, "\(miles)", "\(restrooms)", "\(Int(ctx.snapshot.progress / 400))",
+                   "\(Int(ctx.snapshot.timestamp.timeIntervalSince1970 / 60))", "\(range.map { Int($0 / 400) } ?? -1)", "\(feedsVersion)",
+                   "\(rejected.sorted())", "\(settings.favoriteBrands)", "\(settings.maxDetourMinutes)", "\(settings.require24Hours)",
+                   "\(settings.requireRestroom)", "\(settings.priceOverBrand)", settings.overnightMode, settings.overnightStart, settings.overnightEnd,
+                   "\(settings.bufferMiles)", "\(settings.gasGrade)"].joined(separator: "|")
+        if let hit = bestStopMemo[key] { return hit }
         var prefs = SmartStop.Preferences(settings.values)
         if restrooms { prefs.requireRestroom = "always" }
-        let range = settings.vehicle?.isElectric == true ? nil : rangeLeft
-        return SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: miles, rangeLeft: range, restrooms: restrooms), preferences: prefs,
-                                context: .ahead, purpose: restrooms ? .restroom : .fuel,
-                                reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejectedNow)
+        let result = SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: miles, rangeLeft: range, restrooms: restrooms), preferences: prefs,
+                                      context: .ahead, purpose: restrooms ? .restroom : .fuel,
+                                      reserveMeters: settings.bufferMiles * Geodesy.metersPerMile, rejected: rejected)
+        if bestStopMemo.count > 8 { bestStopMemo.removeAll() }
+        bestStopMemo[key] = result
+        return result
     }
+
+    @ObservationIgnored private var bestStopMemo: [String: SmartStop.Result?] = [:]
 
     /// Loads Google prices, hours and restrooms for the SmartStop picks' exits (with a key).
     func loadSmartStopDetails() {

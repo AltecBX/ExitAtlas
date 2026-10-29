@@ -247,6 +247,8 @@ struct Speedometer: View {
     let mph: Int?
     let limit: Int?
     let alertOver: Double
+    /// Outer size in points (128 on the full instrument card).
+    var size: CGFloat = 128
 
     enum Level { case ok, warn, over }
 
@@ -260,23 +262,24 @@ struct Speedometer: View {
         let maxMPH = (mph ?? 0) > 112 ? 140.0 : 120.0
         let fraction = min(1, Double(mph ?? 0) / maxMPH)
         let color: Color = level == .over ? Theme.danger : level == .warn ? Theme.amber : Theme.signGreen
+        let k = size / 128
         ZStack {
-            Circle().trim(from: 0, to: 0.75).stroke(Theme.cardStroke, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+            Circle().trim(from: 0, to: 0.75).stroke(Theme.cardStroke, style: StrokeStyle(lineWidth: 12 * k, lineCap: .round))
                 .rotationEffect(.degrees(135))
-            Circle().trim(from: 0, to: 0.75 * fraction).stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+            Circle().trim(from: 0, to: 0.75 * fraction).stroke(color, style: StrokeStyle(lineWidth: 12 * k, lineCap: .round))
                 .rotationEffect(.degrees(135))
             if let limit {
-                Rectangle().fill(Color.primary).frame(width: 3, height: 14)
-                    .offset(y: -52)
+                Rectangle().fill(Color.primary).frame(width: 3, height: 14 * k)
+                    .offset(y: -52 * k)
                     .rotationEffect(.degrees(-135 + 270 * min(1, Double(limit) / maxMPH)))
             }
             VStack(spacing: 0) {
-                Text(mph.map(String.init) ?? "—").font(Theme.number(48, weight: .heavy)).monospacedDigit()
+                Text(mph.map(String.init) ?? "—").font(Theme.number(48 * k, weight: .heavy)).monospacedDigit()
                     .foregroundStyle(level == .over ? Theme.danger : Color.primary)
-                Text("MPH").font(.system(.caption, design: .rounded).weight(.heavy)).foregroundStyle(Theme.secondaryText)
+                Text("MPH").font(.system(size: 12 * max(k, 0.85), weight: .heavy, design: .rounded)).foregroundStyle(Theme.secondaryText)
             }
         }
-        .frame(width: 128, height: 128)
+        .frame(width: size, height: size)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(mph.map { "\($0) miles per hour" } ?? "Speed unavailable")
     }
@@ -286,14 +289,16 @@ struct Speedometer: View {
 struct SpeedLimitSign: View {
     let limit: Int?
     let loading: Bool
+    /// 1 on the instrument card; smaller over the map.
+    var scale: CGFloat = 1
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text("SPEED\nLIMIT").font(.system(size: 11, weight: .heavy)).multilineTextAlignment(.center).lineSpacing(-2)
-            Text(limit.map(String.init) ?? (loading ? "…" : "—")).font(.system(size: 34, weight: .heavy)).monospacedDigit()
+        VStack(spacing: 2 * scale) {
+            Text("SPEED\nLIMIT").font(.system(size: 11 * scale, weight: .heavy)).multilineTextAlignment(.center).lineSpacing(-2)
+            Text(limit.map(String.init) ?? (loading ? "…" : "—")).font(.system(size: 34 * scale, weight: .heavy)).monospacedDigit()
         }
         .foregroundStyle(.black)
-        .frame(width: 72, height: 88)
+        .frame(width: 72 * scale, height: 88 * scale)
         .background(.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.black, lineWidth: 2.5).padding(4))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.cardStroke, lineWidth: 1))

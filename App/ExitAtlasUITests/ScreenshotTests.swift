@@ -17,20 +17,39 @@ final class ScreenshotTests: XCTestCase {
     func testRoadAlert() {
         for dark in [false, true] {
             let app = XCUIApplication()
-            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-demoAlert"] + (dark ? ["-forceDark"] : [])
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-demoAlert", "-drive", "map"] + (dark ? ["-forceDark"] : [])
             app.launch()
-            XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+            XCTAssertTrue(drive(app), "Drive screen did not appear")
             let card = app.descendants(matching: .any)["alertCard"].firstMatch
             XCTAssertTrue(card.waitForExistence(timeout: 20), "No road alert card")
-            app.swipeUp()
+            sleep(5)
+            snap("1f Road alert navigation", dark)
+            app.buttons["focusViewButton"].firstMatch.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["focusDrive"].firstMatch.waitForExistence(timeout: 10), "Focus view did not appear")
             sleep(2)
-            snap("1f Road alert", dark)
+            snap("1f Road alert focus", dark)
+            // The alert's detail sheet, from the Drive card.
+            app.buttons["alertCard"].firstMatch.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["alertDetail"].firstMatch.waitForExistence(timeout: 10), "No alert detail")
+            sleep(1)
+            snap("1m Alert detail", dark)
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
             app.tabBars.buttons["Ahead"].tap()
             XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
             let status = app.descendants(matching: .any)["alertStatus"].firstMatch
             if status.waitForExistence(timeout: 10) { status.tap() }
             sleep(2)
             snap("2b Road Ahead alert", dark)
+            // A filter never hides the urgent alert without saying so.
+            app.buttons["filter-fuel"].firstMatch.tap()
+            sleep(1)
+            XCTAssertTrue(app.buttons["alertRow"].firstMatch.waitForExistence(timeout: 5), "The Fuel filter hid the urgent alert")
+            XCTAssertTrue(app.buttons["filterNote"].firstMatch.exists, "The Fuel filter does not say the urgent alert stays in view")
+            snap("2f Road Ahead fuel filter", dark)
+            app.buttons["filter-alerts"].firstMatch.tap()
+            sleep(1)
+            snap("2g Road Ahead alerts", dark)
             app.terminate()
         }
     }
@@ -41,9 +60,9 @@ final class ScreenshotTests: XCTestCase {
     func testWeather() throws {
         for dark in [false, true] {
             let app = XCUIApplication()
-            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto"] + (dark ? ["-forceDark"] : [])
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-drive", "focus"] + (dark ? ["-forceDark"] : [])
             app.launch()
-            XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+            XCTAssertTrue(drive(app), "Drive screen did not appear")
             let pill = app.buttons["weatherPill"].firstMatch
             guard pill.waitForExistence(timeout: 45) else {
                 app.terminate()
@@ -70,34 +89,75 @@ final class ScreenshotTests: XCTestCase {
         let minute = (c.hour ?? 12) * 60 + (c.minute ?? 0)
         let mile = minute >= 22 * 60 || minute < 5 * 60 + 50 ? "599" : "1035"
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-overnight", "on", "-alertsOff"]
+        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-overnight", "on", "-alertsOff", "-drive", "focus"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+        XCTAssertTrue(drive(app), "Drive screen did not appear")
         let card = app.descendants(matching: .any)["lastOpenCard"].firstMatch
         let found = card.waitForExistence(timeout: 20)
-        app.swipeUp()
         sleep(2)
         snap("1e Overnight last open stop", false)
         XCTAssertTrue(found, "No last open stop card at mile \(mile) with Overnight Drive Mode on (New York time \(minute / 60):\(String(format: "%02d", minute % 60)))")
     }
 
+    /// A maneuver within 10 miles (the exit from I-295 onto I-95 near Jacksonville, from the route's own steps)
+    /// takes the guidance banner in both presentations.
+    func testManeuver() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoTrip", "346", "-demoVehicle", "-overnight", "auto", "-alertsOff", "-drive", "map", "-forceDark"]
+        app.launch()
+        XCTAssertTrue(drive(app), "Drive screen did not appear")
+        sleep(5)
+        snap("1j Maneuver navigation", true)
+        app.buttons["focusViewButton"].firstMatch.tap()
+        sleep(2)
+        snap("1j Maneuver focus", true)
+    }
+
+    /// Waits for either Drive presentation.
+    private func drive(_ app: XCUIApplication) -> Bool {
+        app.descendants(matching: .any)["journeyPanel"].firstMatch.waitForExistence(timeout: 90)
+    }
+
     private func capture(dark: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "180", "-overnight", "auto"] + (dark ? ["-forceDark"] : [])
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "180", "-overnight", "auto", "-drive", "map"] + (dark ? ["-forceDark"] : [])
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+        // Navigation View first (the map loads its tiles), then the Focus View, both without scrolling.
+        XCTAssertTrue(drive(app), "Drive screen did not appear")
+        XCTAssertTrue(app.descendants(matching: .any)["navigationDrive"].firstMatch.waitForExistence(timeout: 10), "Navigation view did not appear")
+        sleep(6)
+        snap("1 Drive navigation", dark)
+        assertOnScreen(["guidanceBanner", "speedChip", "journeyPanel"], app: app, "Navigation view")
+        app.buttons["focusViewButton"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["focusDrive"].firstMatch.waitForExistence(timeout: 10), "Focus view did not appear")
         sleep(2)
-        snap("1 Drive", dark)
-        app.swipeUp()
-        sleep(1)
-        snap("1b Drive lower", dark)
+        snap("1a Drive focus", dark)
+        assertOnScreen(["journeyPanel", "nextExitRow", "fuelButton", "restroomButton"], app: app, "Focus view")
 
-        // The fuel card when fuel is the focus, otherwise the fuel item in the Then strip.
-        // The demo has a range, so one of them must be there.
-        var fuel = app.buttons["fuelCard"].firstMatch
-        if !fuel.waitForExistence(timeout: 3) { fuel = app.buttons["fuelChip"].firstMatch }
-        XCTAssertTrue(fuel.waitForExistence(timeout: 5), "No fuel card or fuel chip on the Drive screen")
+        // Sideways: both presentations.
+        XCUIDevice.shared.orientation = .landscapeLeft
+        sleep(3)
+        snap("1k Drive focus landscape", dark)
+        app.buttons["navigationViewButton"].firstMatch.tap()
+        sleep(5)
+        snap("1l Drive navigation landscape", dark)
+        XCUIDevice.shared.orientation = .portrait
+        sleep(3)
+
+        // The one tap restroom stop.
+        let restroom = app.buttons["restroomButton"].firstMatch
+        XCTAssertTrue(restroom.waitForExistence(timeout: 5), "No restroom button on the Drive screen")
+        restroom.tap()
+        XCTAssertTrue(app.navigationBars["Restroom stop"].waitForExistence(timeout: 10), "Restroom stop sheet did not open")
+        sleep(2)
+        snap("1i Restroom stop", dark)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+
+        // The fuel button on the Drive screen opens the fuel stop sheet.
+        let fuel = app.buttons["fuelButton"].firstMatch
+        XCTAssertTrue(fuel.waitForExistence(timeout: 5), "No fuel button on the Drive screen")
         fuel.tap()
         XCTAssertTrue(app.navigationBars["Fuel Stop"].waitForExistence(timeout: 10), "Fuel stop sheet did not open")
         sleep(2)
@@ -112,6 +172,23 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
         sleep(1)
         snap("2 Road Ahead", dark)
+        let why = app.descendants(matching: .any)["whyThisStop"].firstMatch
+        if why.waitForExistence(timeout: 5) {
+            why.tap()
+            sleep(1)
+            snap("2c Best stop reasons", dark)
+            why.tap()
+            sleep(1)
+        }
+        app.buttons["filter-states"].firstMatch.tap()
+        sleep(1)
+        XCTAssertTrue(app.descendants(matching: .any)["currentStateRow"].firstMatch.waitForExistence(timeout: 5), "States does not start with the current state")
+        snap("2d Road Ahead states", dark)
+        app.buttons["filter-rest"].firstMatch.tap()
+        sleep(1)
+        snap("2e Road Ahead rest", dark)
+        app.buttons["filter-all"].firstMatch.tap()
+        sleep(1)
 
         let row = app.buttons["exitRow"].firstMatch
         if row.waitForExistence(timeout: 5) {
@@ -222,6 +299,17 @@ final class ScreenshotTests: XCTestCase {
             sleep(1)
         }
         return element.exists && element.isHittable
+    }
+
+    /// Everything named is on screen: below the top of the window and above the tab bar, without scrolling.
+    private func assertOnScreen(_ ids: [String], app: XCUIApplication, _ screen: String) {
+        let bottom = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : app.frame.maxY
+        for id in ids {
+            let e = app.descendants(matching: .any)[id].firstMatch
+            XCTAssertTrue(e.waitForExistence(timeout: 5), "\(screen): \(id) missing")
+            XCTAssertTrue(e.frame.minY >= app.frame.minY && e.frame.maxY <= bottom + 1,
+                          "\(screen): \(id) not fully on screen (\(e.frame.minY) to \(e.frame.maxY), tab bar at \(bottom))")
+        }
     }
 
     private func snap(_ name: String, _ dark: Bool) {

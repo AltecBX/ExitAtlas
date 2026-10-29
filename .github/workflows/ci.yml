@@ -85,6 +85,14 @@ jobs:
           plutil -lint "$APP/PrivacyInfo.xcprivacy"
           test -f "$APP/Data/manifest.json"
           plutil -p "$APP/Info.plist" | grep -E "ITSAppUsesNonExemptEncryption|NSLocation" 
+      - name: Test failures (messages and where they happened)
+        if: failure()
+        run: |
+          if [ -d "$RUNNER_TEMP/ui.xcresult" ]; then
+            xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/ui.xcresult" | jq '.testFailures' || true
+          fi
+          # A crash leaves a report; print the top of any for the app.
+          ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i exitatlas | head -3 | while read f; do echo "== $f"; head -60 ~/Library/Logs/DiagnosticReports/"$f"; done || true
       - name: Export screenshots
         if: always()
         run: |
