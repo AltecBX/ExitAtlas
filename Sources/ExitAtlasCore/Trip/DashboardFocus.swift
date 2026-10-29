@@ -6,7 +6,7 @@ import Foundation
 /// on the same fixtures (Tests/ExitAtlasCoreTests/Fixtures/dashboard/focus.json).
 public enum DashboardFocus {
     public enum Kind: String, Sendable {
-        case fuel, stop, gap, lastOpen, overnight, restArea, exit, none
+        case fuel, alert, stop, gap, lastOpen, overnight, restArea, exit, none
         /// No range entered yet (strip only).
         case fuelEntry
     }
@@ -38,9 +38,12 @@ public enum DashboardFocus {
         public var overnight: Bool
         /// Meters to the last stop listed open before a long overnight stretch (`SmartStop.lastOpenBeforeGap`).
         public var lastOpen: Double?
+        /// The nearest road alert ahead (`RoadIntel`).
+        public var alert: (distance: Double, serious: Bool)?
 
         public init(nextExit: Double? = nil, restArea: Double? = nil, gap: (startsIn: Double, length: Double)? = nil,
-                    plannedStop: Double? = nil, fuel: Fuel? = nil, overnight: Bool = false, lastOpen: Double? = nil) {
+                    plannedStop: Double? = nil, fuel: Fuel? = nil, overnight: Bool = false, lastOpen: Double? = nil,
+                    alert: (distance: Double, serious: Bool)? = nil) {
             self.nextExit = nextExit
             self.restArea = restArea
             self.gap = gap
@@ -48,6 +51,7 @@ public enum DashboardFocus {
             self.fuel = fuel
             self.overnight = overnight
             self.lastOpen = lastOpen
+            self.alert = alert
         }
     }
 
@@ -56,6 +60,8 @@ public enum DashboardFocus {
         public var gapWithin = 25 * Geodesy.metersPerMile
         public var fuelWithin = 30 * Geodesy.metersPerMile
         public var restAreaWithin = 10 * Geodesy.metersPerMile
+        public var seriousAlertWithin = 50 * Geodesy.metersPerMile
+        public var alertWithin = 10 * Geodesy.metersPerMile
         public var stripWithin = 150 * Geodesy.metersPerMile
         public var stripSize = 2
 
@@ -79,10 +85,14 @@ public enum DashboardFocus {
         let fuelSoon = s.fuel?.stopAhead.map { $0 <= rules.fuelWithin } ?? false
         let restFirst = s.restArea.map { r in r <= rules.restAreaWithin && (s.nextExit.map { r < $0 } ?? true) } ?? false
 
+        let alertNear = s.alert.map { $0.distance <= ($0.serious ? rules.seriousAlertWithin : rules.alertWithin) } ?? false
+
         let focus: Kind, why: String
         if fuelLow { (focus, why) = (.fuel, "Fuel is below your reserve") }
+        else if alertNear && s.alert!.serious { (focus, why) = (.alert, "A serious road alert ahead") }
         else if let p = s.plannedStop, p <= rules.stopWithin { (focus, why) = (.stop, "Approaching your planned stop") }
         else if gapRisk { (focus, why) = (.gap, "A stretch without gas is coming up") }
+        else if alertNear { (focus, why) = (.alert, "A road alert just ahead") }
         else if fuelSoon { (focus, why) = (.fuel, "Your fuel stop is coming up") }
         else if let l = s.lastOpen, l <= rules.gapWithin { (focus, why) = (.lastOpen, "Last stop listed open before a long stretch") }
         else if s.overnight && (s.fuel != nil || s.restArea != nil) { (focus, why) = (.overnight, "Overnight: open stops and restrooms") }
@@ -97,6 +107,7 @@ public enum DashboardFocus {
         if let f = s.fuel, near(f.stopAhead) { candidates.append(.fuel) }
         if s.fuel == nil { candidates.append(.fuelEntry) }
         if near(s.gap?.startsIn) { candidates.append(.gap) }
+        if near(s.alert?.distance) { candidates.append(.alert) }
         if near(s.plannedStop) { candidates.append(.stop) }
         if near(s.restArea) { candidates.append(.restArea) }
         if s.nextExit != nil { candidates.append(.exit) }

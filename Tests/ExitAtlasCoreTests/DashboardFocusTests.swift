@@ -16,7 +16,8 @@ final class DashboardFocusTests: XCTestCase {
             let gap = x["gap"].map { (startsIn: m($0["startsIn"])!, length: m($0["length"])!) }
             let s = DashboardFocus.Signals(nextExit: m(x["nextExit"]), restArea: m(x["restArea"]), gap: gap,
                                            plannedStop: m(x["plannedStop"]), fuel: fuel, overnight: x["overnight"]?.bool ?? false,
-                                           lastOpen: m(x["lastOpen"]))
+                                           lastOpen: m(x["lastOpen"]),
+                                           alert: x["alert"].map { (distance: m($0["distance"])!, serious: $0["serious"]!.bool!) })
             let r = DashboardFocus.choose(s)
             XCTAssertEqual(r.focus.rawValue, c["expect"]!["focus"]!.string!, "\(name): focus")
             XCTAssertEqual(r.strip.map(\.rawValue), c["expect"]!["strip"]!.array!.compactMap(\.string), "\(name): strip")

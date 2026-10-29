@@ -14,15 +14,17 @@ public struct VoiceAnnouncements: Sendable {
         public var restAreas: Bool
         public var gasGaps: Bool
         public var timeZones: Bool
+        public var alerts: Bool
 
         public init(enabled: Bool, stateLines: Bool, exits: Bool, restAreas: Bool = true, gasGaps: Bool = true,
-                    timeZones: Bool = true) {
+                    timeZones: Bool = true, alerts: Bool = true) {
             self.enabled = enabled
             self.stateLines = stateLines
             self.exits = exits
             self.restAreas = restAreas
             self.gasGaps = gasGaps
             self.timeZones = timeZones
+            self.alerts = alerts
         }
     }
 
@@ -34,6 +36,10 @@ public struct VoiceAnnouncements: Sendable {
     static let restWarning = 2.5 * Geodesy.metersPerMile
     static let restMinimum = 0.4 * Geodesy.metersPerMile
     static let gapWarning = 6 * Geodesy.metersPerMile
+    /// Road alerts: serious ones from 10 miles, others from 2; never within 0.3, where it is too late.
+    static let seriousAlertWarning = 10 * Geodesy.metersPerMile
+    static let alertWarning = 2 * Geodesy.metersPerMile
+    static let alertMinimum = 0.3 * Geodesy.metersPerMile
 
     private var announcedExitIDs = Set<String>()
     private var announcedBorders: [(state: String, odometer: Double)] = []
@@ -42,6 +48,7 @@ public struct VoiceAnnouncements: Sendable {
     private var announcedRest = Set<String>()
     private var announcedGaps = Set<String>()
     private var announcedOpen = Set<String>()
+    private var announcedAlerts = Set<String>()
 
     public init() {}
 
@@ -49,14 +56,24 @@ public struct VoiceAnnouncements: Sendable {
 
     /// zoneID: the time zone at the driver (`TripPlan.timeZoneID(at:)`). gasGap: the next stretch
     /// without gas that starts ahead (`GasGaps.find`), or nil. lastOpen: overnight, the last stop listed
-    /// open before a long stretch (`SmartStop.lastOpenBeforeGap`), or nil.
+    /// open before a long stretch (`SmartStop.lastOpenBeforeGap`), or nil. alerts: road alerts ahead (`RoadIntel`).
     public mutating func message(for s: TripSnapshot, settings: Settings, zoneID: String? = nil,
-                                 gasGap: GasGaps.Gap? = nil, lastOpen: SmartStop.LastOpen? = nil) -> String? {
+                                 gasGap: GasGaps.Gap? = nil, lastOpen: SmartStop.LastOpen? = nil,
+                                 alerts: [RoadIntel.Alert] = []) -> String? {
         let state = Self.key(s.current?.segment)
         guard settings.enabled, s.match.status == .onRoute else {
             if let state { lastState = state }
             if let zoneID { lastZone = zoneID }
             return nil
+        }
+        // Road alerts first: once each. A state line message waits for the next position, it is not lost.
+        if settings.alerts {
+            for a in alerts where a.notable && !announcedAlerts.contains(a.incident.id) {
+                let ahead = a.start - s.progress
+                guard ahead > Self.alertMinimum, ahead <= (a.serious ? Self.seriousAlertWarning : Self.alertWarning) else { continue }
+                announcedAlerts.insert(a.incident.id)
+                return Self.alertWords(a, ahead: ahead)
+            }
         }
         if settings.stateLines, let current = s.current {
             if let last = lastState, let state, state != last {
@@ -98,7 +115,8 @@ public struct VoiceAnnouncements: Sendable {
         }
         // Overnight: the last stop listed open before a long stretch, once per stop. Not when it is the same
         // exit as the last gas just announced.
-        if settings.gasGaps, let lo = lastOpen, let ahead = lo.stop.ahead, ahead > 0, ahead <= Self.gapWarning,
+        // Not when "listed open" rests on Google Maps hours: its terms forbid text to speech of its content.
+        if settings.gasGaps, let lo = lastOpen, !lo.evaluation.hoursFromGoogle, let ahead = lo.stop.ahead, ahead > 0, ahead <= Self.gapWarning,
            !announcedOpen.contains(lo.stop.id), lo.stop.exitID == nil || gasGap?.before?.exit?.id != lo.stop.exitID {
             announcedOpen.insert(lo.stop.id)
             let place = lo.stop.exitLabel.map { "\(lo.stop.name) at Exit \($0)" } ?? lo.stop.name
@@ -123,6 +141,16 @@ public struct VoiceAnnouncements: Sendable {
             return text + "."
         }
         return nil
+    }
+
+    /// "Crash ahead, in 8 miles. 2 right lanes blocked." Weather says the warning's name; driver reports say so.
+    public static func alertWords(_ a: RoadIntel.Alert, ahead: Double) -> String {
+        let i = a.incident
+        let label = i.kind == .weather || i.kind == .flooding ? "\(i.description) on your route" : "\(i.kind.label) ahead"
+        var text = "\(label), in \(spokenMiles(ahead))."
+        if let lanes = i.lanes, !lanes.isEmpty { text += " \(lanes)." }
+        if i.verification == .community { text += " Reported by drivers, not confirmed." }
+        return text
     }
 
     static func key(_ segment: RegionSegment?) -> String? {

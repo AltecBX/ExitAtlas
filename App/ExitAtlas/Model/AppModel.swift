@@ -23,8 +23,8 @@ final class AppModel {
     let library = TripLibrary()
     let trip = TripController()
     /// Launch arguments for demos and UI screenshots: -demoTrip <miles> starts the bundled sample
-    /// trip frozen at that mile; -overnight on|off|auto sets Overnight Drive Mode for it; -forceDark
-    /// forces dark mode.
+    /// trip frozen at that mile; -overnight on|off|auto sets Overnight Drive Mode for it; -demoAlert adds one
+    /// simulated road alert, labeled as such; -forceDark forces dark mode.
     let forceDark = ProcessInfo.processInfo.arguments.contains("-forceDark")
 
     /// The running app's model, for Siri and Shortcuts intents (they run in this process).
@@ -110,6 +110,17 @@ final class AppModel {
             settings.overnightMode = args[o + 1]
         }
         startDemo(atMiles: miles, frozen: true)
+        // -demoAlert: one SIMULATED crash 6 miles ahead, labeled as such, for screenshots of the alert card.
+        if args.contains("-demoAlert"), let plan = trip.plan {
+            let d = (miles + 6) * Geodesy.metersPerMile
+            let hw = plan.route.highway(at: d)
+            trip.roadAlerts.demoIncidents = [RoadIntel.Incident(
+                id: "demo:crash", kind: .crash, description: "Crash (SIMULATED TEST ALERT)",
+                source: .init(id: "demo", name: "Simulated test alert"), verification: .official,
+                reportedAt: Date().addingTimeInterval(-360), updatedAt: Date().addingTimeInterval(-360),
+                geometry: .point(plan.route.polyline.coordinate(at: d)), road: hw?.ref.description, direction: hw?.direction.rawValue,
+                lanes: "Right lane blocked", severity: .major)]
+        }
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
         // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {

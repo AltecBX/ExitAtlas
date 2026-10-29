@@ -192,6 +192,17 @@ public enum SmartStop {
         public var hours: Hours
         public var restroom: RestroomStatus
         public var facilities: [Facility]
+
+        /// The hours status came from Google Maps business hours. Google Maps Platform terms forbid text to
+        /// speech of their content, so spoken answers leave it out; the app shows it on screen.
+        public var hoursFromGoogle: Bool {
+            hours.status == .verified || (hours.source?.localizedCaseInsensitiveContains("google") ?? false)
+        }
+
+        /// The restroom status came from Google Maps (the restroom field). Not spoken, for the same reason.
+        public var restroomFromGoogle: Bool {
+            facilities.first { $0.name == "Restroom" }?.source?.localizedCaseInsensitiveContains("google") ?? false
+        }
     }
 
     /// Everything known about one stop at its arrival time.

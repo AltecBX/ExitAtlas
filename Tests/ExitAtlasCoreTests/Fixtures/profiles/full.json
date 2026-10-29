@@ -28,5 +28,6 @@
   "favorites": {"hotels": ["Hampton Inn"], "restaurants": ["Chick-fil-A", "Wawa"]},
   "driving": {"speedAlertOver": 7, "exitLookaheadMiles": 50, "gasGapMiles": 60, "favoriteCategories": ["gas", "restArea"],
               "avoidTolls": true, "keepAwake": true, "liveActivity": false, "theme": "dark"},
-  "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": false, "gasGaps": true, "timeZones": true}
+  "voice": {"enabled": true, "stateLines": true, "exits": true, "fuel": true, "restAreas": false, "gasGaps": true, "timeZones": true},
+  "alerts": {"closures": true, "incidents": true, "weather": true, "police": true, "cameras": true, "voice": true}
 }

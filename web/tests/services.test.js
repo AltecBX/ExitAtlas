@@ -113,11 +113,20 @@ test('proxy URL and switches: https only, unreachable means not used', async () 
   assert.equal(proxyBase('not a url'), null);
   assert.equal(String(proxyBase('https://p.example/x?y=1')), 'https://p.example/x/');
   assert.equal(String(proxyBase('http://localhost:8787')), 'http://localhost:8787/');
-  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, disabled: ['search'] }) }));
-  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, disabled: ['search'] });
+  const ok = await loadProxy('https://p.example', async () => ({ ok: true, json: async () => ({ prices: true, chargers: false, wzdx: true, disabled: ['search'] }) }));
+  assert.deepEqual({ ...ok, base: String(ok.base) }, { base: 'https://p.example/', prices: true, chargers: false, wzdx: true, disabled: ['search'] });
   assert.equal(switchedOff(ok, 'search'), true);
   assert.equal(switchedOff(ok, 'routing'), false);
   assert.equal(await loadProxy('https://p.example', async () => { throw new Error('offline'); }), null);
   assert.equal(await loadProxy('https://p.example', async () => ({ ok: false, status: 404 })), null);
   assert.equal(await loadProxy(''), null);
+});
+
+test('clock: a weekday only within the coming week, a date beyond it', async () => {
+  const { clock } = await import('../js/app/format.js');
+  const plain = (s) => s.replace(/ /g, ' ');
+  const now = Date.UTC(2026, 9, 29, 0, 0) / 1000; // Wednesday October 28, 8:00 PM in New York
+  assert.equal(plain(clock(now + 3600, 'America/New_York', now)), '9:00 PM EDT');
+  assert.equal(plain(clock(Date.UTC(2026, 9, 29, 13, 0) / 1000, 'America/New_York', now)), 'Thu 9:00 AM EDT');
+  assert.equal(plain(clock(Date.UTC(2026, 11, 31, 5, 0) / 1000, 'America/New_York', now)), 'Dec 31 12:00 AM EST');
 });

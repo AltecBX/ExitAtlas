@@ -131,5 +131,12 @@ final class RestAreaTests: XCTestCase {
         off.gasGaps = false
         XCTAssertNil(v3.message(for: at, settings: off, lastOpen: lastOpen(4, id: "other")))
         XCTAssertNil(v3.message(for: at, settings: quiet, gasGap: gap, lastOpen: lastOpen(4, id: "third", exitID: exit.id)))
+        // Google Maps hours are never spoken (Google's terms forbid text to speech of its content).
+        let google = SmartStop.Candidate(id: "google", name: "Shell", exitID: "x8", exitLabel: "93", along: 0, ahead: 4 * mile, arrival: start,
+                                         timeZone: TimeZone(identifier: "America/New_York")!,
+                                         livePeriods: [GooglePeriod(open: .init(day: 0, hour: 0, minute: 0), close: nil)])
+        let ev = SmartStop.evaluate(google, preferences: SmartStop.Preferences())
+        XCTAssertTrue(ev.hoursFromGoogle)
+        XCTAssertNil(v3.message(for: at, settings: quiet, lastOpen: SmartStop.LastOpen(stop: google, evaluation: ev, length: 74 * mile, unlisted: 3, openEnded: false)))
     }
 }

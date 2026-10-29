@@ -12,6 +12,29 @@ final class ScreenshotTests: XCTestCase {
 
     func testScreensDark() { capture(dark: true) }
 
+    /// A road alert: one SIMULATED crash 6 miles ahead (-demoAlert, labeled in the app as a simulated test alert)
+    /// takes the Drive focus card and shows in Road Ahead with the alert sources' status.
+    func testRoadAlert() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-demoAlert"] + (dark ? ["-forceDark"] : [])
+            app.launch()
+            XCTAssertTrue(app.staticTexts["NEXT STATE"].waitForExistence(timeout: 90), "Drive dashboard did not appear")
+            let card = app.descendants(matching: .any)["alertCard"].firstMatch
+            XCTAssertTrue(card.waitForExistence(timeout: 20), "No road alert card")
+            app.swipeUp()
+            sleep(2)
+            snap("1f Road alert", dark)
+            app.tabBars.buttons["Ahead"].tap()
+            XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+            let status = app.descendants(matching: .any)["alertStatus"].firstMatch
+            if status.waitForExistence(timeout: 10) { status.tap() }
+            sleep(2)
+            snap("2b Road Ahead alert", dark)
+            app.terminate()
+        }
+    }
+
     /// Overnight Drive Mode on: before a long stretch where no stop is listed open at its arrival time, the
     /// last one that is takes the focus card (mile 400 on the demo route, as on the web).
     func testOvernightLastOpenStop() {
@@ -151,10 +174,20 @@ final class ScreenshotTests: XCTestCase {
         sleep(1)
     }
 
-    /// Scrolls up until the element can be tapped.
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 5) -> Bool {
-        for _ in 0..<swipes where !(element.exists && element.isHittable) {
-            app.swipeUp()
+    /// Scrolls up until the element can be tapped, clear of the bottom edge: a row sitting at the very bottom
+    /// of the Settings sheet was reported hittable but the tap did not open it. While the element is off
+    /// screen, swipes (fast, far); once it is on screen, a short slow drag that holds at the end, since a
+    /// swipe would fling it past the top. The drag runs down the left side, away from the switches.
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, steps: Int = 12) -> Bool {
+        func clear() -> Bool { element.exists && element.isHittable && element.frame.maxY < app.frame.maxY - 150 }
+        for _ in 0..<steps where !clear() {
+            if element.exists && element.isHittable {
+                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.72))
+                let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.42))
+                from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
+            } else {
+                app.swipeUp()
+            }
             sleep(1)
         }
         return element.exists && element.isHittable

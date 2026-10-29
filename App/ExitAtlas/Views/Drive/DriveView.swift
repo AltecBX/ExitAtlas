@@ -107,12 +107,18 @@ private struct DriveDashboard: View {
             gap: gap.map { (startsIn: max(0, $0.from - progress), length: $0.to - max($0.from, progress)) },
             plannedStop: snapshot.nextStop?.distance, fuel: fuel,
             overnight: SmartStop.Preferences(settings.values).overnight(atMinute: minute),
-            lastOpen: trip.lastOpenAhead?.stop.ahead)
+            lastOpen: trip.lastOpenAhead?.stop.ahead,
+            alert: focusAlert.map { (distance: max(0, $0.start - progress), serious: $0.serious) })
     }
+
+    /// The alert the focus rule considers (RoadIntel.Result.focusAlert).
+    private var focusAlert: RoadIntel.Alert? { trip.roadIntel?.focusAlert(progress: snapshot.progress) }
 
     @ViewBuilder
     private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
         switch kind {
+        case .alert:
+            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
         case .fuel:
             FuelCard { showFuel = true }
         case .stop:
@@ -174,6 +180,43 @@ private struct PlannedStopCard: View {
         .card()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("plannedStopCard")
+    }
+}
+
+/// A road alert ahead: what, where, how sure, from whom. Driver reports say they are unconfirmed.
+private struct AlertCard: View {
+    @Environment(TripController.self) private var trip
+    let alert: RoadIntel.Alert
+    let progress: Double
+    let now: Date
+
+    var body: some View {
+        let i = alert.incident
+        let hw = trip.plan?.route.highway(at: alert.start)
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow(text: "\(AlertText.icon(i.kind)) \(alert.serious ? "Serious alert" : "Road alert")" + (hw.map { " · \($0.ref) \($0.direction.word)" } ?? ""))
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AlertText.title(i)).font(.headline)
+                    if let sub = AlertText.subtitle(i) { Text(sub).font(.subheadline) }
+                    if i.verification == .community { Text("Reported by drivers, not confirmed").font(.subheadline).foregroundStyle(Theme.amber) }
+                    if !alert.directionKnown { Text("Direction not reported").font(.caption).foregroundStyle(Theme.secondaryText) }
+                    Text(AlertText.meta(alert, now: Date(), timeZoneID: trip.plan?.timeZoneID(at: alert.start), reference: now))
+                        .font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+                Spacer(minLength: 4)
+                if alert.start <= progress {
+                    Text("Now").font(.subheadline.weight(.heavy))
+                } else {
+                    Text(Format.milesValue(alert.start - progress)).font(Theme.number(28, weight: .heavy)) + Text(" mi").font(.caption).foregroundStyle(Theme.secondaryText)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(alert.serious ? Theme.danger : .clear, lineWidth: 1.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("alertCard")
     }
 }
 
@@ -293,6 +336,11 @@ private struct ThenStrip: View {
         case .exit:
             if let next = snapshot.nextExit {
                 chip(Format.milesValue(next.distance) + " mi", next.exit.displayTitle) { selectedTab = .ahead }
+            }
+        case .alert:
+            if let a = trip.roadIntel?.focusAlert(progress: snapshot.progress) {
+                chip(a.start > snapshot.progress ? Format.milesValue(a.start - snapshot.progress) + " mi" : nil,
+                     AlertText.icon(a.incident.kind) + " " + AlertText.title(a.incident)) { selectedTab = .ahead }
             }
         default:
             EmptyView()

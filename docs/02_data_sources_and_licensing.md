@@ -63,7 +63,7 @@ Measured OpenInterstate quality issues (this repo, see `tools/data-pipeline/buil
 | Amadeus Self Service | Decommissioned (secondary sources give 2026-07-17) | No |
 | LiteAPI | Self serve sandbox; margin model | Candidate |
 | Yelp Places | $229 to $643 per month; 24 hour cache; heavy display rules | Costly |
-| Foursquare Places | Hours and ratings are Premium fields, $18.75 per 1,000; 30 day cache | Candidate for hours and ratings |
+| Foursquare Places | Hours and ratings are Premium fields, $18.75 per 1,000; pay as you go allows **no caching** except place and photo IDs (corrected 2026-10-28, [usage guidelines](https://docs.foursquare.com/fsq-developers-places/reference/usage-guidelines)); "Powered by Foursquare" on every screen | Low priority candidate for hours (docs/13) |
 | Overture Places, Foursquare OS Places | Permissive licenses, no hours, no ratings | POI enrichment only |
 | Brand logos | No source licenses the trademarks (logo.dev, Brandfetch terms); App Review 5.2.1 | Text brand names until owners grant permission |
 
@@ -118,4 +118,4 @@ Allowed (Interpretation): OSM derived exits and places drawn as our own overlay 
 2. Before App Store release: self hosted Valhalla on an OSM extract for storable route geometry and offline rerouting, with MapKit still drawing the map. Publish the ODbL datasets.
 3. Fuel prices: request quotes from iExit (API includes OPIS or GasBuddy sourced prices) and OPIS. Google `fuelOptions` may be shown without a map (with Google attribution) but never on or next to a non-Google map, and may not be cached; the web version follows this with the driver's own key. A shared feed for the iOS app and CarPlay still needs a licensed source (document 9).
 4. EV: AFDC (NLR) download, refreshed weekly by a backend job.
-5. Hours and ratings: Foursquare Premium fields on demand, cached up to 30 days.
+5. Hours and ratings: Foursquare Premium fields on demand, never cached (pay as you go terms allow caching only of IDs; corrected 2026-10-28). All the Places (CC0) brand listings come first (docs/13).

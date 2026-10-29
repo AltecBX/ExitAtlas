@@ -5,8 +5,12 @@
 //                                         fuel prices within 1.6 km. Never cached (Google's terms).
 //   POST /v1/chargers    form body        U.S. DOE AFDC nearby-route search (public domain data),
 //                                         cached for a day.
+//   GET  /v1/wzdx/<state>                 A state's work zone feed (WZDx, CC0, no key) for browsers that
+//                                         may not read it directly (no CORS). Only the feeds in the app's
+//                                         own table; cached for 2 minutes; passed through unparsed.
 //   GET  /v1/config                       Provider switches for the app (see docs/11).
 // Setup and limits: infra/worker/README.md.
+import { WZDX_FEEDS } from '../../../web/js/engine/alertsources.js';
 
 const GOOGLE = 'https://places.googleapis.com/v1/places:searchNearby';
 // Same fields as the app's own request (web/js/app/prices.js): billed once at the highest SKU.
@@ -34,6 +38,21 @@ export function createHandler({ fetchImpl = (...a) => fetch(...a), cache = null,
 
     if (url.pathname === '/v1/config' && request.method === 'GET') {
       return reply(200, config(env), { 'Cache-Control': 'max-age=300' });
+    }
+    if (url.pathname.startsWith('/v1/wzdx/') && request.method === 'GET') {
+      const state = url.pathname.slice('/v1/wzdx/'.length);
+      const feed = Object.hasOwn(WZDX_FEEDS, state) ? WZDX_FEEDS[state] : null;
+      if (!feed) return reply(404, { error: 'no work zone feed for that state' });
+      if (!config(env).wzdx) return reply(503, { error: 'work zone feeds are switched off' });
+      const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=120', ...cors };
+      const key = new Request(`https://cache.exitatlas/wzdx/${state}`);
+      const hit = await cache?.match(key);
+      if (hit) return new Response(hit.body, { status: 200, headers: { ...headers, 'X-Cache': 'hit' } });
+      const res = await fetchImpl(feed.url, { headers: { Accept: 'application/geo+json, application/json', 'User-Agent': 'ExitAtlas proxy (github.com/AltecBX/ExitAtlas)' } });
+      if (!res.ok) return reply(502, { error: `the ${state} feed answered ${res.status}` });
+      // Streamed through without parsing (some feeds are several MB; parsing would cost CPU time).
+      await cache?.put(key, new Response(res.clone().body, { headers: { 'Cache-Control': 'max-age=120' } }));
+      return new Response(res.body, { status: 200, headers: { ...headers, 'X-Cache': 'miss' } });
     }
     if (request.method !== 'POST') return reply(405, { error: 'method not allowed' });
     const length = Number(request.headers.get('Content-Length') ?? 0);
@@ -88,6 +107,7 @@ export function config(env) {
     disabled: list(env.DISABLED),
     prices: Boolean(env.GOOGLE_KEY) && !list(env.DISABLED).includes('prices'),
     chargers: Boolean(env.NREL_KEY) && !list(env.DISABLED).includes('chargers'),
+    wzdx: !list(env.DISABLED).includes('wzdx'),
   };
 }
 

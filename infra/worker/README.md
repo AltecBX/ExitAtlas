@@ -10,6 +10,7 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 |---|---|---|---|
 | `POST /v1/gas-prices` with `{lat, lon}` | Google Places API (New) Nearby Search, gas stations within 1.6 km with fuel prices | Never (Google's terms do not allow caching prices) | `DAILY_PRICES` for everyone, `CLIENT_DAILY_PRICES` per client |
 | `POST /v1/chargers` with the AFDC form fields | U.S. DOE AFDC nearby-route (public domain) | Cloudflare cache, 1 day | `DAILY_CHARGERS`, `CLIENT_DAILY_CHARGERS`; cache hits are free |
+| `GET /v1/wzdx/<state>` | That state's work zone feed (WZDx, CC0, no key), only the feeds in `web/js/engine/alertsources.js` | Cloudflare cache, 2 minutes | none (no key, no cost per call); `DISABLED = "wzdx"` switches it off |
 | `GET /v1/config` | none | 5 minutes in browsers | none |
 
 * Only pages listed in `ALLOWED_ORIGINS` get an answer. A script outside a browser can fake the Origin header, so the budgets, and Google's own quota on the key, are the real limits.

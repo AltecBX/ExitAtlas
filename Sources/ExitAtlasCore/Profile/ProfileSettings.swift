@@ -47,6 +47,10 @@ public struct ProfileSettings: Sendable, Equatable {
     public var announceGasGaps = true
     public var announceTimeZones = true
 
+    /// Road alert groups switched on (RoadIntel.Group raw values), and whether alerts are spoken.
+    public var alertGroups: [String: Bool] = ["closures": true, "incidents": true, "weather": true, "police": true, "cameras": true]
+    public var announceAlerts = true
+
     public init() {}
 
     /// The vehicle that plans fuel stops.
@@ -100,6 +104,9 @@ public struct ProfileSettings: Sendable, Equatable {
         announceRestAreas = v["restAreas"]?.bool ?? true
         announceGasGaps = v["gasGaps"]?.bool ?? true
         announceTimeZones = v["timeZones"]?.bool ?? true
+        let a = sec("alerts")
+        for g in alertGroups.keys { alertGroups[g] = a[g]?.bool ?? true }
+        announceAlerts = a["voice"]?.bool ?? true
     }
 
     /// The profile with these values written into it. Saved places keep their ids when the name and
@@ -146,6 +153,7 @@ public struct ProfileSettings: Sendable, Equatable {
             "fuel": .bool(announceFuel), "restAreas": .bool(announceRestAreas), "gasGaps": .bool(announceGasGaps),
             "timeZones": .bool(announceTimeZones),
         ])
+        merge("alerts", alertGroups.mapValues { JSONValue.bool($0) }.merging(["voice": .bool(announceAlerts)]) { $1 })
         return ProfileRules.normalize(.object(p)).profile
     }
 }

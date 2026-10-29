@@ -13,6 +13,10 @@ export const FOCUS_RULES = Object.freeze({
   fuelWithin: 30 * MILE,
   /// A rest area before the next exit and this close takes the focus.
   restAreaWithin: 10 * MILE,
+  /// A serious road alert (closure, major crash, severe weather) this close takes the focus.
+  seriousAlertWithin: 50 * MILE,
+  /// Any other road alert this close takes the focus.
+  alertWithin: 10 * MILE,
   /// Strip items farther than this are left out.
   stripWithin: 150 * MILE,
   stripSize: 2,
@@ -27,9 +31,10 @@ export const FOCUS_RULES = Object.freeze({
 ///     plannedStop: {distance} | null,
 ///     overnight: bool,
 ///     lastOpen: meters to the last stop listed open before a long overnight stretch | null,
+///     alert: {distance, serious} for the nearest road alert ahead (engine/roadintel.js) | null,
 ///   }
-/// Returns {focus: kind, strip: [kinds], why} with kinds 'fuel', 'stop', 'gap', 'lastOpen', 'overnight', 'restArea',
-/// 'exit', 'fuelEntry' (no range entered yet; strip only).
+/// Returns {focus: kind, strip: [kinds], why} with kinds 'fuel', 'alert', 'stop', 'gap', 'lastOpen', 'overnight',
+/// 'restArea', 'exit', 'fuelEntry' (no range entered yet; strip only).
 export function dashboardFocus(signals, rules = FOCUS_RULES) {
   const s = signals;
   const fuel = s.fuel ?? null;
@@ -42,10 +47,15 @@ export function dashboardFocus(signals, rules = FOCUS_RULES) {
   const restFirst = s.restArea && s.restArea.distance <= rules.restAreaWithin
     && (!s.nextExit || s.restArea.distance < s.nextExit.distance);
 
+  const alert = s.alert ?? null;
+  const alertNear = alert && alert.distance <= (alert.serious ? rules.seriousAlertWithin : rules.alertWithin);
+
   let focus, why;
   if (fuelLow) { focus = 'fuel'; why = 'Fuel is below your reserve'; }
+  else if (alertNear && alert.serious) { focus = 'alert'; why = 'A serious road alert ahead'; }
   else if (s.plannedStop && s.plannedStop.distance <= rules.stopWithin) { focus = 'stop'; why = 'Approaching your planned stop'; }
   else if (gapRisk) { focus = 'gap'; why = 'A stretch without gas is coming up'; }
+  else if (alertNear) { focus = 'alert'; why = 'A road alert just ahead'; }
   else if (fuelSoon) { focus = 'fuel'; why = 'Your fuel stop is coming up'; }
   else if (s.lastOpen != null && s.lastOpen <= rules.gapWithin) { focus = 'lastOpen'; why = 'Last stop listed open before a long stretch'; }
   else if (s.overnight && (reading || s.restArea)) { focus = 'overnight'; why = 'Overnight: open stops and restrooms'; }
@@ -60,6 +70,7 @@ export function dashboardFocus(signals, rules = FOCUS_RULES) {
   if (reading && fuel.stopAhead != null && near(fuel.stopAhead)) candidates.push('fuel');
   if (!reading) candidates.push('fuelEntry');
   if (s.gap && near(s.gap.startsIn)) candidates.push('gap');
+  if (alert && near(alert.distance)) candidates.push('alert');
   if (s.plannedStop && near(s.plannedStop.distance)) candidates.push('stop');
   if (s.restArea && near(s.restArea.distance)) candidates.push('restArea');
   if (s.nextExit) candidates.push('exit');

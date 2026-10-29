@@ -72,6 +72,9 @@ final class UserSettings {
     var announceRestAreas: Bool { didSet { save() } }
     var announceGasGaps: Bool { didSet { save() } }
     var announceTimeZones: Bool { didSet { save() } }
+    /// Road alert groups switched on (RoadIntel.Group raw values) and whether alerts are spoken.
+    var alertGroups: [String: Bool] { didSet { save() } }
+    var announceAlerts: Bool { didSet { save() } }
 
     /// Google Maps Platform key for gas prices (Places API New). Empty means prices are off. Keychain.
     var googleKey: String { didSet { keychain.set(googleKey, for: "googleKey") } }
@@ -123,6 +126,8 @@ final class UserSettings {
         announceRestAreas = s.announceRestAreas
         announceGasGaps = s.announceGasGaps
         announceTimeZones = s.announceTimeZones
+        alertGroups = s.alertGroups
+        announceAlerts = s.announceAlerts
         // A local, not self.keychain: self is not fully initialized until the keys are set.
         if !demo { Self.moveKeysToKeychain(keys) }
         googleKey = keys.get("googleKey") ?? ""
@@ -192,6 +197,8 @@ final class UserSettings {
         s.announceRestAreas = announceRestAreas
         s.announceGasGaps = announceGasGaps
         s.announceTimeZones = announceTimeZones
+        s.alertGroups = alertGroups
+        s.announceAlerts = announceAlerts
         return s
     }
 
@@ -261,6 +268,8 @@ final class UserSettings {
         announceRestAreas = s.announceRestAreas
         announceGasGaps = s.announceGasGaps
         announceTimeZones = s.announceTimeZones
+        alertGroups = s.alertGroups
+        announceAlerts = s.announceAlerts
         loading = false
         save()
         return (problems, plans)

@@ -30,6 +30,8 @@ export function defaultProfile() {
       avoidTolls: false, keepAwake: true, liveActivity: true, theme: 'auto',
     },
     voice: { enabled: true, stateLines: true, exits: false, fuel: true, restAreas: true, gasGaps: true, timeZones: true },
+    // Road alerts by Settings group (engine/roadintel.js ALERT_GROUPS), and whether they are spoken.
+    alerts: { closures: true, incidents: true, weather: true, police: true, cameras: true, voice: true },
   };
 }
 
@@ -171,6 +173,7 @@ export function normalizeProfile(raw) {
     theme: (v) => oneOf(v, ['auto', 'light', 'dark']),
   });
   section('voice', Object.fromEntries(Object.keys(d.voice).map((k) => [k, bool])));
+  section('alerts', Object.fromEntries(Object.keys(d.alerts).map((k) => [k, bool])));
   return { profile: out, problems };
 }
 

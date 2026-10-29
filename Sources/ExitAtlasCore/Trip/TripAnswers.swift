@@ -96,10 +96,13 @@ public enum TripAnswers {
         return "\(name), \(miles(c.ahead ?? 0)) ahead, about \(duration(c.arrival.timeIntervalSince(now)))."
     }
 
-    /// The hours (and restroom when it is known or asked for) as spoken labels.
+    /// The hours (and restroom when it is known or asked for) as spoken labels. Facts from Google Maps are
+    /// never spoken (its terms forbid text to speech of its content); the answer points to the app instead.
     static func confidence(_ e: SmartStop.Evaluation, restroom: Bool) -> String {
-        var text = e.hours.label + "."
-        if restroom || e.restroom != .unknown { text += " " + e.restroom.label + "." }
+        var text = e.hoursFromGoogle ? "Hours from Google Maps are shown in the app." : e.hours.label + "."
+        if restroom || e.restroom != .unknown {
+            text += " " + (e.restroomFromGoogle ? "Restroom details from Google Maps are shown in the app." : e.restroom.label + ".")
+        }
         return text
     }
 
@@ -113,7 +116,9 @@ public enum TripAnswers {
         guard let first = matches.first else { return "No \(brand) is listed in the next \(miles(window)) on your route." }
         let e = SmartStop.evaluate(first, preferences: preferences)
         var text = "The next \(brand): " + describe(first, now: now) + " " + confidence(e, restroom: false)
-        if e.hours.status == .closed, let open = matches.dropFirst().first(where: { SmartStop.evaluate($0, preferences: preferences).hours.status != .closed }) {
+        // A closure known only from Google is not spoken, so it does not lead to "the one after it" either.
+        if e.hours.status == .closed, !e.hoursFromGoogle,
+           let open = matches.dropFirst().first(where: { SmartStop.evaluate($0, preferences: preferences).hours.status != .closed }) {
             text += " The one after it: " + describe(open, now: now) + " " + confidence(SmartStop.evaluate(open, preferences: preferences), restroom: false)
         }
         return text
@@ -127,11 +132,16 @@ public enum TripAnswers {
         }
         var text = (restroom ? "The best match: " : "SmartStop picks ") + describe(p.candidate, now: now) + " "
         if let b = p.brandRank, b == 0 { text += "Your first choice brand. " }
-        // A restroom notice already says what is known about restrooms; say it once.
+        // A restroom notice already says what is known about restrooms; say it once. Facts from Google Maps
+        // (hours, the restroom field, and a notice resting on it) are not spoken; the answer points to the app.
+        let e = p.evaluation
         let restroomNotice = r.notice?.localizedCaseInsensitiveContains("restroom") == true
-        text += restroomNotice ? p.evaluation.hours.label + "." : confidence(p.evaluation, restroom: restroom)
+        text += restroomNotice ? (e.hoursFromGoogle ? "Hours from Google Maps are shown in the app." : e.hours.label + ".")
+            : confidence(e, restroom: restroom)
         if let d = p.candidate.detourMinutes, d >= 1 { text += " About a \(Int(d.rounded())) minute detour." }
-        if let notice = r.notice { text += " " + notice }
+        if let notice = r.notice {
+            text += " " + (restroomNotice && e.restroomFromGoogle ? "Restroom details from Google Maps are shown in the app." : notice)
+        }
         if let alt = r.alternatives.first { text += " Alternative: " + describe(alt.candidate, now: now) }
         return text
     }

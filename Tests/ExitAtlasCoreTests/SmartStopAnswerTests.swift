@@ -29,6 +29,21 @@ final class SmartStopAnswerTests: XCTestCase {
         XCTAssertEqual(none, "No Nonexistent Fuel Co is listed in the next 150 miles on your route.")
     }
 
+    /// Google Maps facts (business hours, the restroom field) are never spoken: Google's terms forbid text to
+    /// speech of its content. The answer points to the app instead. Simulated candidate.
+    func testSpokenAnswersLeaveOutGoogleFacts() {
+        let google = SmartStop.Candidate(id: "g", name: "Shell", brand: "Shell", exitID: "x", exitLabel: "93", along: 5 * mile, ahead: 5 * mile,
+                                         arrival: now, timeZone: TimeZone(identifier: "America/New_York")!,
+                                         livePeriods: [GooglePeriod(open: .init(day: 0))], liveRestroom: true)
+        let text = TripAnswers.nextBrand("Shell", candidates: [google], preferences: .init(), now: now, window: 150 * mile)
+        XCTAssertTrue(text.contains("Hours from Google Maps are shown in the app."), text)
+        XCTAssertFalse(text.contains("Verified"), text)
+        let r = SmartStop.choose([google], preferences: .init(), context: .ahead)
+        let answer = TripAnswers.smartStop(r, now: now, window: 50 * mile, restroom: true)
+        XCTAssertTrue(answer.contains("Restroom details from Google Maps are shown in the app."), answer)
+        XCTAssertFalse(answer.contains("Verified") || answer.contains("confirmed available"), answer)
+    }
+
     func testBestStopAndRestroomAnswersStateWhatIsNotConfirmed() throws {
         let ctx = try context(atMiles: 300)
         let best = SmartStop.choose(SmartStop.aheadCandidates(ctx, miles: 50, rangeLeft: nil), preferences: .init(), context: .ahead)

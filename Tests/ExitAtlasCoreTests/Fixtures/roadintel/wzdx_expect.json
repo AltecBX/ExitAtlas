@@ -1,0 +1,38 @@
+{
+  "about": "Expectations for the real work zone feeds captured 2026-10-28 at 23:53 UTC (wzdx_md.json, wzdx_de.json, wzdx_nj.json: Maryland and Delaware whole, nine New Jersey features). Matched on the real Miami to Manhattan route from mile 1000. Checked by hand: MDOT lists two shoulder closures on I-95 northbound and one on I-895 northbound ahead; NJDOT lists I-287 work beside the Turnpike interchange, with the Turnpike as a cross street; and NJ 495 work in both directions at the Lincoln Tunnel approach.",
+  "route": "miami_to_manhattan",
+  "progressMiles": 1000,
+  "states": {
+    "MD": { "count": 68, "tally": { "construction/minor": 51, "construction/moderate": 12, "closure/major": 5 } },
+    "DE": { "count": 18, "tally": { "construction/unknown": 18 } },
+    "NJ": { "count": 9, "tally": { "construction/moderate": 6, "construction/minor": 1, "closure/major": 1, "construction/unknown": 1 } }
+  },
+  "incidents": {
+    "wzdx:MD:09026375763a00c9006ad32ec4235c0a_N": { "road": "I 95 / J F K MEMORIAL HWY", "direction": "northbound", "category": "construction", "severity": "minor", "lanes": "Shoulder closed", "geometry": "point", "startsAt": 1791572604, "endsAt": 1793419200, "updatedAt": 1793193091 },
+    "wzdx:MD:2a01cf20596d03ba006ad32ec4235c0a_North": { "road": "US 13 / OCEAN HWY", "direction": "northbound", "category": "closure", "severity": "major", "lanes": "All lanes closed", "geometry": "point" },
+    "wzdx:MD:fa00ed450c73028f006ad32ec4235c0a_South": { "road": "MD 3BU / CRAIN HWY", "direction": "southbound", "category": "closure", "severity": "major", "lanes": "All lanes closed", "geometry": "line" },
+    "wzdx:DE:9f0f8c97-d341-4bc2-aa60-24d68eb7c85f": { "road": "DE 1", "direction": "southbound", "category": "construction", "severity": "unknown", "lanes": null, "geometry": "line", "startsAt": 1793230926, "endsAt": 1793238126, "updatedAt": 1793230926 },
+    "wzdx:NJ:ORC300607559": { "road": "NJ 27", "direction": "Both Directions", "category": "construction", "severity": "moderate", "lanes": "1 left lane of 2 lanes closed northbound; 1 left lane of 2 lanes closed southbound", "geometry": "point", "startsAt": 1794272400, "endsAt": 1794304800 },
+    "wzdx:NJ:ORC300607465": { "road": "I-287", "direction": "Northbound", "category": "construction", "severity": "moderate", "lanes": "At least one lane closed, moving operation", "geometry": "point", "startsAt": 1793332800 },
+    "wzdx:NJ:ORI1238494544": { "road": "NJ 73", "direction": "Both Directions", "category": "closure", "severity": "major", "lanes": "All lanes closed southbound; All lanes closed northbound", "geometry": "point" },
+    "wzdx:NJ:ORC300607617": { "road": "I-80", "direction": "Eastbound", "category": "construction", "severity": "minor", "lanes": "Left shoulder", "geometry": "point" },
+    "wzdx:NJ:ORC300367575": { "road": "NJ 47", "direction": "both directions", "category": "construction", "severity": "unknown", "lanes": "Not currently Scheduled", "geometry": "point" }
+  },
+  "matches": {
+    "wzdx:MD:dfffc200ae1d06950069d32ec4235c0a_N": 90.6,
+    "wzdx:MD:09026375763a00c9006ad32ec4235c0a_N": 116.1,
+    "wzdx:MD:240153a4743800c9006ad32ec4235c0a_N": 127.7,
+    "wzdx:NJ:ORC300604992": 276.4,
+    "wzdx:NJ:ORC300604985": 276.4
+  },
+  "rejected": {
+    "MD": { "off route": 64, "other road": 1 },
+    "DE": { "off route": 18 },
+    "NJ": { "off route": 4, "other road": 2, "other direction": 1 }
+  },
+  "rejectedByID": {
+    "wzdx:NJ:ORC300607444": "other road",
+    "wzdx:NJ:ORC300607465": "other road",
+    "wzdx:NJ:ORC300604990": "other direction"
+  }
+}
