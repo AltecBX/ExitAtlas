@@ -128,6 +128,43 @@ export function slowdownIncidents(sections, { routeId, progress, measuredAt, sou
   return out;
 }
 
+/// A provider's time is used only when the distance it timed matches the route's own distance to the same
+/// point (within 2%, at least 1 km): then it timed the road being driven, not another one.
+export function matchesRoute(providerMeters, routeMeters) {
+  return routeMeters > 0 && Math.abs(providerMeters - routeMeters) <= Math.max(1000, 0.02 * routeMeters);
+}
+
+/// A reading from per checkpoint measurements ({along, routeMeters, providerMeters, seconds}): those that match
+/// the route, in route order, each farther and later than the one before. Null when none qualifies.
+export function readingFromMeasurements({ routeId, measuredAt, fromAlong, measurements, source }) {
+  const checkpoints = [];
+  for (const m of [...measurements].sort((a, b) => a.along - b.along)) {
+    if (!(m.along > fromAlong) || !(m.seconds > 0) || !matchesRoute(m.providerMeters, m.routeMeters)) continue;
+    const last = checkpoints[checkpoints.length - 1];
+    if (last && (m.along <= last.along || m.seconds <= last.seconds)) continue;
+    checkpoints.push({ along: m.along, seconds: m.seconds });
+  }
+  return checkpoints.length ? { routeId, measuredAt, fromAlong, checkpoints, source } : null;
+}
+
+/// The extra time traffic adds to a checkpoint: the provider's traffic time minus its own ideal conditions time
+/// to the same point, both matched to the route; null when either does not match or it is under `minimum`.
+export function extraSeconds(traffic, ideal, minimum = 180) {
+  if (!matchesRoute(traffic.providerMeters, traffic.routeMeters) || !matchesRoute(ideal.providerMeters, ideal.routeMeters)) return null;
+  const extra = traffic.seconds - ideal.seconds;
+  return extra >= minimum ? extra : null;
+}
+
+export const REFRESH_RULES = Object.freeze({ interval: 300, maxInterval: 1200, stillAfter: 120 });
+
+/// When to ask the provider again: about every 5 minutes while moving with the app in front, at once after a
+/// reroute, never while parked or in the background, and less often after failures (doubling up to 20 min).
+export function refreshDue({ lastAttempt, failures, routeChanged, stillFor, foreground, now }, rules = REFRESH_RULES) {
+  if (!foreground || stillFor >= rules.stillAfter) return false;
+  if (lastAttempt == null || routeChanged) return true;
+  return now - lastAttempt >= Math.min(rules.maxInterval, rules.interval * 2 ** Math.max(0, failures));
+}
+
 export const ALTERNATIVE_RULES = Object.freeze({
   /// The smallest saving worth an offer (the driver can raise it in Settings).
   minSavingSeconds: 600,

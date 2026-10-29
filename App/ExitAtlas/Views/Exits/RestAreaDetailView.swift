@@ -24,7 +24,7 @@ struct RestAreaDetailView: View {
                     }
                 }
                 if let snapshot = trip.snapshot, r.distanceAlongRoute > snapshot.progress, let plan = trip.plan {
-                    let eta = plan.eta(from: snapshot.progress, to: r.distanceAlongRoute, pace: snapshot.pace, now: snapshot.timestamp)
+                    let eta = plan.eta(to: r.distanceAlongRoute, from: snapshot)
                     LabeledContent("Ahead", value: "\(Format.miles(r.distanceAlongRoute - snapshot.progress)) · \(Format.duration(eta.timeIntervalSince(snapshot.timestamp)))")
                 }
                 LabeledContent("Road", value: r.road)

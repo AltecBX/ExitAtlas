@@ -101,6 +101,19 @@ Checked 2026-10-29. "Verified here" means the clause was read in the provider's 
 - **Snapshot.** `TripPlan.snapshot(..., traffic:)` takes the reading shown. Every arrival comes from it: the destination, planned stops, state lines, SmartStop, fuel stops and the open at arrival checks. The intermediate times come from route matched checkpoints only.
 - **Profile.** `alerts.traffic` plus a `traffic` section: `map`, `eta`, `voice`, `suggestRoutes` and `minSavingMinutes`, validated the same way on both platforms. Existing profiles gain the defaults and lose nothing (fixtures updated).
 
+### iOS checkpoints, as built
+
+- **Up to three checkpoints on the leg being driven:**
+  - just past the next state line;
+  - a point 40 mi ahead, when the nearest checkpoint is more than 60 mi away;
+  - the next planned stop, or the destination.
+
+  Each is a point on the route polyline, so Apple times the same carriageway.
+- **Matching.** A time is kept only when Apple's distance is within 2% (at least 1 km) of the route's distance to that point. Times out of route order are dropped.
+- **Between checkpoints.** Times between two checkpoints follow the route's modeled time between them. Nothing is spread from a whole route total.
+- **Extra time.** It is measured to the farthest matched checkpoint, against Apple's ideal conditions time on the same pair of points.
+- **Requests.** They use the same toll preference as the route.
+
 ## 16.5 Requests, cost and battery (estimates, labeled as such)
 
 - **iOS (Apple):**
@@ -119,7 +132,7 @@ Checked 2026-10-29. "Verified here" means the clause was read in the provider's 
 |---|---|
 | Web: arrival basis on the Trip tab ("Your pace, no traffic data"), Traffic status in Settings, the Traffic slowdowns group showing "No source connected" | Live on the website |
 | Engine: traffic aware arrival times, stability, slowdowns as alerts, faster route rules | Built and tested on simulated fixtures in both engines. No live provider feeds it on the website. |
-| iOS: Apple traffic layer, traffic button, Settings switches, Apple checkpoint times, basis and extra time on the journey panel | Built in a stacked PR on #25. Screenshots come from the simulator, which may show no traffic. Not validated on a real drive yet. |
+| iOS: Apple traffic layer and Traffic button, Settings switches, Apple checkpoint times in every arrival, the basis on the Trip tab, "+N min traffic" or "with traffic" on the journey panel | Built (`AppleTrafficService`, `TripController` traffic section). CI screenshots use a SIMULATED reading labeled "Simulated traffic", because Apple is never asked during a simulated drive. Not validated on a real drive yet. |
 | Slowdown locations, spoken traffic, faster route offers | Not available. No licensed source provides them for ExitAtlas yet. |
 | Google traffic layer | Experimental, PR #15 only, unchanged |
 

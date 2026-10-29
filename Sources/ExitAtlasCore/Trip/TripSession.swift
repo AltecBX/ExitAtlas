@@ -18,6 +18,8 @@ public struct TripSession: Sendable {
 
     /// Seconds off route before a reroute is requested.
     public var rerouteDelay: TimeInterval = 8
+    /// The traffic reading shown (after Traffic.Stabilizer), used in every arrival time while it is usable.
+    public var traffic: Traffic.Reading?
 
     /// - Parameter priorPaceFactor: the driver's usual pace from earlier trips (1 means the model).
     public init(plan: TripPlan, states: RegionIndex, startedAt: Date = Date(), priorPaceFactor: Double = 1) {
@@ -68,12 +70,12 @@ public struct TripSession: Sendable {
             offRouteSince = nil
         }
         if sample.horizontalAccuracy >= 0 { lastSample = sample }
-        return plan.snapshot(match: current, ledger: ledger, pace: pace, now: sample.timestamp)
+        return plan.snapshot(match: current, ledger: ledger, pace: pace, now: sample.timestamp, traffic: traffic)
     }
 
     /// Snapshot without a new fix (for timers while GPS is quiet). Uses dead reckoning.
     public func snapshot(at date: Date) -> TripSnapshot {
-        plan.snapshot(match: tracker.estimate(at: date), ledger: ledger, pace: pace, now: date)
+        plan.snapshot(match: tracker.estimate(at: date), ledger: ledger, pace: pace, now: date, traffic: traffic)
     }
 
     public func needsReroute(at date: Date) -> Bool {

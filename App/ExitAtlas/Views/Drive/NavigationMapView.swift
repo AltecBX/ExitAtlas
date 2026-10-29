@@ -8,6 +8,7 @@ import SwiftUI
 /// vehicle with the road ahead in view; dragging the map stops following until Recenter.
 struct NavigationMapView: View {
     @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     let snapshot: TripSnapshot
     let alert: RoadIntel.Alert?
     @Binding var following: Bool
@@ -22,15 +23,20 @@ struct NavigationMapView: View {
         let plan = trip.plan
         let poly = plan?.route.polyline
         let progress = snapshot.progress
+        // With Apple's traffic layer on, the route is thinner and see through so the traffic colors on the road
+        // under it stay visible.
+        let traffic = settings.trafficOnMap
         Map(position: $position, interactionModes: [.pan, .zoom]) {
             if let poly {
                 MapPolyline(coordinates: coordinates(poly.slice(from: max(0, progress - 40_000), to: progress)))
-                    .stroke(Theme.routePassed, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    .stroke(Theme.routePassed, style: StrokeStyle(lineWidth: traffic ? 4 : 6, lineCap: .round, lineJoin: .round))
                 let ahead = coordinates(poly.slice(from: progress, to: min(poly.length, progress + 160_000)))
+                if !traffic {
+                    MapPolyline(coordinates: ahead)
+                        .stroke(Theme.routeCasing, style: StrokeStyle(lineWidth: 13, lineCap: .round, lineJoin: .round))
+                }
                 MapPolyline(coordinates: ahead)
-                    .stroke(Theme.routeCasing, style: StrokeStyle(lineWidth: 13, lineCap: .round, lineJoin: .round))
-                MapPolyline(coordinates: ahead)
-                    .stroke(Theme.route, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                    .stroke(Theme.route.opacity(traffic ? 0.55 : 1), style: StrokeStyle(lineWidth: traffic ? 4 : 7, lineCap: .round, lineJoin: .round))
             }
             if let line = snapshot.next?.segment, let code = line.code {
                 Annotation("State line, \(line.displayName)", coordinate: line.entryCoordinate.clCoordinate) {
@@ -72,7 +78,8 @@ struct NavigationMapView: View {
             }
         }
         // Flat terrain: the route and the markers draw at once, before (or without) map tiles on a weak signal.
-        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
+        // Traffic: Apple's own layer on Apple's map (docs/16), switched from the map or Settings.
+        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: traffic))
         .mapControls { MapCompass().mapControlVisibility(.hidden) }
         .onMapCameraChange(frequency: .continuous) { context in cameraHeading = context.camera.heading }
         .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { _ in following = false })

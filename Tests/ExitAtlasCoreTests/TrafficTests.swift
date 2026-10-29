@@ -132,6 +132,35 @@ final class TrafficTests: XCTestCase {
         XCTAssertEqual(plan.snapshot(match: match, ledger: TripLedger(), pace: PaceModel(), now: now).arrivalBasis, .model)
     }
 
+    func measurement(_ x: JSONValue, along: Double = 0) -> Traffic.Measurement {
+        Traffic.Measurement(along: x["along"]?.number ?? along, routeMeters: x["routeMeters"]!.number!,
+                            providerMeters: x["providerMeters"]!.number!, seconds: x["seconds"]!.number!)
+    }
+
+    func testProviderTimesOnlyForTheRoadDrivenInOrder() throws {
+        let m = try fixture()["measurements"]!
+        let r = Traffic.reading(routeId: "r1", measuredAt: Date(), fromAlong: m["fromAlong"]!.number!,
+                                measurements: m["measurements"]!.array!.map { measurement($0) }, source: .init(id: "sim", name: "Simulated traffic"))
+        XCTAssertEqual(r?.checkpoints, m["expect"]!.array!.map { Traffic.Checkpoint(along: $0["along"]!.number!, seconds: $0["seconds"]!.number!) })
+        XCTAssertNil(Traffic.reading(routeId: "r1", measuredAt: Date(), fromAlong: 0, measurements: [], source: .init(id: "sim", name: "Simulated traffic")))
+    }
+
+    func testExtraTimeBothMatchedAndAtLeastThreeMinutes() throws {
+        for c in try fixture()["extra"]!.array! {
+            XCTAssertEqual(Traffic.extraSeconds(traffic: measurement(c["traffic"]!), ideal: measurement(c["ideal"]!)), c["expect"]?.number, c["name"]!.string!)
+        }
+    }
+
+    func testRefreshWhileMovingNeverParkedOrInBackgroundBackingOff() throws {
+        let policy = Traffic.RefreshPolicy()
+        for c in try fixture()["refresh"]!.array! {
+            let due = policy.isDue(lastAttempt: c["lastAttempt"]?.number.map { Date(timeIntervalSince1970: $0) }, failures: Int(c["failures"]!.number!),
+                                   routeChanged: c["routeChanged"]!.bool!, stillFor: c["stillFor"]!.number!, foreground: c["foreground"]!.bool!,
+                                   now: t(c["now"]))
+            XCTAssertEqual(due, c["expect"]!.bool!, c["name"]!.string!)
+        }
+    }
+
     func testFasterRoutesOnlyForARealRepeatedSavingThatKeepsThePlan() throws {
         for c in try fixture()["alternatives"]!.array! {
             var advisor = Traffic.Advisor()

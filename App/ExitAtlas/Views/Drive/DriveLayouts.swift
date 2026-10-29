@@ -53,15 +53,17 @@ struct RoundIconButton: View {
     let symbol: String
     let label: String
     var id: String? = nil
+    /// A switch that is on (the traffic layer): the symbol and ring take the route color.
+    var active = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 19, weight: .semibold))
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.primary)
+                .foregroundStyle(active ? Theme.route : .primary)
                 .background(Theme.raised, in: Circle())
-                .overlay(Circle().stroke(Theme.cardStroke, lineWidth: 1))
+                .overlay(Circle().stroke(active ? Theme.route : Theme.cardStroke, lineWidth: active ? 2 : 1))
                 .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
@@ -273,7 +275,8 @@ struct JourneyPanel: View {
             } else {
                 metric(Format.milesValue(snapshot.remaining), "mi left")
                 Spacer(minLength: 6)
-                metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), "arrival")
+                metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), TrafficText.arrivalLabel(snapshot, extra: trip.trafficExtra),
+                       tint: trip.trafficExtra != nil && TrafficText.usesTraffic(snapshot) ? Theme.amber : Theme.secondaryText)
                 Spacer(minLength: 6)
                 metric("\(snapshot.statesAhead.count)", snapshot.statesAhead.count == 1 ? "state" : "states")
             }
@@ -285,10 +288,10 @@ struct JourneyPanel: View {
         .accessibilityIdentifier("tripStrip")
     }
 
-    private func metric(_ value: String, _ label: String) -> some View {
+    private func metric(_ value: String, _ label: String, tint: Color = Theme.secondaryText) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(value).font(Theme.number(16, weight: .heavy)).lineLimit(1)
-            Text(label).font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
+            Text(label).font(.caption.weight(tint == Theme.secondaryText ? .regular : .bold)).foregroundStyle(tint).lineLimit(1)
         }
     }
 }
@@ -301,6 +304,7 @@ struct JourneyPanel: View {
 struct NavigationDriveView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     let snapshot: TripSnapshot
     let focus: DashboardFocus.Result
     let alert: RoadIntel.Alert?
@@ -380,6 +384,8 @@ struct NavigationDriveView: View {
         layout {
             DrivePresentationToggle().shadow(color: .black.opacity(0.22), radius: 10, y: 5)
             if !following { RoundIconButton(symbol: "location.north.line.fill", label: "Follow my position", id: "recenterButton") { following = true } }
+            RoundIconButton(symbol: "car.2.fill", label: settings.trafficOnMap ? "Hide traffic on the map" : "Show traffic on the map",
+                            id: "trafficButton", active: settings.trafficOnMap) { settings.trafficOnMap.toggle() }
             RoundIconButton(symbol: "fuelpump.fill", label: "Fuel", id: "fuelButton", action: openFuel)
             RoundIconButton(symbol: "figure.dress.line.vertical.figure", label: "Restroom stop", id: "restroomButton", action: openRestroom)
         }

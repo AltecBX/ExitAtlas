@@ -113,6 +113,46 @@ final class ScreenshotTests: XCTestCase {
         snap("1j Maneuver focus", true)
     }
 
+    /// Traffic with a SIMULATED reading (-demoTraffic, labeled "Simulated traffic" in the app; Apple is never asked
+    /// during a simulated drive): the arrival label on the journey panel, the traffic button on the map, the basis
+    /// on the Trip tab and the Traffic settings. Real traffic needs a drive on a device (docs/16).
+    func testTraffic() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-overnight", "auto", "-alertsOff", "-drive", "map", "-demoTraffic"]
+                + (dark ? ["-forceDark"] : [])
+            app.launch()
+            XCTAssertTrue(drive(app), "Drive screen did not appear")
+            let strip = app.descendants(matching: .any)["tripStrip"].firstMatch
+            XCTAssertTrue(strip.waitForExistence(timeout: 20), "No trip strip")
+            let traffic = NSPredicate(format: "label CONTAINS[c] 'traffic'")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: traffic, object: strip)], timeout: 30), .completed,
+                           "The arrival never said it includes traffic: \(strip.label)")
+            sleep(3)
+            snap("1n Traffic navigation", dark)
+            let button = app.buttons["trafficButton"].firstMatch
+            XCTAssertTrue(button.exists, "No traffic button on the map")
+            button.tap()
+            sleep(2)
+            snap("1o Traffic layer off", dark)
+            button.tap()
+            app.tabBars.buttons["Trip"].tap()
+            let basis = app.descendants(matching: .any)["trafficBasis"].firstMatch
+            XCTAssertTrue(basis.waitForExistence(timeout: 10), "No arrival basis on the Trip tab")
+            XCTAssertTrue(basis.label.contains("Simulated traffic"), "The basis does not name the simulated source: \(basis.label)")
+            sleep(1)
+            snap("4g Trip traffic basis", dark)
+            app.buttons["settingsButton"].firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            let toggle = app.switches["trafficOnMapToggle"].firstMatch
+            for _ in 0..<10 where !(toggle.exists && toggle.isHittable) { app.swipeUp() }
+            XCTAssertTrue(toggle.exists, "No traffic settings")
+            sleep(1)
+            snap("6f Traffic settings", dark)
+            app.terminate()
+        }
+    }
+
     /// Waits for either Drive presentation.
     private func drive(_ app: XCUIApplication) -> Bool {
         app.descendants(matching: .any)["journeyPanel"].firstMatch.waitForExistence(timeout: 90)
