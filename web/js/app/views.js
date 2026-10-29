@@ -14,7 +14,7 @@ import { nextManeuver } from '../engine/guidance.js';
 import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { weatherLabel, windText } from '../engine/weather.js';
 import { weatherIcon, skyColors } from './weathericons.js';
@@ -111,22 +111,6 @@ function amenityChips(r, { max = 6 } = {}) {
 /// Short title for a gas stop: "Exit 12" or the plaza name.
 function gasStopTitle(stop) {
   return stop.exit ? exitTitle(stop.exit) : restAreaTitle(stop.restArea);
-}
-
-function gapRow(g, s) {
-  const where = g.before ? `After ${h(gasStopTitle(g.before))}` : 'From here';
-  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', and none listed beyond' : ', and none before your destination';
-  return `<div class="item gap-row"><span class="gap-icon" aria-hidden="true">⛽</span><div class="main"><div class="t">No gas for ${miles(g.length)}${g.open ? '+' : ''}</div>
-    <div class="muted small">${where}${next}</div></div><div class="side"><div class="big">${milesValue(Math.max(0, g.from - s.progress))}</div></div></div>`;
-}
-
-function restRow(u, s, rec = '') {
-  const r = u.restArea;
-  const sub = [r.side === 'both' ? 'Serves both directions' : null, r.road].filter(Boolean).join(' · ');
-  return `<button class="item exit-row ra-row${rec ? ' rec' : ''}" data-act="rest" data-arg="${h(r.id)}">
-    <div class="er-head">${restSign(r.kind, true)}<div class="main"><div class="t">${h(restAreaTitle(r))}</div><div class="muted small">${h(sub)}</div>${rec}</div>
-      <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
-    ${amenityChips(r, { max: 4 })}</button>`;
 }
 
 export function badge(code, on = false, sm = false) {
@@ -373,9 +357,10 @@ function guideMiles(meters) {
 }
 
 /// The words on the next exit's sign: its name, else the services there.
-function exitWords(app, exit) {
+function exitWords(app, exit, max = Infinity) {
   const services = app.servicesFor(exit);
-  const words = PLAQUE_ORDER.filter((c) => c <= 5 && services.some((x) => x.place.category === c)).map((c) => PLAQUE_WORDS[c].charAt(0) + PLAQUE_WORDS[c].slice(1).toLowerCase());
+  const words = PLAQUE_ORDER.filter((c) => c <= 5 && services.some((x) => x.place.category === c)).slice(0, max)
+    .map((c) => (c === 5 ? 'EV' : PLAQUE_WORDS[c].charAt(0) + PLAQUE_WORDS[c].slice(1).toLowerCase()));
   return { name: exit.name || null, services: words.join(' · '), html: words.length ? `<span class="svc-words">${words.map((x) => `<span>${h(x)}</span>`).join('')}</span>` : '' };
 }
 
@@ -630,24 +615,23 @@ function alertMeta(app, a, s) {
   return parts.join(' · ');
 }
 
-/// A road alert ahead: what, where, how sure, from whom. Driver reports say they are unconfirmed.
+/// A road alert ahead: the headline in its tier color (red urgent, amber caution, blue information), the road,
+/// the details, how old and whose. Driver reports say they are unconfirmed. Tap for the detail sheet.
 function alertCard(app, s) {
   const a = focusAlertItem(app, s);
   if (!a) return nextExitCard(app, s);
   const i = a.incident;
-  const hw = app.plan.route.highwayAt(a.start);
-  const road = hw ? `${highwayLabel(hw.ref)} ${DIRECTION_WORDS[hw.direction] ?? ''}`.trim() : null;
-  const inside = a.start <= s.progress;
-  const title = i.category === 'weather' || i.category === 'flooding' ? i.description : ALERT_KINDS[i.category].label;
-  const sub = i.category === 'weather' || i.category === 'flooding' ? (i.area ?? '') : (i.lanes ?? (i.description !== title ? i.description : ''));
-  return `<div class="card focus-card alert-card${a.serious ? ' serious' : ''}" role="status">
-    <div class="eyebrow">${ALERT_ICONS[i.category] ?? '⚠️'} ${a.serious ? 'Serious alert' : 'Road alert'}${road ? ` · ${h(road)}` : ''}</div>
-    <div class="row" style="gap:12px;margin-top:6px"><div style="flex:1;min-width:0"><div class="title-md">${h(title)}</div>
+  const tier = alertTier(i);
+  const road = alertRoad(app, a);
+  const sub = i.category === 'weather' || i.category === 'flooding' ? (i.area ?? i.description) : (i.lanes ?? (i.description !== ALERT_KINDS[i.category].label ? i.description : ''));
+  return `<button class="card focus-card alert-card tier-${tier}" data-act="alert" data-arg="${h(i.id)}">
+    <div class="row" style="gap:12px;align-items:flex-start"><span class="al-icon" aria-hidden="true">${ALERT_ICONS[i.category] ?? '⚠️'}</span>
+      <div style="flex:1;min-width:0"><div class="al-head">${h(alertHeadline(i))}</div>${road ? `<div class="title-md">${h(road)}</div>` : ''}
       ${sub ? `<div class="small">${h(sub)}</div>` : ''}
       ${i.verification === 'community' ? '<div class="small amber-text">Reported by drivers, not confirmed</div>' : ''}
       ${a.directionKnown ? '' : '<div class="muted tiny">Direction not reported</div>'}
       <div class="muted tiny" style="margin-top:4px">${alertMeta(app, a, s)}</div></div>
-      <div class="side" style="text-align:right">${inside ? '<div class="small" style="font-weight:800">Now</div>' : `<div class="num" style="font:800 28px/1 var(--num)">${milesValue(a.start - s.progress)}<span class="muted small"> mi</span></div>`}</div></div></div>`;
+      ${tlDist(a.start - s.progress, null)}</div></button>`;
 }
 
 function focusCard(app, s, kind) {
@@ -943,98 +927,282 @@ function paceNote(app, s) {
   return `<p class="muted tiny" style="margin:10px 0 0">${text}</p>`;
 }
 
-// MARK: Exits
+// MARK: Road Ahead
+
+/// The filters: everything, then one kind at a time; then exits by a service they list.
+const AHEAD_FILTERS = [['all', 'All'], ['alerts', 'Alerts'], ['fuel', 'Fuel'], ['rest', 'Rest'], ['states', 'States']];
+const SERVICE_FILTERS = { food: 2, lodging: 3, ev: 5, dog: 7 };
+const FILTER_NAMES = { all: 'All', alerts: 'Alerts', fuel: 'Fuel', rest: 'Rest', states: 'States', food: 'Food', lodging: 'Lodging', ev: 'EV', dog: 'Dog parks' };
+
+/// Distance and time on the right of a timeline row.
+function tlDist(meters, seconds) {
+  if (meters <= 0) return '<div class="tl-dist"><b>Now</b></div>';
+  return `<div class="tl-dist"><b>${milesValue(meters)}</b><span>mi</span>${seconds != null ? `<small>${seconds < 60 ? 'under 1 min' : duration(seconds)}</small>` : ''}</div>`;
+}
+
+function tlRow(kind, inner, extra = '') {
+  return `<li class="tl-row tl-${kind}${extra}"><span class="tl-dot" aria-hidden="true"></span>${inner}</li>`;
+}
+
+/// "I-95 North" for an alert's position, from the route.
+function alertRoad(app, a) {
+  const hw = app.plan.route.highwayAt(a.start);
+  return hw ? `${highwayLabel(hw.ref)} ${DIRECTION_WORDS[hw.direction] ?? ''}`.trim() : null;
+}
+
+/// An alert in the timeline: the headline in its tier color, the road, the details, and how old and whose it is.
+function alertTimelineRow(app, a, s) {
+  const i = a.incident;
+  const tier = alertTier(i);
+  const road = alertRoad(app, a);
+  const len = !a.approximate && a.end - a.start > 0.5 * MILE ? ` for ${miles(a.end - a.start)}` : '';
+  const detail = i.category === 'weather' || i.category === 'flooding' ? i.description : (i.lanes ?? (i.description !== ALERT_KINDS[i.category].label ? i.description : ''));
+  const flags = [i.verification === 'community' ? 'Reported by drivers, not confirmed' : null, a.directionKnown ? null : 'Direction not reported', a.approximate ? 'Area alert, position approximate' : null].filter(Boolean).join(' · ');
+  return tlRow('alert', `<button class="tl-card al tier-${tier}" data-act="alert" data-arg="${h(i.id)}">
+    <div class="tl-head"><span class="al-icon" aria-hidden="true">${ALERT_ICONS[i.category] ?? '⚠️'}</span>
+      <div class="main"><div class="al-head">${h(alertHeadline(i))}</div>${road || len ? `<div class="t">${h(road ?? 'On your route')}${len}</div>` : ''}
+        ${detail ? `<div class="small">${h(detail)}</div>` : ''}${flags ? `<div class="small al-flag">${h(flags)}</div>` : ''}
+        <div class="muted tiny">${alertMeta(app, a, s)}</div></div>
+      ${tlDist(a.start - s.progress, a.start > s.progress ? s.etaTo(a.start) - s.t : null)}</div></button>`, ` tier-${tier}`);
+}
+
+function exitTimelineRow(app, u, s, services, tag) {
+  const w = exitWords(app, u.exit, 3);
+  const title = w.name ? `<div class="t">${h(w.name)}</div>` : services.length ? `<div class="t svc-title">${w.html || h(w.services)}</div>` : '<div class="t muted">No services listed</div>';
+  return tlRow('exit', `<button class="tl-card" data-act="exit" data-arg="${h(u.exit.id)}">
+    <div class="tl-head">${exitSign(u.exit.label, true)}<div class="main">${title}${tag}
+      ${u.exit.confidence === 'medium' ? '<div class="muted tiny">Direction not verified in source data</div>' : ''}</div>
+      ${tlDist(u.distance, u.eta - s.t)}</div>
+    ${services.length ? servicePlaques(services, { compact: true, max: 3 }) : ''}</button>`, tag ? ' best' : '');
+}
+
+function restTimelineRow(u, s, tag) {
+  const r = u.restArea;
+  const sub = [r.side === 'both' ? 'Serves both directions' : null, r.road].filter(Boolean).join(' · ');
+  return tlRow('rest', `<button class="tl-card" data-act="rest" data-arg="${h(r.id)}">
+    <div class="tl-head">${restSign(r.kind, true)}<div class="main"><div class="t">${h(restAreaTitle(r))}</div>${sub ? `<div class="muted small">${h(sub)}</div>` : ''}${tag}</div>
+      ${tlDist(u.distance, u.eta - s.t)}</div>${amenityChips(r, { max: 4 })}</button>`, tag ? ' best' : '');
+}
+
+function stateTimelineRow(f, s) {
+  const d = f.segment.startDistance - s.progress;
+  const when = f.entryTime !== null ? `cross ${clock(f.entryTime, f.entryTimeZoneID, s.t)}` : null;
+  return tlRow('state', `<div class="tl-card state">
+    <div class="tl-head">${badge(f.segment.code, true)}<div class="main"><div class="eyebrow">State line</div>
+      <div class="t">Entering ${h(f.segment.displayName)}${f.segment.visit > 1 ? ' (again)' : ''}</div>
+      <div class="muted small">${[`${miles(f.totalMeters)} on route`, `${f.exitCount} ${f.exitCount === 1 ? 'exit' : 'exits'}`, when].filter(Boolean).join(' · ')}</div></div>
+      ${tlDist(d, null)}</div></div>`);
+}
+
+function gapTimelineRow(g, s) {
+  const where = g.before ? `After ${h(gasStopTitle(g.before))}` : 'From here';
+  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', none listed beyond' : ', none before your destination';
+  return tlRow('gap', `<div class="tl-card gap"><div class="tl-head"><span class="al-icon" aria-hidden="true">⛽</span>
+    <div class="main"><div class="t">No gas for ${miles(g.length)}${g.open ? '+' : ''}</div><div class="muted small">${where}${next}</div></div>
+    ${tlDist(Math.max(0, g.from - s.progress), null)}</div></div>`);
+}
+
+function stopTimelineRow(st, s) {
+  const d = st.distanceAlongRoute - s.progress;
+  return tlRow('stop', `<button class="tl-card" data-act="tab" data-arg="trip"><div class="tl-head"><span class="al-icon" aria-hidden="true">📍</span>
+    <div class="main"><div class="t">${h(st.waypoint.name)}</div><div class="muted small">Planned stop</div></div>
+    ${tlDist(d, s.etaTo(st.distanceAlongRoute) - s.t)}</div></button>`);
+}
+
+/// What is known about getting off the highway and back: rest areas and plazas are on it; an exit's round trip
+/// is twice the drive from the ramp (an estimate) when it was measured.
+function detourText(x) {
+  if (!x.exit) return 'On the highway, no exit needed';
+  if (x.detourMinutes == null) return 'Detour not estimated';
+  return x.detourMinutes < 1 ? 'Estimated detour: under 1 min' : `Estimated detour: about ${Math.round(x.detourMinutes)} min round trip`;
+}
+
+/// The best stop ahead (SmartStop): one recommendation with what is known about its hours, its restroom and
+/// the detour, the reasons and up to two alternatives behind a disclosure. Shell first by default; overnight,
+/// open stations with a listed restroom first.
+function bestStopCard(app, s, { restroom = false } = {}) {
+  const fuel = restroom ? null : app.smartStop();
+  const r = fuel?.primary ? fuel : app.bestStopAhead(Math.max(60, app.exitsUI.window), { restrooms: restroom });
+  const p = r?.primary;
+  if (!p) return '';
+  const title = restroom ? 'Best restroom stop ahead' : fuel?.primary ? (fuel.lowRange ? 'Fuel low: nearest stop' : 'Recommended fuel stop') : 'Best stop ahead';
+  const alts = r.alternatives.slice(0, 2);
+  const altRow = (x) => `<div class="bs-alt">${smartSign(x)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${h(smartWhere(x))} · ${h(detourText(x))}</div>
+      ${confLine(x.evaluation.hours.status, x.evaluation.hours.label)}${confLine(x.evaluation.restroom.status, x.evaluation.restroom.label)}</div>
+      <button class="btn sm" data-act="skip-stop" data-arg="${h(x.id)}" aria-label="Not this one: ${h(x.name)}">Skip</button></div>`;
+  return `<div class="card best-stop${fuel?.lowRange ? ' low' : ''}">
+    <div class="row"><div class="eyebrow success-text" style="flex:1">${r.overnight ? '🌙 ' : ''}${h(title)}</div>${p.brandRank !== null ? '<span class="muted tiny">★ Favorite brand</span>' : ''}</div>
+    <div class="row bs-main">${smartSign(p)}<div class="main"><div class="title-md">${h(p.name)}</div><div class="muted small">${h(smartArrival(app, p))}</div></div>${tlDist(p.ahead, null)}</div>
+    ${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}${confLine(p.evaluation.restroom.status, p.evaluation.restroom.label)}
+    <div class="muted tiny bs-detour">${h(detourText(p))}</div>
+    ${r.notice ? `<div class="small amber-text" style="margin-top:6px">${h(r.notice)}</div>` : ''}
+    <details class="bs-why"><summary>Why this stop${alts.length ? ` · ${alts.length} ${alts.length === 1 ? 'alternative' : 'alternatives'}` : ''}</summary>
+      <ul class="smart-reasons">${p.reasons.map((x) => `<li>${h(x)}</li>`).join('')}${p.nextOption != null ? `<li>Next option ${miles(p.nextOption)} later</li>` : ''}</ul>
+      ${alts.map(altRow).join('')}</details>
+    <div class="btn-row">${p.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(p.exit.id)}">Exit details</button>` : p.restArea ? `<button class="btn sm" data-act="rest" data-arg="${h(p.restArea.id)}">${p.kind === 'rest' ? 'Rest area' : 'Plaza'} details</button>` : ''}
+      <button class="btn sm" data-act="skip-stop" data-arg="${h(p.id)}">Not this one</button></div></div>`;
+}
+
+/// The States filter: every state ahead, however far, with miles, exits and crossing times; urgent alerts
+/// stay in route order among them.
+function statesTimeline(app, s, alerts) {
+  const events = [];
+  if (s.current) {
+    const c = s.current;
+    const dist = s.next ? `<div class="tl-dist"><b>${milesValue(c.remainingMeters)}</b><span>mi</span><small>to the line</small></div>` : '<div class="tl-dist"><small>Final state</small></div>';
+    events.push({ d: s.progress, html: tlRow('state', `<div class="tl-card state now"><div class="tl-head">${badge(c.segment.code, true)}<div class="main"><div class="eyebrow">You are in</div>
+      <div class="t">${h(c.segment.displayName)}</div><div class="muted small">${c.exitsRemaining} ${c.exitsRemaining === 1 ? 'exit' : 'exits'} left · ${Math.round(Math.min(1, Math.max(0, c.fractionComplete)) * 100)}% driven</div></div>
+      ${dist}</div></div>`) });
+  }
+  for (const f of s.itinerary.filter((x) => x.status === 'upcoming')) events.push({ d: f.segment.startDistance, html: stateTimelineRow(f, s) });
+  for (const a of alerts) events.push({ d: Math.max(a.start, s.progress) + 0.1, html: alertTimelineRow(app, a, s) });
+  return events.sort((x, y) => x.d - y.d).map((e) => e.html);
+}
 
 export function exitsView(app) {
   const s = app.snapshot;
   if (!s) {
-    return `<div class="card empty"><div class="t">No active trip</div>Plan a trip or start discovery mode to see the exits ahead.</div>`;
+    return `<div class="card empty"><div class="t">No active trip</div>Plan a trip or start discovery mode to see the road ahead.</div>`;
   }
   const ui = app.exitsUI;
-  const window = ui.window * MILE;
-  const windowSeg = `<div class="seg">${WINDOWS.map((w) => `<button class="${w === ui.window ? 'on' : ''}" data-act="exits-window" data-arg="${w}">${w} mi</button>`).join('')}</div>`;
-  const chips = `<div class="chips"><button class="chip${ui.category === null ? ' on' : ''}" data-act="exits-cat" data-arg="">All</button>${FILTER_CATEGORIES.map((c) => `<button class="chip${ui.category === c ? ' on' : ''}" data-act="exits-cat" data-arg="${c}">${CATEGORY_ICONS[c]} ${CATEGORY_NAMES[c]}</button>`).join('')}</div>`;
-  const tools = `<div class="chips"><button class="chip" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="chip" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button></div>`;
-  const rows = [];
-  const borders = s.itinerary.filter((f) => f.status === 'upcoming' && f.segment.startDistance - s.progress <= window);
-  const borderRow = (f) => {
-    const d = f.segment.startDistance - s.progress;
-    return `<div class="item border-row">${badge(f.segment.code, true)}<div class="main"><div class="t">Entering ${h(f.segment.displayName)}${f.segment.visit > 1 ? ' (again)' : ''}</div>
-      <div class="muted small">${miles(f.totalMeters)} on route · ${f.exitCount} exits</div></div>
-      <div class="side"><div class="big">${milesValue(d)}</div><div class="muted tiny">${f.entryTime !== null ? clock(f.entryTime, f.entryTimeZoneID, s.t) : ''}</div></div></div>`;
-  };
-  const fp = app.fuelPlan();
-  const sm = fp && fp.status !== 'destination' ? app.smartStop() : null;
-  const fuelStopID = fp && fp.status !== 'destination' ? (sm?.primary?.exitId ?? fp.recommended?.exit?.id) : null;
-  // The SmartStop pick, marked where it is on the road with its confidence.
-  const recTag = (p) => `<div class="rec-tag">⛽ Recommended stop: ${h(p.name)}</div>${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}`;
-  // Rows in route order: state lines, exits, rest areas, planned stops and stretches without gas. At the same mile a
-  // state line comes first and a gas gap comes after the exit it starts at.
-  const events = borders.map((f) => ({ d: f.segment.startDistance, o: 0, html: borderRow(f) }));
-  for (const u of s.upcomingExits) {
-    if (u.distance > window) break;
-    const services = app.servicesFor(u.exit);
-    if (ui.category !== null && !services.some((x) => x.place.category === ui.category)) continue;
-    const fuelStop = fuelStopID === u.exit.id;
-    const smartHere = sm?.primary?.exitId === u.exit.id;
-    events.push({ d: u.exit.distanceAlongRoute, o: 1, html: `<button class="item exit-row${fuelStop ? ' rec' : ''}" data-act="exit" data-arg="${h(u.exit.id)}">
-      <div class="er-head">${exitSign(u.exit.label, true)}<div class="main">${u.exit.name ? `<div class="t">${h(u.exit.name)}</div>` : ''}
-        ${services.length ? '' : '<div class="muted small">No services listed</div>'}
-        ${smartHere ? recTag(sm.primary) : fuelStop ? '<div class="rec-tag">⛽ Planned fuel stop</div>' : ''}
-        ${u.exit.confidence === 'medium' ? '<div class="muted small">Direction not verified in source data</div>' : ''}</div>
-        <div class="side"><div class="big">${milesValue(u.distance)}</div><div class="muted small">${duration(u.eta - s.t)}</div></div></div>
-      ${servicePlaques(services, { compact: true })}</button>` });
-  }
-  const restShown = (r) => ui.category === null || ui.category === 4 || (ui.category === 1 && r.gas.length > 0)
-    || (ui.category === 2 && r.food.length > 0) || (ui.category === 5 && r.ev.length > 0);
-  for (const u of s.upcomingRestAreas) {
-    if (u.distance <= window && restShown(u.restArea)) {
-      const rec = sm?.primary?.restArea?.id === u.restArea.id ? recTag(sm.primary) : '';
-      events.push({ d: u.restArea.distanceAlongRoute, o: 1, html: restRow(u, s, rec) });
-    }
-  }
-  // Planned stops on the route.
-  for (const st of app.plan.route.stops ?? []) {
-    const d = st.distanceAlongRoute - s.progress;
-    if (d <= 0 || d > window || ui.category !== null) continue;
-    events.push({ d: st.distanceAlongRoute, o: 1, html: `<button class="item exit-row stop-row" data-act="tab" data-arg="trip">
-      <div class="er-head"><span class="stop-pin" aria-hidden="true">📍</span><div class="main"><div class="t">${h(st.waypoint.name)}</div><div class="muted small">Planned stop</div></div>
-        <div class="side"><div class="big">${milesValue(d)}</div><div class="muted small">${duration(s.etaTo(st.distanceAlongRoute) - s.t)}</div></div></div></button>` });
-  }
-  if (ui.category === null || ui.category === 1) {
-    for (const g of app.gasGapsAhead(s, window)) events.push({ d: g.from, o: 2, html: gapRow(g, s) });
-  }
+  const f = FILTER_NAMES[ui.filter] ? ui.filter : 'all';
+  const win = ui.window * MILE;
   const intel = app.roadIntel();
-  if (ui.category === null) {
-    for (const a of intel?.alerts ?? []) if (a.start - s.progress <= window) events.push({ d: Math.max(a.start, s.progress), o: 0, html: alertRow(app, a, s) });
+  const alerts = (intel?.alerts ?? []).filter((a) => a.start - s.progress <= win);
+  const windowSeg = `<div class="seg">${WINDOWS.map((w) => `<button class="${w === ui.window ? 'on' : ''}" data-act="exits-window" data-arg="${w}">${w} mi</button>`).join('')}</div>`;
+  const pill = (k, label) => `<button class="chip${f === k ? ' on' : ''}" data-act="ahead-filter" data-arg="${k}" aria-pressed="${f === k}">${label}</button>`;
+  const urgentCount = alerts.filter((a) => alertTier(a.incident) === 'urgent').length;
+  const filters = `<div class="chips ahead-filters">${AHEAD_FILTERS.map(([k, n]) => pill(k, k === 'alerts' && alerts.length ? `${n} <span class="count${urgentCount ? ' urgent' : ''}">${alerts.length}</span>` : n)).join('')}
+    <span class="chip-sep" aria-hidden="true"></span>${Object.keys(SERVICE_FILTERS).map((k) => pill(k, `${CATEGORY_ICONS[SERVICE_FILTERS[k]]} ${FILTER_NAMES[k]}`)).join('')}</div>`;
+  const tools = `<div class="chips wrap"><button class="chip" data-act="sheet" data-arg="search">🔎 Find along route</button><button class="chip" data-act="sheet" data-arg="fuel">⛽ Fuel stop</button><button class="chip" data-act="sheet" data-arg="restroom">🚻 Restroom stop</button></div>`;
+  const ev = Boolean(app.settings.vehicle?.ev);
+  const service = SERVICE_FILTERS[f] ?? null;
+
+  // Urgent alerts stay in the timeline under every filter; the line above says what the filter hides.
+  const showAlert = (a) => f === 'all' || f === 'alerts' || alertTier(a.incident) === 'urgent';
+  const hidden = alerts.filter((a) => !showAlert(a)).length;
+  const kept = f === 'all' || f === 'alerts' ? 0 : alerts.length - hidden;
+  let note = '';
+  if (kept || hidden) {
+    const parts = [kept ? `${kept} urgent ${kept === 1 ? 'alert stays' : 'alerts stay'} in view` : null, hidden ? `${hidden} other ${hidden === 1 ? 'alert' : 'alerts'} hidden by the ${FILTER_NAMES[f]} filter` : null].filter(Boolean);
+    note = `<div class="filter-note${kept ? ' urgent' : ''}">⚠️ ${h(parts.join('. '))}. <button class="linkish" data-act="ahead-filter" data-arg="alerts">Show alerts</button></div>`;
   }
-  events.sort((x, y) => x.d - y.d || x.o - y.o);
-  for (const e of events) rows.push(e.html);
-  const list = rows.length ? `<div class="list">${rows.join('')}</div>`
-    : `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${ui.category === null ? 'Try a longer window.' : `No exits or rest areas with ${CATEGORY_NAMES[ui.category]} in this window.`}</div>`;
-  return `<div class="stack">${windowSeg}${chips}${alertStatus(intel)}${list}${tools}${attribution()}</div>`;
+
+  let rows;
+  let top = '';
+  if (f === 'states') {
+    rows = statesTimeline(app, s, alerts.filter(showAlert));
+    top = '<p class="muted tiny" style="margin:0 4px">Every state ahead on this route, whatever the distance window.</p>';
+  } else {
+    const fp = app.fuelPlan();
+    const sm = fp && fp.status !== 'destination' ? app.smartStop() : null;
+    const fuelStopID = fp && fp.status !== 'destination' ? (sm?.primary?.exitId ?? fp.recommended?.exit?.id) : null;
+    const pickTag = (p) => `<div class="rec-tag">${f === 'rest' ? '🚻 Best restroom stop' : sm?.primary ? '⛽ Recommended fuel stop' : '★ Best stop ahead'}</div>${confLine(p.evaluation.hours.status, p.evaluation.hours.label)}`;
+    const best = f === 'all' || f === 'fuel' || f === 'rest' ? (f === 'rest' ? app.bestStopAhead(Math.max(60, ui.window), { restrooms: true }) : sm?.primary ? sm : app.bestStopAhead(Math.max(60, ui.window))) : null;
+    const bp = best?.primary ?? null;
+    const events = [];
+    const add = (d, o, html) => events.push({ d, o, html });
+    if (f === 'all') {
+      for (const x of s.itinerary) if (x.status === 'upcoming' && x.segment.startDistance - s.progress <= win) add(x.segment.startDistance, 0, stateTimelineRow(x, s));
+    }
+    for (const u of s.upcomingExits) {
+      if (u.distance > win) break;
+      const services = app.servicesFor(u.exit);
+      const has = (c) => services.some((x) => x.place.category === c);
+      const isPick = bp?.exitId === u.exit.id;
+      const show = f === 'all' || (f === 'fuel' && (has(ev ? 5 : 1) || has(8) || isPick)) || (f === 'rest' && (has(4) || isPick)) || (service !== null && has(service));
+      if (!show) continue;
+      const tag = isPick ? pickTag(bp) : fuelStopID === u.exit.id ? '<div class="rec-tag">⛽ Planned fuel stop</div>' : '';
+      add(u.exit.distanceAlongRoute, 1, exitTimelineRow(app, u, s, services, tag));
+    }
+    for (const u of s.upcomingRestAreas) {
+      if (u.distance > win) continue;
+      const r = u.restArea;
+      const show = f === 'all' || f === 'rest' || (f === 'fuel' && (ev ? r.ev.length : r.gas.length) > 0) || (f === 'food' && r.food.length > 0) || (f === 'ev' && r.ev.length > 0);
+      if (show) add(r.distanceAlongRoute, 1, restTimelineRow(u, s, bp?.restArea?.id === r.id ? pickTag(bp) : ''));
+    }
+    if (f === 'all') {
+      for (const st of app.plan.route.stops ?? []) {
+        const d = st.distanceAlongRoute - s.progress;
+        if (d > 0 && d <= win) add(st.distanceAlongRoute, 1, stopTimelineRow(st, s));
+      }
+    }
+    if (f === 'all' || f === 'fuel') for (const g of app.gasGapsAhead(s, win)) add(g.from, 2, gapTimelineRow(g, s));
+    for (const a of alerts) if (showAlert(a)) add(Math.max(a.start, s.progress), 0, alertTimelineRow(app, a, s));
+    events.sort((x, y) => x.d - y.d || x.o - y.o);
+    rows = events.map((e) => e.html);
+    if (f === 'all' || f === 'fuel' || f === 'rest') top = bestStopCard(app, s, { restroom: f === 'rest' });
+  }
+  const status = alertStatus(intel, { open: f === 'alerts' });
+  let list;
+  if (rows.length) list = `<ol class="tl" aria-label="Road ahead, in route order">${rows.join('')}</ol>`;
+  else if (f === 'alerts') list = `<div class="card empty"><div class="t">${alertEmptyTitle(intel, ui.window)}</div>${h(alertEmptyText(intel))}</div>`;
+  else list = `<div class="card empty"><div class="t">Nothing in the next ${ui.window} miles</div>${f === 'all' ? 'Try a longer window.' : `Nothing matches ${FILTER_NAMES[f]} in this window. Try a longer one.`}</div>`;
+  return `<div class="stack ahead">${f === 'states' ? '' : windowSeg}${filters}${note}${status}${top}${list}${tools}${attribution()}</div>`;
 }
 
-function alertRow(app, a, s) {
-  const i = a.incident;
-  const title = i.category === 'weather' || i.category === 'flooding' ? i.description : ALERT_KINDS[i.category].label;
-  const sub = [i.lanes, i.verification === 'community' ? 'Reported by drivers, not confirmed' : null, a.directionKnown ? null : 'Direction not reported'].filter(Boolean).join(' · ');
-  const len = !a.approximate && a.end - a.start > 0.5 * MILE ? ` for ${miles(a.end - a.start)}` : '';
-  return `<div class="item alert-row${a.serious ? ' serious' : ''}"><span class="gap-icon" aria-hidden="true">${ALERT_ICONS[i.category] ?? '⚠️'}</span>
-    <div class="main"><div class="t">${h(title)}${len}</div>${sub ? `<div class="small">${h(sub)}</div>` : ''}<div class="muted tiny">${alertMeta(app, a, s)}</div></div>
-    <div class="side"><div class="big">${a.start <= s.progress ? 'Now' : milesValue(a.start - s.progress)}</div></div></div>`;
+/// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
+function alertEmptyTitle(intel, window) {
+  if (!intel) return 'Road alerts are off';
+  const on = Object.values(intel.status).filter((st) => st.state !== 'off');
+  if (on.some((st) => st.state === 'unavailable')) return 'Some alert sources are unavailable';
+  return `No reports from connected sources in the next ${window} miles`;
+}
+
+function alertEmptyText(intel) {
+  if (!intel) return 'Turn road alerts on in Settings.';
+  const failing = Object.values(intel.status).some((st) => st.state === 'unavailable');
+  return failing ? 'This does not mean the road is clear. The sources that answered have nothing on your route here.'
+    : 'Only the sources listed below are checked. Not hearing of an event does not mean there is none.';
 }
 
 /// One line on what the alert sources say, with each group's state in a details list: "no relevant
 /// reports" and "data unavailable" are different things and both are shown as such.
-function alertStatus(intel) {
+function alertStatus(intel, { open = false } = {}) {
   if (!intel) return '';
   const n = intel.alerts.length;
   const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
   const failing = on.filter(([, st]) => st.state === 'unavailable').length;
   const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
   const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
-  return `<details class="facilities alert-status"><summary>${h(summary)}</summary>${rows}</details>`;
+  return `<details class="facilities alert-status"${open ? ' open' : ''}><summary>${h(summary)}</summary>${rows}</details>`;
+}
+
+/// An alert's detail sheet: everything the source said, where it is, how sure, and whether the Drive screen shows it.
+export function alertSheet(app, id) {
+  const head = (icon, title, tier) => `<div class="sheet-head"><h2 class="al-sheet-title${tier ? ` tier-${tier}` : ''}">${icon} ${h(title)}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>`;
+  const s = app.snapshot;
+  const intel = app.roadIntel();
+  const a = (intel?.alerts ?? []).find((x) => x.incident.id === id);
+  if (!a || !s) return `${head('⚠️', 'Road alert')}<div class="card empty"><div class="t">This alert is no longer current</div>It expired, ended, or is now behind you.</div>`;
+  const i = a.incident;
+  const tier = alertTier(i);
+  const now = Date.now() / 1000;
+  const zone = app.plan.timeZoneIDAt(a.start);
+  const road = alertRoad(app, a);
+  const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
+  const verification = { official: 'Official source', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
+  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
+  const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
+    i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
+  const police = intel.status.police ? `${ALERT_GROUPS.police.label}: ${intel.status.police.label}.` : '';
+  return `${head(ALERT_ICONS[i.category] ?? '⚠️', alertHeadline(i), tier)}
+    <div class="card al-detail tier-${tier}">
+      <div class="row"><div class="main"><div class="eyebrow tier-text">${tier === 'urgent' ? 'Urgent' : tier === 'caution' ? 'Caution' : 'Information'}${road ? ` · ${h(road)}` : ''}</div>
+        <div class="title-md">${h(i.description || ALERT_KINDS[i.category].label)}</div></div></div>
+      ${i.lanes ? `<div class="small" style="margin-top:6px">${h(i.lanes)}</div>` : ''}
+    </div>
+    <div class="list facilities-list">
+      ${row('Where', `<span data-along="${a.start}">${aheadText(s, a.start)}</span>${a.approximate ? 'area alert, position approximate' : a.end - a.start > 0.5 * MILE ? `for ${miles(a.end - a.start)}` : 'at one location'}`)}
+      ${row('Direction', a.directionKnown ? 'Your direction of travel' : 'Not reported by the source')}
+      ${row('Severity', h(i.severity === 'unknown' ? 'Not stated' : i.severity.charAt(0).toUpperCase() + i.severity.slice(1)))}
+      ${row('Status', h(verification))}
+      ${row('Reported', h(freshnessText(i, now)))}
+      ${row('Times', h(time))}
+      ${row('Source', a.sources.map((x) => h(x.name)).join(', '))}
+      ${row('Drive screen', h(drive))}
+    </div>
+    <p class="note">ExitAtlas shows what the listed sources report and does not confirm events on the road. Expired and ended reports are removed. ${h(police)}</p>${attribution()}`;
 }
 
 export function exitDetail(app, exitId) {

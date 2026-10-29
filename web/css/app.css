@@ -169,9 +169,6 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .plaque b { font: 800 var(--type-caption)/1.1 var(--sign-font); letter-spacing: 0.6px; }
 .plaque .pn { font: 600 var(--type-callout)/1.15 var(--sign-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
 .plaque .pm { font: 600 var(--type-caption)/1.1 var(--sign-font); opacity: 0.9; }
-.list > .item.exit-row { display: block; }
-.er-head { display: flex; align-items: center; gap: 12px; }
-.exit-row .plaques { margin-left: 0; }
 .plaque.tag { padding: 4px 8px 3px; vertical-align: middle; margin-right: 4px; }
 .plaques.compact { margin-top: 6px; gap: 5px; }
 .plaques.compact .plaque { flex-direction: row; align-items: baseline; gap: 5px; padding: 4px 8px; }
@@ -194,7 +191,6 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .am.more { color: var(--text-2); }
 .ra-unknown { margin-top: 6px; }
 .ra-card .ams { margin-top: 10px; }
-.list > .item.gap-row { background: var(--amber-fill); }
 .gap-icon { font-size: 22px; flex: none; width: 64px; text-align: center; }
 .gap-card { display: flex; align-items: center; gap: 12px; background: var(--amber-fill); color: var(--amber); border-color: transparent; }
 .gap-card .gap-icon { width: auto; }
@@ -250,6 +246,7 @@ a.btn { text-decoration: none; }
 .btn-row > .btn.sm { padding: 8px 6px; white-space: nowrap; min-width: 0; }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
 .chips::-webkit-scrollbar { display: none; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
 .chip {
   border: 0; border-radius: 99px; padding: 7px 13px; background: var(--card); border: 1px solid var(--stroke);
   font-weight: 600; font-size: var(--type-callout); white-space: nowrap; cursor: pointer;
@@ -264,7 +261,6 @@ a.btn { text-decoration: none; }
 .list > .item { padding: 12px 14px; border-top: 1px solid var(--stroke); display: flex; align-items: center; gap: 12px; }
 .list > .item:first-child { border-top: 0; }
 .list > button.item { width: 100%; text-align: left; background: transparent; border-left: 0; border-right: 0; border-bottom: 0; cursor: pointer; }
-.list > .item.border-row { background: var(--amber-fill); }
 .section-title { font: 700 var(--type-caption) var(--num); text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-2); margin: 10px 4px 6px; }
 .item .main { flex: 1; min-width: 0; }
 .item .main .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
@@ -429,13 +425,72 @@ a.btn { text-decoration: none; }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 
 
-/* Road Ahead: the recommended stop marked in place, planned stops */
-.exit-row.rec { box-shadow: inset 4px 0 0 var(--sign-green); }
+/* Road Ahead (docs/15): a timeline in route order. A rail with one dot per row, colored by kind; alerts carry
+   their tier: red urgent, amber caution, blue information. Filters never hide an urgent alert. */
+.ahead-filters { gap: 6px; }
+.chip .count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 3px; border-radius: 999px; background: var(--amber-fill); color: var(--amber); font: 800 12px/18px var(--num); text-align: center; }
+.chip .count.urgent { background: var(--danger-fill); color: var(--danger); }
+.chip-sep { flex: none; width: 1px; margin: 6px 2px; background: var(--stroke); }
+.filter-note { font-size: var(--type-caption); font-weight: 600; line-height: 1.4; padding: 9px 12px; border-radius: 12px; background: var(--amber-fill); }
+.filter-note.urgent { background: var(--danger-fill); }
+.tl { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; display: flex; flex-direction: column; gap: 8px; }
+.tl::before { content: ""; position: absolute; left: 8px; top: 20px; bottom: 20px; width: 2px; border-radius: 2px; background: var(--stroke); }
+.tl-row { position: relative; }
+.tl-dot { position: absolute; left: -19px; top: 21px; width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 2.5px solid var(--text-2); }
+.tl-exit .tl-dot { border-color: var(--sign-green); }
+.tl-rest .tl-dot { border-color: var(--sign-blue); }
+.tl-state .tl-dot { background: var(--accent); border-color: var(--accent); }
+.tl-gap .tl-dot { border-color: var(--amber); }
+.tl-alert .tl-dot { background: var(--amber); border-color: var(--amber); }
+.tl-alert.tier-urgent .tl-dot { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 0 4px var(--danger-fill); }
+.tl-alert.tier-info .tl-dot { background: var(--info); border-color: var(--info); }
+.tl-row.best .tl-dot { background: var(--sign-green); border-color: var(--sign-green); }
+.tl-card { display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--stroke); border-radius: 16px; padding: 12px 14px; color: inherit; font: inherit; }
+button.tl-card { cursor: pointer; transition: transform 0.12s ease; }
+button.tl-card:active { transform: scale(0.985); }
+.tl-head { display: flex; align-items: center; gap: 12px; }
+.tl-head .main { flex: 1; min-width: 0; }
+.tl-head .main .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.tl-card .plaques.compact { margin-top: 8px; }
+.tl-dist { flex: none; text-align: right; line-height: 1; white-space: nowrap; }
+.tl-dist b { font: 800 26px/1 var(--num); font-variant-numeric: tabular-nums; }
+.tl-dist span { font: 700 13px var(--num); color: var(--text-2); margin-left: 2px; }
+.tl-dist small { display: block; margin-top: 5px; font-size: var(--type-caption); color: var(--text-2); }
+.tl-card.state { background: color-mix(in srgb, var(--accent) 9%, var(--card)); border-color: color-mix(in srgb, var(--accent) 35%, var(--stroke)); }
+.tl-card.gap { background: var(--amber-fill); border-color: transparent; }
+.tl-row.best .tl-card { border-color: var(--sign-green); box-shadow: inset 4px 0 0 var(--sign-green); }
+.al-icon { font-size: 21px; width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--chip); }
+.al-head { font: 800 var(--type-caption)/1.25 var(--num); letter-spacing: 0.8px; text-transform: uppercase; color: var(--amber); }
+.al-flag { color: var(--amber); font-weight: 600; }
+.tl-card.al, .alert-card, .al-detail { border-left: 4px solid var(--amber); }
+.tl-card.al.tier-caution { background: color-mix(in srgb, var(--amber) 8%, var(--card)); }
+.tl-card.al.tier-urgent, .alert-card.tier-urgent, .al-detail.tier-urgent { border-color: var(--danger); border-left-color: var(--danger); }
+.tl-card.al.tier-urgent { background: color-mix(in srgb, var(--danger) 11%, var(--card)); }
+.tl-card.al.tier-info, .alert-card.tier-info, .al-detail.tier-info { border-left-color: var(--info); }
+.tier-urgent .al-head, .tier-urgent .tier-text { color: var(--danger); }
+.tier-info .al-head, .tier-info .tier-text { color: var(--info); }
+.tier-caution .tier-text { color: var(--amber); }
+.tier-urgent .al-icon { background: var(--danger-fill); }
+.tier-caution .al-icon { background: var(--amber-fill); }
+.tier-info .al-icon { background: var(--info-fill); }
+.alert-card { display: block; width: 100%; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.facilities-list { padding: 4px 14px; font-size: var(--type-callout); }
+.best-stop { border-color: color-mix(in srgb, var(--sign-green) 55%, var(--stroke)); }
+.best-stop.low { border-color: var(--amber); }
+.bs-main { gap: 12px; margin: 8px 0 6px; align-items: center; }
+.bs-main .main { flex: 1; min-width: 0; }
+.bs-detour { margin-top: 5px; }
+.bs-why { margin: 8px 0 10px; }
+.bs-why summary { cursor: pointer; font-weight: 700; font-size: var(--type-callout); color: var(--accent); }
+.bs-alt { display: flex; gap: 10px; align-items: flex-start; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--stroke); }
+.bs-alt .main { flex: 1; min-width: 0; }
+.bs-alt .t { font-weight: 700; }
 .rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--sign-green); margin-top: 2px; }
-.stop-pin { width: 64px; text-align: center; font-size: 22px; flex: none; }
-.list > .item.alert-row { background: var(--amber-fill); }
-.list > .item.alert-row.serious, .alert-card.serious { border-color: var(--danger); }
-.list > .item.alert-row.serious { background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
+@media (max-width: 370px) {
+  .tl-card.al .al-icon, .tl-card.gap .al-icon { display: none; }
+  .tl-card { padding: 11px 12px; }
+  .tl-dist b { font-size: 22px; }
+}
 .alert-status { margin: 0; }
 
 /* Drive: Navigation View (map first) and Focus View (compact dashboard), docs/15. One adaptive card, the
@@ -463,7 +518,7 @@ body.nav-mode main { padding: 0; max-width: none; }
 .nav-right { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
 .nav-bottom { display: flex; flex-direction: column; gap: 8px; }
 .nav-card .card { background: var(--raised); box-shadow: var(--elev); }
-.nav-card .card.alert-card.serious { border-color: var(--danger); }
+.nav-card .card.alert-card.tier-urgent { border-color: var(--danger); }
 .journey { background: var(--raised); border: 1px solid var(--stroke); border-radius: 18px; box-shadow: var(--elev); overflow: hidden; }
 .journey .state-line { padding: 10px 14px 9px; }
 .journey .trip-strip { border-top: 1px solid var(--stroke); }
