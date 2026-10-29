@@ -28,12 +28,28 @@ final class ScreenshotTests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)["focusDrive"].firstMatch.waitForExistence(timeout: 10), "Focus view did not appear")
             sleep(2)
             snap("1f Road alert focus", dark)
+            // The alert's detail sheet, from the Drive card.
+            app.buttons["alertCard"].firstMatch.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["alertDetail"].firstMatch.waitForExistence(timeout: 10), "No alert detail")
+            sleep(1)
+            snap("1m Alert detail", dark)
+            app.buttons["Done"].firstMatch.tap()
+            sleep(1)
             app.tabBars.buttons["Ahead"].tap()
             XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
             let status = app.descendants(matching: .any)["alertStatus"].firstMatch
             if status.waitForExistence(timeout: 10) { status.tap() }
             sleep(2)
             snap("2b Road Ahead alert", dark)
+            // A filter never hides the urgent alert without saying so.
+            app.buttons["filter-fuel"].firstMatch.tap()
+            sleep(1)
+            XCTAssertTrue(app.buttons["alertRow"].firstMatch.waitForExistence(timeout: 5), "The Fuel filter hid the urgent alert")
+            XCTAssertTrue(app.buttons["filterNote"].firstMatch.exists, "The Fuel filter does not say the urgent alert stays in view")
+            snap("2f Road Ahead fuel filter", dark)
+            app.buttons["filter-alerts"].firstMatch.tap()
+            sleep(1)
+            snap("2g Road Ahead alerts", dark)
             app.terminate()
         }
     }
@@ -156,6 +172,23 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
         sleep(1)
         snap("2 Road Ahead", dark)
+        let why = app.descendants(matching: .any)["whyThisStop"].firstMatch
+        if why.waitForExistence(timeout: 5) {
+            why.tap()
+            sleep(1)
+            snap("2c Best stop reasons", dark)
+            why.tap()
+            sleep(1)
+        }
+        app.buttons["filter-states"].firstMatch.tap()
+        sleep(1)
+        XCTAssertTrue(app.descendants(matching: .any)["currentStateRow"].firstMatch.waitForExistence(timeout: 5), "States does not start with the current state")
+        snap("2d Road Ahead states", dark)
+        app.buttons["filter-rest"].firstMatch.tap()
+        sleep(1)
+        snap("2e Road Ahead rest", dark)
+        app.buttons["filter-all"].firstMatch.tap()
+        sleep(1)
 
         let row = app.buttons["exitRow"].firstMatch
         if row.waitForExistence(timeout: 5) {

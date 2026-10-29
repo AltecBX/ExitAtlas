@@ -69,6 +69,7 @@ private struct DriveDashboard: View {
     @State private var showRestroom = false
     @State private var shownRestArea: RouteRestArea?
     @State private var shownExit: RouteExit?
+    @State private var shownAlert: AlertRef?
     @State private var stabilizer = DashboardFocus.Stabilizer()
     @Binding var selectedTab: RootView.Tab
     let snapshot: TripSnapshot
@@ -95,6 +96,7 @@ private struct DriveDashboard: View {
         .sheet(item: $shownRestArea) { r in
             NavigationStack { RestAreaDetailView(restArea: r, showsDone: true) }
         }
+        .sheet(item: $shownAlert) { AlertDetailView(alertID: $0.id) }
         .sheet(item: $shownExit) { e in
             NavigationStack {
                 ExitDetailView(exit: e)
@@ -149,7 +151,7 @@ private struct DriveDashboard: View {
     private func focusCard(_ kind: DashboardFocus.Kind) -> some View {
         switch kind {
         case .alert:
-            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) }
+            if let a = focusAlert { AlertCard(alert: a, progress: snapshot.progress, now: snapshot.timestamp) { shownAlert = AlertRef(id: a.incident.id) } }
         case .fuel:
             FuelCard { showFuel = true }
         case .stop:
@@ -220,15 +222,17 @@ private struct AlertCard: View {
     let alert: RoadIntel.Alert
     let progress: Double
     let now: Date
+    let open: () -> Void
 
     var body: some View {
         let i = alert.incident
-        let hw = trip.plan?.route.highway(at: alert.start)
-        VStack(alignment: .leading, spacing: 6) {
-            Eyebrow(text: "\(AlertText.icon(i.kind)) \(alert.serious ? "Serious alert" : "Road alert")" + (hw.map { " · \($0.ref) \($0.direction.word)" } ?? ""))
+        let tier = i.tier
+        Button(action: open) {
             HStack(alignment: .top, spacing: 12) {
+                AlertIcon(kind: i.kind, tier: tier)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(AlertText.title(i)).font(.headline)
+                    Text(i.headline.uppercased()).font(.caption.weight(.heavy)).tracking(0.8).foregroundStyle(tier.color)
+                    if let road = AlertText.road(alert, plan: trip.plan) { Text(road).font(.headline) }
                     if let sub = AlertText.subtitle(i) { Text(sub).font(.subheadline) }
                     if i.verification == .community { Text("Reported by drivers, not confirmed").font(.subheadline).foregroundStyle(Theme.amber) }
                     if !alert.directionKnown { Text("Direction not reported").font(.caption).foregroundStyle(Theme.secondaryText) }
@@ -236,17 +240,16 @@ private struct AlertCard: View {
                         .font(.caption).foregroundStyle(Theme.secondaryText)
                 }
                 Spacer(minLength: 4)
-                if alert.start <= progress {
-                    Text("Now").font(.subheadline.weight(.heavy))
-                } else {
-                    Text(Format.milesValue(alert.start - progress)).font(Theme.number(28, weight: .heavy)) + Text(" mi").font(.caption).foregroundStyle(Theme.secondaryText)
-                }
+                TimelineDistance(meters: alert.start - progress)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+            .overlay(alignment: .leading) {
+                UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20, style: .continuous).fill(tier.color).frame(width: 4)
+            }
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(tier == .urgent ? Theme.danger : .clear, lineWidth: 1.5))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(alert.serious ? Theme.danger : .clear, lineWidth: 1.5))
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
         .accessibilityIdentifier("alertCard")
     }
 }

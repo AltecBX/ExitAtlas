@@ -9,6 +9,14 @@ import SwiftUI
 
 // MARK: Shared pieces
 
+extension ServicePlaques {
+    /// "Gas", "Food", "Lodging", "EV", "Rest Area": the services an exit sign lists, in sign order.
+    static func words(_ services: [ExitService], max: Int = .max) -> [String] {
+        order.filter { c in [.gas, .food, .lodging, .evCharging, .restArea].contains(c) && services.contains { $0.place.category == c } }
+            .prefix(max).map { $0 == .evCharging ? "EV" : word($0).capitalized }
+    }
+}
+
 /// The small switch between the two presentations, saved in the profile.
 struct DrivePresentationToggle: View {
     @Environment(UserSettings.self) private var settings
@@ -188,10 +196,7 @@ struct GuidanceBanner: View {
 
     /// The next exit's name, and the services there as a sign lists them.
     private func words(_ exit: RouteExit) -> (name: String?, services: String) {
-        let services = trip.services(for: exit)
-        let w = ServicePlaques.order.filter { c in [.gas, .food, .lodging, .evCharging, .restArea].contains(c) && services.contains { $0.place.category == c } }
-            .map { ServicePlaques.word($0).capitalized }
-        return (exit.name.isEmpty ? nil : exit.name, w.joined(separator: " · "))
+        (exit.name.isEmpty ? nil : exit.name, ServicePlaques.words(trip.services(for: exit)).joined(separator: " · "))
     }
 
     static func symbol(_ m: Guidance.Maneuver) -> String {
@@ -503,8 +508,7 @@ struct CompactGuideSign: View {
 
     var body: some View {
         let exit = upcoming.exit
-        let words = ServicePlaques.order.filter { c in [.gas, .food, .lodging, .evCharging, .restArea].contains(c) && services.contains { $0.place.category == c } }
-            .map { ServicePlaques.word($0).capitalized }
+        let words = ServicePlaques.words(services)
         let title = !exit.name.isEmpty ? exit.name : words.isEmpty ? "No services listed" : words.joined(separator: " · ")
         let mi = upcoming.distance / Geodesy.metersPerMile
         VStack(alignment: .leading, spacing: 4) {

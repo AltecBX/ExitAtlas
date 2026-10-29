@@ -60,6 +60,14 @@ enum SmartStopText {
     }
 
     static func sentence(_ s: String) -> String { s.prefix(1).uppercased() + s.dropFirst() }
+
+    /// What is known about getting off the highway and back: rest areas and plazas are on it; an exit's round
+    /// trip is twice the drive from the ramp (an estimate) when it was measured.
+    static func detour(_ c: SmartStop.Candidate) -> String {
+        guard c.exitID != nil else { return "On the highway, no exit needed" }
+        guard let m = c.detourMinutes else { return "Detour not estimated" }
+        return m < 1 ? "Estimated detour: under 1 min" : "Estimated detour: about \(Int(m.rounded())) min round trip"
+    }
 }
 
 /// Hours, and the restroom when it is known or overnight.

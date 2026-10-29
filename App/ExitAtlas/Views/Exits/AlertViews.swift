@@ -1,7 +1,7 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// Words and icons for road alerts, shared by the Drive card, the Then strip and Road Ahead.
+/// Words and icons for road alerts, shared by the Drive card, Road Ahead and the alert sheet.
 enum AlertText {
     static func icon(_ kind: RoadIntel.Kind) -> String {
         switch kind {
@@ -36,34 +36,10 @@ enum AlertText {
         if let end = a.incident.endsAt { parts.append("until " + Format.time(end, timeZoneID: timeZoneID, relativeTo: reference)) }
         return parts.joined(separator: " · ")
     }
-}
 
-/// A road alert in Road Ahead, in route order.
-struct AlertRow: View {
-    @Environment(TripController.self) private var trip
-    let alert: RoadIntel.Alert
-    let progress: Double
-    let now: Date
-
-    var body: some View {
-        let i = alert.incident
-        let length = !alert.approximate && alert.end - alert.start > 0.5 * Geodesy.metersPerMile ? " for \(Format.miles(alert.end - alert.start))" : ""
-        HStack(spacing: 10) {
-            Text(AlertText.icon(i.kind)).font(.title2).frame(width: 64)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(AlertText.title(i) + length).font(.subheadline.weight(.bold))
-                let sub = [i.lanes, i.verification == .community ? "Reported by drivers, not confirmed" : nil,
-                           alert.directionKnown ? nil : "Direction not reported"].compactMap { $0 }.joined(separator: " · ")
-                if !sub.isEmpty { Text(sub).font(.caption) }
-                Text(AlertText.meta(alert, now: Date(), timeZoneID: trip.plan?.timeZoneID(at: alert.start), reference: now))
-                    .font(.caption2).foregroundStyle(Theme.secondaryText)
-            }
-            Spacer()
-            Text(alert.start <= progress ? "Now" : Format.miles(alert.start - progress)).font(.subheadline.monospacedDigit().weight(.bold))
-        }
-        .listRowBackground((alert.serious ? Theme.danger : Theme.amber).opacity(0.12))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("alertRow")
+    /// "I-95 North" where the alert starts on the route.
+    static func road(_ a: RoadIntel.Alert, plan: TripPlan?) -> String? {
+        plan?.route.highway(at: a.start).map { "\($0.ref) \($0.direction.word)" }
     }
 }
 
@@ -71,6 +47,12 @@ struct AlertRow: View {
 /// are different things and both are shown as such.
 struct AlertStatusView: View {
     let intel: RoadIntel.Result
+    @State private var open: Bool
+
+    init(intel: RoadIntel.Result, expanded: Bool = false) {
+        self.intel = intel
+        _open = State(initialValue: expanded)
+    }
 
     /// Groups that are switched on.
     private var groups: [RoadIntel.Group] { RoadIntel.Group.allCases.filter { (intel.status[$0]?.state ?? .off) != .off } }
@@ -83,7 +65,7 @@ struct AlertStatusView: View {
     }
 
     var body: some View {
-        DisclosureGroup(title) {
+        DisclosureGroup(title, isExpanded: $open) {
             ForEach(groups, id: \.self) { g in
                 let st = intel.status[g]
                 HStack(alignment: .firstTextBaseline) {
