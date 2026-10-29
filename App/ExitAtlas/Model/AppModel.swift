@@ -132,6 +132,15 @@ final class AppModel {
                 geometry: .point(plan.route.polyline.coordinate(at: d)), road: hw?.ref.description, direction: hw?.direction.rawValue,
                 lanes: "Right lane blocked", severity: .major)]
         }
+        // -demoTraffic: a SIMULATED traffic reading, labeled "Simulated traffic", for screenshots of the traffic
+        // aware arrival; Apple is never asked during a simulated drive.
+        if args.contains("-demoTraffic") {
+            // After the simulated drive has reached its starting mile.
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                trip.injectDemoTraffic()
+            }
+        }
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
         // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {

@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { readingProblem, trafficSecondsTo, etaBasis, stabilizeReading, slowdownIncidents, adviseAlternative, snoozeAlternative }
-  from '../js/engine/traffic.js';
+import { readingProblem, trafficSecondsTo, etaBasis, stabilizeReading, slowdownIncidents, adviseAlternative, snoozeAlternative,
+  readingFromMeasurements, extraSeconds, refreshDue } from '../js/engine/traffic.js';
 import { alertHeadline, alertTier, matchIncident } from '../js/engine/roadintel.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
@@ -94,4 +94,19 @@ test('faster routes: offered only for a real, repeated saving that keeps the pla
       if (s.then === 'snooze') state = snoozeAlternative(state, out.offer, s.now);
     }
   }
+});
+
+test('a provider\'s times are used only for the road being driven, in order, each later than the one before', () => {
+  const m = f.measurements;
+  const r = readingFromMeasurements({ routeId: 'r1', measuredAt: 1000, fromAlong: m.fromAlong, measurements: m.measurements, source: { id: 'sim', name: 'Simulated traffic' } });
+  assert.deepEqual(r.checkpoints, m.expect);
+  assert.equal(readingFromMeasurements({ routeId: 'r1', measuredAt: 1000, fromAlong: m.fromAlong, measurements: [], source: {} }), null);
+});
+
+test('extra time from traffic: both times matched to the route, and at least 3 minutes', () => {
+  for (const c of f.extra) assert.equal(extraSeconds(c.traffic, c.ideal), c.expect, c.name);
+});
+
+test('refresh: about every 5 minutes while moving, never parked or in the background, backing off after failures', () => {
+  for (const c of f.refresh) assert.equal(refreshDue(c), c.expect, c.name);
 });

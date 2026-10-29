@@ -78,6 +78,14 @@ final class UserSettings {
     var alertGroups: [String: Bool] { didSet { save() } }
     var announceAlerts: Bool { didSet { save() } }
 
+    // Traffic (docs/16): Apple's traffic layer on the Navigation View, and Apple's traffic aware times in arrivals.
+    // The voice and faster route preferences are kept in the profile for a source that supports them.
+    var trafficOnMap: Bool { didSet { save() } }
+    var trafficInETA: Bool { didSet { save() } }
+    var announceTraffic: Bool { didSet { save() } }
+    var suggestFasterRoutes: Bool { didSet { save() } }
+    var minSavingMinutes: Double { didSet { save() } }
+
     /// Google Maps Platform key for gas prices (Places API New). Empty means prices are off. Keychain.
     var googleKey: String { didSet { keychain.set(googleKey, for: "googleKey") } }
     /// NREL developer key for the charger search; empty uses the demo key (10 an hour). Keychain.
@@ -131,6 +139,11 @@ final class UserSettings {
         announceTimeZones = s.announceTimeZones
         alertGroups = s.alertGroups
         announceAlerts = s.announceAlerts
+        trafficOnMap = s.trafficOnMap
+        trafficInETA = s.trafficInETA
+        announceTraffic = s.announceTraffic
+        suggestFasterRoutes = s.suggestFasterRoutes
+        minSavingMinutes = s.minSavingMinutes
         // A local, not self.keychain: self is not fully initialized until the keys are set.
         if !demo { Self.moveKeysToKeychain(keys) }
         googleKey = keys.get("googleKey") ?? ""
@@ -203,6 +216,11 @@ final class UserSettings {
         s.announceTimeZones = announceTimeZones
         s.alertGroups = alertGroups
         s.announceAlerts = announceAlerts
+        s.trafficOnMap = trafficOnMap
+        s.trafficInETA = trafficInETA
+        s.announceTraffic = announceTraffic
+        s.suggestFasterRoutes = suggestFasterRoutes
+        s.minSavingMinutes = minSavingMinutes
         return s
     }
 
@@ -275,6 +293,11 @@ final class UserSettings {
         announceTimeZones = s.announceTimeZones
         alertGroups = s.alertGroups
         announceAlerts = s.announceAlerts
+        trafficOnMap = s.trafficOnMap
+        trafficInETA = s.trafficInETA
+        announceTraffic = s.announceTraffic
+        suggestFasterRoutes = s.suggestFasterRoutes
+        minSavingMinutes = s.minSavingMinutes
         loading = false
         save()
         return (problems, plans)

@@ -46,7 +46,7 @@ private struct DiscoverRow: View {
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Format.miles(place.distanceAlongRoute - snapshot.progress)).font(.subheadline.monospacedDigit().weight(.bold))
-                let eta = plan.eta(from: snapshot.progress, to: place.distanceAlongRoute, pace: snapshot.pace, now: snapshot.timestamp)
+                let eta = plan.eta(to: place.distanceAlongRoute, from: snapshot)
                 Text(Format.duration(eta.timeIntervalSince(snapshot.timestamp))).font(.caption).foregroundStyle(Theme.secondaryText)
             }
         }

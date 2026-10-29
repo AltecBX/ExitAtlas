@@ -92,6 +92,11 @@ struct SettingsView: View {
                     Text("Auto turns it on when you would reach a stop inside this window, in that stop's own time zone. Overnight, stops listed open 24 hours with a restroom rank first.")
                 }
                 Section {
+                    TrafficSettingsRows()
+                } header: {
+                    Text("Traffic")
+                }
+                Section {
                     RoadAlertRows()
                 } header: {
                     Text("Road alerts")
@@ -309,6 +314,7 @@ private struct RoadAlertRows: View {
     static let sources: [RoadIntel.Group: String] = [
         .closures: "Official state work zone feeds (WZDx, public domain): \(AlertSources.wzdxFeeds.keys.sorted().joined(separator: ", ")), checked every 10 to 30 minutes during a trip. Other states: none yet",
         .incidents: "No source connected yet: state 511 feeds need registration",
+        .traffic: "No licensed source gives slowdown locations yet; Apple Maps gives traffic aware times only (Traffic, above)",
         .weather: "National Weather Service, public domain, checked every 10 minutes during a trip",
         .police: "No authorized live source exists for ExitAtlas, so nothing is shown",
         .cameras: "No source connected yet",

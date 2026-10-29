@@ -176,6 +176,8 @@ export class TripSession {
     this.hasStartedDriving = this.ledger.totalMeters > 0;
     this.offRouteSince = null;
     this.recordedUpTo = 0;
+    /// The traffic reading shown (engine/traffic.js, after stabilizeReading), used while it is usable.
+    this.traffic = null;
     this.rerouteDelay = 8;
   }
 
@@ -205,11 +207,11 @@ export class TripSession {
       this.offRouteSince = null;
     }
     if (sample.accuracy >= 0) this.lastSample = sample;
-    return this.plan.snapshot(current, this.ledger, this.pace, sample.t);
+    return this.plan.snapshot(current, this.ledger, this.pace, sample.t, { traffic: this.traffic });
   }
 
   snapshotAt(t) {
-    return this.plan.snapshot(this.tracker.estimate(t), this.ledger, this.pace, t);
+    return this.plan.snapshot(this.tracker.estimate(t), this.ledger, this.pace, t, { traffic: this.traffic });
   }
 
   needsReroute(t) {

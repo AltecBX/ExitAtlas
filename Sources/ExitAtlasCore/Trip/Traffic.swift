@@ -197,6 +197,74 @@ public enum Traffic {
         }
     }
 
+    // MARK: Building a reading from a provider's answers
+
+    /// A provider's time to a checkpoint, with the distance it timed and the route's own distance there.
+    public struct Measurement: Sendable {
+        /// Meters along the route of the checkpoint.
+        public var along: Double
+        /// The route's distance from where it was measured to the checkpoint.
+        public var routeMeters: Double
+        /// The distance the provider timed.
+        public var providerMeters: Double
+        public var seconds: Double
+        public init(along: Double, routeMeters: Double, providerMeters: Double, seconds: Double) {
+            self.along = along
+            self.routeMeters = routeMeters
+            self.providerMeters = providerMeters
+            self.seconds = seconds
+        }
+    }
+
+    /// A provider's time is used only when the distance it timed matches the route's own distance to the same
+    /// point (within 2%, at least 1 km): then it timed the road being driven, not another one.
+    public static func matchesRoute(providerMeters: Double, routeMeters: Double) -> Bool {
+        routeMeters > 0 && abs(providerMeters - routeMeters) <= max(1000, 0.02 * routeMeters)
+    }
+
+    /// A reading from the measurements that match the route, in route order, each farther and later than the
+    /// one before (a time that goes backwards is dropped). Nil when none qualifies.
+    public static func reading(routeId: String, measuredAt: Date, fromAlong: Double, measurements: [Measurement],
+                               source: RoadIntel.Source) -> Reading? {
+        var checkpoints: [Checkpoint] = []
+        for m in measurements.sorted(by: { $0.along < $1.along })
+        where m.along > fromAlong && m.seconds > 0 && matchesRoute(providerMeters: m.providerMeters, routeMeters: m.routeMeters) {
+            if let last = checkpoints.last, m.along <= last.along || m.seconds <= last.seconds { continue }
+            checkpoints.append(Checkpoint(along: m.along, seconds: m.seconds))
+        }
+        return checkpoints.isEmpty ? nil : Reading(routeId: routeId, measuredAt: measuredAt, fromAlong: fromAlong,
+                                                   checkpoints: checkpoints, source: source)
+    }
+
+    /// The extra time traffic adds to a checkpoint: the provider's traffic time minus its own ideal conditions
+    /// time to the same point, both matched to the route. Nil when either does not match or the extra time is
+    /// under `minimum` (estimates that small are noise, not a slowdown worth showing).
+    public static func extraSeconds(traffic: Measurement, ideal: Measurement, minimum: TimeInterval = 180) -> Double? {
+        guard matchesRoute(providerMeters: traffic.providerMeters, routeMeters: traffic.routeMeters),
+              matchesRoute(providerMeters: ideal.providerMeters, routeMeters: ideal.routeMeters) else { return nil }
+        let extra = traffic.seconds - ideal.seconds
+        return extra >= minimum ? extra : nil
+    }
+
+    /// When to ask the provider again: about every 5 minutes while moving with the app in front, at once
+    /// after a reroute, never while parked or in the background, and less often after failures (doubling up
+    /// to 20 minutes), so a throttled or offline provider is not hammered.
+    public struct RefreshPolicy: Sendable {
+        public var interval: TimeInterval = 300
+        public var maxInterval: TimeInterval = 1200
+        /// Stopped this long: no requests until moving again.
+        public var stillAfter: TimeInterval = 120
+        public init() {}
+
+        public func isDue(lastAttempt: Date?, failures: Int, routeChanged: Bool, stillFor: TimeInterval,
+                          foreground: Bool, now: Date) -> Bool {
+            guard foreground, stillFor < stillAfter else { return false }
+            guard let lastAttempt, !routeChanged else { return true }
+            let wait = min(maxInterval, interval * pow(2, Double(max(0, failures))))
+            return now.timeIntervalSince(lastAttempt) >= wait
+        }
+    }
+
     // MARK: Faster routes
 
     public struct AlternativeRules: Sendable {

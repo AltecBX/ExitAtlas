@@ -53,15 +53,17 @@ struct RoundIconButton: View {
     let symbol: String
     let label: String
     var id: String? = nil
+    /// A switch that is on (the traffic layer): the symbol and ring take the route color.
+    var active = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 19, weight: .semibold))
                 .frame(width: 48, height: 48)
-                .foregroundStyle(.primary)
+                .foregroundStyle(active ? Theme.route : .primary)
                 .background(Theme.raised, in: Circle())
-                .overlay(Circle().stroke(Theme.cardStroke, lineWidth: 1))
+                .overlay(Circle().stroke(active ? Theme.route : Theme.cardStroke, lineWidth: active ? 2 : 1))
                 .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
@@ -273,7 +275,11 @@ struct JourneyPanel: View {
             } else {
                 metric(Format.milesValue(snapshot.remaining), "mi left")
                 Spacer(minLength: 6)
-                metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), "arrival")
+                let traffic = TrafficText.usesTraffic(snapshot)
+                metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), TrafficText.arrivalLabel(snapshot, extra: trip.trafficExtra),
+                       tint: traffic && trip.trafficExtra != nil ? Theme.amber : Theme.secondaryText, symbol: traffic ? "car.2.fill" : nil)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(Format.time(snapshot.eta, relativeTo: snapshot.timestamp)) \(TrafficText.arrivalSpoken(snapshot, extra: trip.trafficExtra))")
                 Spacer(minLength: 6)
                 metric("\(snapshot.statesAhead.count)", snapshot.statesAhead.count == 1 ? "state" : "states")
             }
@@ -285,10 +291,12 @@ struct JourneyPanel: View {
         .accessibilityIdentifier("tripStrip")
     }
 
-    private func metric(_ value: String, _ label: String) -> some View {
+    private func metric(_ value: String, _ label: String, tint: Color = Theme.secondaryText, symbol: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
+            // The arrival includes traffic: a small car symbol in the route color before the time.
+            if let symbol { Image(systemName: symbol).font(.caption2.weight(.bold)).foregroundStyle(Theme.route) }
             Text(value).font(Theme.number(16, weight: .heavy)).lineLimit(1)
-            Text(label).font(.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
+            Text(label).font(.caption.weight(tint == Theme.secondaryText ? .regular : .bold)).foregroundStyle(tint).lineLimit(1)
         }
     }
 }
@@ -301,6 +309,7 @@ struct JourneyPanel: View {
 struct NavigationDriveView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(TripController.self) private var trip
+    @Environment(UserSettings.self) private var settings
     let snapshot: TripSnapshot
     let focus: DashboardFocus.Result
     let alert: RoadIntel.Alert?
@@ -326,7 +335,11 @@ struct NavigationDriveView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         GuidanceBanner(snapshot: snapshot, openExit: openExit)
                         openSpace
-                        HStack(alignment: .bottom) { speed; Spacer(); controls(horizontal: true) }
+                        // One row when it fits beside the speed; else the buttons go on a row of their own above it.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .bottom) { speed; Spacer(minLength: 8); controls(horizontal: true) }
+                            VStack(alignment: .leading, spacing: 8) { controls(horizontal: true); speed }
+                        }
                     }
                     VStack(spacing: 8) {
                         Spacer(minLength: 0)
@@ -359,11 +372,14 @@ struct NavigationDriveView: View {
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { openArea = $0 }
     }
 
-    /// The map's safe area: everything outside the open stretch. Until both are measured, none.
+    /// The map's safe area: everything outside the open stretch. Until both are measured, none. When the open
+    /// stretch is a thin band (sideways, under the banner), only its sides count: the vehicle stays in the open
+    /// column, centered top to bottom.
     private var openInsets: EdgeInsets {
-        guard mapFrame.width > 0, openArea.width > 0, openArea.height > 40 else { return EdgeInsets() }
-        return EdgeInsets(top: max(0, openArea.minY - mapFrame.minY), leading: max(0, openArea.minX - mapFrame.minX),
-                          bottom: max(0, mapFrame.maxY - openArea.maxY), trailing: max(0, mapFrame.maxX - openArea.maxX))
+        guard mapFrame.width > 0, openArea.width > 40 else { return EdgeInsets() }
+        let tall = openArea.height > 80
+        return EdgeInsets(top: tall ? max(0, openArea.minY - mapFrame.minY) : 0, leading: max(0, openArea.minX - mapFrame.minX),
+                          bottom: tall ? max(0, mapFrame.maxY - openArea.maxY) : 0, trailing: max(0, mapFrame.maxX - openArea.maxX))
     }
 
     private var speed: some View {
@@ -380,6 +396,8 @@ struct NavigationDriveView: View {
         layout {
             DrivePresentationToggle().shadow(color: .black.opacity(0.22), radius: 10, y: 5)
             if !following { RoundIconButton(symbol: "location.north.line.fill", label: "Follow my position", id: "recenterButton") { following = true } }
+            RoundIconButton(symbol: "car.2.fill", label: settings.trafficOnMap ? "Hide traffic on the map" : "Show traffic on the map",
+                            id: "trafficButton", active: settings.trafficOnMap) { settings.trafficOnMap.toggle() }
             RoundIconButton(symbol: "fuelpump.fill", label: "Fuel", id: "fuelButton", action: openFuel)
             RoundIconButton(symbol: "figure.dress.line.vertical.figure", label: "Restroom stop", id: "restroomButton", action: openRestroom)
         }

@@ -85,12 +85,15 @@ private struct TripSummary: View {
     let discovery: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            MetricTile(title: "Driven", value: Format.milesValue(snapshot.drivenTotal), unit: "mi", valueSize: 22)
-            MetricTile(title: discovery ? "Ahead" : "Remaining", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 22)
-            if !discovery {
-                MetricTile(title: "Arrive", value: Format.time(snapshot.eta, relativeTo: snapshot.timestamp), valueSize: 16)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                MetricTile(title: "Driven", value: Format.milesValue(snapshot.drivenTotal), unit: "mi", valueSize: 22)
+                MetricTile(title: discovery ? "Ahead" : "Remaining", value: Format.milesValue(snapshot.remaining), unit: "mi", valueSize: 22)
+                if !discovery {
+                    MetricTile(title: "Arrive", value: Format.time(snapshot.eta, relativeTo: snapshot.timestamp), valueSize: 16)
+                }
             }
+            if !discovery { TrafficBasisLine(snapshot: snapshot) }
         }
         .padding(.vertical, 4)
     }

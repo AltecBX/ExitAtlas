@@ -2,6 +2,7 @@ import CoreLocation
 import ExitAtlasCore
 import Foundation
 import Observation
+import UIKit
 
 /// One state's part of the route, ready for MapPolyline.
 struct StateLine: Identifiable {
@@ -27,6 +28,18 @@ final class TripController {
         case simulation(speedup: Double)
     }
 
+    enum TrafficState: Equatable {
+        /// Traffic in arrival times is off in Settings.
+        case off
+        /// A simulated drive: Apple's traffic is for real positions at the real time, so it is not asked.
+        case notChecked
+        case checking
+        /// Times that match the route, measured at this time.
+        case ok(Date)
+        /// Apple could not be reached, or none of its times matched the route.
+        case unavailable(String)
+    }
+
     private(set) var mode: Mode = .idle
     private(set) var snapshot: TripSnapshot?
     private(set) var plan: TripPlan?
@@ -43,6 +56,11 @@ final class TripController {
     private(set) var feedsVersion = 0
     /// A trip saved before the app was terminated, offered for resuming.
     private(set) var resumable: ActiveTripRecord?
+    /// Apple Maps traffic in arrival times (docs/16): what was last heard, for the Trip tab and Settings.
+    private(set) var trafficState: TrafficState = .off
+    /// The extra time Apple estimates traffic adds before a checkpoint (both times matched to the route, at
+    /// least 3 minutes), with when it was measured.
+    private(set) var trafficExtra: (seconds: Double, to: String, at: Date)?
 
     @ObservationIgnored private var session: TripSession?
     @ObservationIgnored private var discovery: HighwayDiscovery?
@@ -77,6 +95,16 @@ final class TripController {
     @ObservationIgnored private var fuelVoice = FuelAnnouncements()
     @ObservationIgnored private var rangePlanMemo: (key: String, plan: RangePlan?)?
     @ObservationIgnored weak var settings: UserSettings?
+    @ObservationIgnored let traffic = AppleTrafficService()
+    @ObservationIgnored private var trafficStabilizer = Traffic.Stabilizer()
+    @ObservationIgnored private let trafficPolicy = Traffic.RefreshPolicy()
+    @ObservationIgnored private var trafficLastAttempt: Date?
+    @ObservationIgnored private var trafficFailures = 0
+    @ObservationIgnored private var trafficRouteID: UUID?
+    @ObservationIgnored private var trafficInFlight = false
+    @ObservationIgnored private var lastMovingAt: Date?
+    /// A SIMULATED traffic reading for screenshots (-demoTraffic): Apple is not asked.
+    @ObservationIgnored private var trafficDemo = false
     @ObservationIgnored weak var library: TripLibrary?
 
     init() {
@@ -153,6 +181,7 @@ final class TripController {
         }
         resumable = nil
         lastPersistAt = nil
+        resetTraffic()
         remainingWaypoints = route.stops.map(\.waypoint) + [route.destination]
         mode = .trip
         snapshot = session?.snapshot(at: now)
@@ -318,6 +347,7 @@ final class TripController {
 
     private func publish(_ snap: TripSnapshot) {
         snapshot = snap
+        if mode == .trip { considerTraffic(snap) }
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
             announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead,
@@ -496,8 +526,7 @@ final class TripController {
         var enabled: [RoadIntel.Group: Bool] = [:]
         for (k, v) in settings.alertGroups { if let g = RoadIntel.Group(rawValue: k) { enabled[g] = v } }
         let result = RoadIntel.evaluate(route: plan.route, progress: snapshot.progress, providers: providers, now: now, enabled: enabled,
-                                        etaAt: { d in now.addingTimeInterval(plan.eta(from: snapshot.progress, to: d, pace: snapshot.pace,
-                                                                                      now: snapshot.timestamp).timeIntervalSince(snapshot.timestamp)) })
+                                        etaAt: { d in now.addingTimeInterval(plan.eta(to: d, from: snapshot).timeIntervalSince(snapshot.timestamp)) })
         intelMemo = (key, result)
         return result
     }
@@ -652,6 +681,112 @@ final class TripController {
         }
     }
 
+    // MARK: Traffic (docs/16)
+
+    private func resetTraffic() {
+        trafficStabilizer = Traffic.Stabilizer()
+        trafficLastAttempt = nil
+        trafficFailures = 0
+        trafficRouteID = nil
+        trafficExtra = nil
+        trafficDemo = false
+        lastMovingAt = nil
+        trafficState = settings?.trafficInETA == false ? .off : .checking
+    }
+
+    /// Asks Apple Maps for traffic aware times when due: about every 5 minutes while moving with the app in
+    /// front, at once after a reroute, never while parked, in the background or during a simulated drive, and
+    /// less often after failures. The answer goes through the stabilizer into the session's arrival times.
+    private func considerTraffic(_ snap: TripSnapshot) {
+        guard let plan, let settings, !trafficDemo else { return }
+        guard settings.trafficInETA else {
+            if trafficState != .off || session?.traffic != nil {
+                trafficState = .off
+                trafficExtra = nil
+                session?.traffic = nil
+                trafficStabilizer = Traffic.Stabilizer()
+            }
+            return
+        }
+        if isSimulating {
+            if trafficState != .notChecked { trafficState = .notChecked }
+            return
+        }
+        let now = snap.timestamp
+        if snap.match.speed > 2 || lastMovingAt == nil { lastMovingAt = now }
+        let stillFor = lastMovingAt.map { now.timeIntervalSince($0) } ?? 0
+        let routeChanged = trafficRouteID != plan.route.id
+        guard !trafficInFlight,
+              trafficPolicy.isDue(lastAttempt: trafficLastAttempt, failures: trafficFailures, routeChanged: routeChanged,
+                                  stillFor: stillFor, foreground: UIApplication.shared.applicationState == .active, now: now) else { return }
+        let checkpoints = AppleTrafficService.checkpoints(plan: plan, snapshot: snap)
+        guard !checkpoints.isEmpty else { return }
+        trafficInFlight = true
+        trafficLastAttempt = now
+        trafficRouteID = plan.route.id
+        if session?.traffic == nil { trafficState = .checking }
+        let id = tripID, routeID = plan.route.id, progress = snap.progress
+        let origin = plan.route.polyline.coordinate(at: progress)
+        Task { @MainActor in
+            defer { self.trafficInFlight = false }
+            do {
+                let result = try await self.traffic.measure(routeId: routeID.uuidString, origin: origin, progress: progress,
+                                                            checkpoints: checkpoints, avoidTolls: settings.avoidTolls, now: Date())
+                guard self.tripID == id, self.plan?.route.id == routeID, settings.trafficInETA else { return }
+                self.trafficFailures = 0
+                self.applyTraffic(result.reading, extra: result.extra, failure: "None of Apple's times matched your route")
+            } catch {
+                guard self.tripID == id else { return }
+                self.trafficFailures += 1
+                self.applyTraffic(nil, extra: nil, failure: "Apple Maps could not be reached")
+            }
+        }
+    }
+
+    /// Offers a reading to the stabilizer (nil keeps the one shown while it is usable) and updates the times.
+    private func applyTraffic(_ reading: Traffic.Reading?, extra: (seconds: Double, to: String)?, failure: String) {
+        guard var session, let plan else { return }
+        let now = Date()
+        let progress = session.snapshot(at: now).progress
+        let pace = session.pace
+        let timing = Traffic.Timing(modelSeconds: { plan.route.timeProfile.seconds(from: $0, to: $1) },
+                                    paceSeconds: { pace.seconds(forModelSeconds: $0) })
+        let out = trafficStabilizer.offer(reading, routeId: plan.route.id.uuidString, progress: progress, now: now, timing: timing)
+        session.traffic = out.reading
+        self.session = session
+        if out.changed { trafficExtra = extra.map { ($0.seconds, $0.to, now) } }
+        if let shown = out.reading {
+            trafficState = .ok(shown.measuredAt)
+        } else {
+            trafficState = .unavailable(failure)
+            trafficExtra = nil
+        }
+        snapshot = session.snapshot(at: now)
+    }
+
+    /// -demoTraffic: a SIMULATED reading for screenshots, 20% slower than the route's own times to each
+    /// checkpoint, labeled "Simulated traffic". Apple is not asked.
+    func injectDemoTraffic() {
+        guard let plan, var session, let snap = snapshot else { return }
+        trafficDemo = true
+        let checkpoints = AppleTrafficService.checkpoints(plan: plan, snapshot: snap)
+        let measurements = checkpoints.map { cp -> Traffic.Measurement in
+            let meters = cp.along - snap.progress
+            return Traffic.Measurement(along: cp.along, routeMeters: meters, providerMeters: meters,
+                                       seconds: 1.2 * plan.route.timeProfile.seconds(from: snap.progress, to: cp.along))
+        }
+        let now = Date()
+        session.traffic = Traffic.reading(routeId: plan.route.id.uuidString, measuredAt: now, fromAlong: snap.progress,
+                                          measurements: measurements, source: .init(id: "demo", name: "Simulated traffic"))
+        self.session = session
+        if let last = session.traffic?.checkpoints.last, let cp = checkpoints.first(where: { $0.along == last.along }) {
+            trafficExtra = (last.seconds - last.seconds / 1.2, cp.place, now)
+        }
+        trafficState = session.traffic.map { .ok($0.measuredAt) } ?? .unavailable("No simulated checkpoints")
+        // At the last fix's time: the frozen demo does not move on.
+        snapshot = session.snapshot(at: snap.timestamp)
+    }
+
     /// Identifies the current trip (its start time), for things kept per trip like the plate game.
     var tripKey: String { tripStartedAt.map { String(Int($0.timeIntervalSince1970)) } ?? "" }
 
@@ -740,7 +875,7 @@ final class TripController {
     /// A gas stop counts unless every station there is no longer listed or reported closed when the driver gets there.
     private func gasStopUsable(_ stop: GasGaps.Stop, plan: TripPlan, snapshot: TripSnapshot, prefs: SmartStop.Preferences) -> Bool {
         let zone = plan.timeZoneID(at: stop.distance).flatMap(TimeZone.init(identifier:)) ?? TimeZone(identifier: "America/New_York")!
-        let arrival = plan.eta(from: snapshot.progress, to: stop.distance, pace: snapshot.pace, now: snapshot.timestamp)
+        let arrival = plan.eta(to: stop.distance, from: snapshot)
         if let r = stop.restArea {
             let c = SmartStop.Candidate(id: r.id, name: r.title, kind: .plaza, along: stop.distance, arrival: arrival, timeZone: zone, plazaHours: r.hours)
             return SmartStop.evaluate(c, preferences: prefs).hours.status != .closed
