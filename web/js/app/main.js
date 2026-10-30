@@ -1162,9 +1162,12 @@ function remainingWaypoints() {
   return app.remainingWaypoints.filter((w) => !passed.includes(w.name));
 }
 
+/// Returns { ok } and, when no new route was set, the reason.
 async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
-  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') return;
-  if (!force && app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return;
+  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') {
+    return { ok: false, reason: app.isRerouting ? 'a new route is still on its way, try again in a moment' : 'no live GPS trip' };
+  }
+  if (!force && app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return { ok: false, reason: 'too soon' };
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
   render();
@@ -1172,7 +1175,7 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   const here = { name: 'Current location', coordinate: sample.coordinate };
   try {
     const [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
-    if (!route || !app.session || app.mode !== 'trip') return;
+    if (!route || !app.session || app.mode !== 'trip') return { ok: false, reason: 'the trip ended' };
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());
     app.session.replacePlan(plan, nowSeconds());
@@ -1182,8 +1185,10 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     app.lastError = null;
     app.rerouteError = null;
     if (app.settings.voice && spoken) app.announcer.speak(spoken);
+    return { ok: true };
   } catch (e) {
     app.lastError = app.rerouteError = `Reroute failed: ${e.message}. Will retry.`;
+    return { ok: false, reason: e.message };
   } finally {
     app.isRerouting = false;
     render();
@@ -1206,10 +1211,19 @@ async function addWaypointStop(waypoint, alongRoute) {
   const list = remainingWaypoints();
   const at = list.findIndex((w) => along(w) > alongRoute);
   list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
+  const before = app.remainingWaypoints;
   app.remainingWaypoints = list;
   closeSheet();
   toast(`Adding ${waypoint.name}`);
-  await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  const r = await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  if (r.ok) return;
+  // Not added: the stops still ahead stay as they were (nothing retries a stop while on the route), and the
+  // driver is told, instead of a "Will retry" that would not happen.
+  if (app.remainingWaypoints === list) app.remainingWaypoints = before;
+  if (app.rerouteError && app.lastError === app.rerouteError) app.lastError = null;
+  app.rerouteError = null;
+  toast(`Could not add ${waypoint.name}: ${r.reason}`);
+  render();
 }
 
 /// The proxy's base URL for a service it offers and has not switched off, else null.

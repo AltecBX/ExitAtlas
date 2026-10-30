@@ -44,7 +44,7 @@ function osrmFrom(start) {
 
 // What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection).
 const servers = { routing: 'ok', search: 'ok' };
-let routingCalls = 0;
+let routingCalls = 0, lastRoutingPoints = 0;
 const failures = [];
 const fail = (m) => { failures.push(m); console.log(`FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); else console.log(`ok   ${m}`); };
@@ -65,7 +65,7 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
   const u = new URL(r.request().url());
   const kind = u.host === 'router.project-osrm.org' ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
   if (!kind) return r.fulfill({ status: 503, body: '' });
-  if (kind === 'routing') routingCalls++;
+  if (kind === 'routing') { routingCalls++; lastRoutingPoints = u.pathname.split('/').pop().split(';').length; }
   if (servers[kind] === 'hang') return; // accepted, never answered
   if (servers[kind] === 'down') return r.abort('internetdisconnected');
   if (kind === 'search') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: 'Richmond, Virginia, United States', lat: '37.5407', lon: '-77.436' }]) });
@@ -174,6 +174,37 @@ check(await app((id) => window.exitAtlas.plan.route.id !== id, oldRoute) && rout
 check(s.driven >= driven && await app(() => window.exitAtlas.remainingWaypoints.map((w) => w.name).join() === 'Richmond, Virginia'), 'miles driven and the destination are kept');
 await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(40); });
 check((await state()).status === 'onRoute', 'on the new route');
+
+// 7b. A stop from an exit's places, added mid trip. With no connection it is not added, and the driver is told;
+//     with one, the new route goes through it.
+const pick = await app(() => {
+  const a = window.exitAtlas, d = a.snapshot.progress;
+  const e = a.plan.exits.find((x) => x.distanceAlongRoute > d + 2000 && a.servicesFor(x).length);
+  const p = a.servicesFor(e)[0].place;
+  return { arg: `${e.id}|${p.id}` };
+});
+const addStop = () => app((arg) => {
+  const b = document.createElement('button');
+  b.dataset.act = 'add-trip-stop';
+  b.dataset.arg = arg;
+  document.body.append(b);
+  b.click();
+  b.remove();
+}, pick.arg);
+const ahead = () => app(() => window.exitAtlas.remainingWaypoints.map((w) => w.name));
+servers.routing = 'down';
+await addStop();
+await page.waitForTimeout(300);
+await until(() => !window.exitAtlas.isRerouting);
+const notAdded = await app(() => document.querySelector('#toast').textContent);
+check(/^Could not add .+: the routing server could not be reached/.test(notAdded) && (await ahead()).join() === 'Richmond, Virginia',
+  `a stop that could not be added is not kept, and the driver is told (${notAdded})`);
+servers.routing = 'ok';
+await addStop();
+await page.waitForTimeout(300);
+await until(() => !window.exitAtlas.isRerouting);
+check((await ahead()).length === 2 && (await ahead())[1] === 'Richmond, Virginia' && lastRoutingPoints === 3, `a stop added mid trip is routed through (${(await ahead()).join(' then ')})`);
+await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(5); });
 
 // 8. No connection while off the route: retried about every 20 seconds, not on every fix.
 servers.routing = 'down';
