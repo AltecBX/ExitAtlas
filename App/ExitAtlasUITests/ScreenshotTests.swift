@@ -91,7 +91,8 @@ final class ScreenshotTests: XCTestCase {
         let minute = (c.hour ?? 12) * 60 + (c.minute ?? 0)
         let mile = minute >= 22 * 60 || minute < 5 * 60 + 50 ? "599" : "1035"
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-overnight", "on", "-alertsOff", "-drive", "focus"]
+        // No range reading: with one (saved by an earlier test's -demoRange) the fuel card takes the Drive card.
+        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-noRange", "-overnight", "on", "-alertsOff", "-drive", "focus"]
         app.launch()
         XCTAssertTrue(drive(app), "Drive screen did not appear")
         let card = app.descendants(matching: .any)["lastOpenCard"].firstMatch

@@ -715,8 +715,8 @@ final class TripController {
     /// half mile while shown. Google does not allow pre-fetching, so exits that are not shown are never
     /// looked up. A few at a time, within the daily budget (GasPrices.AutoLookupRules).
     func autoGooglePrices(_ screen: PriceScreen) {
-        guard let settings, settings.googlePrices, !settings.googleKey.isEmpty || prices.fixture != nil, settings.vehicle?.isElectric != true,
-              let plan, let snapshot else { return }
+        guard let settings, (settings.googlePrices && !settings.googleKey.isEmpty) || prices.fixture != nil,
+              settings.vehicle?.isElectric != true, let plan, let snapshot else { return }
         var exits: [(id: String, ahead: Double)] = []
         func add(_ id: String?) {
             guard let id, let e = plan.exits.first(where: { $0.id == id }) else { return }
