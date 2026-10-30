@@ -56,6 +56,10 @@ jobs:
         run: node web/tests/layout/pricepath.layout.mjs
       - name: Google prices look themselves up for the exits on screen, within the budget (TEST FIXTURE)
         run: node web/tests/layout/autoprices.layout.mjs
+      - name: A whole trip with fixture servers (plan, drive, stalled and failed routing, reroute, reload, resume, end)
+        run: node web/tests/layout/trip.layout.mjs
+      - name: Offline with the real service worker (first visit, deploy, start with no network)
+        run: node web/tests/layout/offline.layout.mjs
       - name: Shared reports on the Worker runtime (wrangler dev, local D1)
         working-directory: infra/worker
         run: |
