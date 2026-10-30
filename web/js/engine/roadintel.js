@@ -236,6 +236,24 @@ export function isNotable(i) {
   return isSerious(i) || !(i.category === 'construction' && (i.severity === 'minor' || i.severity === 'unknown'));
 }
 
+/// Takes the Drive card: a notable alert, except a weather or flooding alert the driver is already inside that
+/// is not Severe or Extreme (NWS) and not a warning. Advisories where the driver is stay in Road Ahead and the
+/// weather details; ahead of the driver nothing changes. Same rule as RoadIntel.Alert.onDriveCard in RoadIntel.swift.
+export function onDriveCard(a, progress) {
+  if (!a.notable) return false;
+  const i = a.incident;
+  // Inside: the alert starts where the driver is (within a meter, for rounding) or behind.
+  if ((i.category !== 'weather' && i.category !== 'flooding') || a.start - progress > 1) return true;
+  return i.severity === 'severe' || i.severity === 'major' || /warning$/i.test(String(i.description ?? '').trim());
+}
+
+/// The alert the Drive screen considers: the first serious one within 50 miles, else the nearest, of those that
+/// take the Drive card. Same rule as RoadIntel.Result.focusAlert in RoadIntel.swift.
+export function driveCardAlert(alerts, progress) {
+  const shown = alerts.filter((a) => onDriveCard(a, progress));
+  return shown.find((a) => a.serious && a.start - progress <= 50 * MILE) ?? shown[0] ?? null;
+}
+
 /// How loud an alert looks: 'urgent' (red: closures, major or severe crashes, weather, flooding and hazards),
 /// 'info' (blue: work zones that leave the lanes open or do not say, anything minor), else 'caution' (amber).
 export function alertTier(i) {

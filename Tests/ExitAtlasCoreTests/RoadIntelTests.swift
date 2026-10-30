@@ -250,6 +250,36 @@ final class RoadIntelTests: XCTestCase {
         guard case .rejected("behind") = place([at], progress: at + 20 * mile) else { return XCTFail("far past the point") }
     }
 
+    /// Same cases as web/tests/roadalerts.test.js: weather advisories the driver is in stay in Road Ahead;
+    /// warnings and anything NWS rates Severe or Extreme take the Drive card; ahead of the driver nothing changes.
+    func testDriveCardLeavesAdvisoriesWhereTheDriverIsToRoadAhead() throws {
+        let route = Fixtures.route("richmond_to_nyc_via_pa")
+        let at = 40 * mile
+        let now = Date(timeIntervalSince1970: 1_793_231_600)
+        let c = route.polyline.coordinate(at: at)
+        let pad = 0.05
+        let box = [GeoCoordinate(latitude: c.latitude - pad, longitude: c.longitude - pad), GeoCoordinate(latitude: c.latitude - pad, longitude: c.longitude + pad),
+                   GeoCoordinate(latitude: c.latitude + pad, longitude: c.longitude + pad), GeoCoordinate(latitude: c.latitude + pad, longitude: c.longitude - pad),
+                   GeoCoordinate(latitude: c.latitude - pad, longitude: c.longitude - pad)]
+        func alert(_ id: String, _ kind: RoadIntel.Kind = .weather, _ event: String, _ severity: RoadIntel.Severity, _ geometry: RoadIntel.Geometry) -> RoadIntel.Incident {
+            RoadIntel.Incident(id: id, kind: kind, description: event, source: .init(id: "nws", name: "National Weather Service"), verification: .official,
+                               endsAt: now.addingTimeInterval(3600), expiresAt: now.addingTimeInterval(3600), geometry: geometry, direction: "both", severity: severity)
+        }
+        func card(_ incidents: [RoadIntel.Incident]) -> String? {
+            let p = RoadIntel.Provider(id: "nws", name: "National Weather Service", kinds: [.weather, .flooding], state: .ok, fetchedAt: now, maxAge: 1800, incidents: incidents)
+            let out = RoadIntel.evaluate(route: route, progress: at, providers: [p], now: now)
+            return out.focusAlert(progress: at + 0.2 * mile)?.incident.id
+        }
+        let here = RoadIntel.Geometry.points([c])
+        XCTAssertNil(card([alert("fog", .weather, "Dense Fog Advisory", .minor, here)]))
+        XCTAssertNil(card([alert("wind", .weather, "Wind Advisory", .moderate, .polygon([box]))]))
+        XCTAssertEqual(card([alert("storm", .weather, "Winter Storm Warning", .moderate, here)]), "storm")
+        XCTAssertEqual(card([alert("flood", .flooding, "Flood Warning", .moderate, .polygon([box]))]), "flood")
+        XCTAssertEqual(card([alert("gale", .weather, "Wind Advisory", .major, here)]), "gale")
+        XCTAssertEqual(card([alert("extreme", .weather, "Wind Advisory", .severe, here)]), "extreme")
+        XCTAssertEqual(card([alert("fog-ahead", .weather, "Dense Fog Advisory", .minor, .points([route.polyline.coordinate(at: at + 5 * mile)]))]), "fog-ahead")
+    }
+
     func testAlertTiersAndHeadlines() throws {
         let file = Fixtures.fixtureDirectory.appendingPathComponent("roadintel/tiers.json")
         for c in try JSONValue(data: Data(contentsOf: file))["cases"]!.array! {
