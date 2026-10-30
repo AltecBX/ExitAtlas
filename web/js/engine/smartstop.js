@@ -219,6 +219,12 @@ export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fu
     const priceRank = f.priceOverBrand && anyPrice ? (x.c.price?.value ?? Infinity) : 0;
     const order = context === 'fuel' ? -x.c.along : x.c.along;
     const [first, second] = purpose === 'restroom' ? [restroomRank, hoursRank] : [hoursRank, restroomRank];
+    // A restroom stop: the soonest place to be back on the road, the drive there plus the whole detour (arrival
+    // already holds half a measured one), before brand or price, which are fuel preferences.
+    if (context === 'ahead' && purpose === 'restroom') {
+      const backOnRoad = x.c.arrival + (x.c.detourMinutes != null ? x.c.detourMinutes * 30 : detour * 60);
+      return [first, second, backOnRoad, x.c.along, brandRank];
+    }
     return context === 'fuel'
       ? [first, second, priceRank, brandRank, order, detour]
       : [first, second, priceRank, brandRank, detour, order];

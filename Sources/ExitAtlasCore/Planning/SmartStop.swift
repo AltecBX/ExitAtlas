@@ -506,6 +506,12 @@ public enum SmartStop {
             let restroomRank = needs(p.requireRestroom, x) ? x.e.restroom.rank : 0
             let priceRank = p.priceOverBrand && anyPrice ? (x.c.price ?? .infinity) : 0
             let (first, second) = purpose == .restroom ? (restroomRank, hoursRank) : (hoursRank, restroomRank)
+            // A restroom stop: the soonest place to be back on the road, the drive there plus the whole detour
+            // (arrival already holds half a measured one), before brand or price, which are fuel preferences.
+            if context == .ahead && purpose == .restroom {
+                let backOnRoad = x.c.arrival.timeIntervalSince1970 + (x.c.detourMinutes.map { $0 * 30 } ?? detour * 60)
+                return [first, second, backOnRoad, x.c.along, brandRank]
+            }
             return context == .fuel
                 ? [first, second, priceRank, brandRank, -x.c.along, detour]
                 : [first, second, priceRank, brandRank, detour, x.c.along]

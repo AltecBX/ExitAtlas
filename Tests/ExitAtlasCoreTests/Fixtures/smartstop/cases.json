@@ -1501,6 +1501,75 @@
      "Shell, your 1st choice"
     ]
    }
+  },
+  {
+   "name": "Restroom stop by day: the soonest back on the road wins, not the favorite brand 50 miles on",
+   "options": {
+    "context": "ahead",
+    "purpose": "restroom"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "rest13",
+     "name": "Rest Area",
+     "kind": "rest",
+     "aheadMiles": 13,
+     "detourMinutes": null,
+     "arrival": "2026-10-29T16:13:00Z",
+     "plaza": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp49",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "49",
+     "aheadMiles": 49,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:51:00Z",
+     "osm": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "shell50",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "50",
+     "aheadMiles": 50,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:51:00Z",
+     "osm": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp58",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "58",
+     "aheadMiles": 58,
+     "detourMinutes": 3,
+     "arrival": "2026-10-29T16:59:30Z",
+     "osm": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "rest13",
+    "alternatives": [
+     "shell50",
+     "bp49"
+    ],
+    "primaryRestroom": "available"
+   }
   }
  ],
  "lastOpen": [
