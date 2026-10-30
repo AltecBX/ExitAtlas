@@ -1167,7 +1167,10 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     app.serviceCache.clear();
     app.remainingWaypoints = waypoints;
     app.lastError = null;
-    if (app.settings.voice && spoken) app.announcer.speak(spoken);
+    if (app.settings.voice && spoken) {
+      if (force) app.announcer.speak(spoken);
+      else app.announcer.rerouted(sample.t, spoken);
+    }
   } catch (e) {
     app.lastError = `Reroute failed: ${e.message}. Will retry.`;
   } finally {

@@ -28,6 +28,9 @@ const ALERT_MIN = 0.3 * MILE;
 /// An alert already spoken is not spoken again when a later answer gives the same event a new id (an NWS
 /// update, or the duplicate from another feed kept this time): same kind within this distance on the odometer.
 const SAME_ALERT = 1 * MILE;
+/// "New route." after an automatic reroute is said at most once in this many seconds: a driver who keeps
+/// leaving the new route (a detour of their own) hears it once, not at every reroute 20 seconds apart.
+const REROUTE_QUIET = 120;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -106,6 +109,15 @@ export class Announcer {
     this.spokenAlerts = []; // {category, odometer}
     this.lastState = null;
     this.lastZone = null;
+    this.reroutedAt = null;
+  }
+
+  /// Says that an automatic reroute found a new route, unless it was said within REROUTE_QUIET seconds.
+  rerouted(t, text = 'New route.') {
+    if (this.reroutedAt !== null && t - this.reroutedAt < REROUTE_QUIET) return false;
+    this.reroutedAt = t;
+    this.speak(text);
+    return true;
   }
 
   get supported() {
