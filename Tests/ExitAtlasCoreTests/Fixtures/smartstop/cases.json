@@ -1738,6 +1738,47 @@
     }
    ],
    "expect": null
+  },
+  {
+   "name": "A station no longer listed is never the last stop listed open, and does not end a stretch",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "gone20",
+     "aheadMiles": 20,
+     "osm": {
+      "hours": "24/7",
+      "gone": "not fuel"
+     }
+    },
+    {
+     "id": "c",
+     "aheadMiles": 40
+    },
+    {
+     "id": "d",
+     "aheadMiles": 70,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": {
+    "stop": "a",
+    "lengthMiles": 65,
+    "unlisted": 1,
+    "openEnded": false
+   }
   }
  ]
 }

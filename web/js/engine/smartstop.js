@@ -349,7 +349,8 @@ const listedOpen = (e) => e.hours.status === 'verified' || e.hours.status === 'r
 export function lastOpenBeforeGap(candidates, profile, { minLength, windowEnd, rejected = [] }) {
   const skip = new Set(rejected);
   const stops = candidates
-    .filter((c) => (c.ahead == null || c.ahead > 0) && !c.gone && !skip.has(c.id))
+    // A station no longer listed carries it in its OpenStreetMap facts (osm.gone), as smartStop reads it.
+    .filter((c) => (c.ahead == null || c.ahead > 0) && !(c.gone || c.osm?.gone) && !skip.has(c.id))
     .map((c) => ({ c, e: evaluateStop(c, profile) }))
     .sort((a, b) => a.c.along - b.c.along || (a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0));
   const ends = (x) => listedOpen(x.e) || (!x.e.overnight && x.e.hours.status !== 'closed');
