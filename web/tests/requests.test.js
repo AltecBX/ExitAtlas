@@ -1,11 +1,11 @@
 // Routing and place search requests give up after a time limit with a plain reason. A request that never
 // answered (a dead zone, a stalled server) left "Finding routes" disabled and "Rerouting" up for good, and no
-// later reroute could start.
+// later reroute could start. The one time fix for planning from here says in plain words why it failed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 globalThis.document = { baseURI: 'http://127.0.0.1/web/' };
-const { fetchRoutes, searchPlaces, REQUEST_TIMEOUT } = await import('../js/app/services.js');
+const { fetchRoutes, searchPlaces, currentPosition, REQUEST_TIMEOUT, POSITION_PROBLEMS } = await import('../js/app/services.js');
 
 const here = { name: 'Yonkers, NY', coordinate: { lat: 40.9312, lon: -73.8988 } };
 const there = { name: 'Richmond, VA', coordinate: { lat: 37.5407, lon: -77.436 } };
@@ -82,4 +82,20 @@ test('a place search that never answers fails after the time limit', async () =>
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('planning from here: no fix, a denied permission or a timeout says what to do, not a system message', async () => {
+  const answer = (code, message) => Object.defineProperty(globalThis.navigator, 'geolocation', { configurable: true, value: {
+    getCurrentPosition: (ok, err) => (code ? err({ code, message }) : ok({ coords: { latitude: 40.93, longitude: -73.9 } })),
+  } });
+  answer(1, 'User denied Geolocation');
+  await assert.rejects(currentPosition(), { message: POSITION_PROBLEMS[1] });
+  answer(2, 'The operation couldn\u2019t be completed. (kCLErrorDomain error 0.)');
+  await assert.rejects(currentPosition(), { message: 'your location is not available right now. Choose a start place, or try again' });
+  answer(3, 'Timeout expired');
+  await assert.rejects(currentPosition(), { message: 'your location was not found within 20 seconds. Choose a start place, or try again' });
+  answer(0);
+  assert.deepEqual(await currentPosition(), { lat: 40.93, lon: -73.9 });
+  for (const text of Object.values(POSITION_PROBLEMS)) assert.doesNotMatch(text, /[-\u2013\u2014]/, 'house style: no hyphens or dashes');
+  assert.match(POSITION_PROBLEMS[1], /choose a start place/);
 });

@@ -299,12 +299,20 @@ export class LocationService {
   }
 }
 
+/// Why the one time fix for planning from here failed, in plain words with what to do (the browser's own
+/// messages read like "Timeout expired" or a system error code).
+export const POSITION_PROBLEMS = {
+  1: 'location permission is denied. Allow location for this site in Settings, Privacy, Location Services, Safari Websites, or choose a start place',
+  2: 'your location is not available right now. Choose a start place, or try again',
+  3: 'your location was not found within 20 seconds. Choose a start place, or try again',
+};
+
 export function currentPosition() {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) { reject(new Error('No location service')); return; }
+    if (!('geolocation' in navigator)) { reject(new Error('this browser has no location service. Choose a start place')); return; }
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      (e) => reject(new Error(e.code === 1 ? 'Location permission denied' : e.message)),
+      (e) => reject(new Error(POSITION_PROBLEMS[e.code] ?? POSITION_PROBLEMS[2])),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
     );
   });
