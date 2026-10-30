@@ -1295,15 +1295,23 @@ function persistIfDue(t, force = false) {
   app.lastPersistAt = t;
   recordPace();
   const route = app.plan.route;
+  let previousRoute; // set when this save replaces the saved route
   if (app.savedRouteId !== route.id) {
+    previousRoute = store.get(ACTIVE_ROUTE_KEY) ?? null;
     // Not kept (storage full): the trip saved before stays as it was, whole.
     if (!store.set(ACTIVE_ROUTE_KEY, serializeRoute(route))) return;
     app.savedRouteId = route.id;
   }
-  store.set(ACTIVE_KEY, {
+  const saved = store.set(ACTIVE_KEY, {
     routeId: route.id, ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
     startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(), progress: app.session.recordedUpTo,
   });
+  if (!saved && previousRoute !== undefined) {
+    // The new route went in but its record did not (storage full): put the old route back so the trip saved
+    // before still resumes, and write the new route again at the next save.
+    if (previousRoute) store.set(ACTIVE_ROUTE_KEY, previousRoute); else store.remove(ACTIVE_ROUTE_KEY);
+    app.savedRouteId = null;
+  }
 }
 
 function forgetActiveTrip() {

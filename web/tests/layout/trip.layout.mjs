@@ -61,7 +61,9 @@ await ctx.addInitScript(() => {
   const set = Storage.prototype.setItem;
   window.__writes = [];
   Storage.prototype.setItem = function (key, value) {
-    window.__writes.push({ key, size: String(value).length, id: key === 'ea.activeRoute' ? JSON.parse(value).id : null });
+    // Storage full for the small trip record only (section 7): its route write still goes in.
+    if (window.__activeFull && key === 'ea.active') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    window.__writes.push({ key, size: String(value).length, id: key === 'ea.activeRoute' ? JSON.parse(value).id : null, full: Boolean(window.__activeFull) });
     return set.call(this, key, value);
   };
 });
@@ -207,10 +209,20 @@ const driven = (await state()).driven;
 const oldRoute = await app(() => window.exitAtlas.plan.route.id);
 before = routingCalls;
 await unpaced();
+// Storage full for the trip record while the new route is saved: the route saved before must stay with its
+// record, so the trip still resumes.
+const savedBefore = await app(() => JSON.parse(localStorage.getItem('ea.active')).routeId);
+await app(() => { window.__activeFull = true; });
 await app(() => window.__park(40, 1500));
 await until(() => !window.exitAtlas.isRerouting);
 s = await state();
 check(await app((id) => window.exitAtlas.plan.route.id !== id, oldRoute) && routingCalls - before === 1, `rerouted with one request (${routingCalls - before})`);
+await app(() => window.dispatchEvent(new Event('pagehide')));
+const kept = await app(() => ({ record: JSON.parse(localStorage.getItem('ea.active')).routeId, route: JSON.parse(localStorage.getItem('ea.activeRoute'))?.id }));
+check(kept.record === savedBefore && kept.route === savedBefore, `with storage full, the saved trip keeps its own route (${kept.record} / ${kept.route})`);
+await app(() => { window.__activeFull = false; window.dispatchEvent(new Event('pagehide')); });
+const now = await app(() => ({ record: JSON.parse(localStorage.getItem('ea.active')).routeId, route: JSON.parse(localStorage.getItem('ea.activeRoute'))?.id, plan: window.exitAtlas.plan.route.id }));
+check(now.record === now.plan && now.route === now.plan, 'once there is room, the new route and its record are saved together');
 check(s.driven >= driven && await app(() => window.exitAtlas.remainingWaypoints.map((w) => w.name).join() === 'Richmond, Virginia'), 'miles driven and the destination are kept');
 await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(40); });
 check((await state()).status === 'onRoute', 'on the new route');
@@ -263,7 +275,8 @@ await app(() => window.__drive(35));
 await app(() => window.dispatchEvent(new Event('pagehide')));
 const saved = await app(() => JSON.parse(localStorage.getItem('ea.active')));
 const savedMeters = saved.ledger.stints.reduce((a, x) => a + x.meters, 0);
-const routeWrites = await app(() => window.__writes.filter((w) => w.key === 'ea.activeRoute').map((w) => w.id));
+// Outside the storage full stretch of section 7 (where a route is put back and written again on purpose).
+const routeWrites = await app(() => window.__writes.filter((w) => w.key === 'ea.activeRoute' && !w.full).map((w) => w.id));
 check(routeWrites.length >= 2 && new Set(routeWrites).size === routeWrites.length && routeWrites.at(-1) === saved.routeId,
   `each new route is saved once, when it changes (${routeWrites.length} routes)`);
 

@@ -164,6 +164,27 @@ test('each routing server is asked at most once a second', async () => {
   }
 });
 
+test('routing calls that arrive together still go out a second apart, and a cancelled one sends nothing', async () => {
+  const times = [];
+  ROUTING_SPACING.ms = 1000;
+  try {
+    globalThis.fetch = async () => { times.push(Date.now()); return answer(200, OK); };
+    await fetchRoutes([here, there]); // takes the slot now
+    await Promise.all([fetchRoutes([here, there]), fetchRoutes([here, there]), fetchRoutes([here, there])]);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 990, `${times[i] - times[i - 1]} ms apart`);
+    const ctl = new AbortController();
+    const asked = times.length;
+    const waiting = fetchRoutes([here, there], { signal: ctl.signal });
+    setTimeout(() => ctl.abort(), 50);
+    await assert.rejects(waiting, (e) => e.name === 'AbortError');
+    await new Promise((r) => setTimeout(r, 1200));
+    assert.equal(times.length, asked, 'a call cancelled while it waited was sent anyway');
+  } finally {
+    ROUTING_SPACING.ms = 0;
+    globalThis.fetch = realFetch;
+  }
+});
+
 test('the backup server\'s terms: OpenStreetMap credit with a link to report map errors, and the server named', () => {
   const views = readFileSync(new URL('../js/app/views.js', import.meta.url), 'utf8');
   const at = views.indexOf('export function attribution');

@@ -212,12 +212,28 @@ async function timed(what, ms, outer, run) {
   }
 }
 
+const abortError = () => new DOMException('The request was cancelled', 'AbortError');
+
+/// Waits `ms`, or rejects with an AbortError as soon as `signal` is cancelled.
+function pause(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(abortError()); return; }
+    const onAbort = () => { clearTimeout(timer); reject(abortError()); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /// One routing server's answer. A failure that another server may not share (no connection, no answer in time,
 /// HTTP 5xx or 429) is marked `retry`; an answer such as NoRoute or NoSegment is not.
 async function askRouter(server, query, signal, timeout) {
-  const wait = ROUTING_SPACING.ms - (Date.now() - (routingAskedAt.get(server.base) ?? 0));
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  routingAskedAt.set(server.base, Date.now());
+  // The slot is taken before waiting, so calls that arrive together (planning while a reroute starts) still go
+  // out a second apart; a call cancelled while it waits sends nothing.
+  const now = Date.now();
+  const at = Math.max(now, (routingAskedAt.get(server.base) ?? -Infinity) + ROUTING_SPACING.ms);
+  routingAskedAt.set(server.base, at);
+  if (at > now) await pause(at - now, signal);
+  if (signal?.aborted) throw abortError();
   let res, body;
   try {
     ({ res, body } = await timed(`the ${server.name}`, timeout, signal, async (s) => {

@@ -135,10 +135,17 @@ final class AppModel {
         // -demoTraffic: a SIMULATED traffic reading, labeled "Simulated traffic", for screenshots of the traffic
         // aware arrival; Apple is never asked during a simulated drive.
         if args.contains("-demoTraffic") {
-            // After the simulated drive has reached its starting mile.
+            // Once the simulated drive has reached its starting mile. A fixed 3 second wait raced the jump to the
+            // start on slow machines: the reading was taken short of it, then dropped as passed.
+            let start = miles * Geodesy.metersPerMile
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                trip.injectDemoTraffic()
+                for _ in 0..<60 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    if let progress = trip.snapshot?.progress, progress >= start - Geodesy.metersPerMile {
+                        trip.injectDemoTraffic()
+                        break
+                    }
+                }
             }
         }
         // -demoPrices: SIMULATED gas prices at the first stations ahead, labeled "Simulated test data" wherever
