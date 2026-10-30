@@ -307,7 +307,26 @@ public enum GasPrices {
         public var dailyBudget = 24
         /// An exit is looked up again after this long; Google's answer is kept in memory this long, never saved.
         public var refreshMinutes = 60.0
+        /// The exits considered are chosen again only on another screen or after this many miles of driving.
+        public var cohortMiles = 5.0
         public init() {}
+    }
+
+    /// The exits the automatic lookups consider: the first perPass distinct exits ahead of build() (most relevant
+    /// first), chosen once per key (the screen and every cohortMiles of progress). Google's answers reorder the
+    /// ranking (a station it lists closed at arrival drops out), so choosing again on every update would pull in
+    /// exit after exit while the driver stays on one screen. Same as lookupCohort in web/js/engine/gasprices.js.
+    public struct LookupCohort: Sendable, Equatable {
+        public let key: String
+        public let ids: [String]
+
+        public static func choose(_ previous: LookupCohort?, key: String, rules: AutoLookupRules = AutoLookupRules(),
+                                  build: () -> [(id: String, ahead: Double)]) -> LookupCohort {
+            if let previous, previous.key == key { return previous }
+            var ids: [String] = []
+            for e in build() where ids.count < rules.perPass && e.ahead > 0 && !ids.contains(e.id) { ids.append(e.id) }
+            return LookupCohort(key: key, ids: ids)
+        }
     }
 
     /// Which exits to look up on Google now. exits: (id, meters ahead), most relevant first, only exits the
