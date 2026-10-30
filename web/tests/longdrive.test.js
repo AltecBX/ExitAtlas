@@ -10,6 +10,7 @@ import { GPSSimulator } from '../js/engine/discovery.js';
 import { PlannedRoute, TravelTimeProfile, highwayLabel, parseHighways } from '../js/engine/route.js';
 import { nextManeuver } from '../js/engine/guidance.js';
 import { RoutePolyline } from '../js/engine/geo.js';
+import { osrmRouteQuery } from '../js/engine/osrm.js';
 import { ReroutePacer, REROUTE_PACING } from '../js/app/reroute.js';
 
 const DS = { states: data.states, timeZones: null, interstates: null };
@@ -273,4 +274,15 @@ test('reroute pacing: at least 2 minutes apart, backing off while new routes are
   assert.equal(pacer.allow(last + 240), true, 'back to 2 minutes after a followed route');
   pacer.reset();
   assert.equal(pacer.allow(0), true, 'a new trip starts with no wait');
+});
+
+test('reroute request: the course goes to OSRM as the first coordinate\'s bearing, nothing else changes', () => {
+  const w = (lat, lon) => ({ name: 'x', coordinate: { lat, lon } });
+  const three = [w(40.9, -73.9), w(39.7, -75.5), w(28.5, -81.4)];
+  const plain = osrmRouteQuery(three, { alternatives: false });
+  assert.equal(plain, '-73.900000,40.900000;-75.500000,39.700000;-81.400000,28.500000?overview=full&geometries=polyline6&steps=true&annotations=duration&alternatives=false');
+  assert.equal(osrmRouteQuery(three, { alternatives: false, bearing: 196.6 }), `${plain}&bearings=197,45;;`);
+  assert.equal(osrmRouteQuery(three.slice(0, 2), { alternatives: false, bearing: 359.7 }).split('&bearings=')[1], '0,45;');
+  assert.ok(!osrmRouteQuery(three, { bearing: null }).includes('bearings'));
+  assert.match(osrmRouteQuery(three.slice(0, 2)), /alternatives=3$/);
 });

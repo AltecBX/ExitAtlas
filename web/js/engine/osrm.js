@@ -1,6 +1,27 @@
 // Builds PlannedRoute objects from OSRM responses and from the bundled route JSON files.
-import { RoutePolyline, decodePolyline } from './geo.js';
+import { RoutePolyline, decodePolyline, normalizedDegrees } from './geo.js';
 import { PlannedRoute, TravelTimeProfile, makeStep } from './route.js';
+
+/// Degrees either side of the driver's course a reroute's start may snap to.
+export const START_BEARING_RANGE = 45;
+
+/// Path and query of an OSRM route request (geometries=polyline6, steps, duration annotations).
+/// `bearing`: the driver's course in degrees, or null. When given, the first coordinate only snaps to a road
+/// heading that way (OSRM `bearings=value,range;;`), so a reroute from a drifted fix does not start on the
+/// opposite carriageway.
+export function osrmRouteQuery(waypoints, { alternatives = true, bearing = null } = {}) {
+  const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
+  const params = new URLSearchParams({
+    overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
+    alternatives: alternatives && waypoints.length === 2 ? '3' : 'false',
+  });
+  let query = `${coords}?${params}`;
+  if (Number.isFinite(bearing)) {
+    const first = `${Math.round(normalizedDegrees(bearing)) % 360},${START_BEARING_RANGE}`;
+    query += `&bearings=${[first, ...waypoints.slice(1).map(() => '')].join(';')}`;
+  }
+  return query;
+}
 
 /// Points plus per segment durations, dropping zero length segments (their time moves to the
 /// previous segment) so durations stay aligned with the polyline the engine builds.

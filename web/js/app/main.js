@@ -1162,8 +1162,17 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   render();
   const waypoints = remainingWaypoints();
   const here = { name: 'Current location', coordinate: sample.coordinate };
+  // Start on the road going the driver's way when the course is known at driving speed.
+  const bearing = sample.course != null && (sample.speed ?? 0) >= 3 ? sample.course : null;
   try {
-    const [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
+    let route;
+    try {
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false, bearing });
+    } catch (e) {
+      // No road that way near the fix (OSRM NoSegment): ask once more without the course.
+      if (bearing === null || !/segment/i.test(e.message)) throw e;
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
+    }
     if (!route || !app.session || app.mode !== 'trip') return;
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());
