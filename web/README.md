@@ -35,6 +35,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 The page needs HTTPS (Safari only gives GPS to secure pages) and must be served together with the repository's `App/ExitAtlas/Resources/Data` folder.
 
 * GitHub Pages (recommended, stable link): repository Settings, Pages, Build and deployment, Source "Deploy from a branch", branch with this code, folder "/ (root)". The app is then at `https://<owner>.github.io/ExitAtlas/web/`. The `.nojekyll` file at the root serves files as they are.
+* Updates: the service worker serves the app from the set it precached for its version, so a phone sees a deploy only when `web/sw.js` changes. After changing any app file run `node web/tests/swhash.js --write` (it sets `APP_HASH`, which names the new version; `npm test` fails until it matches). Phones install the new version on their next visit online and show it from the load after.
 * Immediate link with no setup: `https://rawcdn.githack.com/<owner>/ExitAtlas/<commit>/web/index.html`. githack shows a one time "Open the page" step (with an ad) before the app; data files are redirected to raw.githubusercontent.com. Each commit has its own link.
 
 ## Run locally
