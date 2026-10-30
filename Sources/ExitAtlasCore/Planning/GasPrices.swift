@@ -254,26 +254,32 @@ public enum GasPrices {
         public let brandRank: Int?
         public let recommendedRank: Int?
         public let price: StationPrice?
-        public init(id: String, ahead: Double, detourMinutes: Double?, brandRank: Int?, recommendedRank: Int?, price: StationPrice?) {
+        /// The range left does not reach it.
+        public let beyondRange: Bool
+        public init(id: String, ahead: Double, detourMinutes: Double?, brandRank: Int?, recommendedRank: Int?, price: StationPrice?,
+                    beyondRange: Bool = false) {
             self.id = id
             self.ahead = ahead
             self.detourMinutes = detourMinutes
             self.brandRank = brandRank
             self.recommendedRank = recommendedRank
             self.price = price
+            self.beyondRange = beyondRange
         }
     }
 
-    /// Orders stations for the Fuel comparison. A station without a current price never sorts as cheaper.
+    /// Orders stations for the Fuel comparison. A station without a current price never sorts as cheaper, and
+    /// one beyond the range always comes after those within it (same rule as sortStations in gasprices.js).
     public static func sort(_ rows: [Row], by sort: Sort) -> [Row] {
         let inf = Double.infinity
         func key(_ r: Row) -> [Double] {
+            let beyond: Double = r.beyondRange ? 1 : 0
             switch sort {
-            case .recommended: return [r.recommendedRank.map(Double.init) ?? inf, r.ahead]
-            case .price: return [r.price?.comparable ?? inf, r.ahead]
-            case .closest: return [r.ahead]
-            case .detour: return [r.detourMinutes ?? inf, r.ahead]
-            case .brand: return [r.brandRank.map(Double.init) ?? inf, r.ahead]
+            case .recommended: return [beyond, r.recommendedRank.map(Double.init) ?? inf, r.ahead]
+            case .price: return [beyond, r.price?.comparable ?? inf, r.ahead]
+            case .closest: return [beyond, r.ahead]
+            case .detour: return [beyond, r.detourMinutes ?? inf, r.ahead]
+            case .brand: return [beyond, r.brandRank.map(Double.init) ?? inf, r.ahead]
             }
         }
         return rows.sorted { a, b in

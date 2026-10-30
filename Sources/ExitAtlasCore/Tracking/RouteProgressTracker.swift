@@ -64,6 +64,11 @@ public struct RouteProgressTracker: Sendable {
         public var offRouteDistance: Double = 60
         public var offRouteConfirmations: Int = 3
         public var offRouteMinimumDuration: TimeInterval = 6
+        /// A miss that only puts the fix a little to the side (the route within twice the off route distance
+        /// and the course along it, or no course) is what GPS drift looks like: off route only after this long.
+        public var driftTolerance: TimeInterval = 60
+        /// Moving with a course this many degrees from the route's bearing is a departure (a ramp curving away).
+        public var departureHeading: Double = 30
         /// No fix for this long: start dead reckoning.
         public var deadReckoningAfter: TimeInterval = 4
         /// Dead reckon at most this long, then report signal lost.
@@ -80,6 +85,7 @@ public struct RouteProgressTracker: Sendable {
     private var lastAccepted: LocationSample?
     private var offRouteCount = 0
     private var firstOffRouteTime: Date?
+    private var departing = false
 
     public init(route: RoutePolyline, configuration: Configuration = Configuration(), startedAt: Date = Date()) {
         self.route = route
@@ -100,18 +106,28 @@ public struct RouteProgressTracker: Sendable {
         let moving = (sample.speed ?? 0) >= 3 && sample.course != nil
         let best = candidates.min { cost($0, sample, moving: moving) < cost($1, sample, moving: moving) }
 
-        var headingMismatch = false
+        var headingDiff = 0.0
         if let best, moving, let course = sample.course {
-            headingMismatch = Geodesy.angleDifference(course, route.bearing(at: best.distanceAlong)) > 100
+            headingDiff = Geodesy.angleDifference(course, route.bearing(at: best.distanceAlong))
         }
 
-        guard let best, best.offset <= threshold, !headingMismatch else {
-            registerMiss(sample)
+        guard let best, best.offset <= threshold, headingDiff <= 100 else {
+            // Nothing within twice the off route distance, or a course away from the route: a departure.
+            let departing = best == nil || headingDiff > configuration.departureHeading
+            registerMiss(sample, departing: departing)
+            // Beside the route and going its way: keep moving along it, marked as an estimate.
+            if !departing, let best, match.status == .onRoute, best.distanceAlong > match.distanceAlongRoute {
+                match.distanceAlongRoute = min(best.distanceAlong, route.length)
+                match.offset = best.offset
+                match.isEstimated = true
+                lastAccepted = sample
+            }
             return match
         }
 
         offRouteCount = 0
         firstOffRouteTime = nil
+        departing = false
         var distance = best.distanceAlong
         if match.status == .onRoute, distance < match.distanceAlongRoute,
            match.distanceAlongRoute - distance <= configuration.backwardTolerance {
@@ -145,6 +161,7 @@ public struct RouteProgressTracker: Sendable {
                            timestamp: date, speed: speed)
         offRouteCount = 0
         firstOffRouteTime = nil
+        departing = false
     }
 
     // MARK: Private
@@ -170,11 +187,15 @@ public struct RouteProgressTracker: Sendable {
         return c
     }
 
-    private mutating func registerMiss(_ sample: LocationSample) {
+    /// A fix that did not match. `departing`: it shows the driver leaving (far from the route or heading away),
+    /// not just drifting beside it; a run of misses counts as departing once any of them does.
+    private mutating func registerMiss(_ sample: LocationSample, departing: Bool) {
         offRouteCount += 1
         if firstOffRouteTime == nil { firstOffRouteTime = sample.timestamp }
+        if departing { self.departing = true }
         let elapsed = sample.timestamp.timeIntervalSince(firstOffRouteTime ?? sample.timestamp)
-        if offRouteCount >= configuration.offRouteConfirmations, elapsed >= configuration.offRouteMinimumDuration,
+        let required = self.departing ? configuration.offRouteMinimumDuration : configuration.driftTolerance
+        if offRouteCount >= configuration.offRouteConfirmations, elapsed >= required,
            match.status != .acquiring {
             match.status = .offRoute
             match.isEstimated = false

@@ -4,7 +4,7 @@
 // Announcements are keyed by things that survive a reroute: the state code and the odometer (driven
 // total) where the state line is expected. Segment indexes restart at 0 on every new plan, so keying
 // by index silently dropped the "Welcome to" and state line messages after a reroute.
-import { METERS_PER_MILE as MILE } from '../engine/geo.js';
+import { METERS_PER_MILE as MILE, distance as geoDistance } from '../engine/geo.js';
 import { exitTitle } from '../engine/exits.js';
 import { KIND_TITLES, restAreaTitle } from '../engine/restareas.js';
 import { spokenMiles } from './format.js';
@@ -13,8 +13,10 @@ import { ALERT_KINDS } from '../engine/roadintel.js';
 const BORDER_WARN = 5 * MILE;
 const BORDER_MIN = 0.5 * MILE;
 /// A state line warning counts as already given when one was given for the same state with an
-/// expected crossing within this many meters on the odometer (route changes move it a little).
+/// expected crossing within this many meters on the odometer (route changes move it a little),
+/// or at a crossing point within SAME_CROSSING meters (a detour off the route and back adds miles).
 const SAME_BORDER = 3 * MILE;
+const SAME_CROSSING = 2000;
 const REST_WARN = 2.5 * MILE;
 const REST_MIN = 0.4 * MILE;
 const GAP_WARN = 6 * MILE;
@@ -26,6 +28,9 @@ const ALERT_MIN = 0.3 * MILE;
 /// An alert already spoken is not spoken again when a later answer gives the same event a new id (an NWS
 /// update, or the duplicate from another feed kept this time): same kind within this distance on the odometer.
 const SAME_ALERT = 1 * MILE;
+/// "New route." after an automatic reroute is said at most once in this many seconds: a driver who keeps
+/// leaving the new route (a detour of their own) hears it once, not at every reroute 20 seconds apart.
+const REROUTE_QUIET = 120;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -96,7 +101,7 @@ export class Announcer {
 
   reset() {
     this.announcedExits = new Set();
-    this.announcedBorders = []; // {state, odometer}
+    this.announcedBorders = []; // {state, odometer, at}
     this.announcedRest = new Set();
     this.announcedGaps = new Set();
     this.announcedOpen = new Set();
@@ -104,6 +109,15 @@ export class Announcer {
     this.spokenAlerts = []; // {category, odometer}
     this.lastState = null;
     this.lastZone = null;
+    this.reroutedAt = null;
+  }
+
+  /// Says that an automatic reroute found a new route, unless it was said within REROUTE_QUIET seconds.
+  rerouted(t, text = 'New route.') {
+    if (this.reroutedAt !== null && t - this.reroutedAt < REROUTE_QUIET) return false;
+    this.reroutedAt = t;
+    this.speak(text);
+    return true;
   }
 
   get supported() {
@@ -153,9 +167,11 @@ export class Announcer {
       if (s.next && toBorder !== null && toBorder <= BORDER_WARN && toBorder > BORDER_MIN) {
         const next = stateKey(s.next.segment);
         const odometer = s.drivenTotal + toBorder;
-        const given = this.announcedBorders.some((b) => b.state === next && Math.abs(b.odometer - odometer) <= SAME_BORDER);
+        const at = s.next.segment.entryCoordinate ?? null;
+        const given = this.announcedBorders.some((b) => b.state === next && (Math.abs(b.odometer - odometer) <= SAME_BORDER
+          || (at && b.at && geoDistance(at, b.at) <= SAME_CROSSING)));
         if (!given) {
-          this.announcedBorders.push({ state: next, odometer });
+          this.announcedBorders.push({ state: next, odometer, at });
           const n = cur.exitsRemaining;
           this.speak(`${s.next.segment.displayName} state line in ${spokenMiles(toBorder)}. ${n} ${n === 1 ? 'exit remains' : 'exits remain'} in ${cur.segment.displayName}.`);
           return;

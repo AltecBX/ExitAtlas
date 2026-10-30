@@ -15,6 +15,21 @@ public struct TripSession: Sendable {
     private var hasStartedDriving = false
     private var offRouteSince: Date?
     private var recordedUpTo = 0.0
+    /// The last fix counted as driven while off the route (nil on the route).
+    private var offRouteAnchor: LocationSample?
+    /// True from a reroute (whose route starts where the driver was) until the first fix on it.
+    private var startsAtDriver = false
+
+    /// Fixes further apart than this (screen locked, tunnel) teach the pace model only when the time fits driving
+    /// all the way, no slower than the slowest pace it predicts: a stop hidden in the gap is not slow driving.
+    static let paceGapSeconds: TimeInterval = 30
+    static let slowestPace = 2.5
+    /// Off the route, a parked phone's fixes wander several meters every second. Movement counts only beyond
+    /// this (or twice the reported accuracy), and not while the reported speed says stopped.
+    static let offRouteWander = 40.0
+    static let stoppedSpeed = 1.0
+    /// Back on the route after a long gap: the route between counts as driven when it fits this speed (m/s).
+    static let gapMaxSpeed = 45.0
 
     /// Seconds off route before a reroute is requested.
     public var rerouteDelay: TimeInterval = 8
@@ -52,18 +67,39 @@ public struct TripSession: Sendable {
             recordedUpTo = current.distanceAlongRoute
             let dt = current.timestamp.timeIntervalSince(previous.timestamp)
             let moved = current.distanceAlongRoute - previous.distanceAlongRoute
-            if dt > 0, moved / dt > 2 {
-                pace.observe(expected: plan.route.timeProfile.seconds(from: previous.distanceAlongRoute,
-                                                                     to: current.distanceAlongRoute),
-                             actual: dt, meters: moved)
+            let modeled = plan.route.timeProfile.seconds(from: previous.distanceAlongRoute, to: current.distanceAlongRoute)
+            if dt > 0, moved / dt > 2, dt <= Self.paceGapSeconds || dt <= Self.slowestPace * modeled {
+                pace.observe(expected: modeled, actual: dt, meters: moved)
             }
+        } else if previous.status == .offRoute || (previous.status == .acquiring && startsAtDriver),
+                  current.status == .onRoute, let last = lastSample,
+                  sample.timestamp.timeIntervalSince(last.timestamp) >= 120, current.distanceAlongRoute > recordedUpTo,
+                  (current.distanceAlongRoute - recordedUpTo) / sample.timestamp.timeIntervalSince(last.timestamp)
+                    <= Self.gapMaxSpeed {
+            // Back on the route after a gap that hid the way back (screen locked at a stop): the route between counts.
+            ledger.recordRouteProgress(from: recordedUpTo, to: current.distanceAlongRoute,
+                                       states: plan.states, startTime: last.timestamp, endTime: current.timestamp)
+            recordedUpTo = current.distanceAlongRoute
         } else if hasStartedDriving, current.status != .onRoute, let last = lastSample,
-                  sample.horizontalAccuracy >= 0, sample.horizontalAccuracy <= 100,
-                  sample.timestamp.timeIntervalSince(last.timestamp) < 120 {
-            let meters = Geodesy.distance(last.coordinate, sample.coordinate)
-            ledger.recordOffRoute(meters: meters, region: states.region(containing: sample.coordinate), at: sample.timestamp)
+                  sample.horizontalAccuracy >= 0, sample.horizontalAccuracy <= 100 {
+            if sample.timestamp.timeIntervalSince(last.timestamp) >= 120 {
+                offRouteAnchor = sample  // the way between is unknown
+            } else if !(sample.speed.map { $0 < Self.stoppedSpeed } ?? false) {
+                let anchor = offRouteAnchor ?? last
+                offRouteAnchor = anchor
+                let meters = Geodesy.distance(anchor.coordinate, sample.coordinate)
+                if meters > max(Self.offRouteWander, 2 * sample.horizontalAccuracy) {
+                    ledger.recordOffRoute(meters: meters, region: states.region(containing: sample.coordinate),
+                                          at: sample.timestamp)
+                    offRouteAnchor = sample
+                }
+            }
         }
-        if current.status == .onRoute { hasStartedDriving = true }
+        if current.status == .onRoute {
+            hasStartedDriving = true
+            startsAtDriver = false
+            offRouteAnchor = nil
+        }
         if current.status == .offRoute {
             if offRouteSince == nil { offRouteSince = sample.timestamp }
         } else {
@@ -89,5 +125,7 @@ public struct TripSession: Sendable {
         tracker = RouteProgressTracker(route: newPlan.route.polyline, startedAt: date)
         offRouteSince = nil
         recordedUpTo = 0
+        offRouteAnchor = nil
+        startsAtDriver = true
     }
 }

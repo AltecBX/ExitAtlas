@@ -51,7 +51,8 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
   }, null)?.e;
   const places = (near?.gas ?? []).map((g, i) => ({
     id: `test-${g.id}`, displayName: { text: g.name }, location: { latitude: g.lat, longitude: g.lon },
-    fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: (411 + 10 * i) * 1e6 }, updateTime: new Date(Date.now() - 40 * 60000).toISOString() }] },
+    // The first station's price, the lowest, was updated 3 days ago: old, so never shown or sorted as the cheapest.
+    fuelOptions: { fuelPrices: [{ type: 'REGULAR_UNLEADED', price: { currencyCode: 'USD', units: '3', nanos: (411 + 10 * i) * 1e6 }, updateTime: new Date(Date.now() - (i === 0 ? 72 * 60 : 40) * 60000).toISOString() }] },
   }));
   r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ places }) });
 });
@@ -59,6 +60,9 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
 await page.goto(`${base}?demo=120`);
 await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
 await page.waitForTimeout(1500);
+// The demo starts at mile 0 and jumps to mile 120 on its first tick; a range entered before that counts the
+// 120 miles as driven (a slow runner hit this), so wait for the jump.
+await page.waitForFunction(() => (window.exitAtlas?.snapshot?.progress ?? 0) > 100 * 1609.344, null, { timeout: 30000 });
 await page.evaluate(() => {
   const a = window.exitAtlas;
   a.settings.vehicle = { id: 'test', year: 2022, make: 'Test', model: 'Car', label: 'SIMULATED test vehicle', fuel: 'R', city: 28, hwy: 39, comb: 32, tankGallons: 15.8, ev: false };
@@ -111,6 +115,29 @@ await page.waitForTimeout(300);
 await click('[data-act="ahead-filter"][data-arg="fuel"]');
 await page.waitForTimeout(4000);
 if (asked.length !== first) fail(`fresh exits were asked again (${asked.length - first} more)`);
+
+// 4b. Exit details, Google Maps prices: an old price is greyed, says "old, not compared" and comes after the current ones.
+const googleRows = await page.evaluate(() => {
+  const a = window.exitAtlas;
+  const id = [...a.prices.cache.entries()].find(([, c]) => !c.pending && !c.error && c.stations.length > 1)?.[0];
+  if (!id) return null;
+  const b = document.createElement('button');
+  b.dataset.act = 'exit';
+  b.dataset.arg = id;
+  document.body.append(b);
+  b.click();
+  b.remove();
+  const title = [...document.querySelectorAll('#sheet-body .section-title')].find((e) => e.textContent.trim() === 'Google Maps prices');
+  return title ? [...title.nextElementSibling.querySelectorAll('.item')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()) : [];
+});
+if (!googleRows?.length) fail('Exit details show no Google Maps prices for an exit Google answered');
+else {
+  const old = googleRows.map((t) => /old, not compared/.test(t));
+  if (!old.includes(true)) fail(`the 3 day old Google price is not marked old: ${googleRows.join(' | ')}`);
+  if (old.indexOf(true) >= 0 && old.slice(old.indexOf(true)).includes(false)) fail(`an old Google price sorts before a current one: ${googleRows.join(' | ')}`);
+}
+await click('[data-act="close-sheet"]');
+await page.waitForTimeout(300);
 
 // 5. The fuel stop sheet: SmartStop's pick uses a Google price when its exit was looked up.
 await click('.tabbar [data-arg="drive"]');

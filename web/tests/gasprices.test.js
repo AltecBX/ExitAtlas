@@ -67,7 +67,7 @@ test('savings against the preferred stop: same grade and payment kind, current p
   }
 });
 
-test('sorting: a station without a current price never sorts as cheaper', () => {
+test('sorting: a station without a current price never sorts as cheaper, one beyond the range never before one within it', () => {
   const rows = f.sort.rows.map((r) => ({ ...r, ahead: r.aheadMiles * MILE,
     price: r.price ? stationPrice(f.records, r.price, 'R', { now: f.now, payment: 'credit' }) : null }));
   for (const [sort, ids] of Object.entries(f.sort.expect)) assert.deepEqual(sortStations(rows, sort).map((r) => r.id), ids, sort);

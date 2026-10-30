@@ -103,7 +103,44 @@ public struct PlannedRoute: Sendable, Identifiable {
     /// The highway being driven at a distance, from provider steps, with signed direction.
     public func highway(at distance: Double) -> SignedHighway? {
         guard let step = step(at: distance), let ref = step.highways.first else { return nil }
-        return SignedHighway(ref: ref, direction: CardinalDirection.signed(for: ref, along: polyline, at: distance))
+        return SignedHighway(ref: ref, direction: direction(of: ref, at: distance))
+    }
+
+    /// Signed direction of a road at a distance. Interstates: their parity, signed over the next 25 km of
+    /// route. Other roads: the main axis of the route while on that road, so the road turned onto next (US 9
+    /// south in Yonkers, then west across the George Washington Bridge) does not change it.
+    public func direction(of ref: HighwayRef, at distance: Double) -> CardinalDirection {
+        guard ref.kind != .interstate, !steps.isEmpty else {
+            return CardinalDirection.signed(for: ref, along: polyline, at: distance)
+        }
+        return CardinalDirection.signed(for: ref, along: polyline, at: distance, within: stretch(of: ref, at: distance))
+    }
+
+    /// The stretch around `distance` on steps naming `ref`, joined across steps that name no road (ramps,
+    /// lane changes) up to `bridge` meters.
+    public func stretch(of ref: HighwayRef, at distance: Double, bridge: Double = 2_000) -> ClosedRange<Double> {
+        var lo = 0, hi = steps.count - 1
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2
+            if steps[mid].startDistance <= distance { lo = mid } else { hi = mid - 1 }
+        }
+        var first = lo, last = lo
+        var gap = 0.0
+        for k in (lo + 1)..<max(lo + 1, steps.count) {
+            if steps[k].highways.contains(ref) { last = k; gap = 0; continue }
+            gap += steps[k].length
+            if steps[k].highways.isEmpty, gap <= bridge { continue }
+            break
+        }
+        gap = 0
+        for k in stride(from: lo - 1, through: 0, by: -1) {
+            if steps[k].highways.contains(ref) { first = k; gap = 0; continue }
+            gap += steps[k].length
+            if steps[k].highways.isEmpty, gap <= bridge { continue }
+            break
+        }
+        let start = steps[first].startDistance, end = steps[last].startDistance + steps[last].length
+        return start...max(start, end)
     }
 }
 
