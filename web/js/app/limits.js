@@ -1,6 +1,7 @@
 // Posted speed limits along the route from OpenStreetMap `maxspeed` tags, via the public Valhalla
 // server's trace_attributes (FOSSGIS). The route is sampled every 100 m and fetched in 80 km chunks
 // just ahead of the driver, so a whole trip costs about one request per 50 miles.
+import { withTimeout } from './net.js';
 
 const VALHALLA = 'https://valhalla1.openstreetmap.de/trace_attributes';
 export const LIMIT_STEP = 100;
@@ -8,9 +9,12 @@ const CHUNK = 80000;
 const PREFETCH = 2 * CHUNK;
 const NOT_FETCHED = -2;
 const UNKNOWN = -1;
+/// A request with no answer by then fails (matching 80 km takes the server a few seconds at most).
+const TIMEOUT = 20000;
 
 export class SpeedLimits {
-  constructor(route, { fetchImpl = (...a) => fetch(...a), now = () => Date.now() } = {}) {
+  constructor(route, { fetchImpl = (...a) => fetch(...a), now = () => Date.now(), timeoutMs = TIMEOUT } = {}) {
+    this.timeoutMs = timeoutMs;
     this.route = route;
     this.n = Math.floor(route.length / LIMIT_STEP) + 1;
     this.mph = new Int16Array(this.n).fill(NOT_FETCHED);
@@ -75,9 +79,12 @@ export class SpeedLimits {
       filters: { attributes: ['edge.speed_limit', 'matched.edge_index', 'matched.type'], action: 'include' },
     });
     try {
-      // text/plain keeps this a simple request (no CORS preflight); Valhalla parses the JSON body.
-      const res = await this.fetchImpl(VALHALLA, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body });
-      const json = await res.json().catch(() => null);
+      // text/plain keeps this a simple request (no CORS preflight); Valhalla parses the JSON body. A stalled
+      // request fails after timeoutMs (app/net.js) and backs off like any other failure.
+      const { res, json } = await withTimeout(async (signal) => {
+        const r = await this.fetchImpl(VALHALLA, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, signal });
+        return { res: r, json: await r.json().catch(() => null) };
+      }, this.timeoutMs);
       if (!res.ok || !json) {
         if (json?.error_code === 444 || json?.error_code === 443) {
           this.mph.fill(UNKNOWN, i0, i1 + 1); // the shape could not be matched: do not ask again

@@ -1,6 +1,8 @@
 // DC fast chargers along the route from the U.S. DOE Alternative Fuels Data Center (AFDC) station
 // API, nearby-route search: one request per route. Tesla Superchargers by default.
 
+import { withTimeout } from './net.js';
+
 const AFDC = 'https://developer.nlr.gov/api/alt-fuel-stations/v1/nearby-route.json';
 export const DEMO_KEY = 'DEMO_KEY';
 
@@ -23,14 +25,17 @@ export function parseStations(json) {
 }
 
 /// Fetches chargers within 2.5 miles of the route. network: 'Tesla' or 'all'. With `proxy` (the owner's
-/// key proxy, infra/worker) the same search goes through it and no key leaves the phone.
-export async function fetchChargers(polyline, { apiKey = DEMO_KEY, network = 'Tesla', proxy = null, fetchImpl = (...a) => fetch(...a) } = {}) {
+/// key proxy, infra/worker) the same search goes through it and no key leaves the phone. A search with no
+/// answer in `timeoutMs` (a whole route can take the server several seconds) fails, so it is retried later.
+export async function fetchChargers(polyline, { apiKey = DEMO_KEY, network = 'Tesla', proxy = null, fetchImpl = (...a) => fetch(...a), timeoutMs = 45000 } = {}) {
   const body = new URLSearchParams({ route: routeWKT(polyline), distance: '2.5', fuel_type: 'ELEC', ev_charging_level: 'dc_fast', status: 'E', limit: 'all' });
   if (network === 'Tesla') body.set('ev_network', 'Tesla');
-  const res = proxy
-    ? await fetchImpl(new URL('v1/chargers', proxy), { method: 'POST', body })
-    : await fetchImpl(`${AFDC}?api_key=${encodeURIComponent(apiKey || DEMO_KEY)}`, { method: 'POST', body });
-  const json = await res.json().catch(() => null);
+  const { res, json } = await withTimeout(async (signal) => {
+    const r = proxy
+      ? await fetchImpl(new URL('v1/chargers', proxy), { method: 'POST', body, signal })
+      : await fetchImpl(`${AFDC}?api_key=${encodeURIComponent(apiKey || DEMO_KEY)}`, { method: 'POST', body, signal });
+    return { res: r, json: await r.json().catch(() => null) };
+  }, timeoutMs);
   if (res.status === 429) {
     throw new Error(proxy ? (json?.error ?? 'the daily charger lookup budget is used up') : 'charger lookups are rate limited on the demo key; add a free NREL key in Settings');
   }
