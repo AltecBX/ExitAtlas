@@ -1,6 +1,7 @@
 // Check for gas prices (docs/17): in a real browser, at phone sizes and in both themes, with SIMULATED prices
 // (?demo&prices): Road Ahead, Fuel lists every station with its price or "Price unavailable"; under Lowest
-// price no unknown or old price sorts before a current one; the cheaper stop note keeps the favorite brand;
+// price no unknown or old price sorts before a current one; a station beyond the range left says so and sorts
+// after every one the range reaches; the cheaper stop note keeps the favorite brand;
 // nothing offers Report a price (removed Oct 30, 2026) and Station details link to the consumer price pages in a
 // new tab, never in a frame; the price book still refuses a bad price and stores no position; and no paid
 // Google request is made even with a Google key stored, because Google Maps prices are off by default.
@@ -90,6 +91,24 @@ for (const [label, width, height] of SIZES) {
     if (firstOther >= 0 && sorted.slice(firstOther).some((x) => x.kind === 'current')) fail('an unknown or old price sorts before a current one');
     const current = sorted.filter((x) => x.kind === 'current').map((x) => x.value);
     for (let i = 1; i < current.length; i++) if (current[i] < current[i - 1]) fail(`Lowest price is out of order (${current.join(', ')})`);
+
+    // With 20 miles of range and a 100 mile window, stations the range does not reach say so and come after every
+    // one it does, even under "Shell first" (a Shell beyond the range never tops the list).
+    const shortRange = async (miles, win) => {
+      await page.evaluate((m) => { const a = window.exitAtlas; a.fuel = { ...a.fuel, rangeMeters: m * 1609.344, drivenAtEntry: a.snapshot.drivenTotal, enteredAt: Date.now() / 1000 }; }, miles);
+      await click(`[data-act="exits-window"][data-arg="${win}"]`);
+      await page.waitForTimeout(400);
+    };
+    const priorWindow = await page.evaluate(() => window.exitAtlas.exitsUI.window);
+    await shortRange(20, 100);
+    for (const sort of ['brand', 'detour', 'price']) {
+      await click(`[data-act="price-sort"][data-arg="${sort}"]`);
+      await page.waitForTimeout(300);
+      const beyond = await page.evaluate(() => [...document.querySelectorAll('.pr-row')].map((r) => Boolean(r.querySelector('[data-testid="beyond-range"]'))));
+      if (!beyond.includes(true)) fail(`${sort}: no station is marked beyond a 20 mile range in a 100 mile window`);
+      if (beyond.indexOf(true) >= 0 && beyond.slice(beyond.indexOf(true)).includes(false)) fail(`${sort}: a station beyond the range sorts before one within it`);
+    }
+    await shortRange(140, priorWindow);
 
     // No Report a price anywhere; Station details link to the consumer price pages in a new tab.
     const best = await page.evaluate(() => document.querySelectorAll('.best-stop [data-act="report-price"]').length);

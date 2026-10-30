@@ -118,7 +118,8 @@ final class GasPricesTests: XCTestCase {
         let rows = f["sort"]!["rows"]!.array!.map { r in
             GasPrices.Row(id: r["id"]!.string!, ahead: r["aheadMiles"]!.number! * mile, detourMinutes: r["detourMinutes"]?.number,
                           brandRank: r["brandRank"]?.number.map { Int($0) }, recommendedRank: r["recommendedRank"]?.number.map { Int($0) },
-                          price: r["price"]?.string.flatMap { GasPrices.stationPrice(records, stationId: $0, grade: "R", now: now) })
+                          price: r["price"]?.string.flatMap { GasPrices.stationPrice(records, stationId: $0, grade: "R", now: now) },
+                          beyondRange: r["beyondRange"]?.bool ?? false)
         }
         for (sort, ids) in f["sort"]!["expect"]!.object! {
             XCTAssertEqual(GasPrices.sort(rows, by: GasPrices.Sort(rawValue: sort)!).map(\.id), ids.array!.map { $0.string! }, sort)
