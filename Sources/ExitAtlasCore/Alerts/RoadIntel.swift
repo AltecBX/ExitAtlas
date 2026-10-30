@@ -181,6 +181,9 @@ public enum RoadIntel {
         public var lineBearing = 60.0
         public var areaStep = 1000.0
         public var duplicate = 800.0
+        /// An area alert known only at sample points (every 25 miles) still stands for the road this far past a
+        /// point the driver has passed (half the spacing), until the next answer moves the points.
+        public var pointsReach = 12.5 * Geodesy.metersPerMile
         public init() {}
     }
 
@@ -310,10 +313,13 @@ public enum RoadIntel {
         case nil: return .rejected("no location")
         case .point(let c): return placePoint(c, i, route, progress, rules)
         case .points(let cs):
-            let hits = cs.compactMap { route.polyline.nearestProjection(of: $0, within: rules.unnamedOffset)?.distanceAlong }.filter { $0 >= progress }
-            guard let lo = hits.min(), let hi = hits.max() else { return .rejected("off route") }
+            let along = cs.compactMap { route.polyline.nearestProjection(of: $0, within: rules.unnamedOffset)?.distanceAlong }
+            let hits = along.filter { $0 >= progress }
+            // A point just passed (the first one is where the driver was when NWS answered): the driver is in the area.
+            let here = along.contains { $0 < progress && progress - $0 <= rules.pointsReach }
+            if hits.isEmpty && !here { return .rejected(along.isEmpty ? "off route" : "behind") }
             // Where it starts and ends between the sample points is not known, so the extent is approximate.
-            return .ahead(start: lo, end: hi, directionKnown: true, approximate: true)
+            return .ahead(start: here ? progress : hits.min()!, end: hits.max() ?? progress, directionKnown: true, approximate: true)
         case .line(let cs): return placeLine(cs, i, route, progress, rules)
         case .polygon(let rings): return placeArea(rings, route, progress, rules)
         case .route(let routeId, let from, let to):
