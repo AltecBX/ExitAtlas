@@ -167,3 +167,19 @@ test('the simulated demo alert is gone after the demo ends', () => {
   const status = roadIntel(r, 0, ra.providers(), { now: START }).status.incidents;
   assert.equal(status.state, 'notConfigured', 'crashes stay "No source connected", never "No relevant reports" from a simulation');
 });
+
+test('before any source answers (just started, or offline), Road Ahead says it is checking, not "none"', async () => {
+  const { alertStatus, alertEmptyTitle } = await import('../js/app/views.js');
+  const ra = new RoadAlerts({ fetchFn: async () => { throw new Error('should not fetch offline'); } });
+  // Offline: nothing is fetched, every group that has a source is still waiting.
+  assert.equal(await ra.refresh(plan, 40 * MILE, { online: false }), false);
+  const intel = roadIntel(r, 40 * MILE, ra.providers(), { now: START });
+  assert.equal(intel.status.weather.state, 'loading');
+  assert.match(alertStatus(intel), /Checking road alert sources/);
+  assert.doesNotMatch(alertStatus(intel), /none from connected sources/);
+  assert.equal(alertEmptyTitle(intel, 50), 'Checking road alert sources');
+  // Once the sources answered with nothing on the route: "none from connected sources".
+  const done = { ...intel, status: Object.fromEntries(Object.entries(intel.status).map(([g, st]) => [g, st.state === 'loading' ? { ...st, state: 'noRelevant' } : st])) };
+  assert.match(alertStatus(done), /none from connected sources/);
+  assert.equal(alertEmptyTitle(done, 50), 'No reports from connected sources in the next 50 miles');
+});
