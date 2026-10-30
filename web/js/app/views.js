@@ -752,13 +752,14 @@ function restAreaCard(s) {
     ${then ? `<div class="muted tiny" style="margin-top:8px">Then ${h(restAreaTitle(then.restArea))}, ${miles(then.distance)}</div>` : ''}</button>`;
 }
 
-/// Amber card when the next stretch without gas starts within 25 miles, or the driver is in one.
-function gasGapCard(app, s) {
+/// Amber card when the next stretch without gas listed starts within 25 miles, or the driver is in one. "Listed":
+/// the data can miss a station or a plaza, so a gap is never stated as fact.
+export function gasGapCard(app, s) {
   const g = app.gasGapsAhead(s).find((x) => x.from - s.progress <= 25 * MILE);
   if (!g) return '';
   const inside = !g.before || g.before.distance <= s.progress;
-  const title = inside ? `No gas for the next ${miles(g.to - s.progress)}${g.open ? '+' : ''}`
-    : `Last gas for ${miles(g.length)}${g.open ? '+' : ''}: ${h(gasStopTitle(g.before))}`;
+  const title = inside ? `No gas listed for the next ${miles(g.to - s.progress)}${g.open ? '+' : ''}`
+    : `Last gas listed for ${miles(g.length)}${g.open ? '+' : ''}: ${h(gasStopTitle(g.before))}`;
   const sub = inside ? (g.after ? `Next gas at ${h(gasStopTitle(g.after))}` : 'None listed ahead on this route')
     : `In ${miles(g.before.distance - s.progress)}${g.after ? `, then next gas at ${h(gasStopTitle(g.after))}` : ''}`;
   return `<div class="card gap-card" role="status"><span class="gap-icon" aria-hidden="true">⛽</span><div><div style="font-weight:800">${title}</div><div class="small">${sub}</div></div></div>`;
@@ -1178,11 +1179,11 @@ function stateTimelineRow(f, s) {
       ${tlDist(d, null)}</div></div>`);
 }
 
-function gapTimelineRow(g, s) {
+export function gapTimelineRow(g, s) {
   const where = g.before ? `After ${h(gasStopTitle(g.before))}` : 'From here';
-  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', none listed beyond' : ', none before your destination';
+  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', none listed beyond' : ', none listed before your destination';
   return tlRow('gap', `<div class="tl-card gap"><div class="tl-head"><span class="al-icon" aria-hidden="true">⛽</span>
-    <div class="main"><div class="t">No gas for ${miles(g.length)}${g.open ? '+' : ''}</div><div class="muted small">${where}${next}</div></div>
+    <div class="main"><div class="t">No gas listed for ${miles(g.length)}${g.open ? '+' : ''}</div><div class="muted small">${where}${next}</div></div>
     ${tlDist(Math.max(0, g.from - s.progress), null)}</div></div>`);
 }
 

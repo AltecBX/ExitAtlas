@@ -109,7 +109,7 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   a2.consider(fake(exit.distanceAlongRoute - 10 * MILE), all, { gasGap: gap });
   a2.consider(fake(exit.distanceAlongRoute - 5 * MILE), all, { gasGap: gap });
   a2.consider(fake(exit.distanceAlongRoute - 4 * MILE), all, { gasGap: gap });
-  assert.deepEqual(said, [`Last gas for 62 miles is Exit ${exit.label}, in 5 miles.`]);
+  assert.deepEqual(said, [`Last gas listed for 62 miles is Exit ${exit.label}, in 5 miles.`]);
   a2.consider(fake(exit.distanceAlongRoute - 3 * MILE), { ...all, announceGasGaps: false }, { gasGap: { ...gap, before: { ...gap.before, exit: { ...exit, id: 'other' } } } });
   assert.equal(said.length, 1);
 

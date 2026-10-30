@@ -1,0 +1,18 @@
+{
+ "comment": "Toll road service plazas that restareas.json misses or lists without fuel: plazas mapped after the OpenInterstate extract, service areas tagged highway=rest_area (build_rest_areas.py only looks for gas at highway=services plazas), and plazas whose fuel station OpenInterstate did not link. add_plazas.py reads each one's current tags and geometry, and the fuel, food and chargers around it, from the OpenStreetMap API. Names come from OpenStreetMap; the names listed here (from the operators) are only for review. Ids found with Nominatim and the OSM API on 2026-10-30.",
+ "facilities": [
+  {"osm": "way/1040148802", "name": "Vince Lombardi Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/193904383", "name": "Alexander Hamilton Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/839897412", "name": "Thomas Edison Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/915316915", "name": "Grover Cleveland Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/356333173", "name": "Joyce Kilmer Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/1537507737", "name": "Molly Pitcher Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/789619678", "name": "Richard Stockton Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/789619674", "name": "Woodrow Wilson Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/424156995", "name": "Walt Whitman Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/1132327984", "name": "Clara Barton Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/1132327980", "name": "John Fenwick Service Area", "road": "New Jersey Turnpike", "operator": "New Jersey Turnpike Authority"},
+  {"osm": "way/131944810", "name": "Maryland House", "road": "I-95 (John F. Kennedy Memorial Highway)", "operator": "Maryland Transportation Authority"},
+  {"osm": "way/257649225", "name": "Chesapeake House", "road": "I-95 (John F. Kennedy Memorial Highway)", "operator": "Maryland Transportation Authority"}
+ ]
+}

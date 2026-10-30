@@ -164,7 +164,7 @@ export class Announcer {
       if (ahead > 0 && ahead <= GAP_WARN && key && !this.announcedGaps.has(key)) {
         this.announcedGaps.add(key);
         const where = gap.before.exit ? exitTitle(gap.before.exit) : restAreaTitle(gap.before.restArea);
-        this.speak(`Last gas for ${spokenMiles(gap.length)} is ${where}, in ${spokenMiles(ahead)}.`);
+        this.speak(`Last gas listed for ${spokenMiles(gap.length)} is ${where}, in ${spokenMiles(ahead)}.`);
         return;
       }
     }

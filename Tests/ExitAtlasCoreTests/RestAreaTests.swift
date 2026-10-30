@@ -56,6 +56,20 @@ final class RestAreaTests: XCTestCase {
         XCTAssertTrue(usRoute.isEmpty)
     }
 
+    /// Southbound on the New Jersey Turnpike and I-95 to Maryland, every service plaza lists its fuel
+    /// (tools/data-pipeline/plazas_supplement.json), as in web/tests/restareas.test.js.
+    func testSouthboundTollRoadPlazasListFuel() {
+        let points = Fixtures.route("miami_to_manhattan").polyline.points
+        let south = RestAreaMatcher().match(route: RoutePolyline(points: points.reversed()), dataset: Fixtures.restAreas)
+        let plazas = south.filter { !$0.gas.isEmpty && $0.distanceAlongRoute < 170 * mile }
+        XCTAssertEqual(plazas.map(\.name), ["Alexander Hamilton Service Area", "Thomas Edison Service Area", "Molly Pitcher Service Area",
+                                            "Richard Stockton Travel Plaza", "Walt Whitman Service Area", "Clara Barton Service Area",
+                                            "I-95 Delaware Service Plaza", "Chesapeake House", "Maryland House Service Area"])
+        for r in plazas { XCTAssertEqual(r.kind, .plaza, r.name); XCTAssertTrue(r.gas.contains("Sunoco"), r.name) }
+        for (a, b) in zip(plazas, plazas.dropFirst()) { XCTAssertLessThan(b.distanceAlongRoute - a.distanceAlongRoute, 30 * mile, b.name) }
+        for name in ["Joyce Kilmer", "Grover Cleveland", "Woodrow Wilson", "John Fenwick"] { XCTAssertEqual(named(south, name).count, 0, name) }
+    }
+
     func testGasGaps() {
         let stops = [10.0, 20, 75, 80].map { GasGaps.Stop(distance: $0 * mile) }
         let gaps = GasGaps.find(stops: stops, from: 0, to: 150 * mile, minimum: 40 * mile, routeLength: 500 * mile)
