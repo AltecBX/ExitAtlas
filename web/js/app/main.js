@@ -1270,7 +1270,7 @@ async function runDemo({ mile = 355, alert = false, prices = false } = {}) {
       const now = Date.now() / 1000;
       app.roadAlerts.demoIncidents = [{
         id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', source: { id: 'demo', name: 'Simulated test alert' },
-        verification: 'official', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
+        verification: 'simulated', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
         geometry: { type: 'point', coordinate: route.polyline.coordinateAt(d) }, road: hw ? `${hw.ref.prefix}-${hw.ref.number}` : null,
         direction: hw?.direction ?? null, lanes: 'Right lane blocked', severity: 'major',
       }];

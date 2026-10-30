@@ -166,6 +166,12 @@ test('a road alert is spoken once even when a later answer gives the same event 
   assert.deepEqual(said.slice(1), ['Crash ahead, in 1 mile.', 'Work zone ahead, in 2 miles.'], said.join(' | '));
 });
 
+test('the demo alert is spoken as a simulated test alert, never as a real event', async () => {
+  const { alertWords } = await import('../js/app/announcer.js');
+  const a = { incident: { id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', lanes: 'Right lane blocked', verification: 'simulated' }, start: 6 * MILE };
+  assert.equal(alertWords(a, 6 * MILE), 'Crash ahead, in 6 miles. Right lane blocked. Simulated test alert.');
+});
+
 test('the voice switch: on says so (Safari lets speech play after a tap), off stops what is queued', () => {
   const said = [];
   let cancelled = 0;

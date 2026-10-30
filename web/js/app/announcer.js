@@ -222,5 +222,6 @@ export function alertWords(a, ahead) {
   let text = `${label}, in ${spokenMiles(ahead)}.`;
   if (i.lanes) text += ` ${i.lanes}.`;
   if (i.verification === 'community') text += ' Reported by drivers, not confirmed.';
+  if (i.verification === 'simulated') text += ' Simulated test alert.';
   return text;
 }
