@@ -21,6 +21,7 @@ import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
 import { FocusStabilizer } from '../engine/dashboard.js';
+import { ReroutePacer } from './reroute.js';
 import { NavMap } from './navmap.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -54,7 +55,7 @@ const app = {
   data: null, corridors: null, corridorsLoading: null,
   tab: 'drive', mode: 'idle', gps: 'device',
   // The adaptive Drive card, held steady between readings; the Navigation View map (created on first use).
-  focusStabilizer: new FocusStabilizer(), navMap: null,
+  focusStabilizer: new FocusStabilizer(), navMap: null, reroutePacer: new ReroutePacer(),
   plan: null, session: null, snapshot: null,
   discovery: null, discoveryStatus: 'Waiting for highway speed',
   isRerouting: false, lastError: null, lastFixAt: null,
@@ -942,6 +943,7 @@ function resetTripState() {
   app.limits = null;
   app.lastSpeed = null;
   app.focusStabilizer.reset();
+  app.reroutePacer.reset();
   if (app.navMap) app.navMap.following = true;
 }
 
@@ -1063,6 +1065,7 @@ function handleSample(sample, shouldRender) {
   if (app.mode === 'trip' && app.session) {
     const snap = app.session.ingest(sample);
     publish(snap);
+    app.reroutePacer.observe(snap);
     if (app.session.needsReroute(sample.t)) reroute(sample);
     persistIfDue(sample.t);
   } else if (app.mode === 'discovery') {
@@ -1151,14 +1154,25 @@ function remainingWaypoints() {
 
 async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') return;
-  if (!force && app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return;
+  // Automatic reroutes are paced (app/reroute.js): at least 2 minutes apart, longer while each new route is left.
+  if (!force && !app.reroutePacer.allow(sample.t)) return;
+  if (!force) app.reroutePacer.started(sample.t);
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
   render();
   const waypoints = remainingWaypoints();
   const here = { name: 'Current location', coordinate: sample.coordinate };
+  // Start on the road going the driver's way when the course is known at driving speed.
+  const bearing = sample.course != null && (sample.speed ?? 0) >= 3 ? sample.course : null;
   try {
-    const [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
+    let route;
+    try {
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false, bearing });
+    } catch (e) {
+      // No road that way near the fix (OSRM NoSegment): ask once more without the course.
+      if (bearing === null || !/segment/i.test(e.message)) throw e;
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
+    }
     if (!route || !app.session || app.mode !== 'trip') return;
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());

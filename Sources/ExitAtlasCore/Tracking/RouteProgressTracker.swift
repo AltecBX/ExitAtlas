@@ -67,6 +67,9 @@ public struct RouteProgressTracker: Sendable {
         /// A miss that only puts the fix a little to the side (the route within twice the off route distance
         /// and the course along it, or no course) is what GPS drift looks like: off route only after this long.
         public var driftTolerance: TimeInterval = 60
+        /// A route never joined (a new route the driver does not take, a trip started away from its route) is off
+        /// route after this many seconds of driving (3 m/s or more) without reaching it, so it gets rerouted.
+        public var acquireTimeout: TimeInterval = 60
         /// Moving with a course this many degrees from the route's bearing is a departure (a ramp curving away).
         public var departureHeading: Double = 30
         /// No fix for this long: start dead reckoning.
@@ -86,6 +89,8 @@ public struct RouteProgressTracker: Sendable {
     private var offRouteCount = 0
     private var firstOffRouteTime: Date?
     private var departing = false
+    private var movingMiss: TimeInterval = 0
+    private var lastMissTime: Date?
 
     public init(route: RoutePolyline, configuration: Configuration = Configuration(), startedAt: Date = Date()) {
         self.route = route
@@ -128,6 +133,8 @@ public struct RouteProgressTracker: Sendable {
         offRouteCount = 0
         firstOffRouteTime = nil
         departing = false
+        movingMiss = 0
+        lastMissTime = nil
         var distance = best.distanceAlong
         if match.status == .onRoute, distance < match.distanceAlongRoute,
            match.distanceAlongRoute - distance <= configuration.backwardTolerance {
@@ -162,6 +169,8 @@ public struct RouteProgressTracker: Sendable {
         offRouteCount = 0
         firstOffRouteTime = nil
         departing = false
+        movingMiss = 0
+        lastMissTime = nil
     }
 
     // MARK: Private
@@ -194,9 +203,13 @@ public struct RouteProgressTracker: Sendable {
         if firstOffRouteTime == nil { firstOffRouteTime = sample.timestamp }
         if departing { self.departing = true }
         let elapsed = sample.timestamp.timeIntervalSince(firstOffRouteTime ?? sample.timestamp)
+        if (sample.speed ?? 0) >= 3, let last = lastMissTime {
+            movingMiss += min(max(sample.timestamp.timeIntervalSince(last), 0), 5)
+        }
+        lastMissTime = sample.timestamp
         let required = self.departing ? configuration.offRouteMinimumDuration : configuration.driftTolerance
-        if offRouteCount >= configuration.offRouteConfirmations, elapsed >= required,
-           match.status != .acquiring {
+        if offRouteCount >= configuration.offRouteConfirmations,
+           match.status == .acquiring ? movingMiss >= configuration.acquireTimeout : elapsed >= required {
             match.status = .offRoute
             match.isEstimated = false
         }

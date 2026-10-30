@@ -1,6 +1,6 @@
 // Browser services: bundled data, OSRM routing, place search, GPS, voice, wake lock and storage.
 import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
-import { routeFromOSRM } from '../engine/osrm.js';
+import { routeFromOSRM, osrmRouteQuery } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
 import { StationFacts } from './smartstops.js';
 import { DiscoverDataset } from '../engine/discover.js';
@@ -142,15 +142,11 @@ function checkSwitch(service, name) {
   if (serviceSwitches.disabled.includes(service)) throw new Error(`${name} is switched off on the ExitAtlas server for now`);
 }
 
-/// Routes through the waypoints. Alternatives only exist without stops.
-export async function fetchRoutes(waypoints, { alternatives = true, signal } = {}) {
+/// Routes through the waypoints. Alternatives only exist without stops. `bearing`: the driver's course for the
+/// start of a reroute (engine/osrm.js osrmRouteQuery), or null.
+export async function fetchRoutes(waypoints, { alternatives = true, signal, bearing = null } = {}) {
   checkSwitch('routing', 'Routing');
-  const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
-  const params = new URLSearchParams({
-    overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
-    alternatives: alternatives && waypoints.length === 2 ? '3' : 'false',
-  });
-  const res = await fetch(`${OSRM}${coords}?${params}`, { signal });
+  const res = await fetch(`${OSRM}${osrmRouteQuery(waypoints, { alternatives, bearing })}`, { signal });
   const body = await res.json().catch(() => null);
   if (!res.ok || !body || body.code !== 'Ok') {
     throw new Error(body?.message || `routing server error (HTTP ${res.status})`);

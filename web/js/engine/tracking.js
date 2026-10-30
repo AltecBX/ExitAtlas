@@ -14,6 +14,9 @@ export const TrackerConfig = Object.freeze({
   driftTolerance: 60,
   /// Moving with a course this many degrees from the route's bearing is a departure (a ramp curving away).
   departureHeading: 30,
+  /// A route never joined (a new route the driver does not take, a trip started away from its route) is off
+  /// route after this many seconds of driving (3 m/s or more) without reaching it, so it gets rerouted.
+  acquireTimeout: 60,
   deadReckoningAfter: 4,
   deadReckoningLimit: 180,
   backwardTolerance: 40,
@@ -29,6 +32,8 @@ export class RouteProgressTracker {
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
     this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
   }
 
   ingest(sample) {
@@ -62,6 +67,8 @@ export class RouteProgressTracker {
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
     this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
     let distance = best.distanceAlong;
     const m = this.match;
     if (m.status === 'onRoute' && distance < m.distanceAlongRoute && m.distanceAlongRoute - distance <= cfg.backwardTolerance) {
@@ -93,6 +100,8 @@ export class RouteProgressTracker {
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
     this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
   }
 
   cost(p, sample, moving) {
@@ -124,9 +133,12 @@ export class RouteProgressTracker {
     if (this.firstOffRouteTime === null) this.firstOffRouteTime = sample.t;
     if (departing) this.departing = true;
     const elapsed = sample.t - this.firstOffRouteTime;
+    if ((sample.speed ?? 0) >= 3 && this.lastMissT !== null) this.movingMiss += Math.min(Math.max(sample.t - this.lastMissT, 0), 5);
+    this.lastMissT = sample.t;
     const m = { ...this.match };
     const required = this.departing ? cfg.offRouteMinimumDuration : cfg.driftTolerance;
-    if (this.offRouteCount >= cfg.offRouteConfirmations && elapsed >= required && m.status !== 'acquiring') {
+    const confirmed = this.offRouteCount >= cfg.offRouteConfirmations;
+    if (confirmed && (m.status === 'acquiring' ? this.movingMiss >= cfg.acquireTimeout : elapsed >= required)) {
       m.status = 'offRoute';
       m.isEstimated = false;
     }
