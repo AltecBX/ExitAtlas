@@ -1,7 +1,10 @@
 // Offline cache. App files: network first, cache fallback, so updates arrive when online.
 // Datasets (URLs carry the file's hash from manifest.json): cache first, keeping the newest two versions of
 // each file so the app can fall back to the last good one. The manifest itself: network first.
-const CACHE = 'exitatlas-v32';
+// The datasets have their own cache that an app update keeps, so a deploy never leaves the phone without
+// its offline data (about 16 MB that would otherwise download again, or fail to, on the road).
+const CACHE = 'exitatlas-v33';
+const DATA_CACHE = 'exitatlas-data';
 const APP_FILES = [
   './', 'index.html', 'css/tokens.css', 'css/app.css', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
   'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/pricebook.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weathericons.js', 'js/app/navmap.js',
@@ -14,9 +17,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
 });
 
+// Older ExitAtlas caches go, after their datasets move to the data cache. Other caches on this host are left
+// alone: github.io serves every project of an account from the same origin.
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('exitatlas-') && k !== CACHE && k !== DATA_CACHE).map(async (k) => {
+      await keepData(await caches.open(k));
+      await caches.delete(k);
+    })))
     .then(() => self.clients.claim()));
 });
 
@@ -28,13 +36,13 @@ self.addEventListener('fetch', (event) => {
   const isData = url.pathname.includes('/Resources/Data/');
   if (isData && url.pathname.endsWith('/manifest.json')) {
     event.respondWith(fetch(req).then((res) => {
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(url.pathname, copy)); }
+      if (res.ok) { const copy = res.clone(); caches.open(DATA_CACHE).then((c) => c.put(url.pathname, copy)); }
       return res;
     }).catch(() => caches.match(url.pathname).then((hit) => hit || Response.error())));
     return;
   }
   if (isData) {
-    event.respondWith(caches.open(CACHE).then(async (cache) => {
+    event.respondWith(caches.open(DATA_CACHE).then(async (cache) => {
       const hit = await cache.match(req);
       if (hit) return hit;
       const res = await fetch(req);
@@ -59,6 +67,16 @@ self.addEventListener('fetch', (event) => {
 async function isAppFile(res) {
   if (!(res.headers.get('content-type') ?? '').includes('text/html')) return true;
   return (await res.text()).includes('js/app/main.js');
+}
+
+/// Copies the datasets (and the data manifest) of an older cache into the data cache, unless already there.
+async function keepData(old) {
+  const data = await caches.open(DATA_CACHE);
+  for (const req of await old.keys()) {
+    if (!new URL(req.url).pathname.includes('/Resources/Data/') || await data.match(req)) continue;
+    const res = await old.match(req);
+    if (res) await data.put(req, res);
+  }
 }
 
 /// Keeps the two newest cached versions of a data file (the current one and the last good one).
