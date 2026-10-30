@@ -56,7 +56,9 @@ for (const [label, width, height] of SIZES) {
     if (all.urgent !== 1) fail(`All shows ${all.urgent} urgent alerts, expected the simulated crash`);
     for (const f of ['fuel', 'rest', 'food', 'lodging', 'ev', 'dog']) {
       await click(`[data-act="ahead-filter"][data-arg="${f}"]`);
-      await page.waitForTimeout(250);
+      // Wait for the filtered list itself (its chip pressed), not a fixed time: a slow runner can take longer.
+      for (let i = 0; i < 40 && !(await page.evaluate((k) => document.querySelector(`.ahead-filters [data-arg="${k}"]`)?.getAttribute('aria-pressed') === 'true', f)); i++) await page.waitForTimeout(125);
+      await page.waitForTimeout(100);
       const r = await page.evaluate(() => ({ urgent: document.querySelectorAll('.tl-alert.tier-urgent').length, note: document.querySelector('.filter-note')?.textContent ?? '',
         scrollWidth: document.documentElement.scrollWidth, width: innerWidth }));
       if (r.urgent !== 1) fail(`${f} filter hides the urgent alert`);

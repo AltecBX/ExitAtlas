@@ -297,4 +297,29 @@ public enum GasPrices {
     public static func paddFor(_ state: String) -> String? {
         padd.first { $0.value.contains(state) }?.key
     }
+
+    // MARK: Google Maps prices without a tap (docs/17)
+
+    public struct AutoLookupRules: Sendable, Equatable {
+        /// The most relevant exits on screen considered at a time (one Google request each)...
+        public var perPass = 4
+        /// ...and lookups a day on this device without a tap, leaving the rest of the 30 for station details.
+        public var dailyBudget = 24
+        /// An exit is looked up again after this long; Google's answer is kept in memory this long, never saved.
+        public var refreshMinutes = 60.0
+        public init() {}
+    }
+
+    /// Which exits to look up on Google now. exits: (id, meters ahead), most relevant first, only exits the
+    /// driver is looking at (Google does not allow pre-fetching). lastLookup: when each exit was last looked up.
+    /// Only the first perPass exits ahead are considered, so prices that reorder the list cannot start a chain
+    /// of lookups. Returns their ids that are due, within the daily budget. Same as autoLookups in
+    /// web/js/engine/gasprices.js.
+    public static func autoLookups(_ exits: [(id: String, ahead: Double)], now: Date, usedToday: Int,
+                                   lastLookup: (String) -> Date?, rules: AutoLookupRules = AutoLookupRules()) -> [String] {
+        var top: [String] = []
+        for e in exits where top.count < rules.perPass && e.ahead > 0 && !top.contains(e.id) { top.append(e.id) }
+        let due = top.filter { id in lastLookup(id).map { now.timeIntervalSince($0) >= rules.refreshMinutes * 60 } ?? true }
+        return Array(due.prefix(max(0, rules.dailyBudget - usedToday)))
+    }
 }

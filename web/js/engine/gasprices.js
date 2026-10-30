@@ -242,3 +242,30 @@ export function paddFor(state) {
   for (const [p, states] of Object.entries(PADD)) if (states.includes(state)) return String(p);
   return null;
 }
+
+export const AUTO_LOOKUP_RULES = Object.freeze({
+  /// The most relevant exits on screen considered at a time (one Google request each)...
+  perPass: 4,
+  /// ...and lookups a day on this device without a tap, leaving the rest of the 30 for station details.
+  dailyBudget: 24,
+  /// An exit is looked up again after this long; Google's answer is kept in memory this long, never saved.
+  refreshMinutes: 60,
+});
+
+/// Google Maps prices without a tap (docs/17): which exits to look up now. exits: [{id, ahead (m)}], most
+/// relevant first, only exits the driver is looking at (Google does not allow pre-fetching). lastLookup(id):
+/// when that exit was last looked up (ms), or null. Only the first perPass exits ahead are considered, so
+/// prices that reorder the list cannot start a chain of lookups. Returns their ids that are due, within the
+/// daily budget.
+export function autoLookups(exits, { now, usedToday, lastLookup }, rules = AUTO_LOOKUP_RULES) {
+  const top = [];
+  for (const e of exits) {
+    if (top.length === rules.perPass) break;
+    if (e && e.ahead > 0 && !top.includes(e.id)) top.push(e.id);
+  }
+  const due = top.filter((id) => {
+    const last = lastLookup(id);
+    return last == null || now - last >= rules.refreshMinutes * 60000;
+  });
+  return due.slice(0, Math.max(0, rules.dailyBudget - usedToday));
+}

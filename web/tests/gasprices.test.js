@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
-import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars, parseEiaSummary, benchmarkFor } from '../js/engine/gasprices.js';
+import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars, parseEiaSummary, benchmarkFor, autoLookups, AUTO_LOOKUP_RULES } from '../js/engine/gasprices.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '../../Tests/ExitAtlasCoreTests/Fixtures/prices/cases.json'), 'utf8'));
@@ -94,4 +94,20 @@ test('EIA weekly summary: regions and states by grade, context for a state, noth
   assert.equal(benchmarkFor(s, 'FL', 'R').name, 'Florida', 'a state of its own first');
   assert.equal(benchmarkFor(s, 'GA', 'P'), null, 'no premium in the summary: nothing, not the regular price');
   assert.equal(parseEiaSummary('<html>not it</html>'), null);
+});
+
+test('automatic Google lookups: the top exits on screen only, each once an hour, within the daily budget', () => {
+  const now = 10 * 3600 * 1000;
+  const seen = new Map();
+  const at = (id) => seen.get(id) ?? null;
+  const exits = [{ id: 'a', ahead: 5 * MILE }, { id: 'a', ahead: 5 * MILE }, { id: 'behind', ahead: -MILE }, { id: 'b', ahead: 9 * MILE },
+    { id: 'c', ahead: 20 * MILE }, { id: 'd', ahead: 30 * MILE }, { id: 'e', ahead: 40 * MILE }];
+  assert.deepEqual(AUTO_LOOKUP_RULES, { perPass: 4, dailyBudget: 24, refreshMinutes: 60 });
+  assert.deepEqual(autoLookups(exits, { now, usedToday: 0, lastLookup: at }), ['a', 'b', 'c', 'd'], 'repeats and exits behind are skipped');
+  for (const id of ['a', 'b', 'c', 'd']) seen.set(id, now);
+  assert.deepEqual(autoLookups(exits, { now: now + 59 * 60000, usedToday: 4, lastLookup: at }), [], 'not again within the hour, and e is not in the top 4');
+  assert.deepEqual(autoLookups(exits, { now: now + 60 * 60000, usedToday: 4, lastLookup: at }), ['a', 'b', 'c', 'd'], 'again after an hour');
+  assert.deepEqual(autoLookups(exits, { now: now + 60 * 60000, usedToday: 22, lastLookup: at }), ['a', 'b'], 'only what is left of the 24');
+  assert.deepEqual(autoLookups(exits, { now, usedToday: 24, lastLookup: () => null }), []);
+  assert.deepEqual(autoLookups(exits, { now, usedToday: 30, lastLookup: () => null }), [], 'never a negative budget');
 });

@@ -111,7 +111,7 @@ export function createHandler({ fetchImpl = (...a) => fetch(...a), cache = null,
       try { ({ lat, lon } = await request.json()); } catch { return reply(400, { error: 'expected JSON {lat, lon}' }); }
       if (!inUS(lat, lon)) return reply(400, { error: 'lat and lon must be a point in the United States' });
       const over = await spend(env, request, 'prices', now());
-      if (over) return reply(429, { error: over }, { 'Retry-After': String(secondsToMidnight(now())) });
+      if (over) return reply(429, { error: over }, { 'Retry-After': String(secondsToMidnight(now(), 'prices')) });
       const res = await fetchImpl(GOOGLE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.GOOGLE_KEY, 'X-Goog-FieldMask': GOOGLE_FIELDS },
@@ -168,15 +168,16 @@ export function config(env) {
 export async function spend(env, request, service, nowMs) {
   const store = env.BUDGET;
   if (!store) return null;
-  const day = new Date(nowMs).toISOString().slice(0, 10);
+  const day = budgetDay(service, nowMs);
   const total = Number(env[`DAILY_${service.toUpperCase()}`] ?? 0);
   const perClient = Number(env[`CLIENT_DAILY_${service.toUpperCase()}`] ?? 0);
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   const client = (await sha256(`${env.CLIENT_SALT ?? ''}:${ip}`)).slice(0, 16);
   const keys = [`${day}:${service}`, `${day}:${service}:${client}`];
   const [all, mine] = await Promise.all(keys.map(async (k) => Number(await store.get(k)) || 0));
-  if (total > 0 && all >= total) return `the daily ${service} budget for everyone is used up; it resets at midnight UTC`;
-  if (perClient > 0 && mine >= perClient) return `your daily ${service} limit is used up; it resets at midnight UTC`;
+  const reset = service === 'prices' ? 'midnight Pacific time' : 'midnight UTC';
+  if (total > 0 && all >= total) return `the daily ${service} budget for everyone is used up; it resets at ${reset}`;
+  if (perClient > 0 && mine >= perClient) return `your daily ${service} limit is used up; it resets at ${reset}`;
   const ttl = { expirationTtl: 2 * 86400 };
   await Promise.allSettled([store.put(keys[0], String(all + 1), ttl), store.put(keys[1], String(mine + 1), ttl)]);
   return null;
@@ -187,7 +188,21 @@ function inUS(lat, lon) {
   return Number.isFinite(lat) && Number.isFinite(lon) && lat > 18 && lat < 72 && lon > -180 && lon < -65;
 }
 
-function secondsToMidnight(nowMs) {
+/// Google's daily quotas reset at midnight Pacific time (docs/17), so the Google prices budget counts by the
+/// Pacific day, the same window as the quota on the key; the others count by the UTC day.
+const PACIFIC_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' });
+const PACIFIC_CLOCK = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+
+export function budgetDay(service, nowMs) {
+  return service === 'prices' ? PACIFIC_DAY.format(nowMs) : new Date(nowMs).toISOString().slice(0, 10);
+}
+
+/// Seconds until the budget day ends (for Retry-After; on the days clocks change, Pacific time is an hour off).
+function secondsToMidnight(nowMs, service = '') {
+  if (service === 'prices') {
+    const [h, m, sec] = PACIFIC_CLOCK.format(nowMs).split(':').map(Number);
+    return Math.max(1, 86400 - (h * 3600 + m * 60 + sec));
+  }
   const d = new Date(nowMs);
   return Math.max(1, Math.ceil((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - nowMs) / 1000));
 }

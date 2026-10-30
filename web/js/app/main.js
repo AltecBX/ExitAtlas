@@ -12,9 +12,9 @@ import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
-import { GasPrices, GRADES, pacificDay } from './prices.js';
+import { GasPrices, GRADES, LOOKUP_TTL, pacificDay } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
-import { benchmarkFor } from '../engine/gasprices.js';
+import { benchmarkFor, autoLookups } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
 import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
@@ -458,6 +458,7 @@ function renderNow() {
     lastViewHTML = html;
   }
   syncNavMap();
+  autoGooglePrices();
 }
 
 /// The Navigation View map: shown on the Drive tab during a trip unless the driver chose the Focus View. The
@@ -530,6 +531,7 @@ function renderSheet() {
   else if (kind === 'alert') html = V.alertSheet(app, arg);
   $('#sheet-body').innerHTML = html;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
+  if (kind === 'exit' || kind === 'station' || kind === 'fuel') { lastAutoPrices = 0; autoGooglePrices(); }
 }
 
 function closeSheet() {
@@ -715,6 +717,38 @@ function loadSharedPrices() {
   app.priceBook.loadShared([...ids]).then((changed) => { if (changed) { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); } }).catch(() => {});
 }
 
+/// Google Maps prices without a tap (docs/17), once the driver turned them on: the exits on screen, most
+/// relevant first: an exit or station sheet's own exit, SmartStop's pick and alternatives, then Road Ahead's
+/// stations in SmartStop's order (favorite brand first). Google does not allow pre-fetching, so exits that
+/// are not shown are never looked up. A few at a time, within the daily budget (AUTO_LOOKUP_RULES).
+let lastAutoPrices = 0;
+function autoGooglePrices() {
+  if (!app.prices.enabled || app.settings.vehicle?.ev || !app.plan || !app.snapshot) return;
+  const now = Date.now();
+  if (now - lastAutoPrices < 3000) return;
+  lastAutoPrices = now;
+  const progress = app.snapshot.progress;
+  const exits = [];
+  const add = (exit) => { if (exit) exits.push({ id: exit.id, ahead: exit.distanceAlongRoute - progress, exit }); };
+  const { kind, arg } = app.sheet ?? {};
+  if (kind === 'exit') add(app.plan.exits.find((e) => e.id === arg));
+  if (kind === 'station') add(app.findStation(arg)?.exit);
+  const ahead = app.tab === 'ahead' && app.mode !== 'idle' && app.exitsUI.filter === 'fuel' && !app.sheet;
+  if (kind === 'fuel' || ahead) {
+    const sm = app.smartStop();
+    for (const x of [sm?.primary, ...(sm?.alternatives ?? [])]) add(x?.exit);
+  }
+  if (ahead) {
+    const r = app.bestStopAhead(Math.max(60, app.exitsUI.window));
+    const win = app.exitsUI.window * MILE;
+    const byId = new Map((r?.stations ?? []).filter((c) => c.exit && c.ahead > 0 && c.ahead <= win).map((c) => [c.id, c]));
+    for (const id of r?.order ?? []) add(byId.get(id)?.exit);
+    for (const c of [...byId.values()].sort((a, b) => a.ahead - b.ahead)) add(c.exit);
+  }
+  const ids = autoLookups(exits, { now, usedToday: app.priceCallsToday(), lastLookup: (id) => app.prices.cache.get(id)?.at ?? null });
+  if (ids.length) loadPrices(ids.map((id) => exits.find((e) => e.id === id).exit));
+}
+
 function countPriceCall() {
   const month = new Date().toISOString().slice(0, 7);
   const c = store.get('ea.priceCalls', { month, n: 0 });
@@ -793,7 +827,7 @@ function loadPrices(exits) {
   for (const e of exits) {
     if (!e) continue;
     const c = app.prices.cache.get(e.id);
-    if (c && (c.pending || Date.now() - c.at < 15 * 60 * 1000)) continue;
+    if (c && (c.pending || Date.now() - c.at < LOOKUP_TTL)) continue;
     app.prices.load(e).then(() => { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); });
   }
 }
@@ -1351,7 +1385,7 @@ const actions = {
   },
   'close-sheet'() { closeSheet(); },
   'exits-window'(arg) { app.exitsUI.window = Number(arg); saveProfile(); lastExitsRender = 0; render(); },
-  'ahead-filter'(arg) { app.exitsUI.filter = arg || 'all'; lastExitsRender = 0; render(); },
+  'ahead-filter'(arg) { app.exitsUI.filter = arg || 'all'; lastExitsRender = 0; lastAutoPrices = 0; render(); },
   alert(arg) { openSheet('alert', arg); },
   share() {
     const text = itineraryText();
@@ -1546,7 +1580,7 @@ const actions = {
   },
   'price-delete'(arg) { app.priceBook.remove(arg); toast('Report deleted'); lastViewHTML = ''; render(); renderSheet(); },
   'google-ahead'() {
-    // The next three exits in the comparison whose Google prices were not looked up in the last 15 minutes.
+    // The next three exits in the comparison whose Google prices were not looked up in the last hour.
     const r = app.bestStopAhead(Math.max(60, app.exitsUI.window));
     const win = app.exitsUI.window * MILE;
     const seen = new Set(), exits = [];
@@ -1554,10 +1588,10 @@ const actions = {
       if (seen.has(c.exit.id)) continue;
       seen.add(c.exit.id);
       const cached = app.prices.cache.get(c.exit.id);
-      if (!cached || (!cached.pending && Date.now() - cached.at >= 15 * 60 * 1000)) exits.push(c.exit);
+      if (!cached || (!cached.pending && Date.now() - cached.at >= LOOKUP_TTL)) exits.push(c.exit);
       if (exits.length === 3) break;
     }
-    if (!exits.length) { toast('Google prices for these exits were checked in the last 15 minutes'); return; }
+    if (!exits.length) { toast('Google prices for these exits were checked in the last hour'); return; }
     loadPrices(exits);
     toast(`Checking Google Maps prices at ${exits.length} ${exits.length === 1 ? 'exit' : 'exits'}`);
   },

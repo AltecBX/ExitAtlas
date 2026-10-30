@@ -74,6 +74,8 @@ enum SmartStopText {
 struct SmartStopConfidence: View {
     let pick: SmartStop.Pick
     let overnight: Bool
+    /// Each line on one line (the Drive screen's cards).
+    var oneLine = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -82,6 +84,7 @@ struct SmartStopConfidence: View {
                 ConfidenceLine(status: pick.evaluation.restroom.rawValue, label: pick.evaluation.restroom.label)
             }
         }
+        .lineLimit(oneLine ? 1 : nil)
     }
 }
 

@@ -144,11 +144,16 @@ final class AppModel {
         // -demoPrices: SIMULATED gas prices at the first stations ahead, labeled "Simulated test data" wherever
         // they show and never saved, for screenshots of price comparison.
         if args.contains("-demoPrices") { trip.demoPrices = true }
+        // -googleFixture: Google Maps prices answered by made up TEST prices instead of Google (no key, no request),
+        // labeled simulated, for screenshots of the automatic lookups. The Google setting itself is not changed.
+        if args.contains("-googleFixture") { trip.useGoogleFixture() }
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
         // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {
             trip.setRange(miles: range, drivenAtEntry: miles * Geodesy.metersPerMile)
         }
+        // -noRange: no range reading, whatever an earlier demo launch saved.
+        if args.contains("-noRange") { trip.clearRange() }
     }
 
     /// Builds plans for route alternatives off the main thread.

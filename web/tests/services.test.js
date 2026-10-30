@@ -19,7 +19,7 @@ const placesJSON = {
   ],
 };
 
-test('Google Places prices: parsing, grade sort, one request per exit per 15 minutes', async () => {
+test('Google Places prices: parsing, grade sort, one request per exit per hour', async () => {
   const stations = parsePlaces(placesJSON);
   assert.equal(stations.length, 3);
   near(stations[0].prices.REGULAR_UNLEADED.value, 3.29);
@@ -53,10 +53,15 @@ test('Google Places prices: parsing, grade sort, one request per exit per 15 min
   assert.deepEqual(body.includedTypes, ['gas_station']);
   assert.equal(body.locationRestriction.circle.radius, 1600);
   await prices.load(exit);
-  assert.equal(calls, 1, 'cached');
-  now += 16 * 60 * 1000;
+  assert.equal(calls, 1, 'kept in memory');
+  now += 59 * 60 * 1000;
+  assert.equal(prices.peek('x1').stations.length, 3);
   await prices.load(exit);
-  assert.equal(calls, 2, 'refreshed after 15 minutes');
+  assert.equal(calls, 1, 'still within the hour');
+  now += 2 * 60 * 1000;
+  assert.equal(prices.peek('x1'), null, 'dropped after an hour');
+  await prices.load(exit);
+  assert.equal(calls, 2, 'looked up again after an hour');
   const off = new GasPrices({ getKey: () => '', allowed: () => true });
   assert.equal(off.enabled, false);
   assert.equal(await off.load(exit), null);

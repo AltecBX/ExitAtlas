@@ -102,7 +102,7 @@ Weekly averages from the EIA's public domain summary appear only as context, for
 
 ## 17.8 Google Maps prices
 
-Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default; with it on, a lookup happens only on "Check Google Maps prices" for an exit, at most once per exit per 15 minutes. Shown with Google Maps attribution in lists, never on the ExitAtlas map; held in memory only; never written to the device's reports or sent to the shared reports. Hours and the restroom field from the same lookup apply to those stations.
+Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default. With it on, the exits the driver is looking at are looked up without a tap (17.13); "Check Google Maps prices" looks up more. Each exit at most once an hour. Shown with Google Maps attribution in lists, never on the ExitAtlas map; held in memory for an hour only; never written to the device's reports or sent to the shared reports. Hours and the restroom field from the same lookup apply to those stations.
 
 ## 17.9 Settings (profile `prices` section, website and iOS)
 
@@ -167,6 +167,25 @@ iOS: the engine, profile and SmartStop changes are shared and tested; the iOS sc
 
 **Shared reports.** Tested on Cloudflare's own runtime (`wrangler dev` with a local D1): a report from one install is read by another, repeats are dropped, a report without the location check, an out of range price and other sites are refused (`infra/worker/scripts/smoke.mjs`, `web/tests/layout/share.layout.mjs`; both run in CI). Not deployed: deploying needs Jerry's Cloudflare account (README, "One click deploy").
 
-**Draft request to OpenFuel (support@openfuel.app), for Jerry to send:**
+**Request to OpenFuel (support@openfuel.app), sent by Jerry on 2026-10-30:**
 
 > Hi Anthony, I'm Jerry, and I build ExitAtlas, a free, personal, non-commercial road trip planner (web and iOS). I'd like to show drivers recent gas prices along their route, and OpenFuel's community reports would be a great fit. Would you consider giving me a free, read-only feed or periodic extract of the public price reports? I would credit OpenFuel (and OpenStreetMap where station data is used) and link back to your station pages; keep to whatever rate limits or refresh schedule you set; and use the data only to display each price with its grade, report time and source, never resold or republished. I won't scrape the site or call your backend without your OK. Thanks for building OpenFuel. Jerry
+
+## 17.13 Automatic Google Maps prices (2026-10-30)
+
+Jerry will not report prices, so the price comparison has to fill itself. The only authorized source that returns current, station level prices is Google Places (17.12); with Google Maps prices on and a key set, ExitAtlas now looks prices up by itself.
+
+**What is looked up, and when.** Google forbids pre-fetching ("You must not pre-fetch, cache, or store Places API content beyond the allowed exceptions", [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies)), so only exits on screen are looked up: Road Ahead with the Fuel filter, the fuel stop sheet, station details (and exit details on the website). Most relevant first: the sheet's own exit, SmartStop's pick and alternatives, then Road Ahead's stations in SmartStop's order (the favorite brand, Shell by default, first), then the nearest. The Drive screen asks nothing (Google prices never go on a non-Google map). Rules (`AUTO_LOOKUP_RULES` in `web/js/engine/gasprices.js`, `GasPrices.AutoLookupRules` in Swift, same tests on both):
+* only the 4 most relevant exits are considered at a time, so prices that reorder the list cannot start a chain of lookups;
+* each exit once an hour; Google's answer is kept in memory for that hour and never saved;
+* at most 24 a day without a tap, leaving 6 of the device's 30 for taps;
+* re-checked as the driver moves (every half mile while a price screen is open on iOS; on each update on the website).
+
+One lookup covers every station Google lists within 1 mile of the exit, so 4 lookups usually compare about 10 to 30 stations. Shown with the price, grade, Google's update time and "Google Maps" as the source; a station without one says "Price unavailable". SmartStop uses these prices for the cost of the fill, the detour fuel and the cheaper stop note, and never trades range, reserve, hours or restroom requirements for a lower price.
+
+**Verified with a TEST FIXTURE only.** `web/tests/layout/autoprices.layout.mjs` (Google's API answered by made up prices in Google's format) and the iOS UI test `testAutoGooglePrices` (`-googleFixture`, labeled SIMULATED PRICES) check that nothing is asked with Google off or on the Drive screen, Road Ahead, Fuel looks up at most 4 exits by itself and shows them with their source, fresh exits are not asked again, SmartStop uses them, and the daily budget stops it. That proves the app's behavior, not that a live feed exists: no real Google price has been retrieved yet, because the key needs Jerry's Google Cloud project with billing (17.12, "Approved by Jerry"). The first real lookup near Yonkers is the remaining check.
+
+**Coverage.** 24 automatic lookups a day are about two fuel decisions (each about 4 exits, refreshed once as the stop nears) plus station details. Which US stations Google has prices for is not verified until a real key runs; a station Google has no price for shows "Price unavailable".
+
+**Other sources checked again on 2026-10-30.** No Azure Maps fuel price API was found. Gemini's Grounding with Google Maps is not in the Gemini free tier (5,000 a month on the paid tier, then $14 per 1,000) and returns prices only inside generated text, which could misstate a price; not used. API marketplaces (Zyla, Apify) sell GasBuddy scrapes or state averages; not used. OpenFuel still has no API; Jerry sent the request below for a free read only feed on 2026-10-30, no reply yet.
+

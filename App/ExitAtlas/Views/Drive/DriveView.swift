@@ -297,12 +297,12 @@ private struct OvernightRestroomCard: View {
                     SmartStopSign(candidate: p.candidate)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(p.candidate.name).font(.headline).lineLimit(2)
-                        SmartStopConfidence(pick: p, overnight: true)
+                        SmartStopConfidence(pick: p, overnight: true, oneLine: true)
                         Text(SmartStopText.whereLine(p.candidate) + " · " + SmartStopText.arrival(p.candidate, now: now))
                             .font(.caption).foregroundStyle(Theme.secondaryText)
                     }
                 }
-                if let notice = r.notice { Text(notice).font(.caption).foregroundStyle(Theme.secondaryText) }
+                // The note on what is not known shows in the Restroom sheet, so the card keeps its height at night.
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()

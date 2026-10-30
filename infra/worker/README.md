@@ -30,7 +30,7 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 4. Set the budgets in `wrangler.toml`, then `wrangler deploy`.
 5. In ExitAtlas, Settings, Data and keys, enter the Worker URL (for example `https://exitatlas-proxy.<account>.workers.dev`).
 
-Cost at personal scale: the Workers Free plan (100,000 requests a day, [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)) covers it. Google bills Places calls with fuel prices as Nearby Search Enterprise + Atmosphere: 1,000 free a month, then $40 per 1,000 ([pricing](https://developers.google.com/maps/billing-and-pricing/pricing), checked 2026-10-30). `DAILY_PRICES = 30` matches the daily quota of 30 on the key's Google Cloud project, the hard cap (at most 930 a month). Do not raise either without checking current Google pricing. (Cloudflare limits checked 2026-10-28.)
+Cost at personal scale: the Workers Free plan (100,000 requests a day, [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)) covers it. Google bills Places calls with fuel prices as Nearby Search Enterprise + Atmosphere: 1,000 free a month, then $40 per 1,000 ([pricing](https://developers.google.com/maps/billing-and-pricing/pricing), checked 2026-10-30). `DAILY_PRICES = 30` matches the daily quota of 30 on the key's Google Cloud project, the hard cap (at most 930 a month), and like it resets at midnight Pacific time (the other budgets reset at midnight UTC). Do not raise either without checking current Google pricing. (Cloudflare limits checked 2026-10-28.)
 
 ## One click deploy (GitHub Actions)
 

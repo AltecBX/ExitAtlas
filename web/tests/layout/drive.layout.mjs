@@ -28,10 +28,13 @@ const base = `http://127.0.0.1:${server.address().port}/web/index.html`;
 const SIZES = [['phone', 390, 844], ['small phone', 375, 667], ['landscape', 844, 390]];
 const failures = [];
 const browser = await chromium.launch();
+// Overnight Drive Mode on shows the overnight restroom card (taller) whatever the hour; the default (Auto)
+// shows it only from midnight to 4 AM at the stop, so both are checked.
+const RUNS = [['dark', 'auto'], ['light', 'auto'], ['dark', 'on']];
 for (const [label, width, height] of SIZES) {
-  for (const scheme of ['dark', 'light']) {
+  for (const [scheme, overnight] of RUNS) {
     for (const presentation of ['map', 'focus']) {
-      const name = `${label} ${scheme} ${presentation}`;
+      const name = `${label} ${scheme}${overnight === 'on' ? ' overnight' : ''} ${presentation}`;
       const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
       const page = await ctx.newPage();
       const errors = [];
@@ -42,7 +45,15 @@ for (const [label, width, height] of SIZES) {
       await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
       await page.waitForSelector('.nav-view, .focus-view', { timeout: 60000 });
       if (presentation === 'focus') await page.evaluate(() => document.querySelector('[data-act="drive-view"][data-arg="focus"]').click());
+      if (overnight === 'on') {
+        await page.evaluate(() => {
+          const a = window.exitAtlas;
+          a.settings.overnightMode = 'on';
+          a.profile = { ...a.profile, overnight: { ...a.profile.overnight, mode: 'on' } };
+        });
+      }
       await page.waitForTimeout(1500);
+      if (overnight === 'on' && !(await page.evaluate(() => Boolean(document.querySelector('.night-card'))))) failures.push(`${name}: the overnight restroom card does not show`);
       const r = await page.evaluate((pres) => {
         const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right }; };
         const chrome = Math.max(box('.appbar').bottom, box('#banner').bottom);

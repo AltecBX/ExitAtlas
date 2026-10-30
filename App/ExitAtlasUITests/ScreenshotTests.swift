@@ -91,7 +91,8 @@ final class ScreenshotTests: XCTestCase {
         let minute = (c.hour ?? 12) * 60 + (c.minute ?? 0)
         let mile = minute >= 22 * 60 || minute < 5 * 60 + 50 ? "599" : "1035"
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-overnight", "on", "-alertsOff", "-drive", "focus"]
+        // No range reading: with one (saved by an earlier test's -demoRange) the fuel card takes the Drive card.
+        app.launchArguments = ["-demoTrip", mile, "-demoVehicle", "-noRange", "-overnight", "on", "-alertsOff", "-drive", "focus"]
         app.launch()
         XCTAssertTrue(drive(app), "Drive screen did not appear")
         let card = app.descendants(matching: .any)["lastOpenCard"].firstMatch
@@ -283,6 +284,37 @@ final class ScreenshotTests: XCTestCase {
         for _ in 0..<8 where !(row.exists && row.isHittable) { app.swipeUp() }
         XCTAssertTrue(row.exists, "Compare Prices has no row with the price")
         snap("8e Price path compare", false)
+        app.terminate()
+    }
+
+    /// Google Maps prices without a tap (docs/17), with Google answered by a TEST FIXTURE (-googleFixture: made up
+    /// prices, no key, nothing sent to Google; labeled simulated). This proves the app looks prices up by itself
+    /// and uses them, not that a live feed exists.
+    func testAutoGooglePrices() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "140", "-overnight", "auto", "-alertsOff", "-drive", "map", "-googleFixture"]
+        app.launch()
+        XCTAssertTrue(drive(app), "Drive screen did not appear")
+        sleep(3)
+        // Road Ahead, Fuel: prices appear by themselves, with Google Maps as their source.
+        app.tabBars.buttons["Ahead"].tap()
+        XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+        app.buttons["filter-fuel"].firstMatch.tap()
+        app.buttons["100 mi"].firstMatch.tap()
+        let compare = app.descendants(matching: .any)["comparePrices"].firstMatch
+        for _ in 0..<8 where !(compare.exists && compare.isHittable) { app.swipeUp() }
+        let row = app.buttons.matching(NSPredicate(format: "identifier == 'priceRow' AND label CONTAINS '$3.4' AND label CONTAINS 'Google Maps'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "No Google price loaded by itself in Compare Prices")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'SIMULATED PRICES'")).firstMatch.exists, "The test prices are not labeled simulated")
+        for _ in 0..<4 where !row.isHittable { app.swipeUp() }
+        snap("8f Automatic Google prices (TEST FIXTURE)", false)
+        // The fuel stop: SmartStop's pick and alternatives are looked up by themselves too.
+        app.tabBars.buttons["Drive"].tap()
+        sleep(1)
+        app.buttons["fuelButton"].firstMatch.tap()
+        let reason = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '$3.4' AND label CONTAINS 'a gallon'")).firstMatch
+        XCTAssertTrue(reason.waitForExistence(timeout: 20), "SmartStop does not use the automatic Google price")
+        snap("8g Automatic Google prices fuel stop (TEST FIXTURE)", false)
         app.terminate()
     }
 

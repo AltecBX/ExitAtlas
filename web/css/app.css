@@ -429,6 +429,8 @@ a.btn { text-decoration: none; }
 /* SmartStop: confidence lines (labels, never scores), reasons and what is known per facility */
 .conf { display: flex; align-items: center; gap: 6px; font-size: var(--type-caption); font-weight: 600; margin-top: 3px; }
 .conf .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text-3, var(--text-2)); }
+/* On the Drive screen each confidence line stays on one line, so the card keeps its height at night. */
+.nav-card .conf .cl, .fv-card .conf .cl { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .conf.ok .dot { background: var(--sign-green); }
 .conf.lim .dot { background: var(--amber); }
 .conf.bad { color: var(--danger); }
@@ -697,6 +699,8 @@ body.nav-mode #banner { position: relative; z-index: 15; }
   .fv-card .card, .nav-card .card { padding: 10px 12px; }
   .fv-card .card .title-md, .nav-card .card .title-md { -webkit-line-clamp: 1; font-size: 16px; }
   .nav-card .card .muted.tiny, .fv-card .card .muted.tiny { display: none; }
+  /* The overnight restroom card keeps only its restroom line on short screens (the hours line shows in the sheet). */
+  .nav-card .night-card .conf:has(+ .conf), .fv-card .night-card .conf:has(+ .conf) { display: none; }
   .guide { padding: 9px 12px; }
   .guide-dist { font-size: 26px; }
   .guide-text { font-size: 17px; -webkit-line-clamp: 1; }
