@@ -11,7 +11,7 @@
 
 /// SHA-256 over APP_FILES (each line "file sha256", web/tests/sw.test.js computes it and says the new value
 /// when an app file changes). It names this version's cache.
-const APP_HASH = 'a40a2a5b21ce2274eb9dc7a1cba00728cb4cdfba273db7b4af95d0fa74851873';
+const APP_HASH = 'e35ba82cd0afab609a15779ef324e525bcc1d07559c7768d8b001de2a466d272';
 const CACHE = `exitatlas-v34-${APP_HASH.slice(0, 12)}`;
 const DATA_CACHE = 'exitatlas-data';
 const APP_FILES = [

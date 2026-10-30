@@ -45,6 +45,14 @@ Severity: P1 would hurt the trip, P2 polish.
 | Voice | Turning voice on said nothing (Safari needs speech to start from a tap) | P2 |
 | Other | "None" shown before any alert source answered; speed limit "loading" forever; the demo alert labeled "Official source" and kept on a later real trip; stale "Will retry"; a failed "Add stop" kept silently; an unreadable saved trip froze start up; raw system error text | P2 |
 
+## Also fixed (PR #40)
+
+* Routing: when the OSRM demo server fails (no connection, no answer in time, HTTP 5xx or 429), the FOSSGIS server (`routing.openstreetmap.de`) is asked once; each server at most once a second.
+* App files come from the version's own precached set, so a reload on a weak connection opens in about 0.2 s and a deploy never mixes old and new files (cache `exitatlas-v34-<hash>`; `node web/tests/swhash.js --write` after changing an app file).
+* The route is saved only when it changes (the 30 second save went from about 370,000 characters to about 0.5 KB); trips saved by v32 and v33 still resume.
+* End asks before ending a real trip ("End this trip? It cannot be resumed after this.").
+* A new trip from Home or a recent place no longer keeps the previous trip's start and stops.
+
 ## Known limits (not defects)
 
 * Safari pauses a web page's GPS, timers and voice when the screen locks or another app is in front. ExitAtlas cannot navigate in the background; it estimates through short gaps and catches up when you return, and says how long location was paused.
@@ -53,7 +61,8 @@ Severity: P1 would hurt the trip, P2 polish.
 * Police reports: no source is connected, and the app says so.
 * Work zones: only Delaware's feed is readable from the browser; New Jersey and Maryland need the optional proxy (not deployed).
 * Speed limits show only where OpenStreetMap has them; otherwise "No limit data".
-* Routing uses free public OpenStreetMap servers (OSRM demo). If they are down, a new trip or reroute waits and says why; the route already loaded keeps working offline.
+* Routing uses free public OpenStreetMap servers (the OSRM demo server, with the FOSSGIS server as a backup). If both are down, a new trip or reroute waits and says why; the route already loaded keeps working offline.
+* FOSSGIS's usage policy (it also runs the speed limit server) asks a website to show an easily reachable contact email for its operator. The site shows none yet; adding one is Jerry's decision.
 * The interstate direction letter can be wrong on short stretches (for example I-95 on the George Washington Bridge).
 * Overnight, a station listed open outranks a rest area with no listed hours (documented rule).
 * Home Screen web apps keep storage separate from Safari: a profile set up in Safari is not in the Home Screen copy until exported and imported.
@@ -78,5 +87,5 @@ Severity: P1 would hurt the trip, P2 polish.
 6. Before driving: enter the destination, pick the route, Start. Then enter miles to empty from the dashboard (or "I filled up").
 7. Tap the screen once after starting so Safari allows the screen to stay on and the voice to speak. If "Screen may lock" shows, tap it.
 8. While driving: keep ExitAtlas in front. If you switch apps or the screen locks, location pauses until you come back.
-9. If Safari reloads or you closed the tab: open the site again and tap Resume (not a new trip); progress and miles come back.
+9. If Safari reloads or you closed the tab: open the site again and tap Resume (not a new trip); progress and miles come back. End asks before it ends the trip, so a mis tap is harmless.
 10. In a dead zone: the route, exits, stations and rest areas stay available; alerts and weather show as unavailable, never as clear. When signal returns, they refresh by themselves.
