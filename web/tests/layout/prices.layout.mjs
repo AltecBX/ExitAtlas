@@ -45,9 +45,13 @@ for (const [label, width, height] of SIZES) {
     await page.goto(`${base}?demo=120&prices`);
     await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
     await page.waitForTimeout(1200);
-    // A gas car with a tank size and a range reading, so a fill can be costed.
+    // A gas car with a tank size and a range reading, so a fill can be costed. Overnight Drive Mode off: in its
+    // window (00:00 to 04:00 at the stop) only stops with known open hours qualify, so the cheaper stop note and
+    // the stations listed would depend on the hour the test runs.
     await page.evaluate(() => {
       const a = window.exitAtlas;
+      a.settings.overnightMode = 'off';
+      a.profile = { ...a.profile, overnight: { ...a.profile.overnight, mode: 'off' } };
       a.settings.vehicle = { id: 'test', year: 2022, make: 'Test', model: 'Car', label: 'SIMULATED test vehicle', fuel: 'R', city: 28, hwy: 39, comb: 32, tankGallons: 15.8, ev: false };
       a.fuel = { rangeMeters: 140 * 1609.344, drivenAtEntry: a.snapshot.drivenTotal, enteredAt: Date.now() / 1000, source: 'dashboard' };
     });
