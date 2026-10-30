@@ -1752,6 +1752,7 @@ document.addEventListener('change', (ev) => {
   }
   saveProfile();
   if (key === 'keepAwake') { if (el.checked && app.mode !== 'idle') app.wake.request(); else if (!el.checked) app.wake.release(); }
+  if (key === 'voice') app.announcer.voiceSwitched(el.checked);
   lastViewHTML = '';
   render();
 });
