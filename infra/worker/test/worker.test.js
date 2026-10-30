@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHandler, config } from '../src/index.js';
+import { createHandler, config, budgetDay } from '../src/index.js';
 
 const ORIGIN = 'https://altecbx.github.io';
 const kv = () => {
@@ -57,11 +57,29 @@ test('daily budgets: per client and for everyone, counted by a hash of the IP ad
   assert.equal((await a('198.51.100.1')).status, 200);
   const third = await a('198.51.100.1');
   assert.equal(third.status, 429, 'per client limit');
-  assert.equal(third.headers.get('Retry-After'), '3600');
+  assert.equal(third.headers.get('Retry-After'), String(8 * 3600), 'Google prices reset at midnight Pacific time (16:00 PDT now)');
   assert.equal((await a('198.51.100.2')).status, 200);
   assert.match(await (await a('198.51.100.3')).text(), /budget for everyone/);
   assert.equal(calls.length, 3);
   for (const key of e.BUDGET.map.keys()) assert.ok(!key.includes('198.51.100'), 'no IP address is stored');
+});
+
+test('the Google prices budget follows the Pacific day, when Google resets its quota', async () => {
+  const calls = [];
+  let t = Date.UTC(2026, 9, 30, 6, 30); // 23:30 PDT on Oct 29
+  const handle = createHandler({ fetchImpl: upstream(calls), now: () => t });
+  const e = env({ DAILY_PRICES: '1', CLIENT_DAILY_PRICES: '0' });
+  const ask = () => handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }, { ip: '198.51.100.9' }), e);
+  assert.equal((await ask()).status, 200);
+  const over = await ask();
+  assert.equal(over.status, 429);
+  assert.match(await over.text(), /midnight Pacific time/);
+  assert.equal(over.headers.get('Retry-After'), String(30 * 60));
+  t = Date.UTC(2026, 9, 30, 7, 0); // midnight PDT: a new quota day, though still Oct 30 in UTC
+  assert.equal((await ask()).status, 200);
+  assert.equal(budgetDay('prices', t), '2026-10-30');
+  assert.equal(budgetDay('chargers', Date.UTC(2026, 9, 30, 6, 30)), '2026-10-30');
+  assert.equal(budgetDay('prices', Date.UTC(2026, 9, 30, 6, 30)), '2026-10-29');
 });
 
 test('chargers: forwarded with the server key, cached for a day, cache hits cost nothing', async () => {
