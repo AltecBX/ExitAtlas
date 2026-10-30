@@ -927,8 +927,10 @@ function compareCard(app, s) {
   const list = (r?.stations ?? []).filter((c) => c.ahead > 0 && c.ahead <= win);
   const favorites = app.profile.fuel.brands ?? [];
   const sort = SORTS.includes(app.priceUI.sort) ? app.priceUI.sort : 'recommended';
+  // A station the range left does not reach is listed after every one it does, under every sort, and says so.
+  const beyond = (c) => c.rangeOnArrival != null && c.rangeOnArrival < 0;
   const rows = list.map((c) => ({ id: c.id, c, ahead: c.ahead, detourMinutes: c.detourMinutes, brandRank: brandIndex(c, favorites),
-    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo }));
+    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo, beyondRange: beyond(c) }));
   const sorted = sortStations(rows, sort);
   const label = (k) => (k === 'brand' && favorites[0] ? `${favorites[0]} first` : SORT_NAMES[k]);
   const chips = `<div class="chips wrap" role="group" aria-label="Sort stations">${SORTS.map((k) => `<button class="chip${k === sort ? ' on' : ''}" data-act="price-sort" data-arg="${k}" aria-pressed="${k === sort}">${h(label(k))}</button>`).join('')}</div>`;
@@ -937,7 +939,7 @@ function compareCard(app, s) {
     const detour = c.kind === 'plaza' ? 'On the highway' : c.detourMinutes != null ? `${c.detourMinutes < 1 ? 'under 1' : Math.round(c.detourMinutes)} min detour` : 'Detour not measured';
     return `<button class="item pr-row" data-act="station" data-arg="${h(c.id)}">${brandTag(c)}<div class="main">
       <div class="t">${h(c.name)} ${c.exit ? exitSign(c.exit.label, true) : ''} <span class="muted small">${milesValue(c.ahead)} mi</span></div>
-      <div class="tiny pr-facts">${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
+      <div class="tiny pr-facts">${beyond(c) ? '<span class="amber-text" data-testid="beyond-range">Beyond your range</span>' : ''}${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
       ${price ? `<div class="tiny ${price.state === 'current' ? 'muted' : 'amber-text'}">${h(priceMeta(price))}</div>` : ''}</div>${priceTag(price, o.grade)}</button>`;
   };
   const google = app.settings.prices?.google && app.prices.enabled
