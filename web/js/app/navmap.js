@@ -93,6 +93,19 @@ export function routeBearing(poly, at, ahead = 800) {
   return (Math.atan2(y, x) / toRad + 360) % 360;
 }
 
+/// True when moving the camera from `a` to `b` would not visibly change the map: the center within a pixel
+/// at that zoom, the bearing within half a degree, the same zoom, pitch and padding.
+export function sameCamera(a, b) {
+  if (!a || !b || a.zoom !== b.zoom || a.pitch !== b.pitch) return false;
+  for (const k of ['top', 'bottom', 'left', 'right']) if ((a.padding?.[k] ?? 0) !== (b.padding?.[k] ?? 0)) return false;
+  const turn = Math.abs(((a.bearing - b.bearing) % 360 + 540) % 360 - 180);
+  if (turn > 0.5) return false;
+  const lat = (a.center[1] + b.center[1]) / 2 * Math.PI / 180;
+  const metersPerPixel = 78271.517 * Math.cos(lat) / 2 ** b.zoom;
+  const dx = (a.center[0] - b.center[0]) * 111320 * Math.cos(lat), dy = (a.center[1] - b.center[1]) * 110540;
+  return Math.hypot(dx, dy) < metersPerPixel;
+}
+
 export class NavMap {
   constructor(container) {
     this.container = container;
@@ -106,6 +119,8 @@ export class NavMap {
     this.ready = false;
     this.routeKey = null;
     this.drawnAt = null;
+    /// The camera last asked for while following (sameCamera()).
+    this.camera = null;
     this.onChange = null;
   }
 
@@ -197,10 +212,13 @@ export class NavMap {
     }
     this.placeMarkers(s.markers);
     if (this.following) {
-      m.easeTo({
-        center: [s.position.lon, s.position.lat], bearing: s.bearing, pitch: 52, zoom: s.zoom, padding: s.padding,
-        duration: force ? 0 : s.duration ?? 600, easing: (t) => t,
-      });
+      const camera = { center: [s.position.lon, s.position.lat], bearing: s.bearing, pitch: 52, zoom: s.zoom, padding: s.padding };
+      // Every camera move animates for most of a second, and the map redraws on each frame of it. Parked or
+      // stuck in traffic the camera would not move at all, so it is left alone (no frames) until it would.
+      if (force || !sameCamera(this.camera, camera)) {
+        m.easeTo({ ...camera, duration: force ? 0 : s.duration ?? 600, easing: (t) => t });
+        this.camera = camera;
+      }
     }
   }
 

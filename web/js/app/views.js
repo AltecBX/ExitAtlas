@@ -227,6 +227,14 @@ export function driveView(app) {
   return idleCards(app);
 }
 
+/// When the screen could lock during a drive: the browser cannot keep it on, or refused this time. Short, for
+/// the Drive screen; a tap anywhere asks again (main.js).
+export function wakeNote(app) {
+  if (!app.settings.keepAwake || app.mode === 'idle' || app.wake.active) return '';
+  if (!app.wake.supported) return 'Screen may lock: set Auto Lock to Never';
+  return app.wake.wanted && app.wake.error ? 'Screen may lock: tap here to keep it on' : '';
+}
+
 function screenNote(app) {
   if (app.gps !== 'device') return '';
   return `<p class="note">Keep this screen on and Safari in front while driving. iPhone pauses web page GPS when the screen locks or you switch apps; ExitAtlas estimates through short gaps and catches up when you return.${app.wake.supported ? '' : ' This browser cannot keep the screen awake, so set Auto Lock to Never for the drive.'}</p>`;
@@ -454,13 +462,14 @@ function navView(app, s, f, extras) {
   const following = app.navMap?.following !== false;
   const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
+  const wake = wakeNote(app) ? `<div class="nav-note warn" role="status">${h(wakeNote(app))}</div>` : '';
   // The map status sits under the speed, beside the controls, so it never pushes the bottom panel into them.
   // Near a state line the journey panel carries it (amber); the card shows the next item.
   const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
-      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${offline}</div>
+      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${wake}${offline}</div>
       <div class="nav-right">${viewToggle(app)}${following ? '' : roundButton('nav-recenter', 'recenter', 'Follow my position')}
         ${roundButton('sheet', 'fuel', 'Fuel', 'data-arg="fuel"')}${roundButton('sheet', 'restroom', 'Restroom stop', 'data-arg="restroom"')}</div>
     </div>
@@ -473,6 +482,7 @@ function navView(app, s, f, extras) {
 /// one adaptive card and the trip strip.
 function focusView(app, s, f, extras) {
   const si = speedInfo(app, s);
+  if (wakeNote(app)) extras = [...extras, `<div class="banner warn" role="status">${h(wakeNote(app))}</div>`];
   const hw = s.highway;
   const instruments = `<section class="card fv-instruments ${si.level}">
     ${speedo(si.mph, si.limit, si.level)}
@@ -1651,7 +1661,8 @@ export function settingsView(app) {
       ${toggle('announceTimeZones', 'Time zone changes', 'When the clock changes on your route')}
       <div class="field"><span style="flex:1">Test the voice</span><button class="btn sm" data-act="test-voice">Speak</button></div></div></div>
     <div><div class="section-title">Screen</div><div class="list">
-      ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
+      ${toggle('keepAwake', 'Keep screen awake while driving', !app.wake.supported ? 'Not supported here. Set Auto Lock to Never for the drive.'
+    : app.wake.active ? 'Active now' : app.wake.wanted && app.wake.error ? 'Safari did not allow it. Tap the screen to try again, or set Auto Lock to Never.' : 'Turns on when a drive starts')}
       <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
       <div class="field"><span style="flex:1">Drive screen<div class="muted tiny">Map first, or the compact dashboard. Also on the Drive screen.</div></span><div class="seg" style="width:200px">${[['map', 'Map'], ['focus', 'Focus']].map(([k, n]) => `<button class="${(st.drivePresentation === 'focus' ? 'focus' : 'map') === k ? 'on' : ''}" data-act="drive-view" data-arg="${k}">${n}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Speedometer</div><div class="list">
@@ -1711,8 +1722,8 @@ export function placeSearchSheet(app) {
   starred.slice(0, 8).forEach((p, i) => saved.push(`<button class="item" data-act="choose-place" data-arg="saved:${i}"><span style="font-size:20px">★</span><div class="main"><div class="t">${h(p.name)}</div></div></button>`));
   recent.slice(0, 8).filter((r) => !starred.some((p) => p.name === r.name)).forEach((r) => { const i = recent.indexOf(r); saved.push(`<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="recent:${i}"><div class="t">🕘 ${h(r.name)}</div></button>${home && home.name === r.name ? '' : homeBtn(`recent:${i}`)}</div>`); });
   return `<div class="sheet-head"><h2>${label}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
-      <button class="btn primary sm" type="submit" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
+    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
+      <button class="btn primary sm" type="submit" style="flex:none;align-self:stretch" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
     ${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
     ${ps.results.length ? `<div class="list" style="margin-top:12px">${ps.results.map((r, i) => `<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="result:${i}"><div class="t">${h(r.name)}</div><div class="muted tiny">${h(r.detail)}</div></button>${homeBtn(`result:${i}`)}</div>`).join('')}</div>` : ''}
     ${saved.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}

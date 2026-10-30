@@ -277,25 +277,55 @@ export function currentPosition() {
 // MARK: Wake lock
 
 export class ScreenWake {
-  constructor() { this.lock = null; this.wanted = false; }
+  constructor({ nav = globalThis.navigator, doc = globalThis.document } = {}) {
+    this.nav = nav;
+    this.doc = doc;
+    this.lock = null;
+    this.wanted = false;
+    this.pending = null;
+    /// Why the browser last refused to keep the screen on, or null. Cleared once the screen is held.
+    this.error = null;
+    /// Called when the lock is taken, refused or let go (to update what the screen says).
+    this.onChange = null;
+  }
 
-  get supported() { return 'wakeLock' in navigator; }
+  get supported() { return Boolean(this.nav && 'wakeLock' in this.nav); }
   get active() { return !!this.lock && !this.lock.released; }
 
-  async request() {
+  /// Keeps the screen on while a drive wants it. Safe to call often (one request at a time); never throws.
+  /// The browser lets go of the lock whenever the page is hidden, so this is called again when it shows.
+  request() {
     this.wanted = true;
-    if (!this.supported || this.active || document.visibilityState !== 'visible') return;
-    try {
-      this.lock = await navigator.wakeLock.request('screen');
-    } catch {
-      this.lock = null;
-    }
+    if (this.pending) return this.pending;
+    if (!this.supported || this.active || this.doc?.visibilityState !== 'visible') return Promise.resolve(this.active);
+    this.pending = (async () => {
+      try {
+        const lock = await this.nav.wakeLock.request('screen');
+        // The drive ended while the browser was answering: let go at once.
+        if (!this.wanted) { lock.release?.().catch?.(() => {}); return false; }
+        this.lock = lock;
+        this.error = null;
+        lock.addEventListener?.('release', () => { if (this.lock === lock) { this.lock = null; this.onChange?.(); } });
+        return true;
+      } catch (e) {
+        this.lock = null;
+        this.error = e?.message || 'refused';
+        return false;
+      } finally {
+        this.pending = null;
+        this.onChange?.();
+      }
+    })();
+    return this.pending;
   }
 
   release() {
     this.wanted = false;
-    this.lock?.release().catch(() => {});
+    this.error = null;
+    const lock = this.lock;
     this.lock = null;
+    try { lock?.release?.().catch?.(() => {}); } catch { /* already released */ }
+    this.onChange?.();
   }
 }
 
