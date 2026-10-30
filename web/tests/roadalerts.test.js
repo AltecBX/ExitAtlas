@@ -183,3 +183,39 @@ test('before any source answers (just started, or offline), Road Ahead says it i
   assert.match(alertStatus(done), /none from connected sources/);
   assert.equal(alertEmptyTitle(done, 50), 'No reports from connected sources in the next 50 miles');
 });
+
+test('the Drive card: weather advisories the driver is in stay in Road Ahead; warnings, Severe and Extreme take it', async () => {
+  const { driveCardAlert, onDriveCard } = await import('../js/engine/roadintel.js');
+  const now = START;
+  const at = 40 * MILE;
+  const c = r.polyline.coordinateAt(at);
+  const box = (pad) => [[c.lon - pad, c.lat - pad], [c.lon + pad, c.lat - pad], [c.lon + pad, c.lat + pad], [c.lon - pad, c.lat + pad], [c.lon - pad, c.lat - pad]];
+  const base = { source: { id: 'nws', name: 'National Weather Service' }, verification: 'official', reportedAt: now - 600, updatedAt: now - 600,
+    startsAt: null, endsAt: now + 3600, expiresAt: now + 3600, road: null, direction: 'both', lanes: null, area: 'Test County' };
+  const zone = (id, event, severity) => ({ ...base, id, category: 'weather', description: event, severity, geometry: { type: 'points', coordinates: [c] } });
+  const polygon = (id, event, severity, category = 'weather') => ({ ...base, id, category, description: event, severity, geometry: { type: 'polygon', rings: [box(0.05)] } });
+  const ahead = (id, event, severity, miles) => ({ ...base, id, category: 'weather', description: event, severity, geometry: { type: 'points', coordinates: [r.polyline.coordinateAt(at + miles * MILE)] } });
+  const intel = (incidents) => roadIntel(r, at, [{ id: 'nws', name: 'National Weather Service', kinds: ['weather', 'flooding'], state: 'ok', fetchedAt: now, maxAgeSeconds: 1800, incidents }], { now });
+  // The Drive screen reads the cached answer a little farther on.
+  const card = (incidents) => driveCardAlert(intel(incidents).alerts, at + 0.2 * MILE)?.incident.id ?? null;
+
+  // Advisories where the driver is (zone or polygon): listed in Road Ahead, not on the Drive card.
+  for (const i of [zone('fog', 'Dense Fog Advisory', 'minor'), polygon('wind', 'Wind Advisory', 'moderate')]) {
+    const out = intel([i]);
+    assert.equal(out.alerts.length, 1, `${i.id} is in Road Ahead`);
+    assert.ok(Math.abs(out.alerts[0].ahead) < 1, `${i.id} is here`);
+    assert.equal(card([i]), null, `${i.id} stays off the Drive card`);
+    assert.equal(onDriveCard(out.alerts[0], at), false);
+  }
+  // Warnings, and anything NWS rates Severe or Extreme, where the driver is: on the Drive card.
+  assert.equal(card([zone('storm', 'Winter Storm Warning', 'moderate')]), 'storm');
+  assert.equal(card([polygon('flood', 'Flood Warning', 'moderate', 'flooding')]), 'flood');
+  assert.equal(card([zone('gale', 'Wind Advisory', 'major')]), 'gale');
+  assert.equal(card([zone('extreme', 'Wind Advisory', 'severe')]), 'extreme');
+  // An advisory ahead (not yet entered) is unchanged: it can still take the card.
+  assert.equal(card([ahead('fog-ahead', 'Dense Fog Advisory', 'minor', 5)]), 'fog-ahead');
+  // An advisory here does not hide a crash ahead.
+  const crash = { ...base, id: 'crash', category: 'crash', description: 'Crash', severity: 'moderate', direction: null,
+    geometry: { type: 'point', coordinate: r.polyline.coordinateAt(at + 3 * MILE) } };
+  assert.equal(card([zone('fog', 'Dense Fog Advisory', 'minor'), crash]), 'crash');
+});

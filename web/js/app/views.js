@@ -18,7 +18,7 @@ import { nextManeuver } from '../engine/guidance.js';
 import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline, driveCardAlert, onDriveCard } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
@@ -587,11 +587,10 @@ function focusSignals(app, s) {
   };
 }
 
-/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones that
+/// leave the travel lanes open, and weather advisories the driver is already in, stay in Road Ahead.
 function focusAlertItem(app, s) {
-  // Work zones that leave the travel lanes open stay in Road Ahead.
-  const alerts = (app.roadIntel()?.alerts ?? []).filter((a) => a.notable);
-  return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
+  return driveCardAlert(app.roadIntel()?.alerts ?? [], s.progress);
 }
 
 function focusAlert(app, s) {
@@ -1377,7 +1376,8 @@ export function alertSheet(app, id) {
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
   const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule', simulated: 'Simulated test data, not a real event' }[i.verification] ?? 'Not stated';
-  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
+  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : !onDriveCard(a, s.progress) ? 'Road Ahead only: an advisory where you are now'
+    : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
   const police = intel.status.police ? `${ALERT_GROUPS.police.label}: ${intel.status.police.label}.` : '';
