@@ -10,6 +10,16 @@ const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
 // highest SKU among its fields, and fuelOptions is already the highest (Enterprise + Atmosphere).
 const FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions,places.currentOpeningHours,places.restroom';
 const TTL = 15 * 60 * 1000;
+/// Google lookups a day on one device, matching the daily quota of 30 set on the key's Google Cloud project
+/// (at most 930 a month, under the 1,000 free; docs/17). The project quota is the hard cap across devices.
+export const GOOGLE_DAILY_LIMIT = 30;
+const LIMIT_REACHED = `Today's ${GOOGLE_DAILY_LIMIT} Google price checks are used. They reset at midnight Pacific time.`;
+const QUOTA_REACHED = "Google's daily limit for this key is reached. It resets at midnight Pacific time.";
+
+/// The calendar day in Pacific time ("2026-10-30"), when Google's daily quotas reset.
+export function pacificDay(ms = Date.now()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+}
 
 export const GRADES = {
   R: { key: 'REGULAR_UNLEADED', name: 'Regular' },
@@ -35,13 +45,16 @@ export function parsePlaces(json) {
 }
 
 export class GasPrices {
-  constructor({ getKey, getProxy = () => null, allowed = () => false, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null } = {}) {
+  constructor({ getKey, getProxy = () => null, allowed = () => false, fetchImpl = (...a) => fetch(...a), now = () => Date.now(), onCall = null,
+    usedToday = () => 0, dailyLimit = GOOGLE_DAILY_LIMIT } = {}) {
     this.getKey = getKey;
     this.allowed = allowed;
     this.getProxy = getProxy;
     this.fetchImpl = fetchImpl;
     this.now = now;
     this.onCall = onCall;
+    this.usedToday = usedToday;
+    this.dailyLimit = dailyLimit;
     this.cache = new Map(); // exit id -> {at, stations, error, pending}
   }
 
@@ -61,6 +74,11 @@ export class GasPrices {
     if (!this.allowed() || (!key && !proxy)) return null;
     const c = this.cache.get(exit.id);
     if (c && (c.pending || this.now() - c.at < TTL)) return c.pending ?? c;
+    if (this.usedToday() >= this.dailyLimit) {
+      const entry = { at: this.now(), stations: [], error: LIMIT_REACHED };
+      this.cache.set(exit.id, entry);
+      return entry;
+    }
     const pending = (async () => {
       let entry;
       try {
@@ -80,7 +98,10 @@ export class GasPrices {
             }),
           });
         const json = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((typeof json?.error === 'string' ? json.error : json?.error?.message) || `HTTP ${res.status}`);
+        // The proxy names its own daily budget in a string; Google's quota answers 429 RESOURCE_EXHAUSTED.
+        if (!res.ok && typeof json?.error === 'string') throw new Error(json.error);
+        if (res.status === 429 || json?.error?.status === 'RESOURCE_EXHAUSTED') throw new Error(QUOTA_REACHED);
+        if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
         entry = { at: this.now(), stations: parsePlaces(json ?? {}), error: null };
       } catch (e) {
         entry = { at: this.now(), stations: [], error: e.message };

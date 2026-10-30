@@ -5,7 +5,7 @@ import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
-import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
+import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, PRICE_RULES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
 import { stopPrice, liveFor } from './smartstops.js';
@@ -1033,9 +1033,9 @@ function priceSettings(app) {
     : !proxyOffers ? 'The server does not offer shared reports' : app.priceBook.sharedState === 'unavailable' ? 'On, but the last lookup failed' : 'From other ExitAtlas drivers: no account, reports expire after 7 days';
   const calls = app.priceCalls();
   const google = pr.google
-    ? `<div class="card small" style="margin-top:8px"><p style="margin-top:0"><b>Google Maps prices are on.</b> Google bills each lookup to the key's owner ($40 per 1,000 after 1,000 free a month at the Enterprise + Atmosphere tier; check Google's current pricing). ExitAtlas looks up an exit only when you tap "Check Google Maps prices", never by itself. This month: ${calls} lookups.</p>
+    ? `<div class="card small" style="margin-top:8px"><p style="margin-top:0"><b>Google Maps prices are on.</b> Google bills each lookup to the key's owner ($40 per 1,000 after 1,000 free a month at the Enterprise + Atmosphere tier; check Google's current pricing). ExitAtlas looks up an exit only when you tap "Check Google Maps prices", never by itself, and stops at ${GOOGLE_DAILY_LIMIT} a day on this device. Today: ${app.priceCallsToday()} of ${GOOGLE_DAILY_LIMIT}. This month: ${calls} lookups.</p>
       <label class="row" style="gap:8px"><span style="flex:1">Google Maps API key</span><input type="password" autocomplete="off" data-secret="ea.googleKey" placeholder="Paste key" value="${h(app.secret('ea.googleKey'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
-      <p class="muted tiny">Restrict the key to this website and to Places API (New), and set a daily quota in Google Cloud. Prices show with Google Maps attribution, never on the map, and are not saved or shared.</p></div>` : '';
+      <p class="muted tiny">Restrict the key to this website and to Places API (New), and set the project's daily Nearby Search quota to ${GOOGLE_DAILY_LIMIT} in Google Cloud (the hard cap, 930 a month at most, under the 1,000 free). Prices show with Google Maps attribution, never on the map, and are not saved or shared.</p></div>` : '';
   return `<div class="list">
       ${toggle('compare', 'Compare prices', 'In Road Ahead, the fuel stop and station details', pr.compare !== false)}
       <div class="field"><span style="flex:1">I usually pay</span>${seg('price-pay', [['credit', 'Credit'], ['cash', 'Cash']], pr.payment ?? 'credit', 150)}</div>

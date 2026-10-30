@@ -12,7 +12,7 @@ import { TripLedger, PaceModel } from '../engine/tracking.js';
 import { routeFromJSON, serializeRoute, deserializeRoute } from '../engine/osrm.js';
 import { buildRouteMap } from './map.js';
 import { SpeedLimits } from './limits.js';
-import { GasPrices, GRADES } from './prices.js';
+import { GasPrices, GRADES, pacificDay } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
 import { benchmarkFor } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
@@ -82,7 +82,7 @@ const app = {
   vehicles: null, vehiclesError: null, vehiclesLoading: null,
   vehiclePick: null,
   /// Google Maps prices: paid, off unless the driver turns them on, and looked up only on a tap (docs/17).
-  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), allowed: () => app.settings.prices?.google === true, onCall: countPriceCall }),
+  prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), allowed: () => app.settings.prices?.google === true, onCall: countPriceCall, usedToday: () => app.priceCallsToday() }),
   /// Reported prices: the driver's own on this device, and shared driver reports when on (app/pricebook.js).
   priceBook: new PriceBook({ store, getProxy: () => proxyFor('community'), sources: () => ({ own: app.settings.prices?.ownReports !== false, shared: app.settings.prices?.community === true }) }),
   /// Road Ahead price comparison sort, and the price report sheet's state.
@@ -380,6 +380,12 @@ const app = {
   priceCalls() {
     const c = store.get('ea.priceCalls', null);
     return c && c.month === new Date().toISOString().slice(0, 7) ? c.n : 0;
+  },
+
+  /// Google lookups on this device today, by the Pacific day when Google's daily quota resets.
+  priceCallsToday() {
+    const d = store.get('ea.priceCallsDay', null);
+    return d && d.day === pacificDay() ? d.n : 0;
   },
 
   /// Gas grade key for prices: the grade chosen in Settings, else the vehicle's EPA fuel type.
@@ -713,6 +719,9 @@ function countPriceCall() {
   const month = new Date().toISOString().slice(0, 7);
   const c = store.get('ea.priceCalls', { month, n: 0 });
   store.set('ea.priceCalls', c.month === month ? { month, n: c.n + 1 } : { month, n: 1 });
+  const day = pacificDay();
+  const d = store.get('ea.priceCallsDay', { day, n: 0 });
+  store.set('ea.priceCallsDay', d.day === day ? { day, n: d.n + 1 } : { day, n: 1 });
 }
 
 /// EIA's weekly averages, through the proxy when it offers them (EIA sends no CORS header), every 6 hours.

@@ -19,7 +19,7 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 * The request shapes are fixed: a client cannot widen the search radius, ask for other Google fields, or send its own AFDC key.
 * Clients are counted by a salted hash of their IP address; addresses are not stored. Counters expire after two days.
 * KV counters are approximate: KV is eventually consistent and accepts at most one write per second per key, so under bursts a few calls go uncounted (a failed counter write never fails the request). Set a hard daily quota on the Google key in Google Cloud Console (APIs, Places API (New), Quotas) as the backstop.
-* Each counted call writes two KV keys. The Workers Free plan allows 1,000 KV writes a day ([KV limits](https://developers.cloudflare.com/kv/platform/limits/)), so the default budgets (200 price and 200 charger calls a day) fit it; larger budgets need Workers Paid.
+* Each counted call writes two KV keys. The Workers Free plan allows 1,000 KV writes a day ([KV limits](https://developers.cloudflare.com/kv/platform/limits/)), so the default budgets (30 price and 200 charger calls a day) fit it; larger budgets need Workers Paid.
 * `/v1/config` lets the owner switch off a service for everyone without an app update (`DISABLED = "prices"`), as the Nominatim usage policy asks of apps that use it.
 
 ## Deploy
@@ -30,7 +30,7 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 4. Set the budgets in `wrangler.toml`, then `wrangler deploy`.
 5. In ExitAtlas, Settings, Data and keys, enter the Worker URL (for example `https://exitatlas-proxy.<account>.workers.dev`).
 
-Cost at personal scale: the Workers Free plan (100,000 requests a day, [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)) covers it. Google bills Places calls with fuel prices after its monthly free allowance; `DAILY_PRICES = 200` caps the worst case at about 6,000 calls a month. Check current Google pricing before raising it. (Cloudflare limits checked 2026-10-28.)
+Cost at personal scale: the Workers Free plan (100,000 requests a day, [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)) covers it. Google bills Places calls with fuel prices as Nearby Search Enterprise + Atmosphere: 1,000 free a month, then $40 per 1,000 ([pricing](https://developers.google.com/maps/billing-and-pricing/pricing), checked 2026-10-30). `DAILY_PRICES = 30` matches the daily quota of 30 on the key's Google Cloud project, the hard cap (at most 930 a month). Do not raise either without checking current Google pricing. (Cloudflare limits checked 2026-10-28.)
 
 ## One click deploy (GitHub Actions)
 
