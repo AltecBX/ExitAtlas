@@ -113,7 +113,7 @@ Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default. Wit
 ## 17.10 Where prices show
 
 * Drive: the fuel card's pick with its price (or "price unavailable") and the cheaper stop note.
-* Road Ahead, Fuel: the recommended stop, then Compare Prices: every station and fuel plaza in the window with brand, exit, miles, price, grade, age, hours at arrival, restroom and detour; sorted by Recommended, Lowest price, Closest, Shortest detour, or the first favorite ("Shell first"). Urgent alerts and gas gaps stay below.
+* Road Ahead, Fuel: the recommended stop, then Compare Prices: every station and fuel plaza in the window with brand, exit, miles, price, grade, age, hours at arrival, restroom and detour; sorted by Recommended, Lowest price, Closest, Shortest detour, or the first favorite ("Shell first"). A station the range left does not reach says "Beyond your range" and comes after every one it does, under every sort. Urgent alerts and gas gaps stay below.
 * Fuel stop sheet: the pick's price, the note, a Prices button.
 * Station details: every grade with its source, saved reports there (delete only), links to the station's posted price on Google Maps and GasBuddy (17.14), and Check Google Maps prices when that is on.
 * Exit details: each gas station's price for the driver's grade.
