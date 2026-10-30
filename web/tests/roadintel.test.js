@@ -196,6 +196,72 @@ test('work zone fetching: only states ahead, only during a trip, honest about co
   assert.equal(status(1000 * MILE).state, 'unavailable');
 });
 
+// Found by the tracking agent on the real Yonkers to Orlando route (simulated events): the New Jersey Turnpike
+// reads "W" on the map while the state signs and reports it as south, and NJDOT writes "NEW JERSEY TURNPIKE".
+const yo = route('yonkers_to_orlando');
+const { offset } = await import('../js/engine/geo.js');
+const event = (road, direction, geometry) => ({ id: 't', category: 'construction', source: { id: 't', name: 't' }, verification: 'official', severity: 'moderate', road, direction, geometry });
+/// A point on the route at `mi`, `side` meters to the right (negative: left, the other carriageway).
+const spot = (mi, side = 0) => { const d = mi * MILE; const c = yo.polyline.coordinateAt(d); return { type: 'point', coordinate: side ? offset(c, yo.polyline.bearingAt(d) + 90, side) : c }; };
+const where = (i, fromMi) => { const m = matchIncident(yo, i, fromMi * MILE); return m.why ?? Math.round((m.start - fromMi * MILE) / MILE * 10) / 10; };
+
+test('direction: the way the route runs decides where its signed name does not (the Turnpike is south, not west)', () => {
+  assert.equal(yo.highwayAt(100 * MILE).direction, 'W', 'the map reads west here');
+  for (const dir of ['Southbound', 'southbound', 'SB', 'S', '200', 'Both directions', null]) assert.equal(where(event('New Jersey Turnpike', dir, spot(100, 3)), 90), 10, `${dir}`);
+  for (const dir of ['Northbound', 'NB', '20']) assert.equal(where(event('New Jersey Turnpike', dir, spot(100, -30)), 90), 'other direction', `${dir}`);
+  assert.equal(where(event('New Jersey Turnpike', null, spot(100, -30)), 90), 'other direction', 'no direction, left of the route');
+  // A work zone line on each carriageway.
+  const line = (from, to, side) => ({ type: 'line', coordinates: [from, (from + to) / 2, to].map((mi) => spot(mi, side).coordinate) });
+  assert.equal(where(event('NJTP', 'Southbound', line(100, 101, 3)), 90), 10);
+  assert.equal(where(event('NJTP', 'Northbound', line(101, 100, -30)), 90), 'other direction');
+});
+
+test('direction: a road signed north and south that runs east and west keeps its sign (I-95 in Delaware, I-295, I-695)', () => {
+  // Every interstate mile of three real routes: a report for the route's own signed direction on its side is
+  // kept; one for the opposite direction on the other carriageway is never shown.
+  const word = { N: 'Northbound', S: 'Southbound', E: 'Eastbound', W: 'Westbound' };
+  const back = { N: 'S', S: 'N', E: 'W', W: 'E' };
+  for (const name of ['yonkers_to_orlando', 'richmond_to_nyc_turnpike']) {
+    const r = route(name);
+    let n = 0;
+    for (let mi = 2; mi < r.polyline.length / MILE - 2; mi++) {
+      const d = mi * MILE, hw = r.highwayAt(d);
+      if (hw?.ref.kind !== 'interstate') continue;
+      const c = r.polyline.coordinateAt(d), b = r.polyline.bearingAt(d);
+      const road = `I ${hw.ref.number}`;
+      const mine = matchIncident(r, event(road, word[hw.direction], { type: 'point', coordinate: offset(c, b + 90, 3) }), d - MILE);
+      const theirs = matchIncident(r, event(road, word[back[hw.direction]], { type: 'point', coordinate: offset(c, b - 90, 30) }), d - MILE);
+      assert.equal(mine.why, undefined, `${name} mi ${mi}: ${road} ${word[hw.direction]} missed (${mine.why})`);
+      assert.equal(theirs.why, 'other direction', `${name} mi ${mi}: ${road} ${word[back[hw.direction]]} shown on the other carriageway`);
+      n++;
+    }
+    assert.ok(n > 150, `${name}: ${n} interstate miles`);
+  }
+});
+
+test('road names: case, punctuation and short forms on either side, never a parallel road', async () => {
+  // The Turnpike alone (mile 100) and I-95 on the Turnpike's western spur (mile 30).
+  for (const road of ['NEW JERSEY TURNPIKE', 'New Jersey Turnpike', 'N.J. Turnpike', 'NJTP', 'NJ Tpke', 'n.j. turnpike']) {
+    assert.equal(where(event(road, 'Southbound', spot(100, 3)), 90), 10, road);
+  }
+  for (const road of ['I-95', 'I 95', 'Interstate 95', 'interstate 95', 'i-95', 'I-95 / NJ Turnpike', 'NJ Turnpike Western Spur']) {
+    assert.equal(where(event(road, 'Southbound', spot(30, 3)), 25), 5, road);
+  }
+  // Parallel roads within 200 m are other roads: US 1 and US 9 beside I-95, the Garden State Parkway, the
+  // Turnpike's other spur, and other parkways beside the Henry Hudson Parkway.
+  for (const [road, mi] of [['US 1', 30], ['US 9', 30], ['NJ Turnpike Eastern Spur', 30], ['US 1', 100], ['Garden State Parkway', 100], ['US 1', 150], ['US 40', 150],
+    ['Saw Mill River Parkway', 5], ['Hutchinson River Pkwy', 5], ['Parkway', 5]]) {
+    assert.equal(where(event(road, 'Southbound', spot(mi, 3)), mi - 5), 'other road', `${road} at mile ${mi}`);
+  }
+  for (const road of ['Henry Hudson Pkwy', 'HENRY HUDSON PARKWAY']) assert.equal(where(event(road, 'Southbound', spot(5, 3)), 3.5), 1.5, road);
+  assert.deepEqual(roadRef('Interstate 95'), { kind: 'interstate', prefix: 'I', number: '95' });
+  assert.deepEqual(roadRef('i-95'), { kind: 'interstate', prefix: 'I', number: '95' });
+  assert.deepEqual(roadRef('U.S. Route 1'), { kind: 'usRoute', prefix: 'US', number: '1' });
+  const { normalizeRoadText } = await import('../js/engine/roadintel.js');
+  assert.equal(normalizeRoadText('N.J. Tpke'), 'NJ TURNPIKE');
+  assert.equal(normalizeRoadText('Florida’s Turnpike'), 'FL TURNPIKE');
+});
+
 test('alert tiers and headlines: red only for what is serious', () => {
   const tiers = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
     '../../Tests/ExitAtlasCoreTests/Fixtures/roadintel/tiers.json'), 'utf8'));

@@ -280,6 +280,75 @@ final class RoadIntelTests: XCTestCase {
         XCTAssertEqual(card([alert("fog-ahead", .weather, "Dense Fog Advisory", .minor, .points([route.polyline.coordinate(at: at + 5 * mile)]))]), "fog-ahead")
     }
 
+    // Same cases as web/tests/roadintel.test.js, on the real Yonkers to Orlando route (simulated events).
+    func yoEvent(_ road: String?, _ direction: String?, _ geometry: RoadIntel.Geometry) -> RoadIntel.Incident {
+        RoadIntel.Incident(id: "t", kind: .construction, description: "", source: .init(id: "t", name: "t"), verification: .official,
+                           geometry: geometry, road: road, direction: direction, severity: .moderate)
+    }
+
+    /// Miles ahead (one decimal) or why not.
+    func yoWhere(_ route: PlannedRoute, _ i: RoadIntel.Incident, _ fromMiles: Double) -> String {
+        switch RoadIntel.place(i, on: route, progress: fromMiles * mile) {
+        case .ahead(let start, _, _, _): return String(format: "%.1f", (start - fromMiles * mile) / mile)
+        case .rejected(let why): return why
+        }
+    }
+
+    func testDirectionByTheWayTheRouteRunsWhereItsSignedNameDoesNot() throws {
+        let route = Fixtures.route("yonkers_to_orlando")
+        func spot(_ mi: Double, _ side: Double = 0) -> RoadIntel.Geometry {
+            let d = mi * mile, c = route.polyline.coordinate(at: d)
+            return .point(side == 0 ? c : Geodesy.offset(c, bearing: route.polyline.bearing(at: d) + 90, meters: side))
+        }
+        XCTAssertEqual(route.highway(at: 100 * mile)?.direction.rawValue, "W", "the map reads west here")
+        for dir in ["Southbound", "southbound", "SB", "S", "200", "Both directions", nil] {
+            XCTAssertEqual(yoWhere(route, yoEvent("New Jersey Turnpike", dir, spot(100, 3)), 90), "10.0", "\(dir ?? "none")")
+        }
+        for dir in ["Northbound", "NB", "20", nil] {
+            XCTAssertEqual(yoWhere(route, yoEvent("New Jersey Turnpike", dir, spot(100, -30)), 90), "other direction", "\(dir ?? "none")")
+        }
+        // Every interstate mile: the route's own signed direction is kept; the opposite on the other carriageway never is.
+        let word = ["N": "Northbound", "S": "Southbound", "E": "Eastbound", "W": "Westbound"]
+        let back = ["N": "S", "S": "N", "E": "W", "W": "E"]
+        var n = 0
+        for mi in stride(from: 2.0, to: route.polyline.length / mile - 2, by: 1) {
+            let d = mi * mile
+            guard let hw = route.highway(at: d), hw.ref.kind == .interstate else { continue }
+            let c = route.polyline.coordinate(at: d), b = route.polyline.bearing(at: d)
+            let sign = hw.direction.rawValue, road = "I \(hw.ref.number)"
+            let mine = yoWhere(route, yoEvent(road, word[sign], .point(Geodesy.offset(c, bearing: b + 90, meters: 3))), mi - 1)
+            let theirs = yoWhere(route, yoEvent(road, word[back[sign]!], .point(Geodesy.offset(c, bearing: b - 90, meters: 30))), mi - 1)
+            XCTAssertEqual(mine, "1.0", "mi \(mi): \(road) \(word[sign]!)")
+            XCTAssertEqual(theirs, "other direction", "mi \(mi): \(road) \(word[back[sign]!]!) on the other carriageway")
+            n += 1
+        }
+        XCTAssertGreaterThan(n, 150)
+    }
+
+    func testRoadNamesWhateverTheCaseOrShortFormNeverAParallelRoad() throws {
+        let route = Fixtures.route("yonkers_to_orlando")
+        func spot(_ mi: Double) -> RoadIntel.Geometry {
+            let d = mi * mile
+            return .point(Geodesy.offset(route.polyline.coordinate(at: d), bearing: route.polyline.bearing(at: d) + 90, meters: 3))
+        }
+        for road in ["NEW JERSEY TURNPIKE", "New Jersey Turnpike", "N.J. Turnpike", "NJTP", "NJ Tpke", "n.j. turnpike"] {
+            XCTAssertEqual(yoWhere(route, yoEvent(road, "Southbound", spot(100)), 90), "10.0", road)
+        }
+        for road in ["I-95", "I 95", "Interstate 95", "interstate 95", "i-95", "I-95 / NJ Turnpike", "NJ Turnpike Western Spur"] {
+            XCTAssertEqual(yoWhere(route, yoEvent(road, "Southbound", spot(30)), 25), "5.0", road)
+        }
+        for (road, mi) in [("US 1", 30.0), ("US 9", 30), ("NJ Turnpike Eastern Spur", 30), ("US 1", 100), ("Garden State Parkway", 100), ("US 1", 150),
+                           ("US 40", 150), ("Saw Mill River Parkway", 5), ("Hutchinson River Pkwy", 5), ("Parkway", 5)] {
+            XCTAssertEqual(yoWhere(route, yoEvent(road, "Southbound", spot(mi)), mi - 5), "other road", "\(road) at mile \(mi)")
+        }
+        for road in ["Henry Hudson Pkwy", "HENRY HUDSON PARKWAY"] { XCTAssertEqual(yoWhere(route, yoEvent(road, "Southbound", spot(5)), 3.5), "1.5", road) }
+        XCTAssertEqual(RoadIntel.roadRef("Interstate 95"), HighwayRef(kind: .interstate, prefix: "I", number: "95"))
+        XCTAssertEqual(RoadIntel.roadRef("i-95"), HighwayRef(kind: .interstate, prefix: "I", number: "95"))
+        XCTAssertEqual(RoadIntel.roadRef("U.S. Route 1"), HighwayRef(kind: .usRoute, prefix: "US", number: "1"))
+        XCTAssertEqual(RoadIntel.normalizeRoadText("N.J. Tpke"), "NJ TURNPIKE")
+        XCTAssertEqual(RoadIntel.normalizeRoadText("Florida\u{2019}s Turnpike"), "FL TURNPIKE")
+    }
+
     func testAlertTiersAndHeadlines() throws {
         let file = Fixtures.fixtureDirectory.appendingPathComponent("roadintel/tiers.json")
         for c in try JSONValue(data: Data(contentsOf: file))["cases"]!.array! {
