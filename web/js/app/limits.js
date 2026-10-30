@@ -32,9 +32,13 @@ export class SpeedLimits {
     return v >= 0 ? v : null;
   }
 
+  /// 'known', 'unknown' (no posted limit in the data, or the server keeps failing) or 'loading'.
   state(d) {
     const v = this.mph[this.index(d)];
-    return v >= 0 ? 'known' : v === UNKNOWN ? 'unknown' : 'loading';
+    if (v >= 0) return 'known';
+    // After three failed requests in a row (under a minute with the backoff) the limit is unknown for now, not
+    // "loading" for the rest of the trip.
+    return v === UNKNOWN || this.failures >= 3 ? 'unknown' : 'loading';
   }
 
   /// The next different known limit within `within` meters ahead: {mph, distance}.
