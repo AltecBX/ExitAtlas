@@ -14,7 +14,8 @@
 :root[data-theme="dark"] { --shadow: none; --elev: 0 12px 32px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03); }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { -webkit-text-size-adjust: 100%; font: -apple-system-body; }
+/* touch-action: quick repeated taps on a button do not zoom the page in Safari (pinch zoom still works). */
+html { -webkit-text-size-adjust: 100%; font: -apple-system-body; touch-action: manipulation; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: var(--type-body)/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -23,6 +24,8 @@ body {
 }
 button { font: inherit; color: inherit; }
 input, select { font: inherit; color: var(--text); }
+/* Safari zooms the page into a text field under 16 px when it gets focus (a smaller iPhone Text Size). */
+input, select, textarea { font-size: max(16px, 1em); }
 a { color: var(--accent); }
 .num { font-family: var(--num); font-variant-numeric: tabular-nums; }
 
@@ -39,7 +42,7 @@ a { color: var(--accent); }
   font-weight: 700; background: var(--chip); color: var(--text-2); white-space: nowrap;
 }
 .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.pill.ok { color: var(--sign-green); }
+.pill.ok { color: var(--success); }
 .pill.warn { color: var(--amber); }
 .pill.bad { color: var(--danger); }
 .pill.sim { color: var(--accent); }
@@ -86,7 +89,9 @@ a { color: var(--accent); }
 .wx-hour b { font: 700 17px var(--num); }
 .wx-rain { font-size: 11px; font-weight: 700; color: #A8DCFF; min-height: 13px; }
 .btn-end { border: 0; background: transparent; color: var(--danger); font-weight: 700; padding: 6px 4px; }
-.icon-btn { border: 0; background: transparent; color: var(--text-2); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; cursor: pointer; flex: none; }
+.icon-btn { border: 0; background: transparent; color: var(--text-2); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; cursor: pointer; flex: none; position: relative; }
+/* A 44 point touch target without changing the look. */
+.icon-btn::after { content: ""; position: absolute; inset: -2px; }
 .icon-btn svg { width: 24px; height: 24px; }
 .icon-btn.on { color: var(--tint); background: color-mix(in srgb, var(--tint) 14%, transparent); }
 .banner {
@@ -290,7 +295,10 @@ a.btn { text-decoration: none; }
 .wp .dot.stop { border-color: var(--amber); }
 .wp .name { flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wp .name.placeholder { color: var(--text-2); font-weight: 500; }
-.x { border: 0; background: transparent; color: var(--text-2); font-size: 20px; padding: 0 4px; cursor: pointer; }
+/* Close and remove buttons: a 44 point touch target (Apple's minimum) around the small glyph; the negative
+   margins keep the row's height and the glyph where it was. */
+.x { border: 0; background: transparent; color: var(--text-2); font-size: 20px; padding: 0; cursor: pointer;
+  min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; flex: none; margin: -10px -10px -10px 0; }
 .strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .strip .s { display: inline-flex; align-items: center; gap: 5px; font-size: var(--type-caption); color: var(--text-2); }
 
@@ -506,7 +514,8 @@ button.tl-card:active { transform: scale(0.985); }
 .bs-alt { display: flex; gap: 10px; align-items: flex-start; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--stroke); }
 .bs-alt .main { flex: 1; min-width: 0; }
 .bs-alt .t { font-weight: 700; }
-.rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--sign-green); margin-top: 2px; }
+/* Text color, not the sign fill: the sign green is too dark to read as small text on a dark card (3.4:1). */
+.rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--success); margin-top: 2px; }
 @media (max-width: 370px) {
   .tl-card.al .al-icon, .tl-card.gap .al-icon { display: none; }
   .tl-card { padding: 11px 12px; }
@@ -551,6 +560,7 @@ body.nav-mode main { padding: 0; max-width: none; }
 .nav-view .journey { pointer-events: auto; }
 body.nav-mode #banner { position: relative; z-index: 15; }
 .nav-note { align-self: center; font-size: var(--type-caption); font-weight: 650; padding: 6px 12px; border-radius: 999px; background: var(--raised); color: var(--text-2); box-shadow: var(--elev); }
+.nav-note.warn { color: var(--amber); }
 
 /* Guidance: the next maneuver or the next exit, as a green guide sign. */
 .guide {
@@ -601,7 +611,9 @@ body.nav-mode #banner { position: relative; z-index: 15; }
 }
 .round-btn svg { width: 22px; height: 22px; }
 .view-toggle { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--raised); border: 1px solid var(--stroke); box-shadow: var(--elev); }
-.view-toggle button { width: 38px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.view-toggle button { width: 42px; height: 32px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); display: grid; place-items: center; cursor: pointer; padding: 0; position: relative; }
+/* Each half takes a 44 point tap (42 + 2 by 32 + 12) without looking bigger; the two halves just meet. */
+.view-toggle button::after { content: ""; position: absolute; inset: -6px -1px; }
 .view-toggle button svg { width: 18px; height: 18px; }
 .view-toggle button.on { background: var(--accent); color: #fff; }
 
@@ -729,7 +741,12 @@ body.nav-mode #banner { position: relative; z-index: 15; }
   .focus-view .journey .sl-name { font-size: 19px; }
   .focus-view .journey .sl-miles { font-size: 26px; }
   .fv-actions .btn { padding: 8px 10px; }
-  .fv-card .card .title-md { -webkit-line-clamp: 1; font-size: 16px; }
+  /* The adaptive card as on short portrait screens: one line title, no source line (the sheet has it), so
+     the trip strip and the Fuel and Restroom buttons stay on screen (iPhone SE sideways is 375 points tall). */
+  .fv-card .card .title-md, .nav-card .card .title-md { -webkit-line-clamp: 1; font-size: 16px; }
+  .fv-card .card, .nav-card .card { padding: 10px 12px; }
+  .nav-card .card .muted.tiny, .fv-card .card .muted.tiny { display: none; }
+  .nav-card .night-card .conf:has(+ .conf), .fv-card .night-card .conf:has(+ .conf) { display: none; }
   .nav-right { flex-direction: row; }
   .nav-mid { align-items: flex-end; }
   .speed-chip { width: 56px; height: 56px; }

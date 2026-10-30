@@ -410,6 +410,25 @@ let lastWeatherHTML = '';
 let lastExitsRender = 0;
 let exitsTimer = null;
 
+/// Replaces a container's HTML and keeps each <details> the driver opened or closed as they left it: while
+/// driving the views are rebuilt every second or two, which would otherwise close "Why this stop" and the
+/// alert sources before they can be read. A <details> is matched by its class and its place among those
+/// with the same class, within the same screen or sheet (scope); when the view itself changes how one starts
+/// (a filter), the view wins.
+function swapHTML(el, html, scope) {
+  const key = (d, seen) => { const k = d.className; const n = seen.get(k) ?? 0; seen.set(k, n + 1); return `${k}|${n}`; };
+  const before = new Map(), seen = new Map();
+  if (el.dataset.scope === scope) for (const d of el.querySelectorAll('details')) before.set(key(d, seen), { open: d.open, start: d.dataset.start });
+  el.dataset.scope = scope;
+  el.innerHTML = html;
+  seen.clear();
+  for (const d of el.querySelectorAll('details')) {
+    d.dataset.start = d.open ? '1' : '0';
+    const was = before.get(key(d, seen));
+    if (was && was.start === d.dataset.start && was.open !== d.open) d.open = was.open;
+  }
+}
+
 function render() {
   if (renderQueued) return;
   renderQueued = true;
@@ -458,7 +477,7 @@ function renderNow() {
     default: html = V.driveView(app);
   }
   if (html !== lastViewHTML) {
-    $('#view').innerHTML = html;
+    swapHTML($('#view'), html, app.tab);
     lastViewHTML = html;
   }
   syncNavMap();
@@ -532,7 +551,7 @@ function renderSheet() {
   else if (kind === 'weather') html = V.weatherSheet(app);
   else if (kind === 'restroom') html = V.restroomSheet(app);
   else if (kind === 'alert') html = V.alertSheet(app, arg);
-  $('#sheet-body').innerHTML = html;
+  swapHTML($('#sheet-body'), html, `${kind}|${arg}`);
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
   if (kind === 'exit' || kind === 'station' || kind === 'fuel') { lastAutoPrices = 0; autoGooglePrices(); }
 }
@@ -544,12 +563,12 @@ function closeSheet() {
 }
 
 let toastTimer = null;
-function toast(text) {
+function toast(text, ms = 2600) {
   const el = $('#toast');
   el.textContent = text;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 // MARK: Modes
@@ -902,6 +921,8 @@ function useVehicle(v) {
 function beginDriveExtras(spokenStart) {
   if (app.settings.keepAwake) app.wake.request();
   if (app.settings.voice && spokenStart) app.announcer.speak(spokenStart);
+  // A web page cannot follow GPS in the background: say so once, at the start of a real drive.
+  if (app.gps === 'device') toast('Keep Safari open with the screen on. iPhone pauses location for web pages when the screen locks.', 6000);
 }
 
 async function startDiscovery() {
@@ -1880,14 +1901,33 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
   sheet.addEventListener('touchcancel', (e) => release(e, false));
 }
 
+// The screen lock: taken, refused or let go changes what the Drive screen and Settings say. When Safari
+// refused (it can, without a tap), the next tap anywhere asks again.
+app.wake.onChange = () => render();
+document.addEventListener('pointerup', () => {
+  if (app.wake.wanted && !app.wake.active && !app.wake.pending) app.wake.request();
+}, { passive: true });
+
+// Turning the phone: the map and the overlays over it are placed from measured sizes (render() measures them).
+window.addEventListener('resize', () => render());
+
+let hiddenAt = null;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    // Back from a locked screen or another app: say how long location was paused (Safari stops it).
+    const away = hiddenAt ? (Date.now() - hiddenAt) / 1000 : 0;
+    hiddenAt = null;
+    if (app.mode !== 'idle' && app.gps === 'device' && away >= 30) {
+      const span = away < 90 ? `${Math.round(away)} seconds` : away < 5400 ? `${Math.round(away / 60)} minutes` : `${(away / 3600).toFixed(1)} hours`;
+      toast(`Location was paused for ${span} while Safari was in the background or the screen was locked. Updating now.`, 6000);
+    }
     if (app.wake.wanted) app.wake.request();
     if (app.location.running && (!app.lastFixAt || Date.now() - app.lastFixAt > 10000)) app.location.restart();
     if (app.session && app.gps === 'device') app.snapshot = app.session.snapshotAt(nowSeconds());
     render();
-  } else if (app.mode === 'trip') {
-    persistIfDue(nowSeconds(), true);
+  } else {
+    hiddenAt = Date.now();
+    if (app.mode === 'trip') persistIfDue(nowSeconds(), true);
   }
 });
 window.addEventListener('pagehide', () => persistIfDue(nowSeconds(), true));
