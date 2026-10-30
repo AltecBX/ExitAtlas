@@ -142,16 +142,50 @@ function checkSwitch(service, name) {
   if (serviceSwitches.disabled.includes(service)) throw new Error(`${name} is switched off on the ExitAtlas server for now`);
 }
 
+/// How long a routing or place search request may take. A request that never answers (a dead zone, a stalled
+/// server) would otherwise leave "Finding routes" or "Rerouting" up for good, and block every later reroute.
+export const REQUEST_TIMEOUT = { routing: 25000, search: 15000 };
+
+/// Runs `run(signal)` (a fetch and reading its body), giving up after `ms` even if the request never settles.
+/// Network failures and the time limit become plain reasons naming the server; cancelling through `outer`
+/// still throws the AbortError.
+async function timed(what, ms, outer, run) {
+  const ctl = new AbortController();
+  const stop = () => ctl.abort();
+  outer?.addEventListener('abort', stop);
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const s = Math.round(ms / 1000);
+      reject(new Error(`${what} did not answer within ${s} second${s === 1 ? '' : 's'}`));
+      ctl.abort();
+    }, ms);
+  });
+  const work = run(ctl.signal);
+  work.catch(() => {}); // after the time limit its failure is already reported
+  try {
+    return await Promise.race([work, late]);
+  } catch (e) {
+    if (!outer?.aborted && e instanceof TypeError) throw new Error(`${what} could not be reached (no connection, or the server is busy)`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener('abort', stop);
+  }
+}
+
 /// Routes through the waypoints. Alternatives only exist without stops.
-export async function fetchRoutes(waypoints, { alternatives = true, signal } = {}) {
+export async function fetchRoutes(waypoints, { alternatives = true, signal, timeout = REQUEST_TIMEOUT.routing } = {}) {
   checkSwitch('routing', 'Routing');
   const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
   const params = new URLSearchParams({
     overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
     alternatives: alternatives && waypoints.length === 2 ? '3' : 'false',
   });
-  const res = await fetch(`${OSRM}${coords}?${params}`, { signal });
-  const body = await res.json().catch(() => null);
+  const { res, body } = await timed('the routing server', timeout, signal, async (s) => {
+    const r = await fetch(`${OSRM}${coords}?${params}`, { signal: s });
+    return { res: r, body: await r.json().catch((e) => { if (s.aborted) throw e; return null; }) };
+  });
   if (!res.ok || !body || body.code !== 'Ok') {
     throw new Error(body?.message || `routing server error (HTTP ${res.status})`);
   }
@@ -161,7 +195,7 @@ export async function fetchRoutes(waypoints, { alternatives = true, signal } = {
 // MARK: Place search (Nominatim). Search on submit only, as its usage policy requires.
 
 let lastSearchAt = 0;
-export async function searchPlaces(query, near = null) {
+export async function searchPlaces(query, near = null, { timeout = REQUEST_TIMEOUT.search } = {}) {
   checkSwitch('search', 'Place search');
   const wait = 1100 - (Date.now() - lastSearchAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -171,9 +205,11 @@ export async function searchPlaces(query, near = null) {
     const d = 3;
     params.set('viewbox', `${near.lon - d},${near.lat + d},${near.lon + d},${near.lat - d}`);
   }
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' } });
-  if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
-  const rows = await res.json();
+  const rows = await timed('the place search server', timeout, null, async (s) => {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' }, signal: s });
+    if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
+    return res.json();
+  });
   return rows.map((r) => ({
     name: shortName(r.display_name),
     detail: r.display_name,
