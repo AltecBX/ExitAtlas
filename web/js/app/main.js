@@ -224,7 +224,7 @@ const app = {
       const range = this.rangeNow(), d = this.snapshot.progress;
       const candidates = ev
         ? (charged ? chargerCandidates(this.chargers.projected, d, range) : [])
-        : gasCandidates(this.plan, d, range, (e) => this.servicesFor(e), st.favoriteBrands);
+        : gasCandidates(this.plan, d, range, (e) => this.servicesFor(e), st.favoriteBrands, (p) => this.data?.stations?.get(p.id)?.b ?? p.brand);
       const fp = planStop(this.plan, this.snapshot, range, candidates, {
         bufferMeters: st.bufferMiles * MILE, hasDestination: this.mode === 'trip', favorites: ev ? [] : st.favoriteBrands,
       });

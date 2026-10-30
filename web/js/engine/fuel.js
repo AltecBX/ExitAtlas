@@ -31,8 +31,9 @@ export function matchesFavorite(nameOrBrand, favorites) {
   });
 }
 
-/// Gas candidates: route exits with gas stations, from the offline exit services.
-export function gasCandidates(plan, d, range, servicesFor, favorites = []) {
+/// Gas candidates: route exits with gas stations, from the offline exit services. brandOf(place): the brand a
+/// favorite is matched on (the website passes stations.json's current brand, so a former Shell is not a favorite).
+export function gasCandidates(plan, d, range, servicesFor, favorites = [], brandOf = (p) => p.brand) {
   const out = [];
   for (const exit of plan.exitsBetween(d, d + range)) {
     const gas = servicesFor(exit).filter((s) => s.place.category === GAS);
@@ -40,7 +41,7 @@ export function gasCandidates(plan, d, range, servicesFor, favorites = []) {
     out.push({
       kind: 'gas', key: exit.id, exit, along: exit.distanceAlongRoute,
       detourMeters: Math.min(...gas.map((s) => s.detourMeters)), gas,
-      favorite: favorites.length > 0 && gas.some((s) => matchesFavorite(s.place.brand || s.place.name, favorites)),
+      favorite: favorites.length > 0 && gas.some((s) => matchesFavorite(brandOf(s.place) || s.place.name, favorites)),
     });
   }
   return out;

@@ -1056,7 +1056,7 @@ function fuelCard(app, s) {
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);
     body = `<div class="row" style="gap:10px;margin-top:2px">${sign}<div style="flex:1;min-width:0">
         <div style="font-weight:700${low ? ';color:var(--amber)' : ''}">${low ? `${ev ? 'Charge' : 'Fuel'} low: nearest` : ev ? 'Charge stop' : 'Fuel stop'} · ${milesValue(rec.ahead)} mi${rec.favorite ? ' · ★' : ''}</div>
-        <div class="muted small">${h(stopName(rec))}</div>
+        <div class="muted small">${h(stopName(rec, app))}</div>
         ${rec.exit ? priceInfo(app, rec.exit) : ''}
         <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${miles(rec.rangeOnArrival)} left when you get there</div></div></div>`;
   }
@@ -1072,12 +1072,12 @@ function rangeAgeLine(app) {
 }
 
 /// Name line for a gas exit or a charger.
-function stopName(x) {
+function stopName(x, app) {
   if (x.kind === 'charge') {
     const c = x.charger;
     return `${c.name.replace(/ - Tesla Supercharger$/, '')} · ${c.stalls} stalls${c.network === 'Tesla' && c.openToOthers ? ' · open to other EVs' : ''}`;
   }
-  return stationNames(x);
+  return stationNames(x, app.data?.stations);
 }
 
 /// Google price line for an exit looked up in the last hour (Google Maps prices on): favorite brand first, then
@@ -1098,10 +1098,11 @@ function priceInfo(app, exit) {
   return `<div class="price-line">${parts.join(' · ')} <span class="muted tiny">${g.name} · ${ageText((fav ?? cheap).prices[g.key].updated)} · Google Maps</span></div>`;
 }
 
-function stationNames(st) {
+/// The station names at an exit, a rebranded one under its current brand (stationName in smartstops.js).
+function stationNames(st, stations = null) {
   const names = [];
   for (const g of st.gas) {
-    const n = placeDisplayName(g.place);
+    const n = stationName(g.place, stations?.get(g.place.id)?.b ?? g.place.brand);
     if (!names.includes(n)) names.push(n);
   }
   return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '');
@@ -1800,7 +1801,7 @@ export function fuelSheet(app) {
         const act = x.kind === 'charge' ? `href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `data-act="exit" data-arg="${h(x.exit.id)}"`;
         const el = x.kind === 'charge' ? 'a' : 'button';
         return `<${el} class="item" ${act} style="color:inherit;text-decoration:none">${sign}<div class="main">
-          ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
+          ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x, app))}</div>
           ${x.exit ? priceInfo(app, x.exit) : ''}
           <div class="muted tiny">${clock(x.eta, app.plan.timeZoneIDAt(x.along), app.snapshot.t)} · arrive with about ${miles(x.rangeOnArrival)}${x.kind === 'charge' ? ` · ${miles(x.charger.offset)} off the route` : ''}</div></div>
           <div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${el}>`;
@@ -1810,7 +1811,7 @@ export function fuelSheet(app) {
       for (const e of fp.earlier) items.push(row(e, { text: 'Earlier option' }));
       if (fp.lastChance) items.push(row(fp.lastChance, { text: ev ? 'Last charger before empty' : 'Last gas before empty', amber: true }));
       const favNote = fp.favoriteMissing
-        ? `<div class="banner warn" style="margin:0 0 10px">No ${h(st.favoriteBrands.join(' or '))} before your ${st.bufferMiles} mi buffer.${fp.nextFavorite ? ` Next one: ${h(stopName(fp.nextFavorite))}, ${milesValue(fp.nextFavorite.ahead)} mi, arriving with about ${miles(fp.nextFavorite.rangeOnArrival)}.` : ''}</div>` : '';
+        ? `<div class="banner warn" style="margin:0 0 10px">No ${h(st.favoriteBrands.join(' or '))} before your ${st.bufferMiles} mi buffer.${fp.nextFavorite ? ` Next one: ${h(stopName(fp.nextFavorite, app))}, ${milesValue(fp.nextFavorite.ahead)} mi, arriving with about ${miles(fp.nextFavorite.rangeOnArrival)}.` : ''}</div>` : '';
       plan = `${favNote}<div class="list">${items.join('')}</div>`;
     }
   } else if (range !== null && !app.snapshot) {
@@ -1820,7 +1821,7 @@ export function fuelSheet(app) {
     <div class="chips" style="margin-top:8px">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].slice(0, 16).map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div></div>`;
   const prices = !ev && app.prices.cache.size && app.prices.enabled ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up for the exits you are viewing. Not stored or shared.</p>' : '';
   const others = fp && fp.stations.length
-    ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
+    ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x, app))}</div>
         <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${x.kind === 'charge' ? 'a' : 'button'}>`).join('')}</div>` : '';
   return `<div class="sheet-head"><h2>${ev ? 'Charging stop' : 'Fuel stop'}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <div class="stack">

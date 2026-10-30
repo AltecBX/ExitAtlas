@@ -6,7 +6,7 @@ import { METERS_PER_MILE as MILE, offset } from '../js/engine/geo.js';
 import { TripPlan } from '../js/engine/trip.js';
 import { TripLedger, PaceModel } from '../js/engine/tracking.js';
 import { servicesForExit } from '../js/engine/exits.js';
-import { planFuelStop, planStop, rangeLeft, fullTankRange, matchesFavorite, projectChargers, chargerCandidates } from '../js/engine/fuel.js';
+import { planFuelStop, planStop, rangeLeft, fullTankRange, matchesFavorite, projectChargers, chargerCandidates, gasCandidates } from '../js/engine/fuel.js';
 
 const ds = () => ({ states: data.states, timeZones: data.timeZones, interstates: data.interstates });
 let miamiPlan = null;
@@ -106,6 +106,18 @@ test('a favorite brand wins anywhere in range while keeping the buffer', () => {
   const none = planFuelStop(plan, s, range, { bufferMeters: 50 * MILE, servicesFor, favorites: ['No Such Brand'] });
   assert.ok(none.favoriteMissing);
   assert.equal(none.recommended.exit.id, base.recommended.exit.id);
+});
+
+test('a station rebranded away from the favorite is not starred as a favorite', () => {
+  const exit = { id: 'x', distanceAlongRoute: 10 * MILE };
+  const plan = { exitsBetween: () => [exit] };
+  const place = { id: 'way/174393711', name: 'Shell', brand: 'Shell', category: 1 };
+  const services = () => [{ place, detourMeters: 1000 }];
+  assert.equal(gasCandidates(plan, 0, 50 * MILE, services, ['Shell'])[0].favorite, true, 'the exit data alone still says Shell');
+  // stations.json now lists it as High's (OpenStreetMap's current brand): not a Shell.
+  const current = (p) => (p.id === 'way/174393711' ? "High's" : p.brand);
+  assert.equal(gasCandidates(plan, 0, 50 * MILE, services, ['Shell'], current)[0].favorite, false);
+  assert.equal(gasCandidates(plan, 0, 50 * MILE, services, ["High's"], current)[0].favorite, true);
 });
 
 test('favorite brand matching ignores case and punctuation', () => {
