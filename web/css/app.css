@@ -410,11 +410,9 @@ a.btn { text-decoration: none; }
 .card.compare { padding: 12px 14px; }
 .card.compare .chips { margin-top: 8px; margin-bottom: 0; }
 .cheaper { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--amber-fill); }
-.report-seg { margin-top: 10px; }
-.report-price { display: flex; align-items: baseline; justify-content: center; gap: 2px; margin: 12px 0; padding: 10px; border-radius: 16px;
-  background: var(--card); border: 1px solid var(--stroke); font: 800 34px var(--num, system-ui); }
-.report-price input { width: 5.2ch; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; outline: none; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Station details: links to consumer price pages (docs/17.14). */
+.list > a.item.link-row { color: inherit; text-decoration: none; }
+.list > a.item.link-row b { color: var(--accent); font-weight: 600; }
 .gattr { font-family: Roboto, "Helvetica Neue", Arial, sans-serif; font-weight: 500; color: var(--text-2); }
 .charge-sign {
   display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 44px; flex: none;

@@ -1,8 +1,9 @@
 // Check for gas prices (docs/17): in a real browser, at phone sizes and in both themes, with SIMULATED prices
 // (?demo&prices): Road Ahead, Fuel lists every station with its price or "Price unavailable"; under Lowest
-// price no unknown or old price sorts before a current one; the cheaper stop note keeps the favorite brand; a
-// report is saved on the device without any position; a bad price is refused; and no paid Google request is
-// made even with a Google key stored, because Google Maps prices are off by default.
+// price no unknown or old price sorts before a current one; the cheaper stop note keeps the favorite brand;
+// nothing offers Report a price (removed Oct 30, 2026) and Station details link to the consumer price pages in a
+// new tab, never in a frame; the price book still refuses a bad price and stores no position; and no paid
+// Google request is made even with a Google key stored, because Google Maps prices are off by default.
 // Run: node web/tests/layout/prices.layout.mjs   (needs Playwright with Chromium; CI installs it)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -90,24 +91,38 @@ for (const [label, width, height] of SIZES) {
     const current = sorted.filter((x) => x.kind === 'current').map((x) => x.value);
     for (let i = 1; i < current.length; i++) if (current[i] < current[i - 1]) fail(`Lowest price is out of order (${current.join(', ')})`);
 
-    // Report a price at the first station: refused when out of range, then saved without any position.
+    // No Report a price anywhere; Station details link to the consumer price pages in a new tab.
+    const best = await page.evaluate(() => document.querySelectorAll('.best-stop [data-act="report-price"]').length);
+    if (best) fail('the recommended stop offers Report a price');
     await click('.pr-row');
-    await page.waitForSelector('#sheet.open', { timeout: 5000 });
-    await click('#sheet-body [data-act="report-price"]');
-    await page.waitForSelector('#sheet-body [data-report="price"]', { timeout: 5000 });
-    await page.fill('#sheet-body [data-report="price"]', '31');
-    await click('#sheet-body [data-act="report-save"]');
+    await page.waitForSelector('#sheet.open [data-testid="check-google"]', { timeout: 5000 });
     await page.waitForTimeout(300);
-    const refused = await page.evaluate(() => ({ text: document.querySelector('#sheet-body .banner')?.textContent ?? '', stored: localStorage.getItem('ea.priceReports') }));
-    if (!/price per gallon/.test(refused.text)) fail('an out of range price is not refused with a reason');
-    if (refused.stored && JSON.parse(refused.stored).length) fail('a refused price was stored');
-    await page.fill('#sheet-body [data-report="price"]', '3.159');
-    await click('#sheet-body [data-act="report-save"]');
-    await page.waitForTimeout(400);
-    const saved = JSON.parse(await page.evaluate(() => localStorage.getItem('ea.priceReports')) ?? '[]');
-    if (saved.length !== 1 || saved[0].price !== 3.159) fail(`the report was not saved (${JSON.stringify(saved)})`);
-    if (saved.some((r) => 'lat' in r || 'lon' in r || 'coordinate' in r)) fail('a report stores a position');
+    const station = await page.evaluate(() => ({
+      report: document.querySelectorAll('[data-act="report-price"]').length,
+      frames: document.querySelectorAll('iframe').length,
+      links: [...document.querySelectorAll('#sheet-body a.link-row')].map((a) => ({ target: a.target, rel: a.rel, host: new URL(a.href).host })),
+      note: /Consumer webpages, not ExitAtlas data/.test(document.querySelector('#sheet-body')?.textContent ?? ''),
+      asks: /report the one you see|add the price you see/i.test(document.body.textContent),
+      scrollWidth: document.documentElement.scrollWidth, width: innerWidth,
+    }));
+    if (station.report) fail('Station details offer Report a price');
+    if (station.frames) fail('a page is embedded in an iframe');
+    if (!station.links.length || station.links.some((l) => l.target !== '_blank' || !/noopener/.test(l.rel))) fail(`consumer links: ${JSON.stringify(station.links)}`);
+    if (station.links[0]?.host !== 'www.google.com') fail(`the first link is not Google Maps: ${JSON.stringify(station.links)}`);
+    if (!station.note) fail('the consumer pages are not labeled as such');
+    if (station.asks) fail('the app still asks the driver to report a price');
+    if (station.scrollWidth > station.width + 1) fail('Station details scroll sideways');
     await click('[data-act="close-sheet"]');
+    // The price book (saved reports, still shown until they expire) refuses a bad price and stores no position.
+    const book = await page.evaluate(async (id) => {
+      const b = window.exitAtlas.priceBook;
+      const bad = await b.report({ stationId: id, grade: 'R', price: 31, payment: 'credit', member: false }, {});
+      const good = await b.report({ stationId: id, grade: 'R', price: 3.159, payment: 'credit', member: false }, {});
+      return { bad: bad.ok, good: good.ok, stored: JSON.parse(localStorage.getItem('ea.priceReports') ?? '[]') };
+    }, await page.evaluate(() => document.querySelector('.pr-row')?.dataset.arg));
+    if (book.bad) fail('an out of range price was accepted');
+    if (!book.good || book.stored.length !== 1 || book.stored[0].price !== 3.159) fail(`the price book did not save the report (${JSON.stringify(book.stored)})`);
+    if (book.stored.some((r) => 'lat' in r || 'lon' in r || 'coordinate' in r)) fail('a report stores a position');
 
     await click('#settings-btn');
     await page.waitForTimeout(400);

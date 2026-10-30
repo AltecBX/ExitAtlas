@@ -1,5 +1,6 @@
 import CoreLocation
 import ExitAtlasCore
+import SafariServices
 import SwiftUI
 
 // Gas prices (docs/17): every price with its time and source; "Price unavailable" without a current report;
@@ -30,12 +31,6 @@ enum PriceText {
         if sp.state != .current { parts.append("old, not compared") }
         return parts.joined(separator: " · ")
     }
-
-    static let problems: [String: String] = [
-        "station": "Pick a station", "grade": "Pick a grade", "price out of range": "Enter the price per gallon, for example 3.099",
-        "far from the regional average": "That price is far from the regional average; check it", "payment": "Pick cash or credit",
-        "time": "The time is off", "storage": "This iPhone did not let ExitAtlas save it",
-    ]
 }
 
 /// A brand's colors and short name, so a favorite like Shell is found at a glance (a colored name, not a logo).
@@ -229,8 +224,8 @@ struct ComparePricesCard: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("priceRow")
                 }
-                Text(sorted.contains(where: { $0.priceInfo != nil }) ? "Prices are reports with their time and source, not verified pump prices. Reports older than \(Int(o.maxAgeHours)) h show greyed and are not compared."
-                     : "No current reports for these stations. Tap a station to add the price you see.")
+                Text(sorted.contains(where: { $0.priceInfo != nil }) ? "Each price shows its time and source, never as a verified pump price. Prices older than \(Int(o.maxAgeHours)) h show greyed and are not compared."
+                     : "No current prices for these stations. Tap a station to see its posted price on Google Maps or GasBuddy.")
                     .font(.caption2).foregroundStyle(Theme.secondaryText)
             }
             .timelineCard(stroke: Theme.cardStroke)
@@ -270,13 +265,14 @@ struct ComparePricesCard: View {
     }
 }
 
-/// A station's prices for every grade, with their sources, the driver's own reports there, and reporting.
+/// A station's prices for every grade, with their sources, the driver's own saved reports there, and links to
+/// the consumer pages that show the posted price (docs/17.14).
 struct StationPricesView: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     let id: String
-    @State private var reporting = false
+    @State private var webPage: WebPage?
     @State private var place: (city: String?, state: String?)?
 
     var body: some View {
@@ -323,29 +319,47 @@ struct StationPricesView: View {
                         let brand = c.brand.isEmpty ? c.name : c.brand
                         Section {
                             if let url = URL(string: PriceCheck.googleMaps(name: c.name, brand: c.brand, latitude: at.latitude, longitude: at.longitude)) {
-                                Link(destination: url) { Label("Google Maps", systemImage: "arrow.up.right.square") }
-                                    .accessibilityIdentifier("checkGoogle")
+                                Button { webPage = WebPage(url: url) } label: {
+                                    HStack {
+                                        Label {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("Google Maps")
+                                                Text("\(brand) at this spot · opens inside ExitAtlas").font(.caption).foregroundStyle(Theme.secondaryText)
+                                            }
+                                        } icon: { Image(systemName: "safari") }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .accessibilityIdentifier("checkGoogle")
+                                .accessibilityValue(url.absoluteString)
                             }
+                            // GasBuddy's terms bar showing its site inside another app: Safari, outside ExitAtlas.
                             if let gb, let url = URL(string: gb) {
-                                Link(destination: url) { Label("GasBuddy", systemImage: "arrow.up.right.square") }
-                                    .accessibilityIdentifier("checkGasBuddy")
+                                Link(destination: url) {
+                                    Label {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("GasBuddy")
+                                            Text("\(area) prices · opens in Safari").font(.caption).foregroundStyle(Theme.secondaryText)
+                                        }
+                                    } icon: { Image(systemName: "arrow.up.right.square") }
+                                }
+                                .accessibilityIdentifier("checkGasBuddy")
+                                .accessibilityValue(url.absoluteString)
                             }
                         } header: {
-                            Text("Check the posted price")
+                            Text("See the posted price")
                         } footer: {
-                            Text(gb == nil ? "Opens \(brand) on Google Maps. ExitAtlas does not read or copy prices from it; report the one you see."
-                                 : "Opens \(brand) on Google Maps, or the \(area) price page on GasBuddy. ExitAtlas does not read or copy prices from those sites; report the one you see.")
+                            Text("Consumer webpages, not ExitAtlas data. ExitAtlas does not read, copy or save their prices, so this station stays \u{201C}Price unavailable\u{201D} here.")
                         }
                         .task(id: c.id) { await lookUpPlace(at) }
                     }
-                    Section {
-                        Button { reporting = true } label: { Label("Report a price", systemImage: "square.and.pencil") }
-                            .accessibilityIdentifier("reportPrice")
-                        if settings.googlePrices, let exitID = c.exitID, !settings.googleKey.isEmpty {
+                    if settings.googlePrices, let exitID = c.exitID, !settings.googleKey.isEmpty {
+                        Section {
                             Button { trip.checkGooglePrices(exitID: exitID) } label: { Label("Check Google Maps prices (paid)", systemImage: "magnifyingglass") }
+                        } footer: {
+                            if live != nil { Text("Google prices: Google Maps, looked up for the exits you are viewing. Not stored or shared.") }
                         }
-                    } footer: {
-                        if live != nil { Text("Google prices: Google Maps, looked up for the exits you are viewing. Not stored or shared.") }
                     }
                     let mine = trip.priceReports.own().filter { $0.stationId == c.id }.sorted { $0.reportedAt > $1.reportedAt }
                     if !mine.isEmpty {
@@ -366,7 +380,7 @@ struct StationPricesView: View {
                     Section {
                         EmptyView()
                     } footer: {
-                        Text("Prices are what drivers reported, with the time and source of each, not verified pump prices. Your reports stay on this iPhone. Reports older than \(Int(o.maxAgeHours)) h are shown but not compared; after 7 days they are dropped. Grades are never mixed.")
+                        Text("Each price shows its time and source, never as a verified pump price. Prices older than \(Int(o.maxAgeHours)) h are shown but not compared. Grades are never mixed." + (mine.isEmpty ? "" : " Your saved reports stay on this iPhone and are dropped after 7 days."))
                     }
                 } else {
                     Text("Station not found on this route.").foregroundStyle(Theme.secondaryText)
@@ -375,7 +389,7 @@ struct StationPricesView: View {
             .navigationTitle("Prices")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .sheet(isPresented: $reporting) { ReportPriceView(id: id) }
+            .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         }
     }
 
@@ -392,110 +406,23 @@ struct StationPricesView: View {
     }
 }
 
-/// Report a price: a few taps, no photo, no account; saved on this iPhone. Only when parked or by a passenger.
-struct ReportPriceView: View {
-    @Environment(TripController.self) private var trip
-    @Environment(UserSettings.self) private var settings
-    @Environment(\.dismiss) private var dismiss
-    let id: String
-    @State private var grade: GasPriceFeed.Grade = .regular
-    @State private var priceText = ""
-    @State private var payment: GasPrices.Payment = .credit
-    @State private var member = false
-    @State private var passenger = false
-    @State private var message: (ok: Bool, text: String)?
-    @State private var share = true
-    @State private var sharing = false
-    @FocusState private var focused: Bool
+/// A consumer webpage shown by Safari inside ExitAtlas (Apple's SFSafariViewController): the page is the
+/// provider's own; ExitAtlas cannot read it. Done returns to the station with the trip still running.
+struct WebPage: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
 
-    private var moving: Bool { trip.gpsSource == .device && (trip.currentSpeed ?? 0) > 4.5 }
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
 
-    var body: some View {
-        NavigationStack {
-            Form {
-                if let c = trip.findStation(id: id) {
-                    Section {
-                        HStack(spacing: 12) {
-                            BrandTag(name: c.name, brand: c.brand)
-                            VStack(alignment: .leading) {
-                                Text(c.name).font(.headline)
-                                if let label = c.exitLabel { Text("Exit \(label)").font(.caption).foregroundStyle(Theme.secondaryText) }
-                            }
-                        }
-                    }
-                }
-                Section {
-                    Picker("Grade", selection: $grade) { ForEach(GasPriceFeed.Grade.allCases, id: \.self) { Text($0.name).tag($0) } }
-                        .pickerStyle(.segmented)
-                    HStack {
-                        Text("$").font(Theme.number(34, weight: .heavy))
-                        TextField("3.099", text: $priceText).font(Theme.number(34, weight: .heavy)).keyboardType(.decimalPad).focused($focused)
-                            .accessibilityIdentifier("reportPriceField")
-                    }
-                    Picker("Payment", selection: $payment) {
-                        Text("Credit").tag(GasPrices.Payment.credit)
-                        Text("Cash").tag(GasPrices.Payment.cash)
-                    }
-                    .pickerStyle(.segmented)
-                    Toggle("Member or loyalty price", isOn: $member)
-                    if trip.sharedOn, let c = trip.findStation(id: id) {
-                        let check = trip.nearCheck(c)
-                        Toggle(isOn: $share) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Share with other ExitAtlas drivers")
-                                Text(check.note).font(.caption).foregroundStyle(check.near ? Theme.success : Theme.secondaryText)
-                            }
-                        }
-                        .accessibilityIdentifier("sharePrice")
-                    }
-                    if moving {
-                        Toggle(isOn: $passenger) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("You are moving").foregroundStyle(Theme.amber).bold()
-                                Text("Report only when parked, or let a passenger do it. I'm a passenger:").font(.caption)
-                            }
-                        }
-                    }
-                } footer: {
-                    Text("Saved on this iPhone, never with your location\(trip.sharedOn ? ", and shared only when the switch is on and you are at the station: no account, no name, no location" : ""). You can correct it for 30 minutes. Enter the price on the pump, for example 3.099.")
-                }
-                Section {
-                    Button("Save price") { save() }
-                        .frame(maxWidth: .infinity).bold()
-                        .disabled((moving && !passenger) || sharing)
-                        .accessibilityIdentifier("savePrice")
-                    if let message {
-                        Text(message.text).font(.footnote).foregroundStyle(message.ok ? Theme.success : Theme.amber)
-                            .accessibilityIdentifier("reportMessage")
-                    }
-                }
-            }
-            .navigationTitle("Report a price")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-            .onAppear {
-                grade = settings.gasGrade
-                payment = GasPrices.Payment(rawValue: settings.pricePayment) ?? .credit
-            }
-        }
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let c = SFSafariViewController(url: url)
+        c.dismissButtonStyle = .done
+        return c
     }
 
-    private func save() {
-        let text = priceText.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
-        let out = trip.priceReports.report(stationId: id, grade: grade.code, price: Double(text) ?? .nan, payment: payment, member: member)
-        if out.saved, let record = out.record, share, trip.sharedOn, let c = trip.findStation(id: id), trip.nearCheck(c).near {
-            message = (true, "Saved on this iPhone. Sharing…")
-            focused = false
-            sharing = true
-            Task { @MainActor in
-                let result = await trip.share(record)
-                message = (true, "Saved on this iPhone. \(result)")
-                sharing = false
-            }
-        } else if out.saved { message = (true, "Saved on this iPhone."); focused = false }
-        else if out.duplicate { message = (true, "Already saved: the same price within 30 minutes.") }
-        else { message = (false, out.problems.map { PriceText.problems[$0] ?? $0 }.joined(separator: ". ")) }
-    }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
 
 /// Settings: comparing prices and where prices come from. Google Maps prices are paid and off by default.
@@ -579,7 +506,7 @@ struct PriceSettingsRows: View {
         } footer: {
             Text(settings.googlePrices
                  ? "Google bills each lookup to the key's owner after its monthly free allowance; check Google's current pricing. ExitAtlas looks up the exits you are viewing (Road Ahead, Fuel, the fuel stop and station details) without a tap, a few at a time and at most \(PriceCallCounter.dailyLimit) a day on this iPhone. Set the project's daily Nearby Search quota to \(PriceCallCounter.dailyLimit) in Google Cloud; that is the hard cap. Prices are never stored or shared."
-                 : "No free, licensed source publishes station prices for the US (docs/17), so prices come from reports. A station without a current report says Price unavailable and never ranks as cheaper. Regional averages are never shown as a station's price.")
+                 : "No free, licensed source publishes station prices for the US (docs/17). A station shows a price only from Google Maps prices (when on) or a report already saved; otherwise it says Price unavailable and never ranks as cheaper. Regional averages are never shown as a station's price.")
         }
     }
 }

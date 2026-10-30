@@ -1,6 +1,6 @@
 # 17. Gas prices at zero cost
 
-Status, 2026-10-29: built on the website and in the shared engine (Swift and JavaScript); shared driver reports are written and tested on the Worker but not deployed. iOS parity: section 17.10.
+Status, 2026-10-30: no free, authorized source of US station prices exists (full search and real Yonkers tests in 17.14), so stations show "Price unavailable" unless the owner turns on the optional Google Maps prices (17.8, needs a billing account). Built on the website and iOS; shared driver reports are written and tested on the Worker but not deployed.
 
 The goal: compare station prices along the route before getting off the interstate (Shell, Pilot, Exxon, BP, Wawa and the rest), and pick the best value counting price, distance, detour, range and hours, without any paid service, any billing account, or any data used against its terms.
 
@@ -66,6 +66,8 @@ A report is never called live or verified: the app says "Prices are reports with
 
 ## 17.5 Reporting prices
 
+**Removed from the app on 2026-10-30, at Jerry's request** (17.14): no Report a price button or form on the website or iPhone. Reports saved before still show with their time and source until they expire after 7 days, and can be deleted in Station details. The price book, the Worker's shared reports and their tests stay, so a licensed source can feed the same engine; the text below describes that code.
+
 **On the device (no server, no account).** Station details or a station row, "Report a price": grade, price, credit or cash, member price. Saved in the browser (`ea.priceReports`) or the app; corrected or deleted for 30 minutes from Station details. No photo. If the phone is moving faster than about 10 mph, saving waits for "I'm a passenger".
 
 **Shared (optional, off by default).** Only when the owner deploys the Worker with a D1 database and the driver turns "Shared driver reports" on.
@@ -113,7 +115,7 @@ Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default. Wit
 * Drive: the fuel card's pick with its price (or "price unavailable") and the cheaper stop note.
 * Road Ahead, Fuel: the recommended stop, then Compare Prices: every station and fuel plaza in the window with brand, exit, miles, price, grade, age, hours at arrival, restroom and detour; sorted by Recommended, Lowest price, Closest, Shortest detour, or the first favorite ("Shell first"). Urgent alerts and gas gaps stay below.
 * Fuel stop sheet: the pick's price, the note, a Prices button.
-* Station details: every grade with its source, the driver's own reports there, Report a price, and Check Google Maps prices when that is on.
+* Station details: every grade with its source, saved reports there (delete only), links to the station's posted price on Google Maps and GasBuddy (17.14), and Check Google Maps prices when that is on.
 * Exit details: each gas station's price for the driver's grade.
 * Settings: Gas prices and Price sources.
 
@@ -188,4 +190,58 @@ One lookup covers every station Google lists within 1 mile of the exit, so 4 loo
 **Coverage.** 24 automatic lookups a day are about two fuel decisions (each about 4 exits, refreshed once as the stop nears) plus station details. Which US stations Google has prices for is not verified until a real key runs; a station Google has no price for shows "Price unavailable".
 
 **Other sources checked again on 2026-10-30.** No Azure Maps fuel price API was found. Gemini's Grounding with Google Maps is not in the Gemini free tier (5,000 a month on the paid tier, then $14 per 1,000) and returns prices only inside generated text, which could misstate a price; not used. API marketplaces (Zyla, Apify) sell GasBuddy scrapes or state averages; not used. OpenFuel still has no API; Jerry sent the request below for a free read only feed on 2026-10-30, no reply yet.
+
+## 17.14 Free automatic prices: full search and real tests (2026-10-30)
+
+Jerry's rules for this search: no paid API, no credit card or billing account, no trial that expires, no subscription, no allowance that becomes chargeable, nothing he has to report or confirm, no made up prices, no scraping or getting around access limits, and Shell first, vehicles and SmartStop kept as they are. Google Places (17.8, 17.13) needs a billing account and bills past 1,000 a month, so it fails rules 2 and 5; it stays off by default and optional, and is not the answer here.
+
+**Result.** No source passes. Nothing returned a real price for a Yonkers station, or any I-95 station, through a free and authorized route. Every source of current US station prices is paid (Google, HERE, TomTom, OPIS, Barchart, GasBuddy licensing), contract or partner only (Love's, fleet cards), or a scrape of GasBuddy or a retailer, which their terms forbid. So nothing new is integrated, no adapter or GitHub Actions dataset is built (there is no licensed data to put in one), and no screen shows a price it does not have.
+
+**Searched** ([V] read in the primary source, [NV] secondary or unreadable):
+
+| Area | What was checked | Finding |
+|---|---|---|
+| Government | Every US state and city portal, Westchester County, EIA, NYSERDA, California, Hawaii, Washington, Puerto Rico, Indiana | One US program publishes station prices: [IN Fuel Watch](https://www.infuelwatch.com/) by the Indiana Attorney General (regular only, Indiana only, a CSV button, no license; "The OAG uses publicly available data for these metrics") [V]. Nothing for New York or any I-95 state. Westchester County sends consumers to GasBuddy and AAA ([county page](https://consumer.westchestercountyny.gov/consumer-information/find-lowest-gas-and-oil-prices)) [V]. EIA: "EIA does not have gasoline prices by county" [V]. Puerto Rico's registry is a pending bill [V]. |
+| Open data | data.gov, Kaggle, Hugging Face, Zenodo, GitHub, Open Prices, OpenStreetMap, Wikidata, Overture | No current licensed US station prices. Open Prices: 136 fuel stations worldwide, 2 in the US [V, API]. OpenStreetMap: no fuel price key in use in the US, only 6 objects with `price` at all ([taginfo](https://taginfo.geofabrik.de/north-america:us/api/4/keys/all?query=price), data to Oct 29) [V]. GitHub and Hugging Face sets are GasBuddy scrapes or other countries [V]. |
+| Map and data APIs | Apple MapKit, MapKit JS, Apple Maps Server API, Google (Places, Embed, Maps URLs), TomTom, HERE, MapQuest, Mapbox, Geoapify, Foursquare, Yelp, Azure, Kroger, NREL, fueleconomy.gov, CollectAPI, RapidAPI and Apify listings, OPIS, Barchart, Upside, iExit, Waze | Apple exposes no fuel prices: MKMapItem has no price field and Apple's place card "displays place information such as addresses and phone numbers" ([MKMapItemDetailViewController](https://developer.apple.com/documentation/mapkit/mkmapitemdetailviewcontroller)) [V]; no evidence Apple Maps shows US prices [NV]. TomTom: "not available as part of our free evaluation or Pay As You Grow (PAYG) offering" [V]. HERE: billed under its Base Plan [V]. Free APIs (fueleconomy.gov, EIA, CollectAPI) return averages [V, NV]. Marketplace "gas price APIs" resell GasBuddy scrapes [V]. Waze has no read API; its partner feed carries alerts and traffic, not prices ([Waze partners](https://support.google.com/waze/partners/answer/13458165)) [V]. |
+| Retailers and truck stops | Love's, Pilot Flying J, TA and Petro, Road Ranger, Buc-ee's, Shell, ExxonMobil, Sunoco, Gulf, Citgo, Getty, Valero, 7-Eleven and Speedway, Circle K, Cumberland Farms, Wawa, Sheetz, QuikTrip, Murphy USA, Costco, Sam's Club, BJ's, Walmart, Kroger and Harris Teeter, Stewart's, fleet cards | None grants free automated reuse. [Love's Store & Fuel Prices API](https://developer.loves.com/ad47e8c2-fb2b-4eaf-9d61-099061f1cfaa/loves-store-fuel-price-exp-api/) returns station fuel prices, but access is by request: "contact your Love's sales representative or click on the 'Request Access' button"; no fees or data terms are stated [V]. TA's developer program has no fuel prices in its retail API [V]. The rest forbid robots or limit use to personal use, for example Sunoco ("any robot, spider or other automatic device"), Wawa ("screen scraping", "personal, non-commercial use only"), Cumberland Farms (only "published interfaces" unless a separate agreement) [V]. |
+| Community networks | OpenFuel, Fuelio, Trucker Path, Mudflap, TruckSmarter, Upside, Waze, GasPriceWatch, Gas Guru, Bee Maps, open source apps | No public API with reuse rights. OpenFuel: still no API; §5 "contact us first"; Jerry's request (17.12) has no reply as of Oct 30 [V]. Others need written permission, are business partner only, are defunct, or sell credits [V, NV]. |
+
+**Real tests, Yonkers** (stations from OpenStreetMap through Nominatim, ODbL; no request to any restricted service):
+
+| Station (OSM id) | Address | Coordinates | Open Prices API | OSM price tags | Brand's own station page |
+|---|---|---|---|---|---|
+| Shell (node 11018157238) | Ashburton Ave, 10701 | 40.93905, -73.88573 | 0 prices | none | not checked |
+| Shell (way 850477822) | Midland Ave, 10704 | 40.93630, -73.85667 | 0 | none | not checked |
+| Shell (way 1412631480) | Bronx River Rd, 10708 | 40.90603, -73.85829 | 0 | none | not checked |
+| Shell, tagged bp in OSM (way 1444376006) | 731 Central Park Ave, 10704 | 40.92633, -73.85850 | not checked | none | [find.shell.com](https://find.shell.com/us/fuel/10009822-731-central-park-avenue/en_US): no prices |
+| BP (way 1463849063) | Yonkers Ave, 10701 | 40.93513, -73.88562 | 0 | none | not checked |
+| BP (node 10716858637) | Pelton St, 10705 | 40.91427, -73.88984 | 0 | none | not checked |
+| Mobil (way 1012806749) | 142 Tuckahoe Rd, 10710 | 40.95436, -73.86399 | 0 | none | [exxonmobilfuels.com](https://www.exxonmobilfuels.com/en/find-gas-station/mobil-yonkers-ny-tuckahoeroadmobil-200317659): fuels listed, no prices |
+| Mobil (node 10717826422) | 838 Kimball Ave, 10704 | 40.92899, -73.84843 | 0 | none | not checked |
+| Mobil (node 10206431769) | McLean Ave, 10705 | 40.91056, -73.88931 | 0 | none | not checked |
+| Sunoco (node 2310485829) | 931 McLean Ave, 10704 | 40.90358, -73.86732 | 0 | none | [sunoco.com](https://www.sunoco.com/locations/store/931-mclean-ave-yonkers-ny-0505638700): no prices |
+| 76 (way 1118730022) | 918 McLean Ave, 10704 | 40.90443, -73.86777 | 0 | none | not checked |
+| Citgo (way 1447978017) | 95 Vredenburgh Ave, 10704 | 40.92373, -73.85559 | 0 | none | not checked |
+| Global (node 6596749847) | 1800 Central Park Ave, 10710 | 40.96017, -73.84101 | 0 | none | not checked |
+
+No Exxon branded station is mapped inside the Yonkers search area. Regular, premium and diesel prices, cash or credit, report times and permission: none, because no source returned a price. Brand pages were read once by hand to see whether a price exists; their terms forbid automated collection, so they cannot be a source either way.
+
+**I-95.** The two sources that are free and legally reusable (Open Prices, OpenStreetMap) have no US fuel prices at all (counts above), so no I-95 station can return one. Every other source is excluded before a request is made.
+
+**What the app does.** No change to prices: every station without a price from the optional Google key says "Price unavailable", is never ranked as cheaper, and EIA averages stay context only (17.7). Shell first, vehicles, SmartStop and the overnight rules are unchanged.
+
+**Consumer pages (the fallback; a plain link, not price integration).** Station details already link to Google Maps and GasBuddy (17.12). Terms checked:
+* Google Maps URLs: "You don't need a Google API key to use Maps URLs"; on iOS the URL opens the Google Maps app if installed, else a browser ([Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)) [V]. Google's consumer terms forbid copying the content and bulk feeds ([Google Maps terms](https://www.google.com/help/terms_maps/)) [V]; ExitAtlas reads nothing from the page.
+* GasBuddy: its terms forbid users to "use, display, mirror or frame the Site" and to scrape fuel prices ([terms, effective Apr 24, 2026](https://www.gasbuddy.com/Disclaimer)) [V]. So GasBuddy is only ever a plain link that opens in the browser, never shown inside ExitAtlas.
+* Waze: documented deep links (`https://waze.com/ul?ll=...`) need no key ([Waze deep links](https://developers.google.com/waze/deeplinks)) [V]; Waze shows its prices inside its own app only.
+* No page is put in an iframe. Approved by Jerry on Oct 30 from a render, and built: Station details, "See the posted price". On iPhone, Google Maps opens in Apple's Safari view inside ExitAtlas (`SFSafariViewController`; Done returns to the station with the trip running), and GasBuddy opens in Safari. On the website both open in a new tab. Both are labeled "Consumer webpages, not ExitAtlas data"; the station keeps "Price unavailable". Report a price was removed at the same time (17.5). Whether Google's mobile web page shows the price for a given station is not verified here (automated viewing of Google Maps was not done). Checked by `web/tests/layout/prices.layout.mjs`, `pricepath.layout.mjs` and the iOS UI test `testPrices`.
+
+**Strongest next steps (permission, not payment).**
+1. OpenFuel: the only US community network that invites a data request; follow up on Jerry's Oct 30 email. Coverage near Yonkers is thin (one Yonkers listing seen in 17.12).
+2. Love's: request free, non commercial access to the Store & Fuel Prices API (the "Request Access" button on its page). Love's stations only, none near Yonkers [NV].
+3. Wawa and Cumberland Farms: written permission for their own station prices (many I-95 stations in NJ, PA, DE, MD, VA and FL; Cumberland Farms in the Northeast).
+4. Watch: New York price transparency bills, Puerto Rico's registry, Indiana's program (ask about reuse only if a route crosses Indiana).
+
+Any of these, once granted in writing, plugs into the existing price engine as one more source with its own name, time, grade and payment kind (17.3); until then nothing is integrated.
 

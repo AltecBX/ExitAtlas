@@ -1,5 +1,6 @@
-// Check for shared driver reports (docs/17) on the real Worker runtime: install A (one browser profile) stands
-// at a station, passes the location check and shares a price through Report a price; install B (another
+// Check for shared driver reports (docs/17) on the real Worker runtime: install A (one browser profile) shares a
+// price for a station through its price book, as a report that passed the location check (the app has no
+// Report a price button since Oct 30, 2026; this keeps the client and Worker path tested); install B (another
 // profile, nothing stored) then sees that price in Compare Prices, credited to "ExitAtlas drivers", with its
 // time. Needs a running proxy with a D1 database that allows http://127.0.0.1:8765, for example
 // `wrangler dev --local` (CI starts one).
@@ -67,21 +68,10 @@ const station = await A.page.evaluate(() => {
   const x = window.exitAtlas.findStation(id);
   return { id, name: x.name, lat: x.coordinate.lat, lon: x.coordinate.lon };
 });
-// Install A stands at the station: device GPS for this report (the demo drive itself is simulated).
-await A.ctx.grantPermissions(['geolocation']);
-await A.ctx.setGeolocation({ latitude: station.lat, longitude: station.lon, accuracy: 10 });
-await A.page.evaluate(() => { window.exitAtlas.gps = 'device'; });
-await A.click(`.pr-row[data-arg="${station.id}"]`);
-await A.page.waitForSelector('#sheet.open [data-act="report-price"]');
-await A.click('#sheet-body [data-act="report-price"]');
-await until(A.page, () => window.exitAtlas.report?.near === true, null, 15000, 'the location check');
-// The demo car is moving: the sheet asks for the passenger check before saving.
-await A.page.evaluate(() => { const t = document.querySelector('#sheet-body [data-report="passenger"]'); if (t && !t.checked) t.click(); });
-await A.page.waitForTimeout(300);
-await A.page.fill('#sheet-body [data-report="price"]', PRICE);
-await A.click('#sheet-body [data-act="report-save"]');
-await until(A.page, () => Boolean(window.exitAtlas.report?.result), null, 15000, 'the report result');
-const result = await A.page.evaluate(() => window.exitAtlas.report.result);
+// Install A shares the price, as a report made at the station.
+const result = await A.page.evaluate(async ({ id, name, price }) => window.exitAtlas.priceBook.report(
+  { stationId: id, grade: 'R', price: Number(price), payment: 'credit', member: false, stationName: name }, { share: true, near: true }),
+{ id: station.id, name: station.name, price: PRICE });
 if (!result.ok || result.shared !== 'sent') failures.push(`install A: ${JSON.stringify(result)}`);
 if (shotDir) await A.page.screenshot({ path: `${shotDir}/share-a.png` });
 

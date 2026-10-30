@@ -157,8 +157,8 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// Gas prices (docs/17) with SIMULATED prices, labeled as such: Road Ahead's price comparison with the
-    /// cheaper stop note, a station's prices, a report refused and then saved, and the price settings with
-    /// Google Maps prices off by default.
+    /// cheaper stop note, a station's prices with the consumer page links and no Report a price, and the price
+    /// settings with Google Maps prices off by default.
     func testPrices() {
         for dark in [false, true] {
             let app = XCUIApplication()
@@ -185,34 +185,20 @@ final class ScreenshotTests: XCTestCase {
             row.tap()
             XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10), "No station price sheet")
             sleep(1)
-            XCTAssertTrue(app.descendants(matching: .any)["checkGoogle"].firstMatch.exists, "No Google Maps price check link")
+            let google = app.descendants(matching: .any)["checkGoogle"].firstMatch
+            XCTAssertTrue(google.exists, "No Google Maps price check link")
+            XCTAssertTrue((google.value as? String ?? "").hasPrefix("https://www.google.com/maps/search/?api=1&query="), "Google Maps link: \(String(describing: google.value))")
+            XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "opens inside ExitAtlas")).firstMatch.exists, "The Google Maps link does not say it opens inside ExitAtlas")
+            XCTAssertFalse(app.buttons["reportPrice"].exists, "Station details still offer Report a price")
             snap("2j Station prices", dark)
-            app.buttons["reportPrice"].firstMatch.tap()
-            XCTAssertTrue(app.navigationBars["Report a price"].waitForExistence(timeout: 10), "No report sheet")
-            let field = app.textFields["reportPriceField"].firstMatch
-            XCTAssertTrue(field.waitForExistence(timeout: 5))
-            field.tap()
-            field.typeText("31")
-            app.buttons["savePrice"].firstMatch.tap()
-            let message = app.staticTexts["reportMessage"].firstMatch
-            XCTAssertTrue(message.waitForExistence(timeout: 5) && message.label.contains("price per gallon"), "An out of range price was not refused: \(message.label)")
-            field.tap()
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2) + "3.159")
-            app.buttons["savePrice"].firstMatch.tap()
-            let saved = NSPredicate(format: "label CONTAINS[c] 'Saved on this iPhone'")
-            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: saved, object: message)], timeout: 5), .completed,
-                           "The report was not saved: \(message.label)")
-            snap("2k Report a price", dark)
-            app.buttons["Close"].firstMatch.tap()
-            sleep(1)
             app.buttons["Done"].firstMatch.tap()
             sleep(1)
             app.buttons["settingsButton"].firstMatch.tap()
             XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
-            let google = app.switches["googlePricesToggle"].firstMatch
-            for _ in 0..<12 where !(google.exists && google.isHittable) { app.swipeUp() }
-            XCTAssertTrue(google.exists, "No Google prices switch")
-            XCTAssertEqual(google.value as? String, "0", "Google Maps prices are not off by default")
+            let googleSwitch = app.switches["googlePricesToggle"].firstMatch
+            for _ in 0..<12 where !(googleSwitch.exists && googleSwitch.isHittable) { app.swipeUp() }
+            XCTAssertTrue(googleSwitch.exists, "No Google prices switch")
+            XCTAssertEqual(googleSwitch.value as? String, "0", "Google Maps prices are not off by default")
             let shared = app.switches["sharedPricesToggle"].firstMatch
             XCTAssertTrue(shared.exists, "No shared reports switch")
             XCTAssertEqual(shared.value as? String, "0", "Shared reports are not off by default")
@@ -222,12 +208,14 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// The price data path (docs/17) with one TEST REPORT and no simulated prices: a price entered through
-    /// Report a price at the fuel stop SmartStop picks shows in Drive, Road Ahead, Compare Prices, Station
-    /// details and SmartStop's reasons. This proves the app shows a price it has, not that a live feed exists.
+    /// The price data path (docs/17) with one TEST REPORT and no simulated prices: a price saved on the iPhone
+    /// for the fuel stop SmartStop picks (-testPriceReport; the app has no Report a price button) shows in Drive,
+    /// Road Ahead, Compare Prices, Station details and SmartStop's reasons. This proves the app shows a price it
+    /// has, not that a live feed exists.
     func testPricePath() {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "140", "-overnight", "auto", "-alertsOff", "-drive", "map"]
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "140", "-overnight", "auto", "-alertsOff", "-drive", "map",
+                               "-testPriceReport", "3.459"]
         app.launch()
         XCTAssertTrue(drive(app), "Drive screen did not appear")
         sleep(3)
@@ -237,23 +225,14 @@ final class ScreenshotTests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: has, object: element)], timeout: 10), .completed,
                            "\(what) does not show \(price): \(element.label)")
         }
-        // Report it at SmartStop's pick: Fuel, Prices and reports, Report a price.
+        // Station details at SmartStop's pick: Fuel, Prices.
         app.buttons["fuelButton"].firstMatch.tap()
         let prices = app.buttons["pickPrices"].firstMatch
         for _ in 0..<6 where !(prices.exists && prices.isHittable) { app.swipeUp() }
-        XCTAssertTrue(prices.waitForExistence(timeout: 10), "No Prices and reports button on the fuel stop")
+        XCTAssertTrue(prices.waitForExistence(timeout: 10), "No Prices button on the fuel stop")
         prices.tap()
         XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10))
-        app.buttons["reportPrice"].firstMatch.tap()
-        let field = app.textFields["reportPriceField"].firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 10))
-        field.tap()
-        field.typeText("3.459")
-        app.buttons["savePrice"].firstMatch.tap()
-        let message = app.staticTexts["reportMessage"].firstMatch
-        XCTAssertTrue(message.waitForExistence(timeout: 5) && message.label.contains("Saved"), "Not saved: \(message.label)")
-        // Station details now show it for the driver's grade.
-        app.buttons["Close"].firstMatch.tap()
+        // Station details show it for the driver's grade.
         XCTAssertTrue(app.staticTexts[price].firstMatch.waitForExistence(timeout: 10), "Station details do not show the price")
         snap("8a Price path station", false)
         app.buttons["Done"].firstMatch.tap()
