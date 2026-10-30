@@ -9,6 +9,7 @@ import { GRADES, pricedForGrade, priceText, ageText } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, PRICE_RULES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
 import { stopPrice, liveFor } from './smartstops.js';
+import { googleMapsLink, gasBuddyLink } from '../engine/pricecheck.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
@@ -453,16 +454,17 @@ function navView(app, s, f, extras) {
   const following = app.navMap?.following !== false;
   const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
+  // The map status sits under the speed, beside the controls, so it never pushes the bottom panel into them.
   // Near a state line the journey panel carries it (amber); the card shows the next item.
   const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
-      <div class="nav-left"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>
+      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${offline}</div>
       <div class="nav-right">${viewToggle(app)}${following ? '' : roundButton('nav-recenter', 'recenter', 'Follow my position')}
         ${roundButton('sheet', 'fuel', 'Fuel', 'data-arg="fuel"')}${roundButton('sheet', 'restroom', 'Restroom stop', 'data-arg="restroom"')}</div>
     </div>
-    <div class="nav-bottom">${offline}${extras.join('')}${card ? `<div class="nav-card">${card}</div>` : ''}
+    <div class="nav-bottom">${extras.join('')}${card ? `<div class="nav-card">${card}</div>` : ''}
       ${journey(app, s, f)}</div>
   </div>`;
 }
@@ -894,20 +896,22 @@ function priceTag(sp, grade) {
   return `<div class="ptag${sp.state === 'current' ? '' : ' old'}"><div class="pv">${h(dollars(sp.record.price))}</div><div class="muted tiny">${h(GRADE_NAMES[grade])}</div></div>`;
 }
 
-/// One line for a stop's price in cards: the price and its source, or "Price unavailable".
-function priceLine(app, x) {
+/// One line for a stop's price in cards: the price and its source, or "Price unavailable". On the Drive
+/// screen (onMap) a Google Maps price is not shown: Google's terms keep its data off non-Google maps.
+function priceLine(app, x, { onMap = false } = {}) {
   const o = app.priceOptions();
   if (!o || !x || x.kind === 'charge') return '';
   const sp = x.priceInfo ?? null;
+  if (onMap && sp?.record.source.kind === 'google') return '<div class="price-line muted tiny">Google Maps price: see Road Ahead</div>';
   if (!sp) return `<div class="price-line muted tiny">${h(GRADE_NAMES[o.grade])}: price unavailable</div>`;
   return `<div class="price-line${sp.state === 'current' ? '' : ' old'}"><b>${h(dollars(sp.record.price))}</b> <span class="muted tiny">${h(GRADE_NAMES[o.grade])} · ${h(priceMeta(sp))}</span></div>`;
 }
 
 /// SmartStop's note when another stop saves at least the driver's minimum on a fill. A note only: the pick
 /// and the favorite brands stay as they are.
-function cheaperNote(app, sm) {
+function cheaperNote(app, sm, { onMap = false } = {}) {
   const ch = sm?.cheaper, p = sm?.primary;
-  if (!ch || !p) return '';
+  if (!ch || !p || (onMap && (ch.price.kind === 'google' || p.priceInfo?.record.source.kind === 'google'))) return '';
   const o = app.priceOptions();
   const where = `${ch.name}${ch.exit ? `, ${exitTitle(ch.exit)}` : ''}, ${ch.farther >= 0 ? `${milesValue(ch.farther)} mi farther` : `${milesValue(-ch.farther)} mi sooner`}`;
   const keep = p.brandRank !== null ? `Your ${p.brand || p.name} preference stays as it is.` : 'Your favorite brands stay as they are.';
@@ -938,10 +942,13 @@ function compareCard(app, s) {
       <div class="tiny pr-facts">${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
       ${price ? `<div class="tiny ${price.state === 'current' ? 'muted' : 'amber-text'}">${h(priceMeta(price))}</div>` : ''}</div>${priceTag(price, o.grade)}</button>`;
   };
+  const google = app.settings.prices?.google && app.prices.enabled
+    ? `<button class="btn sm block" style="margin-top:10px" data-act="google-ahead">Check Google Maps prices for the next 3 exits</button>
+      <p class="muted tiny" style="margin:6px 2px 0">Paid, on your own key (keep it capped in Google Cloud). This month: ${app.priceCalls()} lookups. Shown here with Google's name, never on the map, not saved.</p>` : '';
   const shared = app.priceBook.sharedState === 'unavailable' ? '<p class="muted tiny" style="margin:6px 4px 0">Shared driver reports could not load just now; stations without your own report show as unavailable.</p>' : '';
   const any = list.some((c) => c.priceInfo);
   const sim = app.priceBook.simulated.length ? '<div class="sim-tag">SIMULATED PRICES · test data, not real</div>' : '';
-  return `<div class="card compare" data-testid="price-compare">${sim}<div class="row"><b style="flex:1">${h(GRADE_NAMES[o.grade])} · ${o.payment}</b><span class="muted tiny">${list.length} ${list.length === 1 ? 'stop' : 'stops'} in ${app.exitsUI.window} mi</span></div>${chips}</div>
+  return `<div class="card compare" data-testid="price-compare">${sim}<div class="row"><b style="flex:1">${h(GRADE_NAMES[o.grade])} · ${o.payment}</b><span class="muted tiny">${list.length} ${list.length === 1 ? 'stop' : 'stops'} in ${app.exitsUI.window} mi</span></div>${chips}${google}</div>
     ${list.length ? `<div class="list">${sorted.slice(0, 20).map(row).join('')}</div>` : `<div class="card empty">No gas listed in the next ${app.exitsUI.window} miles. Try a longer window.</div>`}
     ${shared}${benchmarkLine(app, o.grade)}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Prices are reports with their time and source, not verified pump prices.' : 'No current reports for these stations. Tap a station to add the price you see.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
 }
@@ -972,9 +979,15 @@ export function stationSheet(app, id) {
   const google = app.settings.prices?.google && x.exit && app.prices.enabled
     ? `<button class="btn sm" data-act="google-prices" data-arg="${h(x.exit.id)}">Check Google Maps prices</button>` : '';
   const gNote = x.live ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up when you asked. Not stored or shared.</p>' : '';
+  const place = app.stationPlace(x);
+  const gb = gasBuddyLink(place);
+  const check = x.coordinate ? `<div class="section-title">Check the posted price</div>
+    <div class="btn-row"><a class="btn sm" data-testid="check-google" href="${h(googleMapsLink(x))}" target="_blank" rel="noopener">Google Maps ↗</a>${gb ? `<a class="btn sm" data-testid="check-gasbuddy" href="${h(gb)}" target="_blank" rel="noopener">GasBuddy ↗</a>` : ''}</div>
+    <p class="muted tiny" style="margin:6px 4px 0">Opens ${h(x.brand || x.name)} on Google Maps${gb ? `, or the ${h(place.city ?? place.state)} price page on GasBuddy` : ''}. ExitAtlas does not read or copy prices from those sites; report the one you see.</p>` : '';
   return `<div class="sheet-head">${brandTag(x)}<h2>${h(x.name)}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="muted small" style="margin-top:0">${x.exit ? `${h(exitTitle(x.exit))} · ` : x.kind === 'plaza' ? 'Service plaza · ' : ''}<span data-along="${x.along}">${aheadText(app.snapshot, x.along)}</span></p>
     <div class="section-title">Prices here</div><div class="list">${rows}</div>
+    ${check}
     <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="report-price" data-arg="${h(id)}">Report a price</button>${google}${x.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(x.exit.id)}">Exit details</button>` : ''}</div>
     ${gNote}
     ${mine.length ? `<div class="section-title">Your reports here</div><div class="list">${mineRows}</div>` : ''}
@@ -1060,9 +1073,9 @@ function fuelCard(app, s) {
     const sm = app.smartStop(), p = sm.primary;
     body = `<div class="row" style="gap:10px;margin-top:2px">${smartSign(p)}<div style="flex:1;min-width:0">
         <div style="font-weight:700${sm.lowRange ? ';color:var(--amber)' : ''}">${sm.lowRange ? 'Fuel low: nearest' : 'Fuel stop'} · ${h(p.name)} · ${milesValue(p.ahead)} mi${p.brandRank !== null ? ' · ★' : ''}</div>
-        ${smartConfidence(p, sm)}${priceLine(app, p)}
+        ${smartConfidence(p, sm)}${priceLine(app, p, { onMap: true })}
         <div class="muted tiny">${h(smartArrival(app, p))}${p.detourMinutes != null ? ` · ${Math.round(p.detourMinutes)} min detour` : ''}</div></div></div>
-        ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}${cheaperNote(app, sm)}`;
+        ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}${cheaperNote(app, sm, { onMap: true })}`;
   } else {
     const low = fp.status === 'low';
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);

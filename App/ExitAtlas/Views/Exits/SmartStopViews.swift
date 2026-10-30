@@ -90,7 +90,8 @@ struct SmartStopSections: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings
     let result: SmartStop.Result
-    @State private var station: StationRef?
+    /// The station whose prices sheet is open (presented by FuelView, outside the list rows).
+    @Binding var station: StationRef?
 
     var body: some View {
         if let p = result.primary {
@@ -154,7 +155,6 @@ struct SmartStopSections: View {
         }
         Section {
             OvernightModeRow()
-                .sheet(item: $station) { StationPricesView(id: $0.id) }
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
                 if !result.passed.isEmpty { Text(passedNote) }

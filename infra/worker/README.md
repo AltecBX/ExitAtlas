@@ -11,7 +11,7 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 | `POST /v1/gas-prices` with `{lat, lon}` | Google Places API (New) Nearby Search, gas stations within 1.6 km with fuel prices | Never (Google's terms do not allow caching prices) | `DAILY_PRICES` for everyone, `CLIENT_DAILY_PRICES` per client |
 | `POST /v1/chargers` with the AFDC form fields | U.S. DOE AFDC nearby-route (public domain) | Cloudflare cache, 1 day | `DAILY_CHARGERS`, `CLIENT_DAILY_CHARGERS`; cache hits are free |
 | `GET /v1/wzdx/<state>` | That state's work zone feed (WZDx, CC0, no key), only the feeds in `web/js/engine/alertsources.js` | Cloudflare cache, 2 minutes | none (no key, no cost per call); `DISABLED = "wzdx"` switches it off |
-| `POST /v1/price-reports`, `GET /v1/price-reports?stations=` | none: drivers' own gas price reports, on Cloudflare D1 (`src/prices.js`, docs/17) | D1, 7 days | `DAILY_PRICE_REPORTS`, `CLIENT_DAILY_PRICE_REPORTS` (per IP hash and per install), `DAILY_PRICE_READS`; off without a D1 binding, or with `DISABLED = "community"` |
+| `POST /v1/price-reports`, `GET /v1/price-reports?stations=` | none: drivers' own gas price reports, on Cloudflare D1 (`src/prices.js`, docs/17); the iOS app calls it with `X-ExitAtlas-Client: ios/1` instead of an Origin | D1, 7 days; lookups not cached | `DAILY_PRICE_REPORTS`, `CLIENT_DAILY_PRICE_REPORTS` (per IP hash and per install), `DAILY_PRICE_READS`; off without a D1 binding, or with `DISABLED = "community"` |
 | `GET /v1/fuel-benchmarks` | EIA weekly retail price summary (public domain, no key) | Cloudflare cache, 6 hours | none; `DISABLED = "benchmarks"` switches it off |
 | `GET /v1/config` | none | 5 minutes in browsers | none |
 
@@ -31,6 +31,16 @@ Keeps the Google Maps and NREL keys off the phone and caps what they can spend. 
 5. In ExitAtlas, Settings, Data and keys, enter the Worker URL (for example `https://exitatlas-proxy.<account>.workers.dev`).
 
 Cost at personal scale: the Workers Free plan (100,000 requests a day, [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)) covers it. Google bills Places calls with fuel prices after its monthly free allowance; `DAILY_PRICES = 200` caps the worst case at about 6,000 calls a month. Check current Google pricing before raising it. (Cloudflare limits checked 2026-10-28.)
+
+## One click deploy (GitHub Actions)
+
+1. Create a free Cloudflare account (no payment method needed for Workers Free; do not add one).
+2. In Cloudflare, My Profile, API Tokens, create a token with the permissions Workers Scripts Edit, Workers KV Storage Edit and D1 Edit for your account. Copy your Account ID from the Workers overview page.
+3. In GitHub, the repository's Settings, Secrets and variables, Actions, add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+4. In Actions, run "Deploy proxy". It creates the KV namespace and the D1 database if missing, applies the schema, deploys, sets a random `CLIENT_SALT`, then checks the live Worker with real requests (a report from one install read by another, refusals) and deletes the test reports. The run summary prints the proxy URL.
+5. Paste that URL in ExitAtlas, Settings, Gas prices, ExitAtlas server (website and iPhone), then turn on Shared driver reports.
+
+The same steps run locally with `CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... bash scripts/deploy.sh`.
 
 ## Shared gas price reports (optional, $0)
 

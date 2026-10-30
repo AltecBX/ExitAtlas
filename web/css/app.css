@@ -535,7 +535,9 @@ body.nav-mode main { padding: 0; max-width: none; }
 .nav-view button, .nav-view a, .nav-view .card, .nav-view .guide, .nav-view .nav-strip, .nav-view .speed-chip, .nav-view .nav-note, .nav-view .banner { pointer-events: auto; }
 .nav-top { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .nav-mid { flex: 1; min-height: 0; display: flex; justify-content: space-between; align-items: flex-start; }
-.nav-left { display: flex; gap: 8px; align-items: center; }
+.nav-left { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
+.nav-speed { display: flex; gap: 8px; align-items: center; }
+.nav-left .nav-note { align-self: flex-start; max-width: 190px; border-radius: 14px; line-height: 1.3; }
 .nav-right { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
 .nav-bottom { display: flex; flex-direction: column; gap: 8px; }
 .nav-card .card { background: var(--raised); box-shadow: var(--elev); }

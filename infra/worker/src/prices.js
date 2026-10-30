@@ -18,7 +18,7 @@ export const REPORT_LIMITS = Object.freeze({
   daily: 2000,
   clientDaily: 20,
   installDaily: 20,
-  /// Report lookups that reach the database per day (answers are cached for a minute). With rowsPerRead
+  /// Report lookups per day (not cached, so a new report reaches other drivers at once). With rowsPerRead
   /// that is at most 2.5 million rows read, half of D1 Free's 5 million a day.
   dailyReads: 5000,
   /// Stations per lookup, and reports per answer.

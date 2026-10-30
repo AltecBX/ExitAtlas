@@ -162,7 +162,7 @@ public extension SmartStop {
                     detourMinutes: routed ? g.detourSeconds.map { $0 / 60 } : nil,
                     rangeOnArrival: rangeLeft.map { $0 - ahead - g.detourMeters / 2 },
                     price: current?.record.price, pricePayment: current?.record.payment?.rawValue, priceText: current?.text,
-                    priceSource: current?.record.source.name, priceInfo: sp, detourMeters: g.detourMeters,
+                    priceSource: current?.record.source.name, priceInfo: sp, detourMeters: g.detourMeters, coordinate: g.place.coordinate,
                     osmHours: fact?.h, osmChecked: fact?.hc, osmToilets: fact?.t, gone: fact?.gone,
                     livePeriods: live?.periods, liveRestroom: live?.restroom,
                     brandHours: fact?.ah, brandToilets: fact?.at, listedBy: fact?.ab,
@@ -189,7 +189,7 @@ public extension SmartStop {
                 along: r.distanceAlongRoute, ahead: ahead, arrival: ctx.eta(r.distanceAlongRoute), timeZone: ctx.zone(r.distanceAlongRoute),
                 rangeOnArrival: rangeLeft.map { $0 - ahead },
                 price: current?.record.price, pricePayment: current?.record.payment?.rawValue, priceText: current?.text,
-                priceSource: current?.record.source.name, priceInfo: sp, detourMeters: 0,
+                priceSource: current?.record.source.name, priceInfo: sp, detourMeters: 0, coordinate: r.coordinate,
                 plazaHours: r.hours, plazaToilets: r.amenities[.toilets], truckSpaces: r.fhwaTruckSpaces)
         }
     }

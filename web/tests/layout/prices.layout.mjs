@@ -41,7 +41,7 @@ for (const [label, width, height] of SIZES) {
     const errors = [];
     const outside = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.route('https://**', (r) => { outside.push(r.request().url()); r.fulfill({ status: 503, body: '' }); });
+    await page.route((u) => u.protocol === 'https:', (r) => { outside.push(r.request().url()); r.fulfill({ status: 503, body: '' }); });
     await page.goto(`${base}?demo=120&prices`);
     await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
     await page.waitForTimeout(1200);

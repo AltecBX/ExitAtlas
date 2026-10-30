@@ -278,6 +278,16 @@ const app = {
     return benchmarkFor(sum, s.current.segment.code, grade);
   },
 
+  /// The city and state of a station, for the GasBuddy link: the state from the route at once, the city
+  /// from one OpenStreetMap reverse lookup (Nominatim) when the station's sheet opens.
+  stationPlace(x) {
+    const hit = this.placeCache.get(x.id);
+    if (hit && !hit.pending) return hit;
+    const code = x.along != null ? this.plan?.states.segmentAt(x.along)?.code ?? null : null;
+    return { city: null, state: code };
+  },
+  placeCache: new Map(),
+
   /// Tank and mpg for the cost of a fill (gas vehicles with both known), else null.
   fillVehicle() {
     const v = this.vehicleProfile();
@@ -505,7 +515,7 @@ function renderSheet() {
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') html = V.fuelSheet(app);
-  else if (kind === 'station') html = V.stationSheet(app, arg);
+  else if (kind === 'station') { html = V.stationSheet(app, arg); lookupStationPlace(arg); }
   else if (kind === 'report') html = V.reportSheet(app);
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
@@ -720,6 +730,22 @@ function loadBenchmarks() {
     })
     .catch((e) => { b.error = e.message; })
     .finally(() => { b.pending = false; b.at = Date.now(); });
+}
+
+/// One reverse lookup per station (only when its sheet opens; Nominatim's usage policy allows light use).
+function lookupStationPlace(id) {
+  const x = app.findStation(id);
+  if (!x?.coordinate || app.placeCache.has(id)) return;
+  app.placeCache.set(id, { pending: true });
+  const q = new URLSearchParams({ format: 'jsonv2', lat: x.coordinate.lat, lon: x.coordinate.lon, zoom: 10, addressdetails: 1 });
+  fetch(`https://nominatim.openstreetmap.org/reverse?${q}`, { headers: { 'Accept-Language': 'en-US' } })
+    .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    .then((json) => {
+      const a = json?.address ?? {};
+      app.placeCache.set(id, { city: a.city ?? a.town ?? a.village ?? a.hamlet ?? null, state: a.state ?? app.stationPlace(x).state });
+      if (app.sheet?.kind === 'station' && app.sheet.arg === id) renderSheet();
+    })
+    .catch(() => app.placeCache.delete(id));
 }
 
 /// Changes price settings (saved in the profile).
@@ -1510,6 +1536,22 @@ const actions = {
     renderSheet();
   },
   'price-delete'(arg) { app.priceBook.remove(arg); toast('Report deleted'); lastViewHTML = ''; render(); renderSheet(); },
+  'google-ahead'() {
+    // The next three exits in the comparison whose Google prices were not looked up in the last 15 minutes.
+    const r = app.bestStopAhead(Math.max(60, app.exitsUI.window));
+    const win = app.exitsUI.window * MILE;
+    const seen = new Set(), exits = [];
+    for (const c of (r?.stations ?? []).filter((x) => x.exit && x.ahead > 0 && x.ahead <= win).sort((a, b) => a.ahead - b.ahead)) {
+      if (seen.has(c.exit.id)) continue;
+      seen.add(c.exit.id);
+      const cached = app.prices.cache.get(c.exit.id);
+      if (!cached || (!cached.pending && Date.now() - cached.at >= 15 * 60 * 1000)) exits.push(c.exit);
+      if (exits.length === 3) break;
+    }
+    if (!exits.length) { toast('Google prices for these exits were checked in the last 15 minutes'); return; }
+    loadPrices(exits);
+    toast(`Checking Google Maps prices at ${exits.length} ${exits.length === 1 ? 'exit' : 'exits'}`);
+  },
   'google-prices'(arg) {
     const exit = app.plan?.exits.find((e) => e.id === arg);
     if (!exit || !app.prices.enabled) return;

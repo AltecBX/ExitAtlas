@@ -52,6 +52,20 @@ jobs:
         run: node web/tests/layout/ahead.layout.mjs
       - name: Gas prices (simulated) in Road Ahead, reports and settings, no paid requests
         run: node web/tests/layout/prices.layout.mjs
+      - name: One test report shows in Drive, Road Ahead, Compare Prices, Station details and SmartStop
+        run: node web/tests/layout/pricepath.layout.mjs
+      - name: Shared reports on the Worker runtime (wrangler dev, local D1)
+        working-directory: infra/worker
+        run: |
+          npm install --no-save wrangler@4
+          printf '%s\n' 'name = "exitatlas-proxy-ci"' 'main = "src/index.js"' 'compatibility_date = "2026-10-01"' '[vars]' \
+            'ALLOWED_ORIGINS = "http://127.0.0.1:8765"' 'CLIENT_SALT = "ci-salt"' '[[kv_namespaces]]' 'binding = "BUDGET"' 'id = "ci"' \
+            '[[d1_databases]]' 'binding = "PRICES_DB"' 'database_name = "exitatlas-prices"' 'database_id = "ci"' > wrangler.ci.toml
+          npx wrangler d1 execute exitatlas-prices --local --config wrangler.ci.toml --file schema.sql > /dev/null
+          npx wrangler dev --local --config wrangler.ci.toml --port 8787 --ip 127.0.0.1 > dev.log 2>&1 &
+          for i in $(seq 60); do curl -s -o /dev/null -H 'Origin: http://127.0.0.1:8765' http://127.0.0.1:8787/v1/config && break; sleep 2; done
+          node scripts/smoke.mjs http://127.0.0.1:8787/ http://127.0.0.1:8765
+          WORKER_URL=http://127.0.0.1:8787 node ../../web/tests/layout/share.layout.mjs
 
   ios-app:
     name: iOS app build and screenshots (Xcode)

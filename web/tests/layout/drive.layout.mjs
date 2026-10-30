@@ -37,7 +37,7 @@ for (const [label, width, height] of SIZES) {
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       // Offline (no tiles, no live sources): the layout must not depend on the network.
-      await page.route('https://**', (r) => r.fulfill({ status: 503, body: '' }));
+      await page.route((u) => u.protocol === 'https:', (r) => r.fulfill({ status: 503, body: '' }));
       await page.goto(`${base}?demo`);
       await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
       await page.waitForSelector('.nav-view, .focus-view', { timeout: 60000 });

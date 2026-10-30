@@ -172,3 +172,19 @@ test('off without a database, switchable off, and a database at its free limit m
     assert.match((await res.json()).error, /unavailable right now/);
   }
 });
+
+test('the iOS app (no Origin, named in X-ExitAtlas-Client) can share and read; a nameless client cannot', async () => {
+  const handle = createHandler({ now: () => NOW });
+  const e = env();
+  const ios = (init = {}) => new Request(init.url ?? 'https://proxy.test/v1/price-reports', { method: init.method ?? 'GET', body: init.body,
+    headers: { 'X-ExitAtlas-Client': 'ios/1.0', 'CF-Connecting-IP': '198.51.100.40', 'Content-Type': 'application/json' } });
+  const sent = await handle(ios({ method: 'POST', body: JSON.stringify(report({ install: 'ios-install-0001' })) }), e);
+  assert.equal(sent.status, 200);
+  assert.equal(sent.headers.get('Access-Control-Allow-Origin'), null, 'no CORS headers for the app');
+  const read = await handle(ios({ url: 'https://proxy.test/v1/price-reports?stations=osm:n1' }), e);
+  assert.equal((await read.json()).reports.length, 1);
+  const nameless = await handle(new Request('https://proxy.test/v1/price-reports?stations=osm:n1'), e);
+  assert.equal(nameless.status, 403);
+  const fake = await handle(new Request('https://proxy.test/v1/price-reports?stations=osm:n1', { headers: { 'X-ExitAtlas-Client': 'curl/8' } }), e);
+  assert.equal(fake.status, 403);
+});

@@ -126,3 +126,39 @@ iOS: the engine, profile and SmartStop changes are shared and tested; the iOS sc
 * The EIA context line comes through the Worker, so it shows only once the Worker is deployed. Not tested against a deployed Worker; the parser is tested on the 10/26/26 release's format.
 * Screenshots and layout checks use SIMULATED prices (`?demo&prices`), labeled "SIMULATED PRICES · test data, not real" and "SIMULATED test data" on every price. They are never stored.
 * Proof of no paid calls: `web/tests/layout/prices.layout.mjs` stores a Google key, runs the price screens, and fails on any request to Google; `web/tests/services.test.js` checks that a stored key or the proxy alone never turns Google on; the Worker's price report tests fail if any outside fetch happens.
+
+## 17.12 Why no prices appeared, and real station prices (2026-10-30)
+
+**Why every station said "Price unavailable".** The comparison works; it had no data. On a fresh install there are no own reports, shared reports need the owner's server (not deployed), and Google Maps prices are off by default. No free, authorized feed fills that gap (below). Also, the Drive fuel card shows a price only for SmartStop's pick, which needs a range entered.
+
+**Proof the price path works without any feed.** `web/tests/layout/pricepath.layout.mjs` and the iOS UI test `testPricePath` enter one TEST REPORT through Report a price at SmartStop's pick and check it in Drive, Road Ahead, Compare Prices, Station details and SmartStop's reasons; every other station stays "Price unavailable". This proves the app shows a price it has, not that a live feed exists.
+
+**Bugs found and fixed.**
+* The browser layout checks blocked outside requests with `page.route('https://**')`, which matches nothing in Playwright 1.63: the pages were online and the "no Google request" checks proved nothing. They now block with a URL test (`u.protocol === 'https:'`), record every blocked host, and fail on any Google request.
+* Testing truly offline then showed the Drive map's "Map offline" note pushing the bottom panel into the right hand controls on a 375 by 667 screen. The note now sits under the speed sign.
+* A shared report could take up to six minutes to reach other phones (a 60 second Worker cache plus a five minute re-ask). Lookups are no longer cached (the daily lookup budget already keeps D1 under its free limit) and the app re-asks after 90 seconds.
+* The iOS app could not use shared reports at all: there was no client, and the Worker refused requests without a browser Origin. The app now names itself (`X-ExitAtlas-Client: ios/1`), shares and reads reports, with the same location check (its own GPS, within 250 m, never sent).
+
+**Sources checked again for real, station level prices** ([V] read in the source):
+
+| Source | Result |
+|---|---|
+| OpenFuel | No API, feed or export. Station pages are an app shell; prices load only from its Supabase backend, which may not be called. Terms §5: "If you want a research-scale extract of the public price database, contact us first"; §7 limits the Service to "personal, non-commercial purposes" [V]. Yonkers: one listing (BP, 594 Nepperhan Ave, E85), no price visible in its HTML [V]. Usable only with the operator's written permission; draft email below. |
+| GitHub feeds (jacobschulman/gas-tracker, coatless-data/club-gas-prices, TravIR-Fuel-History, GasBuddy scrapers) | Every station level feed found collects from GasBuddy, Costco, Circle K, Sam's Club or Marathon. GasBuddy (terms effective Apr 24, 2026), Costco (Oct 7, 2026) and Circle K terms forbid it; gas-tracker is AAA state averages, which AAA's terms forbid reusing [V]. A repository's code license gives no rights to the data. Not used. |
+| Public open data | No US state or city publishes station prices. NYSERDA (data.ny.gov) has weekly metro averages from AAA, latest week 2026-10-05; EIA has weekly averages (public domain). Open Prices: 0 fuel prices in New York; OpenStreetMap: 4,065 New York stations, 0 with a price [V]. |
+| TomTom Fuel Prices | Station level, but "not available as part of our free evaluation or Pay As You Grow (PAYG) offering" [V]. Contract only. |
+| HERE Fuel Prices | Billed from the first request [V]. Not $0. |
+| Love's, OPIS, Barchart, GasBuddy data | Sales or contract only; GasBuddy offers no API or license and forbids scraping [V]. |
+| Google Places (`fuelOptions`) | Station level with update times. Needs a Google Cloud billing account, so off unless Jerry approves (below). |
+
+**Yonkers result.** No authorized $0 method returned a real Yonkers station price. Nothing in the app shows one until a driver reports it or Jerry approves the capped Google key.
+
+**The one $0 option that returns real station prices, with Jerry's approval.** Google's Nearby Search with fuel prices bills as "Nearby Search Enterprise + Atmosphere", with 1,000 free requests a month. Google's own guidance: "To put a hard cap on usage of an API, lower its per-day quota" and "A daily limit of 32 keeps usage at or below 992 in any month" ([manage costs](https://developers.google.com/maps/billing-and-pricing/manage-costs)); budgets alone do not stop spending. With a daily quota of 30 (at most 930 a month) on a project used for nothing else, the bill stays $0. Each lookup covers the stations within 1 mile of one exit. In ExitAtlas: Settings, Gas prices, Google Maps prices on, paste the key; then Road Ahead, Fuel, "Check Google Maps prices for the next 3 exits", or Station details. Google's terms keep its data off non-Google maps, so a Google price never shows on the Drive screen (map); it shows in Road Ahead, Station details and the fuel sheet, with Google's name, and is never stored.
+
+**Check the posted price (no data copied).** Station details now link to the station on Google Maps (a documented Maps URLs search for the brand at the station's coordinates; checked to list the nearest station of that brand first, for example Shell at 1063 Yonkers Ave) and to GasBuddy's city price page (for example https://www.gasbuddy.com/gasprices/new-york/yonkers, found by one reverse lookup when the sheet opens; the state page when no city is known). The driver sees the posted price there and reports it in a few taps.
+
+**Shared reports.** Tested on Cloudflare's own runtime (`wrangler dev` with a local D1): a report from one install is read by another, repeats are dropped, a report without the location check, an out of range price and other sites are refused (`infra/worker/scripts/smoke.mjs`, `web/tests/layout/share.layout.mjs`; both run in CI). Not deployed: deploying needs Jerry's Cloudflare account (README, "One click deploy").
+
+**Draft request to OpenFuel (support@openfuel.app), for Jerry to send:**
+
+> Hi Anthony, I'm Jerry, and I build ExitAtlas, a free, personal, non-commercial road trip planner (web and iOS). I'd like to show drivers recent gas prices along their route, and OpenFuel's community reports would be a great fit. Would you consider giving me a free, read-only feed or periodic extract of the public price reports? I would credit OpenFuel (and OpenStreetMap where station data is used) and link back to your station pages; keep to whatever rate limits or refresh schedule you set; and use the data only to display each price with its grade, report time and source, never resold or republished. I won't scrape the site or call your backend without your OK. Thanks for building OpenFuel. Jerry
