@@ -164,6 +164,17 @@ export class TripPlan {
   }
 }
 
+/// Fixes further apart than this (screen locked, tunnel) teach the pace model only when the time fits
+/// driving all the way, no slower than the slowest pace it predicts: a stop hidden in the gap is not slow driving.
+const PACE_GAP_SECONDS = 30;
+const SLOWEST_PACE = 2.5;
+/// Off the route, a parked phone's fixes wander several meters every second. Movement counts only beyond this
+/// (or twice the reported accuracy), and not while the reported speed says stopped.
+const OFF_ROUTE_WANDER = 40;
+const STOPPED_SPEED = 1;
+/// Back on the route after a long gap: the route between counts as driven when it fits this speed (m/s).
+const GAP_MAX_SPEED = 45;
+
 /// Live trip: plan, GPS tracking, driven history and pace. Survives reroutes.
 export class TripSession {
   constructor(plan, states, startedAt, { ledger = null, pace = null } = {}) {
@@ -176,6 +187,10 @@ export class TripSession {
     this.hasStartedDriving = this.ledger.totalMeters > 0;
     this.offRouteSince = null;
     this.recordedUpTo = 0;
+    /// The last fix counted as driven while off the route (null on the route).
+    this.offRouteAnchor = null;
+    /// True from a reroute (whose route starts where the driver was) until the first fix on it.
+    this.startsAtDriver = false;
     /// The traffic reading shown (engine/traffic.js, after stabilizeReading), used while it is usable.
     this.traffic = null;
     this.rerouteDelay = 8;
@@ -192,15 +207,35 @@ export class TripSession {
       this.recordedUpTo = current.distanceAlongRoute;
       const dt = current.t - previous.t;
       const moved = current.distanceAlongRoute - previous.distanceAlongRoute;
-      if (dt > 0 && moved / dt > 2) {
-        this.pace.observe(this.plan.route.timeProfile.secondsBetween(previous.distanceAlongRoute, current.distanceAlongRoute), dt, moved);
+      const modeled = this.plan.route.timeProfile.secondsBetween(previous.distanceAlongRoute, current.distanceAlongRoute);
+      if (dt > 0 && moved / dt > 2 && (dt <= PACE_GAP_SECONDS || dt <= SLOWEST_PACE * modeled)) {
+        this.pace.observe(modeled, dt, moved);
       }
+    } else if ((previous.status === 'offRoute' || (previous.status === 'acquiring' && this.startsAtDriver))
+      && current.status === 'onRoute' && this.lastSample
+      && sample.t - this.lastSample.t >= 120 && current.distanceAlongRoute > this.recordedUpTo
+      && (current.distanceAlongRoute - this.recordedUpTo) / (sample.t - this.lastSample.t) <= GAP_MAX_SPEED) {
+      // Back on the route after a gap that hid the way back (screen locked at a stop): the route between counts.
+      this.ledger.recordRouteProgress(this.recordedUpTo, current.distanceAlongRoute, this.plan.states, this.lastSample.t, current.t);
+      this.recordedUpTo = current.distanceAlongRoute;
     } else if (this.hasStartedDriving && current.status !== 'onRoute' && this.lastSample
-      && sample.accuracy >= 0 && sample.accuracy <= 100 && sample.t - this.lastSample.t < 120) {
-      const meters = geoDistance(this.lastSample.coordinate, sample.coordinate);
-      this.ledger.recordOffRoute(meters, this.states.regionContaining(sample.coordinate), sample.t);
+      && sample.accuracy >= 0 && sample.accuracy <= 100) {
+      if (sample.t - this.lastSample.t >= 120) {
+        this.offRouteAnchor = sample; // the way between is unknown
+      } else if (!(sample.speed != null && sample.speed < STOPPED_SPEED)) {
+        const anchor = (this.offRouteAnchor ??= this.lastSample);
+        const meters = geoDistance(anchor.coordinate, sample.coordinate);
+        if (meters > Math.max(OFF_ROUTE_WANDER, 2 * sample.accuracy)) {
+          this.ledger.recordOffRoute(meters, this.states.regionContaining(sample.coordinate), sample.t);
+          this.offRouteAnchor = sample;
+        }
+      }
     }
-    if (current.status === 'onRoute') this.hasStartedDriving = true;
+    if (current.status === 'onRoute') {
+      this.hasStartedDriving = true;
+      this.startsAtDriver = false;
+      this.offRouteAnchor = null;
+    }
     if (current.status === 'offRoute') {
       if (this.offRouteSince === null) this.offRouteSince = sample.t;
     } else {
@@ -223,5 +258,7 @@ export class TripSession {
     this.tracker = new RouteProgressTracker(plan.route.polyline, t);
     this.offRouteSince = null;
     this.recordedUpTo = 0;
+    this.offRouteAnchor = null;
+    this.startsAtDriver = true;
   }
 }

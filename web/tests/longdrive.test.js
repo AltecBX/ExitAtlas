@@ -2,10 +2,15 @@
 // parked phones and GPS gaps. Each test drives a real route fixture (OSRM, OpenStreetMap) with simulated fixes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { route, START, near } from './support.js';
-import { offset } from '../js/engine/geo.js';
+import { data, route, START, near } from './support.js';
+import { offset, normalizedDegrees } from '../js/engine/geo.js';
 import { RouteProgressTracker, TrackerConfig } from '../js/engine/tracking.js';
+import { TripPlan, TripSession } from '../js/engine/trip.js';
 import { GPSSimulator } from '../js/engine/discovery.js';
+import { PlannedRoute, TravelTimeProfile } from '../js/engine/route.js';
+import { RoutePolyline } from '../js/engine/geo.js';
+
+const DS = { states: data.states, timeZones: null, interstates: null };
 
 /// A fix at a distance along the route, moved `side` meters to the right of travel.
 function fixAt(r, d, t, { side = 0, accuracy = 8, speed = 28, course = 'route' } = {}) {
@@ -86,4 +91,101 @@ test('tracking: leaving on a road beside the route is still flagged, after the d
   }
   assert.ok(offAt !== null, 'never flagged off route');
   assert.ok(offAt - left <= TrackerConfig.driftTolerance + 10, `flagged after ${offAt - left} s`);
+});
+
+// MARK: Pace across GPS gaps
+
+test('pace: a stop hidden in a GPS gap (phone locked at a plaza) is not learned as slow driving', () => {
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, DS), data.states, START);
+  const trace = new GPSSimulator(r).trace(0, 60000, START);
+  let before = null;
+  for (const { sample } of trace) before = session.ingest(sample);
+  const last = trace[trace.length - 1].sample;
+  // Six minutes parked beside the road with no fixes, then a minute of driving.
+  const after = session.ingest(fixAt(r, 61800, last.t + 420, { speed: 30 }));
+  assert.equal(after.match.status, 'onRoute');
+  assert.ok(session.pace.recentFactor < 1.2, `recent pace ${session.pace.recentFactor}`);
+  assert.ok(after.timeRemaining < before.timeRemaining, `time remaining ${before.timeRemaining} then ${after.timeRemaining}`);
+
+  // A gap that is plain driving (two minutes in a tunnel at the usual speed) still counts.
+  const observed = session.pace.observedSeconds;
+  const speed = r.timeProfile.speedAt(70000);
+  session.ingest(fixAt(r, 62000, last.t + 440, { speed: 30 }));
+  session.ingest(fixAt(r, 62000 + speed * 120, last.t + 560, { speed }));
+  assert.ok(session.pace.observedSeconds - observed >= 120, 'tunnel gap not learned');
+});
+
+// MARK: Driven miles off the route
+
+function departAndPark(r, session, fromT, { minutes, speedReported }) {
+  // Exit at 30 km: 20 s on a ramp to 250 m off the route, then parked with GPS wander.
+  let t = fromT;
+  for (let k = 1; k <= 20; k++, t += 1) {
+    session.ingest(fixAt(r, 30000 + 8 * k, t, { side: 12.5 * k, speed: 13, course: normalizedDegrees(r.polyline.bearingAt(30000) + 60) }));
+  }
+  const g = wander(3);
+  const spot = offset(r.polyline.coordinateAt(30160), r.polyline.bearingAt(30160) + 90, 250);
+  for (let k = 0; k < minutes * 60; k++, t += 1) {
+    const c = offset(offset(spot, 0, g() * 6), 90, g() * 6);
+    session.ingest({ coordinate: c, accuracy: 8, course: null, speed: speedReported, t });
+  }
+  return t;
+}
+
+for (const speedReported of [0, null]) {
+  test(`ledger: a phone parked off the route for 40 minutes adds no miles (speed ${speedReported === null ? 'not reported' : '0'})`, () => {
+    const r = route('atlanta_to_nashville');
+    const session = new TripSession(new TripPlan(r, DS), data.states, START);
+    const trace = new GPSSimulator(r).trace(0, 30000, START);
+    for (const { sample } of trace) session.ingest(sample);
+    const driven = session.ledger.totalMeters;
+    departAndPark(r, session, trace[trace.length - 1].sample.t + 1, { minutes: 40, speedReported });
+    assert.equal(session.tracker.match.status, 'offRoute');
+    // The ramp is about 300 m; GPS wander used to add about 25 km here.
+    const extra = session.ledger.totalMeters - driven;
+    assert.ok(extra > 150 && extra < 600, `off route meters ${extra.toFixed(0)}`);
+  });
+}
+
+test('ledger: miles driven while the screen was locked after leaving the route count once back on it', () => {
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, DS), data.states, START);
+  const trace = new GPSSimulator(r).trace(0, 30000, START);
+  for (const { sample } of trace) session.ingest(sample);
+  const t = departAndPark(r, session, trace[trace.length - 1].sample.t + 1, { minutes: 1, speedReported: 0 });
+  // 15 minutes without fixes: the rest of the stop, then back on the highway; first fix 20 km on.
+  let snap = null;
+  for (let k = 0; k < 5; k++) snap = session.ingest(fixAt(r, 50000 + 28 * k, t + 900 + k));
+  assert.equal(snap.match.status, 'onRoute');
+  near(session.ledger.totalMeters, 50112, 800, 'driven');
+});
+
+test('ledger: the same after a reroute from the exit, and never for a resumed trip', () => {
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, DS), data.states, START);
+  const trace = new GPSSimulator(r).trace(0, 30000, START);
+  for (const { sample } of trace) session.ingest(sample);
+  const t = departAndPark(r, session, trace[trace.length - 1].sample.t + 1, { minutes: 1, speedReported: 0 });
+  // The reroute's route starts at the parked car and joins the original route 400 m on.
+  const spot = session.lastSample.coordinate;
+  const rest = r.polyline.slice(30400, r.polyline.length);
+  const polyline = new RoutePolyline([spot, ...rest.points]);
+  const rerouted = new PlannedRoute({
+    source: 'osrm', polyline, timeProfile: TravelTimeProfile.uniform(polyline.length, polyline.length / 28),
+    origin: { name: 'Here', coordinate: spot }, destination: r.destination,
+  });
+  session.replacePlan(new TripPlan(rerouted, DS), t);
+  const shift = 30400 - (polyline.length - rest.length);
+  for (let k = 0; k < 5; k++) session.ingest(fixAt(r, 50000 + 28 * k, t + 900 + k));
+  assert.equal(session.tracker.match.status, 'onRoute');
+  near(session.tracker.match.distanceAlongRoute, 50112 - shift, 60, 'on the new route');
+  near(session.ledger.totalMeters, 50112, 800, 'driven');
+
+  // A trip resumed after a reload starts a fresh session on the saved route: its first fix far along the
+  // route must not be credited from the start of the route.
+  const resumed = new TripSession(new TripPlan(r, DS), data.states, START, { ledger: session.ledger });
+  const total = resumed.ledger.totalMeters;
+  for (let k = 0; k < 5; k++) resumed.ingest(fixAt(r, 120000 + 28 * k, t + 5000 + k));
+  assert.ok(resumed.ledger.totalMeters - total < 200, 'resume credited the route before the first fix');
 });

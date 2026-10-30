@@ -101,4 +101,112 @@ final class LongDriveTests: XCTestCase {
         XCTAssertNotNil(offAt)
         XCTAssertLessThanOrEqual(offAt!.timeIntervalSince(left), RouteProgressTracker.Configuration().driftTolerance + 10)
     }
+
+    // MARK: Pace across GPS gaps
+
+    func testStopHiddenInAGPSGapIsNotLearnedAsSlowDriving() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        var session = TripSession(plan: TripPlan(route: route, datasets: datasets), states: Fixtures.states, startedAt: start)
+        let trace = GPSSimulator(route: route).trace(from: 0, to: 60_000, startTime: start)
+        var before: TripSnapshot?
+        for s in trace { before = session.ingest(s) }
+        let last = trace.last!.timestamp
+        // Six minutes parked beside the road with no fixes, then a minute of driving.
+        let after = session.ingest(fix(route, 61_800, last.addingTimeInterval(420), speed: 30))
+        XCTAssertEqual(after.match.status, .onRoute)
+        XCTAssertLessThan(session.pace.recentFactor ?? 0, 1.2)
+        XCTAssertLessThan(after.timeRemaining, before!.timeRemaining)
+
+        // A gap that is plain driving (two minutes in a tunnel at the usual speed) still counts.
+        let observed = session.pace.observedSeconds
+        let speed = route.timeProfile.speed(at: 70_000)
+        session.ingest(fix(route, 62_000, last.addingTimeInterval(440), speed: 30))
+        session.ingest(fix(route, 62_000 + speed * 120, last.addingTimeInterval(560), speed: speed))
+        XCTAssertGreaterThanOrEqual(session.pace.observedSeconds - observed, 120)
+    }
+
+    // MARK: Driven miles off the route
+
+    /// Exit at 30 km: 20 s on a ramp to 250 m off the route, then parked with GPS wander.
+    func departAndPark(_ route: PlannedRoute, _ session: inout TripSession, from: Date, minutes: Int,
+                       speedReported: Double?) -> Date {
+        var t = from
+        let rampCourse = Geodesy.normalizedDegrees(route.polyline.bearing(at: 30_000) + 60)
+        for k in 1...20 {
+            session.ingest(fix(route, 30_000 + 8 * Double(k), t, side: 12.5 * Double(k), speed: 13, course: rampCourse))
+            t = t.addingTimeInterval(1)
+        }
+        var rng = Wander(seed: 3)
+        let spot = Geodesy.offset(route.polyline.coordinate(at: 30_160), bearing: route.polyline.bearing(at: 30_160) + 90,
+                                  meters: 250)
+        for _ in 0..<(minutes * 60) {
+            let c = Geodesy.offset(Geodesy.offset(spot, bearing: 0, meters: rng.gaussian() * 6), bearing: 90,
+                                   meters: rng.gaussian() * 6)
+            session.ingest(LocationSample(coordinate: c, horizontalAccuracy: 8, course: nil, speed: speedReported, timestamp: t))
+            t = t.addingTimeInterval(1)
+        }
+        return t
+    }
+
+    func drive(_ route: PlannedRoute, to end: Double) -> (TripSession, Date) {
+        var session = TripSession(plan: TripPlan(route: route, datasets: datasets), states: Fixtures.states, startedAt: start)
+        let trace = GPSSimulator(route: route).trace(from: 0, to: end, startTime: start)
+        for s in trace { session.ingest(s) }
+        return (session, trace.last!.timestamp.addingTimeInterval(1))
+    }
+
+    func testPhoneParkedOffTheRouteAddsNoMiles() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        for speedReported in [0.0, nil] as [Double?] {
+            let (first, t) = drive(route, to: 30_000)
+            var session = first
+            let driven = session.ledger.totalMeters
+            _ = departAndPark(route, &session, from: t, minutes: 40, speedReported: speedReported)
+            XCTAssertEqual(session.tracker.match.status, .offRoute)
+            // The ramp is about 300 m; GPS wander used to add about 25 km here.
+            let extra = session.ledger.totalMeters - driven
+            XCTAssertGreaterThan(extra, 150, "speed \(String(describing: speedReported))")
+            XCTAssertLessThan(extra, 600, "speed \(String(describing: speedReported))")
+        }
+    }
+
+    func testMilesDrivenWhileTheScreenWasLockedCountOnceBackOnTheRoute() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        let (first, t0) = drive(route, to: 30_000)
+        var session = first
+        let t = departAndPark(route, &session, from: t0, minutes: 1, speedReported: 0)
+        // 15 minutes without fixes: the rest of the stop, then back on the highway; first fix 20 km on.
+        var snap: TripSnapshot?
+        for k in 0..<5 { snap = session.ingest(fix(route, 50_000 + 28 * Double(k), t.addingTimeInterval(900 + Double(k)))) }
+        XCTAssertEqual(snap?.match.status, .onRoute)
+        XCTAssertEqual(session.ledger.totalMeters, 50_112, accuracy: 800)
+    }
+
+    func testSameAfterARerouteFromTheExitAndNeverForAResumedTrip() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        let (first, t0) = drive(route, to: 30_000)
+        var session = first
+        let t = departAndPark(route, &session, from: t0, minutes: 1, speedReported: 0)
+        // The reroute's route starts at the parked car and joins the original route 400 m on.
+        let spot = session.lastSample!.coordinate
+        let rest = route.polyline.slice(from: 30_400, to: route.polyline.length)
+        let polyline = RoutePolyline(points: [spot] + rest.points)
+        let rerouted = PlannedRoute(source: .osrm, polyline: polyline,
+                                    timeProfile: .uniform(length: polyline.length, totalSeconds: polyline.length / 28),
+                                    origin: Waypoint(name: "Here", coordinate: spot), destination: route.destination)
+        session.replacePlan(TripPlan(route: rerouted, datasets: datasets), at: t)
+        let shift = 30_400 - (polyline.length - rest.length)
+        for k in 0..<5 { session.ingest(fix(route, 50_000 + 28 * Double(k), t.addingTimeInterval(900 + Double(k)))) }
+        XCTAssertEqual(session.tracker.match.status, .onRoute)
+        XCTAssertEqual(session.tracker.match.distanceAlongRoute, 50_112 - shift, accuracy: 60)
+        XCTAssertEqual(session.ledger.totalMeters, 50_112, accuracy: 800)
+
+        // A trip resumed after a relaunch starts a fresh session on the saved route: its first fix far along
+        // the route must not be credited from the start of the route.
+        var resumed = TripSession(plan: TripPlan(route: route, datasets: datasets), states: Fixtures.states, startedAt: start,
+                                  ledger: session.ledger, pace: session.pace)
+        let total = resumed.ledger.totalMeters
+        for k in 0..<5 { resumed.ingest(fix(route, 120_000 + 28 * Double(k), t.addingTimeInterval(5_000 + Double(k)))) }
+        XCTAssertLessThan(resumed.ledger.totalMeters - total, 200)
+    }
 }
