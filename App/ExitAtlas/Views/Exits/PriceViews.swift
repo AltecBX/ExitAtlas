@@ -183,7 +183,7 @@ struct ComparePricesCard: View {
             }
             let sorted = GasPrices.sort(rows, by: sort).compactMap { byID[$0.id] }
             VStack(alignment: .leading, spacing: 10) {
-                if !trip.priceReports.simulated.isEmpty {
+                if !trip.priceReports.simulated.isEmpty || trip.prices.fixture != nil {
                     Text("SIMULATED PRICES · test data, not real").font(.caption2.weight(.heavy)).tracking(0.4)
                         .foregroundStyle(.white).padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color(red: 0.82, green: 0.15, blue: 0.44), in: RoundedRectangle(cornerRadius: 6))
@@ -216,7 +216,7 @@ struct ComparePricesCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("googleAhead")
-                    Text("Paid, on your own key. Set the project's daily Nearby Search quota to \(PriceCallCounter.dailyLimit) in Google Cloud (the hard cap, 930 a month at most, under the 1,000 free). Today: \(PriceCallCounter.today) of \(PriceCallCounter.dailyLimit) on this iPhone. This month: \(PriceCallCounter.thisMonth) lookups. Shown here with Google's name, never on the map, not saved.")
+                    Text("Paid, on your own key. The exits shown load by themselves, a few at a time, at most \(PriceCallCounter.dailyLimit) a day on this iPhone. Today: \(PriceCallCounter.today) of \(PriceCallCounter.dailyLimit). Shown here with Google's name, never on the map, not saved.")
                         .font(.caption2).foregroundStyle(Theme.secondaryText)
                 }
                 if sorted.isEmpty {
@@ -236,6 +236,8 @@ struct ComparePricesCard: View {
             .timelineCard(stroke: Theme.cardStroke)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("comparePrices")
+            // Google Maps prices for the exits shown, without a tap, every half mile while shown (docs/17).
+            .task(id: Int((trip.snapshot?.progress ?? 0) / 800)) { trip.autoGooglePrices(.roadAhead(miles: settings.exitLookaheadMiles)) }
         }
     }
 
@@ -290,6 +292,8 @@ struct StationPricesView: View {
                             }
                         }
                     }
+                    // Google Maps prices at this station's exit, without a tap (docs/17).
+                    .task(id: c.id) { trip.autoGooglePrices(.station(c.id)) }
                     Section("Prices here") {
                         ForEach(GasPriceFeed.Grade.allCases, id: \.self) { g in
                             let sp = trip.stationPrice(c, grade: g)
@@ -338,7 +342,7 @@ struct StationPricesView: View {
                             Button { trip.checkGooglePrices(exitID: exitID) } label: { Label("Check Google Maps prices (paid)", systemImage: "magnifyingglass") }
                         }
                     } footer: {
-                        if live != nil { Text("Google prices: Google Maps, looked up when you asked. Not stored or shared.") }
+                        if live != nil { Text("Google prices: Google Maps, looked up for the exits you are viewing. Not stored or shared.") }
                     }
                     let mine = trip.priceReports.own().filter { $0.stationId == c.id }.sorted { $0.reportedAt > $1.reportedAt }
                     if !mine.isEmpty {
@@ -571,7 +575,7 @@ struct PriceSettingsRows: View {
             Text("Price sources")
         } footer: {
             Text(settings.googlePrices
-                 ? "Google bills each lookup to the key's owner after its monthly free allowance; check Google's current pricing. ExitAtlas looks up an exit only when you tap Check Google Maps prices, never by itself, stops at \(PriceCallCounter.dailyLimit) a day on this iPhone, and never stores or shares the prices."
+                 ? "Google bills each lookup to the key's owner after its monthly free allowance; check Google's current pricing. ExitAtlas looks up the exits you are viewing (Road Ahead, Fuel, the fuel stop and station details) without a tap, a few at a time and at most \(PriceCallCounter.dailyLimit) a day on this iPhone. Set the project's daily Nearby Search quota to \(PriceCallCounter.dailyLimit) in Google Cloud; that is the hard cap. Prices are never stored or shared."
                  : "No free, licensed source publishes station prices for the US (docs/17), so prices come from reports. A station without a current report says Price unavailable and never ranks as cheaper. Regional averages are never shown as a station's price.")
         }
     }

@@ -688,21 +688,76 @@ final class TripController {
         return SmartStop.live(stations, place: place, brand: c.brand)
     }
 
-    /// Google Maps prices for the next three exits in the price comparison that were not checked in the last
-    /// 15 minutes: paid, so only when the driver turned them on and taps (docs/17).
+    /// Google Maps prices for the next three exits in the price comparison not looked up in the last hour: the
+    /// driver taps for more than the automatic lookups cover (docs/17).
     func checkGooglePricesAhead(miles: Double) {
         guard let settings, settings.googlePrices, !settings.googleKey.isEmpty, let plan else { return }
         var seen = Set<String>(), exits: [RouteExit] = []
         for c in priceStations(miles: miles).stations.sorted(by: { ($0.ahead ?? 0) < ($1.ahead ?? 0) }) {
             guard let id = c.exitID, seen.insert(id).inserted else { continue }
-            if let e = prices.entry(for: id), Date().timeIntervalSince(e.loadedAt) < 15 * 60 { continue }
+            if prices.entry(for: id) != nil { continue }
             if let exit = plan.exits.first(where: { $0.id == id }) { exits.append(exit) }
             if exits.count == 3 { break }
         }
         for exit in exits { prices.load(exit: exit, apiKey: settings.googleKey) }
     }
 
-    /// Google Maps prices for an exit: paid, so only when the driver turned them on and asked (docs/17).
+    /// What a price screen shows, for the automatic Google lookups.
+    enum PriceScreen {
+        case roadAhead(miles: Double)
+        case fuelStop
+        case station(String)
+    }
+
+    /// Google Maps prices without a tap (docs/17), once the driver turned them on: the exits on screen, most
+    /// relevant first: a station sheet's own exit, SmartStop's pick and alternatives, then Road Ahead's
+    /// stations in SmartStop's order (favorite brand first). Price screens call it when they appear and every
+    /// half mile while shown. Google does not allow pre-fetching, so exits that are not shown are never
+    /// looked up. A few at a time, within the daily budget (GasPrices.AutoLookupRules).
+    func autoGooglePrices(_ screen: PriceScreen) {
+        guard let settings, settings.googlePrices, !settings.googleKey.isEmpty || prices.fixture != nil, settings.vehicle?.isElectric != true,
+              let plan, let snapshot else { return }
+        var exits: [(id: String, ahead: Double)] = []
+        func add(_ id: String?) {
+            guard let id, let e = plan.exits.first(where: { $0.id == id }) else { return }
+            exits.append((id, e.distanceAlongRoute - snapshot.progress))
+        }
+        switch screen {
+        case .station(let id): add(findStation(id: id)?.exitID)
+        case .fuelStop, .roadAhead:
+            if let sm = smartStop { for p in [sm.primary].compactMap({ $0 }) + sm.alternatives { add(p.candidate.exitID) } }
+        }
+        if case .roadAhead(let miles) = screen {
+            let ps = priceStations(miles: miles)
+            let byID = Dictionary(ps.stations.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            for id in ps.order { add(byID[id]?.exitID) }
+            for c in ps.stations.sorted(by: { ($0.ahead ?? 0) < ($1.ahead ?? 0) }) { add(c.exitID) }
+        }
+        let ids = GasPrices.autoLookups(exits, now: Date(), usedToday: PriceCallCounter.today, lastLookup: { self.prices.lastLookup($0) })
+        for id in ids { if let exit = plan.exits.first(where: { $0.id == id }) { prices.load(exit: exit, apiKey: settings.googleKey) } }
+    }
+
+    /// -googleFixture (UI tests only): Google's answers are made up from the gas stations mapped at each exit, at
+    /// their own spots, with TEST prices ($3.411, $3.421, ...), so the automatic lookups can be shown without a
+    /// key. Nothing is sent to Google. Compare Prices labels them simulated.
+    func useGoogleFixture() {
+        prices.fixture = { [weak self] exit in
+            let gas = (self?.services(for: exit) ?? []).filter { $0.place.category == .gas }
+            let updated = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-40 * 60))
+            var places: [[String: Any]] = []
+            for (i, s) in gas.enumerated() {
+                let money: [String: Any] = ["currencyCode": "USD", "units": "3", "nanos": (411 + 10 * i) * 1_000_000]
+                let price: [String: Any] = ["type": "REGULAR_UNLEADED", "updateTime": updated, "price": money]
+                let name = s.place.brand.isEmpty ? s.place.displayName : s.place.brand
+                places.append(["id": "test-\(s.place.id)", "displayName": ["text": name],
+                               "location": ["latitude": s.place.coordinate.latitude, "longitude": s.place.coordinate.longitude],
+                               "fuelOptions": ["fuelPrices": [price]] as [String: Any]])
+            }
+            return (try? JSONSerialization.data(withJSONObject: ["places": places])) ?? Data()
+        }
+    }
+
+    /// Google Maps prices for an exit: paid, so only when the driver turned them on (docs/17).
     func checkGooglePrices(exitID: String) {
         guard let settings, settings.googlePrices, !settings.googleKey.isEmpty, let exit = plan?.exits.first(where: { $0.id == exitID }) else { return }
         prices.load(exit: exit, apiKey: settings.googleKey)
@@ -788,7 +843,7 @@ final class TripController {
                 table.nextChange(after: snapshot.progress, within: 2 * Geodesy.metersPerMile))
     }
 
-    /// Google Maps prices near an exit the driver checked (never looked up here).
+    /// Google Maps prices near an exit looked up in the last hour (never looked up here).
     func gasPrices(at exit: RouteExit) -> GasPriceService.Entry? {
         _ = feedsVersion
         return prices.entry(for: exit.id)

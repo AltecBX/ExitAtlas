@@ -136,4 +136,24 @@ final class GasPricesTests: XCTestCase {
             XCTAssertEqual(GasPrices.paddFor(state), padd.string, state)
         }
     }
+
+    /// Google lookups without a tap: the top exits on screen only, each once an hour, within the daily budget
+    /// (the same expectations as web/tests/gasprices.test.js).
+    func testAutomaticGoogleLookups() {
+        let mile = Geodesy.metersPerMile
+        let now = Date(timeIntervalSince1970: 36_000)
+        var seen: [String: Date] = [:]
+        let exits: [(id: String, ahead: Double)] = [("a", 5 * mile), ("a", 5 * mile), ("behind", -mile), ("b", 9 * mile),
+                                                    ("c", 20 * mile), ("d", 30 * mile), ("e", 40 * mile)]
+        let rules = GasPrices.AutoLookupRules()
+        XCTAssertEqual([rules.perPass, rules.dailyBudget], [4, 24])
+        XCTAssertEqual(rules.refreshMinutes, 60)
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 0, lastLookup: { seen[$0] }), ["a", "b", "c", "d"])
+        for id in ["a", "b", "c", "d"] { seen[id] = now }
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now.addingTimeInterval(59 * 60), usedToday: 4, lastLookup: { seen[$0] }), [])
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now.addingTimeInterval(60 * 60), usedToday: 4, lastLookup: { seen[$0] }), ["a", "b", "c", "d"])
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now.addingTimeInterval(60 * 60), usedToday: 22, lastLookup: { seen[$0] }), ["a", "b"])
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 24, lastLookup: { _ in nil }), [])
+        XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 30, lastLookup: { _ in nil }), [])
+    }
 }

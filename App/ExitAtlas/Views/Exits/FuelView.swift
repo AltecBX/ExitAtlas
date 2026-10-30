@@ -81,6 +81,8 @@ struct FuelView: View {
                 }
             }
             .sheet(item: $priceStation) { StationPricesView(id: $0.id) }
+            // Google Maps prices at SmartStop's pick and alternatives, without a tap, every half mile (docs/17).
+            .task(id: Int((trip.snapshot?.progress ?? 0) / 800)) { if !electric { trip.autoGooglePrices(.fuelStop) } }
             .navigationTitle(electric ? "Charging Stop" : "Fuel Stop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -161,8 +163,8 @@ private struct StopRow: View {
     }
 }
 
-/// Google Maps prices near an exit: only with Google Maps prices on, and only after the driver taps to check
-/// (paid; never stored).
+/// Google Maps prices near an exit: only with Google Maps prices on; SmartStop's exits load by themselves, the
+/// others on a tap (paid; never stored).
 private struct PriceLine: View {
     @Environment(TripController.self) private var trip
     @Environment(UserSettings.self) private var settings

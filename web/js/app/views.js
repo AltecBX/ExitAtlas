@@ -944,7 +944,7 @@ function compareCard(app, s) {
   };
   const google = app.settings.prices?.google && app.prices.enabled
     ? `<button class="btn sm block" style="margin-top:10px" data-act="google-ahead">Check Google Maps prices for the next 3 exits</button>
-      <p class="muted tiny" style="margin:6px 2px 0">Paid, on your own key (keep it capped in Google Cloud). This month: ${app.priceCalls()} lookups. Shown here with Google's name, never on the map, not saved.</p>` : '';
+      <p class="muted tiny" style="margin:6px 2px 0">Paid, on your own key. The exits shown load by themselves, a few at a time, at most ${GOOGLE_DAILY_LIMIT} a day on this device. Today: ${app.priceCallsToday()} of ${GOOGLE_DAILY_LIMIT}. Shown here with Google's name, never on the map, not saved.</p>` : '';
   const shared = app.priceBook.sharedState === 'unavailable' ? '<p class="muted tiny" style="margin:6px 4px 0">Shared driver reports could not load just now; stations without your own report show as unavailable.</p>' : '';
   const any = list.some((c) => c.priceInfo);
   const sim = app.priceBook.simulated.length ? '<div class="sim-tag">SIMULATED PRICES · test data, not real</div>' : '';
@@ -978,7 +978,7 @@ export function stationSheet(app, id) {
     ${now - r.reportedAt <= PRICE_RULES.correctMinutes * 60 ? `<button class="btn sm" data-act="report-price" data-arg="${h(id)}|${h(r.grade)}">Correct</button>` : ''}<button class="btn sm" data-act="price-delete" data-arg="${h(r.id)}" aria-label="Delete this report">✕</button></div>`).join('');
   const google = app.settings.prices?.google && x.exit && app.prices.enabled
     ? `<button class="btn sm" data-act="google-prices" data-arg="${h(x.exit.id)}">Check Google Maps prices</button>` : '';
-  const gNote = x.live ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up when you asked. Not stored or shared.</p>' : '';
+  const gNote = x.live ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up for the exits you are viewing. Not stored or shared.</p>' : '';
   const place = app.stationPlace(x);
   const gb = gasBuddyLink(place);
   const check = x.coordinate ? `<div class="section-title">Check the posted price</div>
@@ -1033,7 +1033,7 @@ function priceSettings(app) {
     : !proxyOffers ? 'The server does not offer shared reports' : app.priceBook.sharedState === 'unavailable' ? 'On, but the last lookup failed' : 'From other ExitAtlas drivers: no account, reports expire after 7 days';
   const calls = app.priceCalls();
   const google = pr.google
-    ? `<div class="card small" style="margin-top:8px"><p style="margin-top:0"><b>Google Maps prices are on.</b> Google bills each lookup to the key's owner ($40 per 1,000 after 1,000 free a month at the Enterprise + Atmosphere tier; check Google's current pricing). ExitAtlas looks up an exit only when you tap "Check Google Maps prices", never by itself, and stops at ${GOOGLE_DAILY_LIMIT} a day on this device. Today: ${app.priceCallsToday()} of ${GOOGLE_DAILY_LIMIT}. This month: ${calls} lookups.</p>
+    ? `<div class="card small" style="margin-top:8px"><p style="margin-top:0"><b>Google Maps prices are on.</b> Google bills each lookup to the key's owner ($40 per 1,000 after 1,000 free a month at the Enterprise + Atmosphere tier; check Google's current pricing). ExitAtlas looks up the exits you are viewing (Road Ahead, Fuel, the fuel stop and station details) without a tap, a few at a time and at most ${GOOGLE_DAILY_LIMIT} a day on this device. Today: ${app.priceCallsToday()} of ${GOOGLE_DAILY_LIMIT}. This month: ${calls} lookups.</p>
       <label class="row" style="gap:8px"><span style="flex:1">Google Maps API key</span><input type="password" autocomplete="off" data-secret="ea.googleKey" placeholder="Paste key" value="${h(app.secret('ea.googleKey'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
       <p class="muted tiny">Restrict the key to this website and to Places API (New), and set the project's daily Nearby Search quota to ${GOOGLE_DAILY_LIMIT} in Google Cloud (the hard cap, 930 a month at most, under the 1,000 free). Prices show with Google Maps attribution, never on the map, and are not saved or shared.</p></div>` : '';
   return `<div class="list">
@@ -1098,8 +1098,8 @@ function stopName(x) {
   return stationNames(x);
 }
 
-/// Google price line for an exit the driver checked (Google Maps prices on): favorite brand first, then the
-/// cheapest. Nothing until the driver taps to check.
+/// Google price line for an exit looked up in the last hour (Google Maps prices on): favorite brand first, then
+/// the cheapest. Nothing until it is looked up.
 function priceInfo(app, exit) {
   if (!exit || !app.prices.enabled || app.settings.vehicle?.ev) return '';
   const c = app.prices.peek(exit.id);
@@ -1517,7 +1517,7 @@ function googleSection(app, exit) {
       <div class="side"><div class="big">${p ? priceText(p) : '—'}</div></div></div>`;
   });
   return `<div class="section-title">Google Maps prices</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
-    <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up when you asked. Not stored or shared.</p>`;
+    <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up for the exits you are viewing. Not stored or shared.</p>`;
 }
 
 function serviceRow(x) {
@@ -1826,7 +1826,7 @@ export function fuelSheet(app) {
   }
   const favs = ev ? '' : `<div class="card"><div class="row"><div class="eyebrow" style="flex:1">Favorite gas</div><span class="muted tiny">${st.favoriteBrands.length ? 'Picked first when they keep your buffer' : 'None: any brand'}</span></div>
     <div class="chips" style="margin-top:8px">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].slice(0, 16).map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div></div>`;
-  const prices = !ev && app.prices.cache.size && app.prices.enabled ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up when you asked. Not stored or shared.</p>' : '';
+  const prices = !ev && app.prices.cache.size && app.prices.enabled ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up for the exits you are viewing. Not stored or shared.</p>' : '';
   const others = fp && fp.stations.length
     ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
         <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${x.kind === 'charge' ? 'a' : 'button'}>`).join('')}</div>` : '';

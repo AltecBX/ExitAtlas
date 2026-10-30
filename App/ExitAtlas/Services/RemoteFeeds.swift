@@ -97,8 +97,9 @@ final class ChargerService {
     }
 }
 
-/// Gas prices near an exit from Google Places with the driver's own key. Kept in memory for 15
-/// minutes only (Google's terms do not allow storing them).
+/// Gas prices near an exit from Google Places with the driver's own key. Kept in memory for an hour only,
+/// never saved (Google's terms do not allow storing them); the exits on screen are looked up without a tap
+/// (TripController.autoGooglePrices, GasPrices.AutoLookupRules, docs/17).
 @MainActor
 final class GasPriceService {
     struct Entry {
@@ -112,15 +113,29 @@ final class GasPriceService {
     var onUpdate: (() -> Void)?
     /// Called once per request to Google, for the monthly counter in Settings.
     var onCall: (() -> Void)?
+    /// -googleFixture (UI tests only): Google's answer made up from the stations mapped at the exit, in Google's
+    /// format, instead of asking Google. Its prices are TEST data, labeled as simulated wherever they show.
+    var fixture: (@MainActor (RouteExit) -> Data)?
 
-    func entry(for exitID: String) -> Entry? { cache[exitID] }
+    /// Google's answer is dropped after this long, and an exit is looked up again after it.
+    static let ttl: TimeInterval = GasPrices.AutoLookupRules().refreshMinutes * 60
 
-    /// Stations from every lookup that succeeded, by exit id (for SmartStop's hours and restrooms).
-    var loadedStations: [String: [GasPriceFeed.Station]] { cache.compactMapValues { $0.error == nil ? $0.stations : nil } }
+    /// The answer for an exit in the last hour, or nil.
+    func entry(for exitID: String) -> Entry? {
+        cache[exitID].flatMap { Date().timeIntervalSince($0.loadedAt) < Self.ttl ? $0 : nil }
+    }
+
+    /// When an exit was last looked up (now while a lookup runs), for the automatic lookups.
+    func lastLookup(_ exitID: String) -> Date? { loading.contains(exitID) ? Date() : cache[exitID]?.loadedAt }
+
+    /// Stations from every lookup in the last hour that succeeded, by exit id (for SmartStop's hours and restrooms).
+    var loadedStations: [String: [GasPriceFeed.Station]] {
+        cache.compactMapValues { $0.error == nil && Date().timeIntervalSince($0.loadedAt) < Self.ttl ? $0.stations : nil }
+    }
 
     func load(exit: RouteExit, apiKey: String) {
-        guard !apiKey.isEmpty, !loading.contains(exit.id) else { return }
-        if let e = cache[exit.id], Date().timeIntervalSince(e.loadedAt) < 15 * 60 { return }
+        guard !apiKey.isEmpty || fixture != nil, !loading.contains(exit.id) else { return }
+        if let e = cache[exit.id], Date().timeIntervalSince(e.loadedAt) < Self.ttl { return }
         guard PriceCallCounter.today < PriceCallCounter.dailyLimit else {
             cache[exit.id] = Entry(loadedAt: Date(), stations: [], error: "Today's \(PriceCallCounter.dailyLimit) Google price checks are used. They reset at midnight Pacific time.")
             onUpdate?()
@@ -128,6 +143,15 @@ final class GasPriceService {
         }
         loading.insert(exit.id)
         onCall?()
+        if let fixture {
+            let data = fixture(exit)
+            Task { @MainActor in
+                defer { self.loading.remove(exit.id) }
+                self.cache[exit.id] = Entry(loadedAt: Date(), stations: (try? GasPriceFeed.parse(data)) ?? [], error: nil)
+                self.onUpdate?()
+            }
+            return
+        }
         var request = URLRequest(url: GasPriceFeed.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

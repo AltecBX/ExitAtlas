@@ -54,6 +54,8 @@ jobs:
         run: node web/tests/layout/prices.layout.mjs
       - name: One test report shows in Drive, Road Ahead, Compare Prices, Station details and SmartStop
         run: node web/tests/layout/pricepath.layout.mjs
+      - name: Google prices look themselves up for the exits on screen, within the budget (TEST FIXTURE)
+        run: node web/tests/layout/autoprices.layout.mjs
       - name: Shared reports on the Worker runtime (wrangler dev, local D1)
         working-directory: infra/worker
         run: |
