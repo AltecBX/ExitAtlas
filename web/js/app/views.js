@@ -8,7 +8,7 @@ import { renderRouteMap } from './map.js';
 import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
-import { stopPrice, liveFor } from './smartstops.js';
+import { stopPrice, liveFor, stationName } from './smartstops.js';
 import { googleMapsLink, gasBuddyLink, US_STATES } from '../engine/pricecheck.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
@@ -1466,9 +1466,9 @@ function priceSection(app, exit) {
   if (o && gas.length) {
     const ctx = app.stopContext();
     const rows = gas.map((x) => {
-      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand;
+      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand, name = stationName(x.place, brand);
       const sp = stopPrice(ctx, id, liveFor(app.prices, exit, x.place, brand));
-      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name: placeDisplayName(x.place), brand })}<div class="main"><div class="t">${h(placeDisplayName(x.place))}</div>
+      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name, brand })}<div class="main"><div class="t">${h(name)}</div>
         <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current price'}</div></div>${priceTag(sp, o.grade)}</button>`;
     }).join('');
     html += `<div class="section-title">⛽ Gas prices here</div><div class="list">${rows}</div>

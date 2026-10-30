@@ -119,6 +119,21 @@ final class SmartStopTests: XCTestCase {
         }
     }
 
+    /// A rebranded station shows its current brand and never ranks as its old one (Shell first), as in the web engine.
+    func testRebrandedStationNames() throws {
+        let f = try fixture("cases")
+        for c in f["stationNames"]!.array! {
+            let what = "\(c["name"]!.string!) (\(c["brand"]!.string!)) now \(c["current"]?.string ?? "the same")"
+            let place = Place(datasetIndex: 0, id: "node/1", coordinate: GeoCoordinate(latitude: 0, longitude: 0),
+                              name: c["name"]!.string!, brand: c["brand"]!.string!, category: .gas)
+            let brand = c["current"]?.string ?? c["brand"]!.string!
+            let name = SmartStop.stationName(place, brand: brand)
+            XCTAssertEqual(name, c["expect"]!.string!, what)
+            let cand = try candidate(f, .object(["id": .string("x"), "name": .string(name), "brand": .string(brand)]))
+            XCTAssertEqual(SmartStop.brandIndex(cand, favorites: ["Shell"]), c["shell"]!.bool! ? 0 : nil, "\(what): Shell")
+        }
+    }
+
     /// Overnight: the last stop listed open before a long stretch, on the same cases as the JavaScript engine.
     func testLastOpenStopBeforeALongStretch() throws {
         let f = try fixture("cases")

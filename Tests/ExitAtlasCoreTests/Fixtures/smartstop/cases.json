@@ -1780,5 +1780,63 @@
     "openEnded": false
    }
   }
+ ],
+ "stationNames": [
+  {
+   "name": "Shell",
+   "brand": "Shell",
+   "current": "Circle K",
+   "expect": "Circle K",
+   "shell": false
+  },
+  {
+   "name": "",
+   "brand": "Shell",
+   "current": "High's",
+   "expect": "High's",
+   "shell": false
+  },
+  {
+   "name": "BP",
+   "brand": "BP",
+   "current": "Shell",
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Shell",
+   "brand": "Shell",
+   "current": null,
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Shell",
+   "brand": "",
+   "current": "Shell",
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Costco Gasoline",
+   "brand": "Costco Gasoline",
+   "current": "Costco",
+   "expect": "Costco",
+   "shell": false
+  },
+  {
+   "name": "Last Chance Store",
+   "brand": "",
+   "current": "76",
+   "expect": "Last Chance Store",
+   "shell": false
+  },
+  {
+   "name": "Joe's Corner Store",
+   "brand": "Shell",
+   "current": "Sunoco",
+   "expect": "Joe's Corner Store",
+   "shell": false
+  }
  ]
 }

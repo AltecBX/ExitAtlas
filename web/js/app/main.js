@@ -16,7 +16,7 @@ import { GasPrices, GRADES, LOOKUP_TTL, pacificDay } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
 import { benchmarkFor, autoLookups, lookupCohort, AUTO_LOOKUP_RULES } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
-import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
+import { fuelCandidates, aheadCandidates, liveFor, stationName } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
@@ -258,7 +258,11 @@ const app = {
     if (!x) {
       for (const e of this.plan.exits) {
         const g = this.servicesFor(e).find((y) => y.place.id === id && y.place.category === 1);
-        if (g) { x = { id, name: placeDisplayName(g.place), brand: this.data?.stations?.get(id)?.b ?? g.place.brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate }; break; }
+        if (g) {
+          const brand = this.data?.stations?.get(id)?.b ?? g.place.brand;
+          x = { id, name: stationName(g.place, brand), brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate };
+          break;
+        }
       }
     }
     if (!x) {
