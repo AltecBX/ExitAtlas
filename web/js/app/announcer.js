@@ -23,6 +23,9 @@ const GAP_WARN = 6 * MILE;
 const ALERT_SERIOUS_WARN = 10 * MILE;
 const ALERT_WARN = 2 * MILE;
 const ALERT_MIN = 0.3 * MILE;
+/// An alert already spoken is not spoken again when a later answer gives the same event a new id (an NWS
+/// update, or the duplicate from another feed kept this time): same kind within this distance on the odometer.
+const SAME_ALERT = 1 * MILE;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -77,10 +80,18 @@ function stateKey(segment) {
 }
 
 export class Announcer {
-  /// speaker: function(text); defaults to the browser's speech synthesis.
-  constructor(speaker = null) {
+  /// speaker: function(text); defaults to the browser's speech synthesis. cancel: stops queued speech.
+  constructor(speaker = null, { cancel = null } = {}) {
     this.speaker = speaker;
+    this.cancel = cancel ?? (() => { if (typeof window !== 'undefined') window.speechSynthesis?.cancel(); });
     this.reset();
+  }
+
+  /// The Settings switch. On: says so, which in Safari also lets the announcements that follow play (speech
+  /// must first start from a tap). Off: stops anything still queued, so nothing more is said.
+  voiceSwitched(on) {
+    if (on) this.speak('Voice on.');
+    else this.cancel();
   }
 
   reset() {
@@ -90,6 +101,7 @@ export class Announcer {
     this.announcedGaps = new Set();
     this.announcedOpen = new Set();
     this.announcedAlerts = new Set();
+    this.spokenAlerts = []; // {category, odometer}
     this.lastState = null;
     this.lastZone = null;
   }
@@ -120,6 +132,9 @@ export class Announcer {
         const ahead = a.start - s.progress;
         if (ahead <= ALERT_MIN || ahead > (a.serious ? ALERT_SERIOUS_WARN : ALERT_WARN) || this.announcedAlerts.has(a.incident.id)) continue;
         this.announcedAlerts.add(a.incident.id);
+        const odometer = (s.drivenTotal ?? s.progress) + ahead;
+        if (this.spokenAlerts.some((x) => x.category === a.incident.category && Math.abs(x.odometer - odometer) <= SAME_ALERT)) continue;
+        this.spokenAlerts.push({ category: a.incident.category, odometer });
         this.speak(alertWords(a, ahead));
         return;
       }

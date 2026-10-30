@@ -148,3 +148,31 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   a4.consider(fake(100 * MILE), all, { alerts: [alert('w1', 'weather', 101, true)] });
   assert.equal(said2[2], 'Severe Thunderstorm Warning on your route, in 1 mile.');
 });
+
+test('a road alert is spoken once even when a later answer gives the same event a new id', () => {
+  const fake = (progress) => ({ match: { status: 'onRoute' }, current: null, next: null, progress, t: START, drivenTotal: progress,
+    distanceToNextBorder: null, nextRestArea: null, nextExit: null });
+  const alert = (id, category, startMiles, extra = {}) => ({ incident: { id, category, description: 'Work zone', lanes: null, verification: 'official', ...extra },
+    start: startMiles * MILE, serious: false, notable: true });
+  const said = [];
+  const a = new Announcer((t) => said.push(t));
+  a.consider(fake(48 * MILE), settings, { alerts: [alert('wz:1', 'construction', 50, { lanes: 'Right lane closed' })] });
+  assert.deepEqual(said, ['Work zone ahead, in 2 miles. Right lane closed.']);
+  // The feed updated the entry (or the other feed's copy is kept now): new id, same place. Not again.
+  a.consider(fake(48.9 * MILE), settings, { alerts: [alert('wz:1b', 'construction', 50.1, { lanes: 'Right lane closed' })] });
+  // A different kind at the same place, and the same kind well past it, are new events.
+  a.consider(fake(49 * MILE), settings, { alerts: [alert('c:1', 'crash', 50.2)] });
+  a.consider(fake(58 * MILE), settings, { alerts: [alert('wz:2', 'construction', 60)] });
+  assert.deepEqual(said.slice(1), ['Crash ahead, in 1 mile.', 'Work zone ahead, in 2 miles.'], said.join(' | '));
+});
+
+test('the voice switch: on says so (Safari lets speech play after a tap), off stops what is queued', () => {
+  const said = [];
+  let cancelled = 0;
+  const a = new Announcer((t) => said.push(t), { cancel: () => { cancelled += 1; } });
+  a.voiceSwitched(true);
+  assert.deepEqual(said, ['Voice on.']);
+  a.voiceSwitched(false);
+  assert.equal(cancelled, 1);
+  assert.equal(said.length, 1, 'nothing said when switched off');
+});
