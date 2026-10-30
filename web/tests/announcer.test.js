@@ -7,6 +7,7 @@ import { TripPlan, TripSession } from '../js/engine/trip.js';
 import { PlannedRoute, TravelTimeProfile } from '../js/engine/route.js';
 import { GPSSimulator } from '../js/engine/discovery.js';
 import { Announcer } from '../js/app/announcer.js';
+import { offset } from '../js/engine/geo.js';
 
 const MILE = 1609.344;
 const settings = { voice: true, announceStateLines: true, announceExits: false };
@@ -181,4 +182,36 @@ test('the voice switch: on says so (Safari lets speech play after a tap), off st
   a.voiceSwitched(false);
   assert.equal(cancelled, 1);
   assert.equal(said.length, 1, 'nothing said when switched off');
+});
+
+test('a state line warning is not repeated after a detour off the route and back', () => {
+  // Found on a simulated Yonkers to Orlando drive: dinner 4 miles off I-95 just after the Georgia line warning
+  // added 8 miles to the odometer, and the warning was given again on the way back.
+  const ds = { states: data.states, timeZones: null, interstates: data.interstates };
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, ds), data.states, START);
+  const spoken = [];
+  const announcer = new Announcer((text) => spoken.push(text));
+  const border = session.plan.states.segments[1].startDistance;
+  const name = session.plan.states.segments[1].displayName;
+  const warnings = () => spoken.filter((t) => t.startsWith(`${name} state line in`));
+  let last = null;
+  for (const { sample } of new GPSSimulator(r).trace(0, border - 4 * MILE, START)) {
+    announcer.consider(session.ingest(sample), settings);
+    last = sample;
+  }
+  assert.equal(warnings().length, 1, spoken.join(' | '));
+  // Out 6.4 km to the side and back at 15 m/s.
+  const d = border - 4 * MILE, bearing = r.polyline.bearingAt(d);
+  let t = last.t + 1;
+  for (const [from, to, course] of [[0, 6400, bearing + 90], [6400, 0, bearing - 90]]) {
+    for (let x = from; from < to ? x <= to : x >= to; x += from < to ? 15 : -15, t += 1) {
+      const coordinate = offset(r.polyline.coordinateAt(d), bearing + 90, x);
+      announcer.consider(session.ingest({ coordinate, accuracy: 8, course: (course + 360) % 360, speed: 15, t }), settings);
+    }
+  }
+  assert.ok(session.ledger.totalMeters > d + 12000, 'the detour counts as driven');
+  for (const { sample } of new GPSSimulator(r).trace(d + 30, border + 2 * MILE, t)) announcer.consider(session.ingest(sample), settings);
+  assert.equal(warnings().length, 1, spoken.join(' | '));
+  assert.ok(spoken.some((x) => x.startsWith(`Welcome to ${name}.`)), spoken.join(' | '));
 });
