@@ -8,9 +8,10 @@ compatibility_date = "2026-10-01"
 ALLOWED_ORIGINS = "https://altecbx.github.io"
 # Daily budgets: all clients together, and each client (by hashed IP). 0 means no limit.
 # Each counted call writes 2 KV keys; the Workers Free plan allows 1,000 KV writes a day, so these
-# defaults (400 calls, 800 writes) fit it. Raise them only on Workers Paid.
-DAILY_PRICES = "200"
-CLIENT_DAILY_PRICES = "60"
+# defaults (230 calls, 460 writes) fit it. Raise them only on Workers Paid. Google prices stay at 30 a day,
+# the same as the daily quota on the Google Cloud project (docs/17), so they stay under Google's 1,000 free a month.
+DAILY_PRICES = "30"
+CLIENT_DAILY_PRICES = "30"
 DAILY_CHARGERS = "200"
 CLIENT_DAILY_CHARGERS = "40"
 # Shared gas price reports (docs/17): daily budgets, well under the D1 Free limits. Leave as is unless the

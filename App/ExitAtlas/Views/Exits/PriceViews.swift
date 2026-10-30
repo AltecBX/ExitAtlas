@@ -216,7 +216,7 @@ struct ComparePricesCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("googleAhead")
-                    Text("Paid, on your own key (keep it capped in Google Cloud). This month: \(PriceCallCounter.thisMonth) lookups. Shown here with Google's name, never on the map, not saved.")
+                    Text("Paid, on your own key. Set the project's daily Nearby Search quota to \(PriceCallCounter.dailyLimit) in Google Cloud (the hard cap, 930 a month at most, under the 1,000 free). Today: \(PriceCallCounter.today) of \(PriceCallCounter.dailyLimit) on this iPhone. This month: \(PriceCallCounter.thisMonth) lookups. Shown here with Google's name, never on the map, not saved.")
                         .font(.caption2).foregroundStyle(Theme.secondaryText)
                 }
                 if sorted.isEmpty {
@@ -564,13 +564,14 @@ struct PriceSettingsRows: View {
             if settings.googlePrices {
                 SecureField("Google Maps Platform key", text: $settings.googleKey)
                     .autocorrectionDisabled().textInputAutocapitalization(.never)
+                LabeledContent("Lookups today", value: "\(PriceCallCounter.today) of \(PriceCallCounter.dailyLimit)")
                 LabeledContent("Lookups this month", value: "\(PriceCallCounter.thisMonth)")
             }
         } header: {
             Text("Price sources")
         } footer: {
             Text(settings.googlePrices
-                 ? "Google bills each lookup to the key's owner after its monthly free allowance; check Google's current pricing. ExitAtlas looks up an exit only when you tap Check Google Maps prices, never by itself, and never stores or shares the prices."
+                 ? "Google bills each lookup to the key's owner after its monthly free allowance; check Google's current pricing. ExitAtlas looks up an exit only when you tap Check Google Maps prices, never by itself, stops at \(PriceCallCounter.dailyLimit) a day on this iPhone, and never stores or shares the prices."
                  : "No free, licensed source publishes station prices for the US (docs/17), so prices come from reports. A station without a current report says Price unavailable and never ranks as cheaper. Regional averages are never shown as a station's price.")
         }
     }

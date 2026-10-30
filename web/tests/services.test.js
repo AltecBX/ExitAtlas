@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { route } from './support.js';
-import { GasPrices, parsePlaces, pricedForGrade, priceText, ageText } from '../js/app/prices.js';
+import { GasPrices, GOOGLE_DAILY_LIMIT, pacificDay, parsePlaces, pricedForGrade, priceText, ageText } from '../js/app/prices.js';
 import { parseStations, routeWKT, fetchChargers } from '../js/app/chargers.js';
 import { proxyBase, loadProxy, switchedOff } from '../js/app/proxy.js';
 
@@ -67,6 +67,32 @@ test('Google Places errors are reported, not thrown', async () => {
   const r = await prices.load({ id: 'x', coordinate: { lat: 1, lon: 1 } });
   assert.equal(r.error, 'API key not valid');
   assert.equal(r.stations.length, 0);
+});
+
+test('Google lookups stop at 30 a day on the device, and a used up quota says so', async () => {
+  let fetched = 0, used = 29;
+  const prices = new GasPrices({
+    getKey: () => 'k', allowed: () => true, usedToday: () => used, onCall: () => { used += 1; },
+    fetchImpl: async () => { fetched += 1; return { ok: true, status: 200, json: async () => ({ places: [] }) }; },
+  });
+  assert.equal(GOOGLE_DAILY_LIMIT, 30);
+  assert.equal((await prices.load({ id: 'a', coordinate: { lat: 1, lon: 1 } })).error, null, 'the 30th lookup runs');
+  const over = await prices.load({ id: 'b', coordinate: { lat: 1, lon: 1 } });
+  assert.equal(fetched, 1, 'no request past the daily limit');
+  assert.match(over.error, /30 Google price checks are used.*midnight Pacific/);
+  assert.equal(over.stations.length, 0);
+
+  const quota = new GasPrices({ getKey: () => 'k', allowed: () => true,
+    fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded' } }) }) });
+  assert.match((await quota.load({ id: 'c', coordinate: { lat: 1, lon: 1 } })).error, /daily limit for this key is reached/);
+  const proxy = new GasPrices({ getKey: () => '', getProxy: () => 'https://p.example.workers.dev/', allowed: () => true,
+    fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: 'daily budget reached' }) }) });
+  assert.equal((await proxy.load({ id: 'd', coordinate: { lat: 1, lon: 1 } })).error, 'daily budget reached', 'the proxy keeps its own reason');
+});
+
+test('pacificDay follows Pacific time, when Google quotas reset', () => {
+  assert.equal(pacificDay(Date.parse('2026-10-30T06:59:00Z')), '2026-10-29');
+  assert.equal(pacificDay(Date.parse('2026-10-30T07:00:00Z')), '2026-10-30');
 });
 
 test('AFDC chargers: route WKT, parsing, request shape', async () => {

@@ -121,6 +121,11 @@ final class GasPriceService {
     func load(exit: RouteExit, apiKey: String) {
         guard !apiKey.isEmpty, !loading.contains(exit.id) else { return }
         if let e = cache[exit.id], Date().timeIntervalSince(e.loadedAt) < 15 * 60 { return }
+        guard PriceCallCounter.today < PriceCallCounter.dailyLimit else {
+            cache[exit.id] = Entry(loadedAt: Date(), stations: [], error: "Today's \(PriceCallCounter.dailyLimit) Google price checks are used. They reset at midnight Pacific time.")
+            onUpdate?()
+            return
+        }
         loading.insert(exit.id)
         onCall?()
         var request = URLRequest(url: GasPriceFeed.endpoint)
@@ -138,9 +143,11 @@ final class GasPriceService {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard (200..<300).contains(status) else {
-                    let message = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])
-                        .flatMap { ($0["error"] as? [String: Any])?["message"] as? String }
-                    throw FeedError(message ?? "HTTP \(status)")
+                    let error = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["error"] as? [String: Any]
+                    if status == 429 || error?["status"] as? String == "RESOURCE_EXHAUSTED" {
+                        throw FeedError("Google's daily limit for this key is reached. It resets at midnight Pacific time.")
+                    }
+                    throw FeedError(error?["message"] as? String ?? "HTTP \(status)")
                 }
                 entry = Entry(loadedAt: Date(), stations: try GasPriceFeed.parse(data), error: nil)
             } catch {
@@ -157,16 +164,31 @@ struct FeedError: Error {
     init(_ message: String) { self.message = message }
 }
 
-/// Google Places lookups this month (shown in Settings so the driver can watch the free allowance).
+/// Google Places lookups this month and today (shown in Settings so the driver can watch the free allowance).
 enum PriceCallCounter {
+    /// Lookups a day on this phone, matching the daily quota of 30 set on the key's Google Cloud project (at most
+    /// 930 a month, under the 1,000 free; docs/17). The project quota is the hard cap across devices.
+    static let dailyLimit = 30
+
     private static var monthKey: String {
         let c = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: Date())
         return "priceCalls.\(c.year ?? 0)-\(c.month ?? 0)"
     }
 
+    /// By the Pacific day, when Google's daily quotas reset.
+    private static var dayKey: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "America/Los_Angeles")
+        f.dateFormat = "yyyy-MM-dd"
+        return "priceCallsDay.\(f.string(from: Date()))"
+    }
+
     static var thisMonth: Int { UserDefaults.standard.integer(forKey: monthKey) }
+    static var today: Int { UserDefaults.standard.integer(forKey: dayKey) }
 
     static func count() {
         UserDefaults.standard.set(thisMonth + 1, forKey: monthKey)
+        UserDefaults.standard.set(today + 1, forKey: dayKey)
     }
 }
