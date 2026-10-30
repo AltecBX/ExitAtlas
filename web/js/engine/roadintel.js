@@ -5,7 +5,7 @@
 //
 // An incident (the common schema every provider converts to):
 //   {id, category, description, source: {id, name},
-//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped',
+//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped' | 'simulated' (the demo only),
 //    reportedAt, updatedAt, startsAt, endsAt, expiresAt (unix seconds or null),
 //    geometry: {type: 'point', coordinate} | {type: 'line', coordinates} | {type: 'polygon', rings} |
 //              {type: 'points', coordinates} (an area alert known only at sample points on the route) |
@@ -68,16 +68,55 @@ export const MATCH_RULES = Object.freeze({
   lineOffset: 120,
   /// Bearing agreement for lines without a direction field.
   lineBearing: 60,
+  /// A reported direction (southbound, or a bearing) agrees with the way the route runs when it is less than
+  /// this many degrees off: a road signed south may run southwest; the other carriageway is about 180 off.
+  directionAngle: 90,
   /// Weather polygons are tested every this many meters along the route.
   areaStep: 1000,
   /// Two reports of the same kind within this distance (same direction) are one event.
   duplicate: 800,
+  /// An area alert known only at sample points (every 25 miles, app/roadalerts.js) still stands for the road
+  /// this far past a point the driver has passed (half the spacing), until the next answer moves the points.
+  pointsReach: 12.5 * MILE,
 });
+
+const STATE_NAMES = {
+  ALABAMA: 'AL', ALASKA: 'AK', ARIZONA: 'AZ', ARKANSAS: 'AR', CALIFORNIA: 'CA', COLORADO: 'CO', CONNECTICUT: 'CT', DELAWARE: 'DE',
+  'DISTRICT OF COLUMBIA': 'DC', FLORIDA: 'FL', FLORIDAS: 'FL', GEORGIA: 'GA', HAWAII: 'HI', IDAHO: 'ID', ILLINOIS: 'IL', INDIANA: 'IN',
+  IOWA: 'IA', KANSAS: 'KS', KENTUCKY: 'KY', LOUISIANA: 'LA', MAINE: 'ME', MARYLAND: 'MD', MASSACHUSETTS: 'MA', MICHIGAN: 'MI',
+  MINNESOTA: 'MN', MISSISSIPPI: 'MS', MISSOURI: 'MO', MONTANA: 'MT', NEBRASKA: 'NE', NEVADA: 'NV', 'NEW HAMPSHIRE': 'NH',
+  'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', OHIO: 'OH', OKLAHOMA: 'OK',
+  OREGON: 'OR', PENNSYLVANIA: 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC', 'SOUTH DAKOTA': 'SD', TENNESSEE: 'TN', TEXAS: 'TX',
+  UTAH: 'UT', VERMONT: 'VT', VIRGINIA: 'VA', WASHINGTON: 'WA', 'WEST VIRGINIA': 'WV', WISCONSIN: 'WI', WYOMING: 'WY',
+};
+const STATE_NAME_RE = new RegExp(`\\b(${Object.keys(STATE_NAMES).sort((a, b) => b.length - a.length).join('|')})\\b`, 'g');
+/// Short forms written out, in order, once capitals and punctuation are dealt with.
+const ROAD_FORMS = [
+  [/\bINTERSTATE (?=\d)/g, 'I '], [/\bU S\b/g, 'US'], [/\bUS (?:ROUTE|RT|HWY|HIGHWAY) (?=\d)/g, 'US '], [/\bN J\b/g, 'NJ'],
+  [/\bNJTP\b/g, 'NJ TURNPIKE'], [/\b(?:TPKE|TPK|TNPK|TURNPK)\b/g, 'TURNPIKE'], [/\b(?:PKWY|PKY|PWY)\b/g, 'PARKWAY'],
+  [/\b(?:EXPWY|EXPY|EXWY)\b/g, 'EXPRESSWAY'], [/\b(?:THWY|THRWY|THROUGHWAY)\b/g, 'THRUWAY'], [/\bNYS\b/g, 'NY STATE'],
+];
+
+/// Road text in one form for comparison: capitals, no punctuation, common short forms written out and state
+/// names as codes. "N.J. Tpke", "NJTP" and "New Jersey Turnpike" all read "NJ TURNPIKE"; "Interstate 95" and
+/// "i-95" read "I 95". Separators (";" and "/") are kept so names on either side of one stay apart.
+export function normalizeRoadText(text) {
+  const key = String(text ?? '');
+  let t = normalized.get(key);
+  if (t !== undefined) return t;
+  t = key.toUpperCase().replace(/[.'’]/g, '').replace(/[^A-Z0-9;/]+/g, ' ');
+  for (const [re, to] of ROAD_FORMS) t = t.replace(re, to);
+  t = t.replace(STATE_NAME_RE, (m) => STATE_NAMES[m]).replace(/\s+/g, ' ').trim();
+  // Matching asks for the same few road names many times a refresh.
+  if (normalized.size > 2000) normalized.clear();
+  normalized.set(key, t);
+  return t;
+}
+const normalized = new Map();
 
 /// "I-95", "Interstate 95", "I 95 N" as {kind, prefix, number}, or null.
 export function roadRef(text) {
-  if (!text) return null;
-  return parseHighways(String(text).toUpperCase().replace(/INTERSTATE/g, 'I'))[0] ?? null;
+  return roadRefs(text)[0] ?? null;
 }
 
 export function sameRoad(a, b) {
@@ -86,18 +125,45 @@ export function sameRoad(a, b) {
 
 /// Every highway named in the text ("I 95 / J F K Memorial Hwy" names I-95).
 export function roadRefs(text) {
-  return text ? parseHighways(String(text).toUpperCase().replace(/INTERSTATE/g, 'I')) : [];
+  return text ? parseHighways(normalizeRoadText(text)) : [];
 }
 
+/// Named roads in the text by their full name ("NJ TURNPIKE", "HENRY HUDSON PARKWAY"). A bare "Parkway" names
+/// no road in particular, so one word names are left out.
+export function namedRoads(text) {
+  const out = [];
+  for (const m of normalizeRoadText(text).matchAll(/((?:[A-Z0-9]+ ){0,4})(TURNPIKE|PARKWAY|EXPRESSWAY|THRUWAY)\b/g)) {
+    const name = (m[1] + m[2]).trim();
+    if (name.includes(' ') && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/// One name is the other, or ends with it ("NY 9A HENRY HUDSON PARKWAY" and "HENRY HUDSON PARKWAY").
+function sameName(a, b) {
+  const [long, short] = a.length >= b.length ? [a, b] : [b, a];
+  return long === short || long.endsWith(` ${short}`);
+}
+
+const spurOf = (text) => /\b(EASTERN|WESTERN) SPUR\b/.exec(normalizeRoadText(text))?.[1] ?? null;
+
 /// Is the incident's road the route's road at `d`? A highway must be one the route is on there (all its
-/// names count, as where I-95 runs on the New Jersey Turnpike). A named road that is not a highway (a
-/// street, a county road) is never the route's road while the route is on a highway there. No name: unknown.
+/// names count, as where I-95 runs on the New Jersey Turnpike), whatever the case, punctuation or short form
+/// on either side. A named road that is not a highway (a street, a county road) is never the route's road
+/// while the route is on a highway there. No name: unknown.
 function onSameRoad(route, i, d) {
   if (!i.road) return true;
-  const here = route.stepAt?.(d)?.highways ?? (route.highwayAt(d) ? [route.highwayAt(d).ref] : []);
-  const refs = roadRefs(i.road);
-  if (refs.length) return refs.some((r) => here.some((h) => sameRoad(r, h)));
-  return here.length === 0;
+  const step = route.stepAt?.(d);
+  const here = step?.highways ?? (route.highwayAt(d) ? [route.highwayAt(d).ref] : []);
+  const refs = roadRefs(i.road), names = namedRoads(i.road);
+  if (!refs.length && !names.length) return here.length === 0;
+  if (refs.some((r) => r.kind !== 'named' && here.some((h) => sameRoad(r, h)))) return true;
+  // Turnpikes and parkways by their full name. The Turnpike's two spurs run side by side and are not one road.
+  const ours = [step?.roadName, ...here.filter((h) => h.kind === 'named').map((h) => h.number)].filter(Boolean).join(' ; ');
+  const spurs = [spurOf(i.road), spurOf(ours)];
+  if (spurs[0] && spurs[1] && spurs[0] !== spurs[1]) return false;
+  const known = namedRoads(ours);
+  return names.some((a) => known.some((b) => sameName(a, b)));
 }
 
 /// "Northbound", "NB", "north", "both directions" as 'N' | 'S' | 'E' | 'W' | 'both', else null.
@@ -112,6 +178,41 @@ export function directionCode(text) {
   return null;
 }
 
+const CARDINAL_BEARINGS = { N: 0, E: 90, S: 180, W: 270 };
+
+/// A reported direction as a bearing in degrees (northbound 0, eastbound 90, or a bearing the provider gives
+/// as a number), 'both', or null when not reported.
+export function directionBearing(direction) {
+  if (direction == null) return null;
+  const t = String(direction).trim();
+  if (/^\d{1,3}(?:\.\d+)?$/.test(t)) return Number(t) <= 360 ? Number(t) % 360 : null;
+  const code = directionCode(t);
+  return code === 'both' ? 'both' : code ? CARDINAL_BEARINGS[code] : null;
+}
+
+/// The way the route runs at `d`, from its geometry over a kilometer around it (a curve or a lane shift does
+/// not decide it). Not the road's signed name: on the New Jersey Turnpike, southbound runs southwest.
+function travelBearing(route, d) {
+  const a = Math.max(0, d - 500), b = Math.min(route.polyline.length, d + 500);
+  return b - a >= 100 ? initialBearing(route.polyline.coordinateAt(a), route.polyline.coordinateAt(b)) : route.polyline.bearingAt(d);
+}
+
+const axisOf = (code) => (code === 'N' || code === 'S' ? 'NS' : 'EW');
+
+/// Is a reported direction (`text` as the provider gave it, `dir` its bearing; 'both' and none never are) not
+/// the way the route runs at `d`? A report in the same pair as the road's signed direction (southbound on a road
+/// signed north and south) is compared with that sign: I-95 in Delaware and I-295 in New Jersey are signed
+/// north and south while they run east and west, where the map alone cannot tell the carriageways apart.
+/// Otherwise (the New Jersey Turnpike reads west on the map but is signed south, or a bearing) the way the route
+/// actually runs decides, within `directionAngle`.
+function otherDirection(route, text, dir, d, rules) {
+  if (typeof dir !== 'number') return false;
+  const code = directionCode(text);
+  const signed = route.highwayAt(d)?.direction ?? null;
+  if (code && code !== 'both' && signed && axisOf(code) === axisOf(signed)) return code !== signed;
+  return angleDifference(dir, travelBearing(route, d)) >= rules.directionAngle;
+}
+
 /// Is the incident current at `now`? Expired, ended or not yet started events are not.
 export function isCurrent(i, now) {
   if (i.expiresAt != null && i.expiresAt <= now) return false;
@@ -121,17 +222,15 @@ export function isCurrent(i, now) {
 
 /// Where a point incident sits on the route ahead, or why it does not.
 function matchPoint(route, c, i, progress, rules) {
-  const radius = roadRefs(i.road).length ? rules.sameRoadOffset : rules.unnamedOffset;
+  const radius = roadRefs(i.road).length || namedRoads(i.road).length ? rules.sameRoadOffset : rules.unnamedOffset;
+  const dir = directionBearing(i.direction);
   let best = null, why = 'off route';
   for (const p of route.polyline.projections(c, radius)) {
     if (p.distanceAlong < progress) { why = 'behind'; continue; }
-    const hw = route.highwayAt(p.distanceAlong);
     if (!onSameRoad(route, i, p.distanceAlong)) { why = 'other road'; continue; }
-    const dir = directionCode(i.direction);
-    const travel = hw?.direction ?? cardinalOf(route.polyline.bearingAt(p.distanceAlong));
-    if (dir && dir !== 'both' && dir !== travel) { why = 'other direction'; continue; }
-    if (!dir && p.signedOffset < -rules.otherCarriageway) { why = 'other direction'; continue; }
-    if (!best || p.distanceAlong < best.distanceAlong) best = { distanceAlong: p.distanceAlong, directionKnown: Boolean(dir) };
+    if (otherDirection(route, i.direction, dir, p.distanceAlong, rules)) { why = 'other direction'; continue; }
+    if (dir == null && p.signedOffset < -rules.otherCarriageway) { why = 'other direction'; continue; }
+    if (!best || p.distanceAlong < best.distanceAlong) best = { distanceAlong: p.distanceAlong, directionKnown: dir != null };
   }
   return best ? { start: best.distanceAlong, end: best.distanceAlong, directionKnown: best.directionKnown } : { why };
 }
@@ -147,17 +246,15 @@ function matchLine(route, coords, i, progress, rules) {
   const start = Math.min(...along), end = Math.max(...along);
   if (end < progress) return { why: 'behind' };
   const mid = (start + end) / 2;
-  const hw = route.highwayAt(mid);
   if (!onSameRoad(route, i, mid)) return { why: 'other road' };
-  const travel = hw?.direction ?? cardinalOf(route.polyline.bearingAt(mid));
-  const dir = directionCode(i.direction);
-  if (dir && dir !== 'both' && dir !== travel) return { why: 'other direction' };
-  if (!dir && coords.length >= 2) {
+  const dir = directionBearing(i.direction);
+  if (otherDirection(route, i.direction, dir, mid, rules)) return { why: 'other direction' };
+  if (dir == null && coords.length >= 2) {
     // No direction field: the line drawn in the travel direction agrees with the route's bearing.
     const bearing = initialBearing(coords[0], coords[coords.length - 1]);
     if (angleDifference(bearing, route.polyline.bearingAt(mid)) > rules.lineBearing) return { why: 'other direction' };
   }
-  return { start: Math.max(start, progress), end, directionKnown: Boolean(dir) || coords.length >= 2 };
+  return { start: Math.max(start, progress), end, directionKnown: dir != null || coords.length >= 2 };
 }
 
 /// An area (weather polygon): the stretch of route ahead inside it, its edges refined to about 10 m.
@@ -190,10 +287,6 @@ function inRing(c, ring) {
   return inside;
 }
 
-function cardinalOf(bearing) {
-  const b = ((bearing % 360) + 360) % 360;
-  return b < 45 || b >= 315 ? 'N' : b < 135 ? 'E' : b < 225 ? 'S' : 'W';
-}
 
 /// One incident against the route ahead: {start, end, directionKnown} in meters along the route, or {why}.
 export function matchIncident(route, i, progress, rules = MATCH_RULES) {
@@ -202,10 +295,13 @@ export function matchIncident(route, i, progress, rules = MATCH_RULES) {
   if (g.type === 'point') return matchPoint(route, g.coordinate, i, progress, rules);
   if (g.type === 'points') {
     // Sample points on the route (an area alert queried by point): each is on the route by construction.
-    const hits = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean)
-      .map((p) => p.distanceAlong).filter((d) => d >= progress);
+    const along = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean).map((p) => p.distanceAlong);
+    const hits = along.filter((d) => d >= progress);
+    // A point just passed (the first one is where the driver was when NWS answered): the driver is in the area.
+    const here = along.some((d) => d < progress && progress - d <= (rules.pointsReach ?? 0));
+    if (!hits.length && !here) return { why: along.length ? 'behind' : 'off route' };
     // Where it starts and ends between the sample points is not known, so the extent is approximate.
-    return hits.length ? { start: Math.min(...hits), end: Math.max(...hits), directionKnown: true, approximate: true } : { why: 'off route' };
+    return { start: here ? progress : Math.min(...hits), end: hits.length ? Math.max(...hits) : progress, directionKnown: true, approximate: true };
   }
   if (g.type === 'line') return matchLine(route, g.coordinates, i, progress, rules);
   if (g.type === 'polygon') return matchArea(route, g.rings, progress, rules.window, rules);
@@ -228,6 +324,24 @@ export function isSerious(i) {
 /// open or does not say (those stay in Road Ahead).
 export function isNotable(i) {
   return isSerious(i) || !(i.category === 'construction' && (i.severity === 'minor' || i.severity === 'unknown'));
+}
+
+/// Takes the Drive card: a notable alert, except a weather or flooding alert the driver is already inside that
+/// is not Severe or Extreme (NWS) and not a warning. Advisories where the driver is stay in Road Ahead and the
+/// weather details; ahead of the driver nothing changes. Same rule as RoadIntel.Alert.onDriveCard in RoadIntel.swift.
+export function onDriveCard(a, progress) {
+  if (!a.notable) return false;
+  const i = a.incident;
+  // Inside: the alert starts where the driver is (within a meter, for rounding) or behind.
+  if ((i.category !== 'weather' && i.category !== 'flooding') || a.start - progress > 1) return true;
+  return i.severity === 'severe' || i.severity === 'major' || /warning$/i.test(String(i.description ?? '').trim());
+}
+
+/// The alert the Drive screen considers: the first serious one within 50 miles, else the nearest, of those that
+/// take the Drive card. Same rule as RoadIntel.Result.focusAlert in RoadIntel.swift.
+export function driveCardAlert(alerts, progress) {
+  const shown = alerts.filter((a) => onDriveCard(a, progress));
+  return shown.find((a) => a.serious && a.start - progress <= 50 * MILE) ?? shown[0] ?? null;
 }
 
 /// How loud an alert looks: 'urgent' (red: closures, major or severe crashes, weather, flooding and hazards),

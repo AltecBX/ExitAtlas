@@ -7,6 +7,7 @@ import { TripPlan, TripSession } from '../js/engine/trip.js';
 import { PlannedRoute, TravelTimeProfile } from '../js/engine/route.js';
 import { GPSSimulator } from '../js/engine/discovery.js';
 import { Announcer } from '../js/app/announcer.js';
+import { offset } from '../js/engine/geo.js';
 
 const MILE = 1609.344;
 const settings = { voice: true, announceStateLines: true, announceExits: false };
@@ -109,7 +110,7 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   a2.consider(fake(exit.distanceAlongRoute - 10 * MILE), all, { gasGap: gap });
   a2.consider(fake(exit.distanceAlongRoute - 5 * MILE), all, { gasGap: gap });
   a2.consider(fake(exit.distanceAlongRoute - 4 * MILE), all, { gasGap: gap });
-  assert.deepEqual(said, [`Last gas for 62 miles is Exit ${exit.label}, in 5 miles.`]);
+  assert.deepEqual(said, [`Last gas listed for 62 miles is Exit ${exit.label}, in 5 miles.`]);
   a2.consider(fake(exit.distanceAlongRoute - 3 * MILE), { ...all, announceGasGaps: false }, { gasGap: { ...gap, before: { ...gap.before, exit: { ...exit, id: 'other' } } } });
   assert.equal(said.length, 1);
 
@@ -147,4 +148,80 @@ test('rest areas, time zones and the last gas before a long stretch are spoken o
   assert.equal(said2.length, 2, said2.join(' | '));
   a4.consider(fake(100 * MILE), all, { alerts: [alert('w1', 'weather', 101, true)] });
   assert.equal(said2[2], 'Severe Thunderstorm Warning on your route, in 1 mile.');
+});
+
+test('a road alert is spoken once even when a later answer gives the same event a new id', () => {
+  const fake = (progress) => ({ match: { status: 'onRoute' }, current: null, next: null, progress, t: START, drivenTotal: progress,
+    distanceToNextBorder: null, nextRestArea: null, nextExit: null });
+  const alert = (id, category, startMiles, extra = {}) => ({ incident: { id, category, description: 'Work zone', lanes: null, verification: 'official', ...extra },
+    start: startMiles * MILE, serious: false, notable: true });
+  const said = [];
+  const a = new Announcer((t) => said.push(t));
+  a.consider(fake(48 * MILE), settings, { alerts: [alert('wz:1', 'construction', 50, { lanes: 'Right lane closed' })] });
+  assert.deepEqual(said, ['Work zone ahead, in 2 miles. Right lane closed.']);
+  // The feed updated the entry (or the other feed's copy is kept now): new id, same place. Not again.
+  a.consider(fake(48.9 * MILE), settings, { alerts: [alert('wz:1b', 'construction', 50.1, { lanes: 'Right lane closed' })] });
+  // A different kind at the same place, and the same kind well past it, are new events.
+  a.consider(fake(49 * MILE), settings, { alerts: [alert('c:1', 'crash', 50.2)] });
+  a.consider(fake(58 * MILE), settings, { alerts: [alert('wz:2', 'construction', 60)] });
+  assert.deepEqual(said.slice(1), ['Crash ahead, in 1 mile.', 'Work zone ahead, in 2 miles.'], said.join(' | '));
+});
+
+test('the demo alert is spoken as a simulated test alert, never as a real event', async () => {
+  const { alertWords } = await import('../js/app/announcer.js');
+  const a = { incident: { id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', lanes: 'Right lane blocked', verification: 'simulated' }, start: 6 * MILE };
+  assert.equal(alertWords(a, 6 * MILE), 'Crash ahead, in 6 miles. Right lane blocked. Simulated test alert.');
+});
+
+test('the voice switch: on says so (Safari lets speech play after a tap), off stops what is queued', () => {
+  const said = [];
+  let cancelled = 0;
+  const a = new Announcer((t) => said.push(t), { cancel: () => { cancelled += 1; } });
+  a.voiceSwitched(true);
+  assert.deepEqual(said, ['Voice on.']);
+  a.voiceSwitched(false);
+  assert.equal(cancelled, 1);
+  assert.equal(said.length, 1, 'nothing said when switched off');
+});
+
+test('a state line warning is not repeated after a detour off the route and back', () => {
+  // Found on a simulated Yonkers to Orlando drive: dinner 4 miles off I-95 just after the Georgia line warning
+  // added 8 miles to the odometer, and the warning was given again on the way back.
+  const ds = { states: data.states, timeZones: null, interstates: data.interstates };
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, ds), data.states, START);
+  const spoken = [];
+  const announcer = new Announcer((text) => spoken.push(text));
+  const border = session.plan.states.segments[1].startDistance;
+  const name = session.plan.states.segments[1].displayName;
+  const warnings = () => spoken.filter((t) => t.startsWith(`${name} state line in`));
+  let last = null;
+  for (const { sample } of new GPSSimulator(r).trace(0, border - 4 * MILE, START)) {
+    announcer.consider(session.ingest(sample), settings);
+    last = sample;
+  }
+  assert.equal(warnings().length, 1, spoken.join(' | '));
+  // Out 6.4 km to the side and back at 15 m/s.
+  const d = border - 4 * MILE, bearing = r.polyline.bearingAt(d);
+  let t = last.t + 1;
+  for (const [from, to, course] of [[0, 6400, bearing + 90], [6400, 0, bearing - 90]]) {
+    for (let x = from; from < to ? x <= to : x >= to; x += from < to ? 15 : -15, t += 1) {
+      const coordinate = offset(r.polyline.coordinateAt(d), bearing + 90, x);
+      announcer.consider(session.ingest({ coordinate, accuracy: 8, course: (course + 360) % 360, speed: 15, t }), settings);
+    }
+  }
+  assert.ok(session.ledger.totalMeters > d + 12000, 'the detour counts as driven');
+  for (const { sample } of new GPSSimulator(r).trace(d + 30, border + 2 * MILE, t)) announcer.consider(session.ingest(sample), settings);
+  assert.equal(warnings().length, 1, spoken.join(' | '));
+  assert.ok(spoken.some((x) => x.startsWith(`Welcome to ${name}.`)), spoken.join(' | '));
+});
+
+test('"New route." is said once while the driver keeps leaving each new route', () => {
+  // Found on a simulated drive: a driver on a road of their own beside I-95 for 3 miles heard "New route." 9 times.
+  const said = [];
+  const a = new Announcer((t) => said.push(t));
+  for (let t = START; t <= START + 200; t += 20) a.rerouted(t);
+  assert.deepEqual(said, ['New route.', 'New route.']);
+  a.reset();
+  assert.ok(a.rerouted(START + 210), 'a new trip starts quiet');
 });

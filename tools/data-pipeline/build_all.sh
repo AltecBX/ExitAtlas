@@ -68,6 +68,9 @@ python3 build_regions.py states "$WORK/states_s3.geojson" "$OUT/states.eab" stat
 python3 build_regions.py tzones "$WORK/timezones_s10.geojson" "$OUT/timezones.eab" timezones_source.json
 # Rest area tags come from the live OSM API (cached in the work dir), so the result reflects the fetch date.
 python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.json" "$OUT/restareas.json" "$WORK/rest_area_classes.json"
+# Toll road service plazas the extract misses or lists without fuel (New Jersey Turnpike, Maryland I-95), from the
+# OSM API (cached in the work dir).
+python3 add_plazas.py "$OUT/restareas.json" plazas_supplement.json "$WORK/plaza_osm"
 python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
 # Brand store listings (All the Places, CC0): one GeoJSON file per fuel brand spider from a pinned weekly run.

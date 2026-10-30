@@ -1,9 +1,9 @@
 {
  "kind": "manifest",
  "schema": 1,
- "version": 202610290030,
- "content": "7a8dfb47e548c76ec07d92c9bb89a4743cef574666b7852ad26e9793626f888f",
- "generated_at": "2026-10-29T00:30:16+00:00",
+ "version": 202610301410,
+ "content": "9c6ded6b977d666a5bd21470b96c8498aaf417cf93e37cb05a9514e94b3eac2b",
+ "generated_at": "2026-10-30T14:10:53+00:00",
  "files": {
   "states.eab": {
    "bytes": 2786240,
@@ -51,8 +51,8 @@
    "osm_extract_date": "2026-07-12"
   },
   "restareas.json": {
-   "bytes": 260457,
-   "sha256": "22b501f714c98cdfe3faa4c0008e084f2b243203ccb75167caaa7fd1b2ce2445",
+   "bytes": 263273,
+   "sha256": "b5221be38051388844af9febac977f4dcea7bb1fb34f7f0e064493368c1db361",
    "required": false,
    "role": "Rest areas and service plazas",
    "kind": "restareas",
@@ -61,7 +61,7 @@
    "attribution": "© OpenStreetMap contributors. Truck parking counts: FHWA (public domain).",
    "generated_at": "2026-10-28T17:26:49+00:00",
    "tags_fetched": "2026-10-28",
-   "count": 1332
+   "count": 1338
   },
   "discover.json": {
    "bytes": 442934,

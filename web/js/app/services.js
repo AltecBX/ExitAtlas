@@ -1,10 +1,10 @@
 // Browser services: bundled data, OSRM routing, place search, GPS, voice, wake lock and storage.
 import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
-import { routeFromOSRM } from '../engine/osrm.js';
+import { routeFromOSRM, osrmRouteQuery } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
 import { StationFacts } from './smartstops.js';
 import { DiscoverDataset } from '../engine/discover.js';
-import { chooseManifest, candidates, loadVerified, usedManifest } from '../engine/datamanifest.js';
+import { chooseManifest, candidates, loadVerified, usedManifest, fileURL } from '../engine/datamanifest.js';
 import { distance, initialBearing } from '../engine/geo.js';
 
 export const DATA_BASE = new URL('../App/ExitAtlas/Resources/Data/', document.baseURI);
@@ -71,13 +71,32 @@ async function manifestSet() {
   return dataSet;
 }
 
+/// The service worker's cache for data files (web/sw.js DATA_CACHE).
+const DATA_CACHE = 'exitatlas-data';
+
+/// On a first visit (or after Safari cleared the site's storage) the data loads before the new service worker
+/// controls the page, so the worker never sees it, and it would be kept for offline use only after another
+/// visit online. A file that loaded and passed its check is put in the worker's data cache here unless it is
+/// already there: no second download.
+async function keepOffline(url, bytes) {
+  try {
+    const sw = navigator.serviceWorker;
+    if (!bytes || !sw || !globalThis.caches || !(await sw.getRegistration())) return;
+    const cache = await caches.open(DATA_CACHE);
+    if (await cache.match(url.href)) return;
+    await cache.put(url.href, new Response(bytes, { headers: { 'content-length': String(bytes.byteLength) } }));
+  } catch { /* kept on the next visit online */ }
+}
+
 /// One data file, checked against the manifest; the last good version if the new one fails.
 async function loadFile(name, parse, onProgress) {
   const { manifest, fallback } = await manifestSet();
-  const io = { fetchBytes: (url) => fetchBytes(url, onProgress), digestHex, dropCached };
+  let bytes = null;
+  const io = { fetchBytes: async (url) => (bytes = await fetchBytes(url, onProgress)), digestHex, dropCached };
   try {
     const r = await loadVerified(name, candidates(name, manifest, fallback), DATA_BASE, io, parse);
     if (r.rolledBack) dataStatus.rolledBack.push(name);
+    keepOffline(fileURL(name, r.entry, DATA_BASE), bytes);
     return r;
   } catch (e) {
     dataStatus.failed.push(name);
@@ -142,16 +161,46 @@ function checkSwitch(service, name) {
   if (serviceSwitches.disabled.includes(service)) throw new Error(`${name} is switched off on the ExitAtlas server for now`);
 }
 
-/// Routes through the waypoints. Alternatives only exist without stops.
-export async function fetchRoutes(waypoints, { alternatives = true, signal } = {}) {
-  checkSwitch('routing', 'Routing');
-  const coords = waypoints.map((w) => `${w.coordinate.lon.toFixed(6)},${w.coordinate.lat.toFixed(6)}`).join(';');
-  const params = new URLSearchParams({
-    overview: 'full', geometries: 'polyline6', steps: 'true', annotations: 'duration',
-    alternatives: alternatives && waypoints.length === 2 ? '3' : 'false',
+/// How long a routing or place search request may take. A request that never answers (a dead zone, a stalled
+/// server) would otherwise leave "Finding routes" or "Rerouting" up for good, and block every later reroute.
+export const REQUEST_TIMEOUT = { routing: 25000, search: 15000 };
+
+/// Runs `run(signal)` (a fetch and reading its body), giving up after `ms` even if the request never settles.
+/// Network failures and the time limit become plain reasons naming the server; cancelling through `outer`
+/// still throws the AbortError.
+async function timed(what, ms, outer, run) {
+  const ctl = new AbortController();
+  const stop = () => ctl.abort();
+  outer?.addEventListener('abort', stop);
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const s = Math.round(ms / 1000);
+      reject(new Error(`${what} did not answer within ${s} second${s === 1 ? '' : 's'}`));
+      ctl.abort();
+    }, ms);
   });
-  const res = await fetch(`${OSRM}${coords}?${params}`, { signal });
-  const body = await res.json().catch(() => null);
+  const work = run(ctl.signal);
+  work.catch(() => {}); // after the time limit its failure is already reported
+  try {
+    return await Promise.race([work, late]);
+  } catch (e) {
+    if (!outer?.aborted && e instanceof TypeError) throw new Error(`${what} could not be reached (no connection, or the server is busy)`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener('abort', stop);
+  }
+}
+
+/// Routes through the waypoints. Alternatives only exist without stops. `bearing`: the driver's course for the
+/// start of a reroute (engine/osrm.js osrmRouteQuery), or null.
+export async function fetchRoutes(waypoints, { alternatives = true, signal, bearing = null, timeout = REQUEST_TIMEOUT.routing } = {}) {
+  checkSwitch('routing', 'Routing');
+  const { res, body } = await timed('the routing server', timeout, signal, async (s) => {
+    const r = await fetch(`${OSRM}${osrmRouteQuery(waypoints, { alternatives, bearing })}`, { signal: s });
+    return { res: r, body: await r.json().catch((e) => { if (s.aborted) throw e; return null; }) };
+  });
   if (!res.ok || !body || body.code !== 'Ok') {
     throw new Error(body?.message || `routing server error (HTTP ${res.status})`);
   }
@@ -161,7 +210,7 @@ export async function fetchRoutes(waypoints, { alternatives = true, signal } = {
 // MARK: Place search (Nominatim). Search on submit only, as its usage policy requires.
 
 let lastSearchAt = 0;
-export async function searchPlaces(query, near = null) {
+export async function searchPlaces(query, near = null, { timeout = REQUEST_TIMEOUT.search } = {}) {
   checkSwitch('search', 'Place search');
   const wait = 1100 - (Date.now() - lastSearchAt);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -171,9 +220,11 @@ export async function searchPlaces(query, near = null) {
     const d = 3;
     params.set('viewbox', `${near.lon - d},${near.lat + d},${near.lon + d},${near.lat - d}`);
   }
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' } });
-  if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
-  const rows = await res.json();
+  const rows = await timed('the place search server', timeout, null, async (s) => {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' }, signal: s });
+    if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
+    return res.json();
+  });
   return rows.map((r) => ({
     name: shortName(r.display_name),
     detail: r.display_name,
@@ -263,12 +314,20 @@ export class LocationService {
   }
 }
 
+/// Why the one time fix for planning from here failed, in plain words with what to do (the browser's own
+/// messages read like "Timeout expired" or a system error code).
+export const POSITION_PROBLEMS = {
+  1: 'location permission is denied. Allow location for this site in Settings, Privacy, Location Services, Safari Websites, or choose a start place',
+  2: 'your location is not available right now. Choose a start place, or try again',
+  3: 'your location was not found within 20 seconds. Choose a start place, or try again',
+};
+
 export function currentPosition() {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) { reject(new Error('No location service')); return; }
+    if (!('geolocation' in navigator)) { reject(new Error('this browser has no location service. Choose a start place')); return; }
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      (e) => reject(new Error(e.code === 1 ? 'Location permission denied' : e.message)),
+      (e) => reject(new Error(POSITION_PROBLEMS[e.code] ?? POSITION_PROBLEMS[2])),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
     );
   });
@@ -277,25 +336,55 @@ export function currentPosition() {
 // MARK: Wake lock
 
 export class ScreenWake {
-  constructor() { this.lock = null; this.wanted = false; }
+  constructor({ nav = globalThis.navigator, doc = globalThis.document } = {}) {
+    this.nav = nav;
+    this.doc = doc;
+    this.lock = null;
+    this.wanted = false;
+    this.pending = null;
+    /// Why the browser last refused to keep the screen on, or null. Cleared once the screen is held.
+    this.error = null;
+    /// Called when the lock is taken, refused or let go (to update what the screen says).
+    this.onChange = null;
+  }
 
-  get supported() { return 'wakeLock' in navigator; }
+  get supported() { return Boolean(this.nav && 'wakeLock' in this.nav); }
   get active() { return !!this.lock && !this.lock.released; }
 
-  async request() {
+  /// Keeps the screen on while a drive wants it. Safe to call often (one request at a time); never throws.
+  /// The browser lets go of the lock whenever the page is hidden, so this is called again when it shows.
+  request() {
     this.wanted = true;
-    if (!this.supported || this.active || document.visibilityState !== 'visible') return;
-    try {
-      this.lock = await navigator.wakeLock.request('screen');
-    } catch {
-      this.lock = null;
-    }
+    if (this.pending) return this.pending;
+    if (!this.supported || this.active || this.doc?.visibilityState !== 'visible') return Promise.resolve(this.active);
+    this.pending = (async () => {
+      try {
+        const lock = await this.nav.wakeLock.request('screen');
+        // The drive ended while the browser was answering: let go at once.
+        if (!this.wanted) { lock.release?.().catch?.(() => {}); return false; }
+        this.lock = lock;
+        this.error = null;
+        lock.addEventListener?.('release', () => { if (this.lock === lock) { this.lock = null; this.onChange?.(); } });
+        return true;
+      } catch (e) {
+        this.lock = null;
+        this.error = e?.message || 'refused';
+        return false;
+      } finally {
+        this.pending = null;
+        this.onChange?.();
+      }
+    })();
+    return this.pending;
   }
 
   release() {
     this.wanted = false;
-    this.lock?.release().catch(() => {});
+    this.error = null;
+    const lock = this.lock;
     this.lock = null;
+    try { lock?.release?.().catch?.(() => {}); } catch { /* already released */ }
+    this.onChange?.();
   }
 }
 

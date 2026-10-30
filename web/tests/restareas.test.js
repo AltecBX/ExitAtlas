@@ -6,6 +6,7 @@ import { METERS_PER_MILE as MILE, RoutePolyline, angleDifference } from '../js/e
 import { TripPlan } from '../js/engine/trip.js';
 import { TripLedger, PaceModel } from '../js/engine/tracking.js';
 import { matchRestAreas, amenityBadges, restAreaTitle, gasGaps, AMENITIES } from '../js/engine/restareas.js';
+import { gasGapCard, gapTimelineRow } from '../js/app/views.js';
 
 const ds = () => ({ states: data.states, timeZones: data.timeZones, interstates: data.interstates, restAreas: data.restAreas });
 let miamiPlan = null;
@@ -60,6 +61,43 @@ test('the same road driven the other way gets the other side', () => {
   // Median plazas appear both ways.
   assert.equal(named(north, /Chesapeake House/).length, 1);
   assert.equal(named(south, /Chesapeake House/).length, 1);
+});
+
+test('southbound on the New Jersey Turnpike and I-95 to Maryland, every service plaza lists its fuel (plazas_supplement.json)', () => {
+  // Manhattan to Miami: the sample route driven the other way, as Jerry drives south from Yonkers.
+  const south = matchRestAreas(new RoutePolyline([...route('miami_to_manhattan').polyline.points].reverse()), data.restAreas);
+  const plazas = south.filter((r) => r.gas.length && r.distanceAlongRoute < 170 * MILE);
+  assert.deepEqual(plazas.map((r) => restAreaTitle(r)), ['Alexander Hamilton Service Area', 'Thomas Edison Service Area', 'Molly Pitcher Service Area',
+    'Richard Stockton Travel Plaza', 'Walt Whitman Service Area', 'Clara Barton Service Area', 'I-95 Delaware Service Plaza', 'Chesapeake House',
+    'Maryland House Service Area']);
+  for (const r of plazas) {
+    assert.equal(r.kind, 'plaza', restAreaTitle(r));
+    assert.ok(r.gas.includes('Sunoco'), restAreaTitle(r));
+  }
+  // No stretch on the turnpike reads as having no gas: the plazas are at most 30 miles apart.
+  for (let i = 1; i < plazas.length; i++) assert.ok(plazas[i].distanceAlongRoute - plazas[i - 1].distanceAlongRoute < 30 * MILE, restAreaTitle(plazas[i]));
+  // Northbound plazas stay off the southbound list, and the other way round.
+  for (const re of [/Joyce Kilmer/, /Grover Cleveland/, /Woodrow Wilson/, /John Fenwick/]) assert.equal(named(south, re).length, 0, String(re));
+  const north = miami().restAreas;
+  for (const re of [/Joyce Kilmer/, /Grover Cleveland/, /Woodrow Wilson/, /John Fenwick/]) assert.equal(named(north, re).length, 1, String(re));
+  for (const re of [/Molly Pitcher/, /Richard Stockton/, /Clara Barton/, /Walt Whitman/]) assert.equal(named(north, re).length, 0, String(re));
+  // Added and changed entries say where they came from; hours and restrooms only from their own tags.
+  const molly = data.restAreas.items.find((i) => i.id === 'way/1537507737');
+  assert.equal(molly.via, 'plazas_supplement');
+  assert.equal(molly.hours, undefined, 'no hours tagged: unknown');
+  assert.match(data.restAreas.metadata.supplement, /plazas_supplement\.json/);
+});
+
+test('a stretch without gas says the gas is not listed, never that there is none', () => {
+  const s = { progress: 0, t: START, etaTo: () => START };
+  const g = { from: 5 * MILE, to: 96 * MILE, length: 91 * MILE, before: { distance: 5 * MILE, exit: { label: '11' } }, after: null, open: true };
+  const row = gapTimelineRow(g, s);
+  assert.match(row, /No gas listed for 91 mi\+/);
+  const card = gasGapCard({ gasGapsAhead: () => [g] }, s);
+  assert.match(card, /Last gas listed for 91 mi\+: Exit 11/);
+  const inside = gasGapCard({ gasGapsAhead: () => [{ ...g, from: 0, before: null }] }, { ...s, progress: 1 * MILE });
+  assert.match(inside, /No gas listed for the next 95 mi\+/);
+  for (const html of [row, card, inside]) assert.doesNotMatch(html, /No gas for|Last gas for/);
 });
 
 test('a road that is not an interstate never gets rest areas', () => {

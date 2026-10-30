@@ -1400,6 +1400,176 @@
      "$3.09 a gallon (You)"
     ]
    }
+  },
+  {
+   "name": "Restroom stop by day: a rest area on the highway has no detour, so it is not ranked behind a far station",
+   "options": {
+    "context": "ahead",
+    "purpose": "restroom"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "welcome12",
+     "name": "Welcome Center",
+     "kind": "rest",
+     "aheadMiles": 12,
+     "detourMinutes": null,
+     "arrival": "2026-10-29T16:00:00Z",
+     "plaza": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp52",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "92",
+     "aheadMiles": 52,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:00:00Z",
+     "osm": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "welcome12",
+    "alternatives": [
+     "bp52"
+    ],
+    "primaryRestroom": "available",
+    "reasonsInclude": [
+     "On the highway, no exit needed"
+    ]
+   }
+  },
+  {
+   "name": "Every stop is below the reserve: at the nearest exit, the first choice brand comes first",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "loves29",
+     "name": "Love's",
+     "brand": "Love's",
+     "exitId": "29",
+     "aheadMiles": 2,
+     "rangeOnArrivalMiles": 26,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell29",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "29",
+     "aheadMiles": 2,
+     "rangeOnArrivalMiles": 26,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "bp36",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "36",
+     "aheadMiles": 9,
+     "rangeOnArrivalMiles": 19,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:00:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "shell29",
+    "alternatives": [
+     "bp36",
+     "loves29"
+    ],
+    "relaxed": [
+     "Below your reserve"
+    ],
+    "lowRange": true,
+    "favorite": null,
+    "reasonsInclude": [
+     "Arrive with about 26 mi, below your 50 mi reserve",
+     "Shell, your 1st choice"
+    ]
+   }
+  },
+  {
+   "name": "Restroom stop by day: the soonest back on the road wins, not the favorite brand 50 miles on",
+   "options": {
+    "context": "ahead",
+    "purpose": "restroom"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "rest13",
+     "name": "Rest Area",
+     "kind": "rest",
+     "aheadMiles": 13,
+     "detourMinutes": null,
+     "arrival": "2026-10-29T16:13:00Z",
+     "plaza": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp49",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "49",
+     "aheadMiles": 49,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:51:00Z",
+     "osm": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "shell50",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "50",
+     "aheadMiles": 50,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:51:00Z",
+     "osm": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp58",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "58",
+     "aheadMiles": 58,
+     "detourMinutes": 3,
+     "arrival": "2026-10-29T16:59:30Z",
+     "osm": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "rest13",
+    "alternatives": [
+     "shell50",
+     "bp49"
+    ],
+    "primaryRestroom": "available"
+   }
   }
  ],
  "lastOpen": [
@@ -1637,6 +1807,105 @@
     }
    ],
    "expect": null
+  },
+  {
+   "name": "A station no longer listed is never the last stop listed open, and does not end a stretch",
+   "options": {
+    "minLengthMiles": 40,
+    "windowEndMiles": 150
+   },
+   "candidates": [
+    {
+     "id": "a",
+     "aheadMiles": 5,
+     "osm": {
+      "hours": "24/7"
+     }
+    },
+    {
+     "id": "gone20",
+     "aheadMiles": 20,
+     "osm": {
+      "hours": "24/7",
+      "gone": "not fuel"
+     }
+    },
+    {
+     "id": "c",
+     "aheadMiles": 40
+    },
+    {
+     "id": "d",
+     "aheadMiles": 70,
+     "osm": {
+      "hours": "24/7"
+     }
+    }
+   ],
+   "expect": {
+    "stop": "a",
+    "lengthMiles": 65,
+    "unlisted": 1,
+    "openEnded": false
+   }
+  }
+ ],
+ "stationNames": [
+  {
+   "name": "Shell",
+   "brand": "Shell",
+   "current": "Circle K",
+   "expect": "Circle K",
+   "shell": false
+  },
+  {
+   "name": "",
+   "brand": "Shell",
+   "current": "High's",
+   "expect": "High's",
+   "shell": false
+  },
+  {
+   "name": "BP",
+   "brand": "BP",
+   "current": "Shell",
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Shell",
+   "brand": "Shell",
+   "current": null,
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Shell",
+   "brand": "",
+   "current": "Shell",
+   "expect": "Shell",
+   "shell": true
+  },
+  {
+   "name": "Costco Gasoline",
+   "brand": "Costco Gasoline",
+   "current": "Costco",
+   "expect": "Costco",
+   "shell": false
+  },
+  {
+   "name": "Last Chance Store",
+   "brand": "",
+   "current": "76",
+   "expect": "Last Chance Store",
+   "shell": false
+  },
+  {
+   "name": "Joe's Corner Store",
+   "brand": "Shell",
+   "current": "Sunoco",
+   "expect": "Joe's Corner Store",
+   "shell": false
   }
  ]
 }

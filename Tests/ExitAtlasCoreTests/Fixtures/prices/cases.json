@@ -689,6 +689,15 @@
     "brandRank": null,
     "recommendedRank": null,
     "price": "pilot221"
+   },
+   {
+    "id": "shell260",
+    "aheadMiles": 45,
+    "detourMinutes": 1,
+    "brandRank": 0,
+    "recommendedRank": null,
+    "price": "wawa212",
+    "beyondRange": true
    }
   ],
   "expect": {
@@ -697,35 +706,40 @@
     "wawa212",
     "bp215",
     "exxon212",
-    "pilot221"
+    "pilot221",
+    "shell260"
    ],
    "price": [
     "wawa212",
     "shell209",
     "pilot221",
     "exxon212",
-    "bp215"
+    "bp215",
+    "shell260"
    ],
    "closest": [
     "shell209",
     "exxon212",
     "wawa212",
     "bp215",
-    "pilot221"
+    "pilot221",
+    "shell260"
    ],
    "detour": [
     "shell209",
     "bp215",
     "wawa212",
     "exxon212",
-    "pilot221"
+    "pilot221",
+    "shell260"
    ],
    "brand": [
     "shell209",
     "exxon212",
     "wawa212",
     "bp215",
-    "pilot221"
+    "pilot221",
+    "shell260"
    ]
   }
  },

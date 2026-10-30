@@ -4,7 +4,7 @@
 // Announcements are keyed by things that survive a reroute: the state code and the odometer (driven
 // total) where the state line is expected. Segment indexes restart at 0 on every new plan, so keying
 // by index silently dropped the "Welcome to" and state line messages after a reroute.
-import { METERS_PER_MILE as MILE } from '../engine/geo.js';
+import { METERS_PER_MILE as MILE, distance as geoDistance } from '../engine/geo.js';
 import { exitTitle } from '../engine/exits.js';
 import { KIND_TITLES, restAreaTitle } from '../engine/restareas.js';
 import { spokenMiles } from './format.js';
@@ -13,8 +13,10 @@ import { ALERT_KINDS } from '../engine/roadintel.js';
 const BORDER_WARN = 5 * MILE;
 const BORDER_MIN = 0.5 * MILE;
 /// A state line warning counts as already given when one was given for the same state with an
-/// expected crossing within this many meters on the odometer (route changes move it a little).
+/// expected crossing within this many meters on the odometer (route changes move it a little),
+/// or at a crossing point within SAME_CROSSING meters (a detour off the route and back adds miles).
 const SAME_BORDER = 3 * MILE;
+const SAME_CROSSING = 2000;
 const REST_WARN = 2.5 * MILE;
 const REST_MIN = 0.4 * MILE;
 const GAP_WARN = 6 * MILE;
@@ -23,6 +25,12 @@ const GAP_WARN = 6 * MILE;
 const ALERT_SERIOUS_WARN = 10 * MILE;
 const ALERT_WARN = 2 * MILE;
 const ALERT_MIN = 0.3 * MILE;
+/// An alert already spoken is not spoken again when a later answer gives the same event a new id (an NWS
+/// update, or the duplicate from another feed kept this time): same kind within this distance on the odometer.
+const SAME_ALERT = 1 * MILE;
+/// "New route." after an automatic reroute is said at most once in this many seconds: a driver who keeps
+/// leaving the new route (a detour of their own) hears it once, not at every reroute 20 seconds apart.
+const REROUTE_QUIET = 120;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -77,21 +85,39 @@ function stateKey(segment) {
 }
 
 export class Announcer {
-  /// speaker: function(text); defaults to the browser's speech synthesis.
-  constructor(speaker = null) {
+  /// speaker: function(text); defaults to the browser's speech synthesis. cancel: stops queued speech.
+  constructor(speaker = null, { cancel = null } = {}) {
     this.speaker = speaker;
+    this.cancel = cancel ?? (() => { if (typeof window !== 'undefined') window.speechSynthesis?.cancel(); });
     this.reset();
+  }
+
+  /// The Settings switch. On: says so, which in Safari also lets the announcements that follow play (speech
+  /// must first start from a tap). Off: stops anything still queued, so nothing more is said.
+  voiceSwitched(on) {
+    if (on) this.speak('Voice on.');
+    else this.cancel();
   }
 
   reset() {
     this.announcedExits = new Set();
-    this.announcedBorders = []; // {state, odometer}
+    this.announcedBorders = []; // {state, odometer, at}
     this.announcedRest = new Set();
     this.announcedGaps = new Set();
     this.announcedOpen = new Set();
     this.announcedAlerts = new Set();
+    this.spokenAlerts = []; // {category, odometer}
     this.lastState = null;
     this.lastZone = null;
+    this.reroutedAt = null;
+  }
+
+  /// Says that an automatic reroute found a new route, unless it was said within REROUTE_QUIET seconds.
+  rerouted(t, text = 'New route.') {
+    if (this.reroutedAt !== null && t - this.reroutedAt < REROUTE_QUIET) return false;
+    this.reroutedAt = t;
+    this.speak(text);
+    return true;
   }
 
   get supported() {
@@ -120,6 +146,9 @@ export class Announcer {
         const ahead = a.start - s.progress;
         if (ahead <= ALERT_MIN || ahead > (a.serious ? ALERT_SERIOUS_WARN : ALERT_WARN) || this.announcedAlerts.has(a.incident.id)) continue;
         this.announcedAlerts.add(a.incident.id);
+        const odometer = (s.drivenTotal ?? s.progress) + ahead;
+        if (this.spokenAlerts.some((x) => x.category === a.incident.category && Math.abs(x.odometer - odometer) <= SAME_ALERT)) continue;
+        this.spokenAlerts.push({ category: a.incident.category, odometer });
         this.speak(alertWords(a, ahead));
         return;
       }
@@ -138,9 +167,11 @@ export class Announcer {
       if (s.next && toBorder !== null && toBorder <= BORDER_WARN && toBorder > BORDER_MIN) {
         const next = stateKey(s.next.segment);
         const odometer = s.drivenTotal + toBorder;
-        const given = this.announcedBorders.some((b) => b.state === next && Math.abs(b.odometer - odometer) <= SAME_BORDER);
+        const at = s.next.segment.entryCoordinate ?? null;
+        const given = this.announcedBorders.some((b) => b.state === next && (Math.abs(b.odometer - odometer) <= SAME_BORDER
+          || (at && b.at && geoDistance(at, b.at) <= SAME_CROSSING)));
         if (!given) {
-          this.announcedBorders.push({ state: next, odometer });
+          this.announcedBorders.push({ state: next, odometer, at });
           const n = cur.exitsRemaining;
           this.speak(`${s.next.segment.displayName} state line in ${spokenMiles(toBorder)}. ${n} ${n === 1 ? 'exit remains' : 'exits remain'} in ${cur.segment.displayName}.`);
           return;
@@ -164,7 +195,7 @@ export class Announcer {
       if (ahead > 0 && ahead <= GAP_WARN && key && !this.announcedGaps.has(key)) {
         this.announcedGaps.add(key);
         const where = gap.before.exit ? exitTitle(gap.before.exit) : restAreaTitle(gap.before.restArea);
-        this.speak(`Last gas for ${spokenMiles(gap.length)} is ${where}, in ${spokenMiles(ahead)}.`);
+        this.speak(`Last gas listed for ${spokenMiles(gap.length)} is ${where}, in ${spokenMiles(ahead)}.`);
         return;
       }
     }
@@ -207,5 +238,6 @@ export function alertWords(a, ahead) {
   let text = `${label}, in ${spokenMiles(ahead)}.`;
   if (i.lanes) text += ` ${i.lanes}.`;
   if (i.verification === 'community') text += ' Reported by drivers, not confirmed.';
+  if (i.verification === 'simulated') text += ' Simulated test alert.';
   return text;
 }

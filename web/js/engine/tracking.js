@@ -9,6 +9,14 @@ export const TrackerConfig = Object.freeze({
   offRouteDistance: 60,
   offRouteConfirmations: 3,
   offRouteMinimumDuration: 6,
+  /// A miss that only puts the fix a little to the side (the route within twice the off route distance and the
+  /// course along it, or no course) is what GPS drift looks like: off route only after this many seconds of it.
+  driftTolerance: 60,
+  /// Moving with a course this many degrees from the route's bearing is a departure (a ramp curving away).
+  departureHeading: 30,
+  /// A route never joined (a new route the driver does not take, a trip started away from its route) is off
+  /// route after this many seconds of driving (3 m/s or more) without reaching it, so it gets rerouted.
+  acquireTimeout: 60,
   deadReckoningAfter: 4,
   deadReckoningLimit: 180,
   backwardTolerance: 40,
@@ -23,6 +31,9 @@ export class RouteProgressTracker {
     this.lastAccepted = null;
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
+    this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
   }
 
   ingest(sample) {
@@ -39,16 +50,25 @@ export class RouteProgressTracker {
       const c = this.cost(p, sample, moving);
       if (c < bestCost) { bestCost = c; best = p; }
     }
-    let headingMismatch = false;
-    if (best && moving) {
-      headingMismatch = angleDifference(sample.course, this.route.bearingAt(best.distanceAlong)) > 100;
-    }
-    if (!best || best.offset > threshold || headingMismatch) {
-      this.registerMiss(sample);
+    let headingDiff = 0;
+    if (best && moving) headingDiff = angleDifference(sample.course, this.route.bearingAt(best.distanceAlong));
+    if (!best || best.offset > threshold || headingDiff > 100) {
+      // Nothing within twice the off route distance, or a course away from the route: a departure.
+      const departing = !best || headingDiff > cfg.departureHeading;
+      this.registerMiss(sample, departing);
+      // Beside the route and going its way: keep moving along it, marked as an estimate.
+      const m = this.match;
+      if (!departing && m.status === 'onRoute' && best.distanceAlong > m.distanceAlongRoute) {
+        this.match = { ...m, distanceAlongRoute: Math.min(best.distanceAlong, this.route.length), offset: best.offset, isEstimated: true };
+        this.lastAccepted = sample;
+      }
       return this.match;
     }
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
+    this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
     let distance = best.distanceAlong;
     const m = this.match;
     if (m.status === 'onRoute' && distance < m.distanceAlongRoute && m.distanceAlongRoute - distance <= cfg.backwardTolerance) {
@@ -79,6 +99,9 @@ export class RouteProgressTracker {
     this.match = { status: 'onRoute', distanceAlongRoute: distance, offset: null, isEstimated: false, t, speed };
     this.offRouteCount = 0;
     this.firstOffRouteTime = null;
+    this.departing = false;
+    this.movingMiss = 0;
+    this.lastMissT = null;
   }
 
   cost(p, sample, moving) {
@@ -102,13 +125,20 @@ export class RouteProgressTracker {
     return c;
   }
 
-  registerMiss(sample) {
+  /// A fix that did not match. `departing`: it shows the driver leaving (far from the route or heading away),
+  /// not just drifting beside it; a run of misses counts as departing once any of them does.
+  registerMiss(sample, departing = true) {
     const cfg = this.config;
     this.offRouteCount += 1;
     if (this.firstOffRouteTime === null) this.firstOffRouteTime = sample.t;
+    if (departing) this.departing = true;
     const elapsed = sample.t - this.firstOffRouteTime;
+    if ((sample.speed ?? 0) >= 3 && this.lastMissT !== null) this.movingMiss += Math.min(Math.max(sample.t - this.lastMissT, 0), 5);
+    this.lastMissT = sample.t;
     const m = { ...this.match };
-    if (this.offRouteCount >= cfg.offRouteConfirmations && elapsed >= cfg.offRouteMinimumDuration && m.status !== 'acquiring') {
+    const required = this.departing ? cfg.offRouteMinimumDuration : cfg.driftTolerance;
+    const confirmed = this.offRouteCount >= cfg.offRouteConfirmations;
+    if (confirmed && (m.status === 'acquiring' ? this.movingMiss >= cfg.acquireTimeout : elapsed >= required)) {
       m.status = 'offRoute';
       m.isEstimated = false;
     }

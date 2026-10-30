@@ -107,12 +107,12 @@ No source used here lists restroom hours at gas stations (`toilets:opening_hours
 
 **Ranking, in order (deterministic; ties by station id).**
 1. Never offered: stations already passed, stations the driver skipped on this trip ("Not this one"), stations removed from OpenStreetMap or no longer gas stations, stops reported closed at arrival, stops beyond the range.
-2. Set aside unless nothing else is left: stops below the reserve (fuel), detours measured over the driver's limit, stops listed without a restroom when a restroom is needed. When every stop is below the reserve, the nearest comes first and the reasons say how much range is left on arrival.
+2. Set aside unless nothing else is left: stops below the reserve (fuel), detours measured over the driver's limit, stops listed without a restroom when a restroom is needed. When every stop is below the reserve, the nearest comes first (at the same exit, the favorite brand, then the shorter detour) and the reasons say how much range is left on arrival.
 3. Open at arrival (verified, then reported, then unknown) and confirmed restroom (accessible, then available, then unknown), when each applies; for a restroom stop the restroom comes first.
 4. Cheaper fuel, only when "Cheaper fuel over favorite brands" is on and Google prices are loaded.
 5. The favorite brands in the driver's order (Shell first by default).
-6. Fuel stops: the later stop, which uses more of the range (the planner's existing rule). "Best stop ahead": the smaller measured detour, then the nearer stop.
-7. Measured detour.
+6. Fuel stops: the later stop, which uses more of the range (the planner's existing rule). "Best stop ahead": the smaller measured detour, then the nearer stop. A restroom stop: after restroom and hours confidence, the soonest back on the road (the drive there plus the whole detour), before brand or price.
+7. Measured detour. Rest areas and service plazas are on the highway and count as no detour; a station whose detour was not measured comes after the measured ones.
 
 Alternatives come from other exits first. When the driver's first choice brand is not picked, the screen says why (closed at arrival, out of range, below the reserve, over the detour limit, skipped, or less confirmed hours or restroom). Detours are the routed round trip from the exit data; where the data has no routed time, the screen says "Detour not measured".
 

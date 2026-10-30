@@ -26,3 +26,25 @@ test('contrast() matches the WCAG reference values', () => {
   assert.equal(contrast('#000000', '#FFFFFF').toFixed(2), '21.00');
   assert.equal(contrast('#777777', '#FFFFFF').toFixed(2), '4.48');
 });
+
+// Small colored text in the web stylesheet, checked on the surface it sits on in both themes: the "On route"
+// pill on a chip (shown for the whole drive) and the recommended stop tag on a card. The sign greens are
+// fills for white lettering, not text colors (dark sign green on a dark chip was 3.0:1).
+test('web stylesheet: small status text meets 4.5:1 on its surface in light and dark', () => {
+  const tokens = loadTokens();
+  const css = readFileSync(new URL('../css/app.css', import.meta.url), 'utf8');
+  const colorOf = (sel) => {
+    const m = css.match(new RegExp(`(^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{[^}]*?(?:^|[ ;{])color: var\\(--([\\w-]+)\\)`));
+    assert.ok(m, `${sel} sets a color token`);
+    return m[2];
+  };
+  const failures = [];
+  for (const [sel, bg] of [['.pill.ok', 'chip'], ['.rec-tag', 'card']]) {
+    const fg = colorOf(sel);
+    for (const mode of ['light', 'dark']) {
+      const ratio = contrast(tokens.color[fg][mode], tokens.color[bg][mode]);
+      if (ratio < 4.5) failures.push(`${mode}: ${sel} (${fg}) on ${bg} is ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});

@@ -23,7 +23,8 @@ export function parseHighways(text) {
   scan(/\b([A-Z]{2})[- ](\d{1,4}[A-Z]?)\b/g, (m) => (
     STATE_CODES.has(m[1]) && m[1] !== 'US' ? { kind: 'stateRoute', prefix: m[1], number: m[2] } : null));
   scan(/\b((?:[A-Z][\w']*\s){0,3}Turnpike|NJTP|Parkway|Expressway|Thruway)\b/gi, (m) => {
-    const name = m[1].trim();
+    // OSRM names the road "NJTP New Jersey Turnpike" (ref and name): one road, "New Jersey Turnpike".
+    const name = m[1].trim().replace(/^NJTP\s+(?=\S)/i, '');
     return { kind: 'named', prefix: '', number: name === 'NJTP' ? 'New Jersey Turnpike' : name };
   });
   found.sort((a, b) => a[0] - b[0]);
@@ -46,10 +47,12 @@ function numericValue(ref) {
 export const DIRECTION_WORDS = { N: 'North', S: 'South', E: 'East', W: 'West' };
 
 /// Signed direction for a highway at a point. Odd interstates are north/south, even east/west,
-/// signed by net displacement over the next 25 km so local curves do not flip it.
-export function signedDirection(ref, route, distance, window = 25000) {
-  let start = distance, end = Math.min(route.length, distance + window);
-  if (end - start < window / 2) start = Math.max(0, end - window);
+/// signed by net displacement over the next 25 km so local curves do not flip it. `within`: [start, end]
+/// meters the window stays inside (the stretch of route on that road), or null for the whole route.
+export function signedDirection(ref, route, distance, window = 25000, within = null) {
+  const lo = within ? Math.max(0, within[0]) : 0, hi = within ? Math.min(route.length, within[1]) : route.length;
+  let start = distance, end = Math.min(hi, distance + window);
+  if (end - start < window / 2) start = Math.max(lo, end - window);
   if (end <= start) end = Math.min(route.length, start + 1);
   const a = route.coordinateAt(start), b = route.coordinateAt(end);
   const north = (b.lat - a.lat) * metersPerDegreeLatitude(a.lat);
@@ -168,7 +171,39 @@ export class PlannedRoute {
     const step = this.stepAt(distance);
     const ref = step?.highways?.[0];
     if (!ref) return null;
-    return { ref, direction: signedDirection(ref, this.polyline, distance) };
+    return { ref, direction: this.directionAt(ref, distance) };
+  }
+
+  /// Signed direction of a road at a distance. Interstates: their parity, signed over the next 25 km of
+  /// route. Other roads: the main axis of the route while on that road, so the road turned onto next (US 9
+  /// south in Yonkers, then west across the George Washington Bridge) does not change it.
+  directionAt(ref, distance) {
+    if (ref.kind === 'interstate' || !this.steps.length) return signedDirection(ref, this.polyline, distance);
+    return signedDirection(ref, this.polyline, distance, 25000, this.stretchOf(ref, distance));
+  }
+
+  /// [start, end] of the stretch around `distance` on steps naming `ref`, joined across steps that name no
+  /// road (ramps, lane changes) up to `bridge` meters.
+  stretchOf(ref, distance, bridge = 2000) {
+    const s = this.steps;
+    let lo = 0, hi = s.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (s[mid].startDistance <= distance) lo = mid; else hi = mid - 1;
+    }
+    const names = (k) => (s[k].highways ?? []).some((r) => r.kind === ref.kind && r.prefix === ref.prefix && r.number === ref.number);
+    let first = lo, last = lo;
+    for (let k = lo + 1, gap = 0; k < s.length; k++) {
+      if (names(k)) { last = k; gap = 0; continue; }
+      if (!(s[k].highways ?? []).length && (gap += s[k].length) <= bridge) continue;
+      break;
+    }
+    for (let k = lo - 1, gap = 0; k >= 0; k--) {
+      if (names(k)) { first = k; gap = 0; continue; }
+      if (!(s[k].highways ?? []).length && (gap += s[k].length) <= bridge) continue;
+      break;
+    }
+    return [s[first].startDistance, s[last].startDistance + s[last].length];
   }
 }
 

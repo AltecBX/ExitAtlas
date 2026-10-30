@@ -16,11 +16,12 @@ import { GasPrices, GRADES, LOOKUP_TTL, pacificDay } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
 import { benchmarkFor, autoLookups, lookupCohort, AUTO_LOOKUP_RULES } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
-import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
+import { fuelCandidates, aheadCandidates, liveFor, stationName } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
 import { FocusStabilizer } from '../engine/dashboard.js';
+import { ReroutePacer } from './reroute.js';
 import { NavMap } from './navmap.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -54,7 +55,7 @@ const app = {
   data: null, corridors: null, corridorsLoading: null,
   tab: 'drive', mode: 'idle', gps: 'device',
   // The adaptive Drive card, held steady between readings; the Navigation View map (created on first use).
-  focusStabilizer: new FocusStabilizer(), navMap: null,
+  focusStabilizer: new FocusStabilizer(), navMap: null, reroutePacer: new ReroutePacer(),
   plan: null, session: null, snapshot: null,
   discovery: null, discoveryStatus: 'Waiting for highway speed',
   isRerouting: false, lastError: null, lastFixAt: null,
@@ -224,7 +225,7 @@ const app = {
       const range = this.rangeNow(), d = this.snapshot.progress;
       const candidates = ev
         ? (charged ? chargerCandidates(this.chargers.projected, d, range) : [])
-        : gasCandidates(this.plan, d, range, (e) => this.servicesFor(e), st.favoriteBrands);
+        : gasCandidates(this.plan, d, range, (e) => this.servicesFor(e), st.favoriteBrands, (p) => this.data?.stations?.get(p.id)?.b ?? p.brand);
       const fp = planStop(this.plan, this.snapshot, range, candidates, {
         bufferMeters: st.bufferMiles * MILE, hasDestination: this.mode === 'trip', favorites: ev ? [] : st.favoriteBrands,
       });
@@ -258,7 +259,11 @@ const app = {
     if (!x) {
       for (const e of this.plan.exits) {
         const g = this.servicesFor(e).find((y) => y.place.id === id && y.place.category === 1);
-        if (g) { x = { id, name: placeDisplayName(g.place), brand: this.data?.stations?.get(id)?.b ?? g.place.brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate }; break; }
+        if (g) {
+          const brand = this.data?.stations?.get(id)?.b ?? g.place.brand;
+          x = { id, name: stationName(g.place, brand), brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate };
+          break;
+        }
       }
     }
     if (!x) {
@@ -405,6 +410,25 @@ let lastWeatherHTML = '';
 let lastExitsRender = 0;
 let exitsTimer = null;
 
+/// Replaces a container's HTML and keeps each <details> the driver opened or closed as they left it: while
+/// driving the views are rebuilt every second or two, which would otherwise close "Why this stop" and the
+/// alert sources before they can be read. A <details> is matched by its class and its place among those
+/// with the same class, within the same screen or sheet (scope); when the view itself changes how one starts
+/// (a filter), the view wins.
+function swapHTML(el, html, scope) {
+  const key = (d, seen) => { const k = d.className; const n = seen.get(k) ?? 0; seen.set(k, n + 1); return `${k}|${n}`; };
+  const before = new Map(), seen = new Map();
+  if (el.dataset.scope === scope) for (const d of el.querySelectorAll('details')) before.set(key(d, seen), { open: d.open, start: d.dataset.start });
+  el.dataset.scope = scope;
+  el.innerHTML = html;
+  seen.clear();
+  for (const d of el.querySelectorAll('details')) {
+    d.dataset.start = d.open ? '1' : '0';
+    const was = before.get(key(d, seen));
+    if (was && was.start === d.dataset.start && was.open !== d.open) d.open = was.open;
+  }
+}
+
 function render() {
   if (renderQueued) return;
   renderQueued = true;
@@ -453,7 +477,7 @@ function renderNow() {
     default: html = V.driveView(app);
   }
   if (html !== lastViewHTML) {
-    $('#view').innerHTML = html;
+    swapHTML($('#view'), html, app.tab);
     lastViewHTML = html;
   }
   syncNavMap();
@@ -527,7 +551,7 @@ function renderSheet() {
   else if (kind === 'weather') html = V.weatherSheet(app);
   else if (kind === 'restroom') html = V.restroomSheet(app);
   else if (kind === 'alert') html = V.alertSheet(app, arg);
-  $('#sheet-body').innerHTML = html;
+  swapHTML($('#sheet-body'), html, `${kind}|${arg}`);
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
   if (kind === 'exit' || kind === 'station' || kind === 'fuel') { lastAutoPrices = 0; autoGooglePrices(); }
 }
@@ -539,12 +563,12 @@ function closeSheet() {
 }
 
 let toastTimer = null;
-function toast(text) {
+function toast(text, ms = 2600) {
   const el = $('#toast');
   el.textContent = text;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 // MARK: Modes
@@ -897,6 +921,8 @@ function useVehicle(v) {
 function beginDriveExtras(spokenStart) {
   if (app.settings.keepAwake) app.wake.request();
   if (app.settings.voice && spokenStart) app.announcer.speak(spokenStart);
+  // A web page cannot follow GPS in the background: say so once, at the start of a real drive.
+  if (app.gps === 'device') toast('Keep Safari open with the screen on. iPhone pauses location for web pages when the screen locks.', 6000);
 }
 
 async function startDiscovery() {
@@ -926,6 +952,7 @@ function resetTripState() {
   app.snapshot = null;
   app.discovery = null;
   app.lastError = null;
+  app.rerouteError = null;
   app.isRerouting = false;
   app.serviceCache.clear();
   app.rejectedStops = [];
@@ -938,6 +965,7 @@ function resetTripState() {
   app.limits = null;
   app.lastSpeed = null;
   app.focusStabilizer.reset();
+  app.reroutePacer.reset();
   if (app.navMap) app.navMap.following = true;
 }
 
@@ -954,6 +982,14 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
     app.session = new TripSession(plan, app.data.states, now, {
       ledger: new TripLedger(restoring.ledger), pace: new PaceModel(restoring.pace),
     });
+    // Back where the trip was when saved, shown as an estimate until the first fix: miles driven while the page
+    // was gone are then credited to their states, and leaving the route is noticed (a reroute) as on a live trip.
+    const at = Math.min(Number(restoring.progress) || 0, route.length);
+    if (at > 0) {
+      app.session.tracker.reset(at, Number(restoring.savedAt) || now);
+      app.session.tracker.match.isEstimated = true;
+      app.session.recordedUpTo = at;
+    }
     app.tripStartedAt = restoring.startedAt;
   } else {
     app.tripStartedAt = now;
@@ -983,7 +1019,9 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
 function endTrip() {
   recordPace();
   const session = app.session;
-  if (app.mode === 'trip' && session && app.gps === 'device' && session.ledger.totalMeters > 0) {
+  // Only a real GPS trip is saved for resuming; ending a simulated drive or discovery mode keeps a saved trip.
+  const real = app.mode === 'trip' && app.gps === 'device';
+  if (real && session && session.ledger.totalMeters > 0) {
     app.history.unshift({
       title: `${app.plan.route.origin.name} to ${app.plan.route.destination.name}`,
       startedAt: app.tripStartedAt, endedAt: nowSeconds(),
@@ -1000,7 +1038,8 @@ function endTrip() {
   resetTripState();
   app.mode = 'idle';
   app.gps = 'device';
-  store.remove('ea.active');
+  if (real) store.remove('ea.active');
+  else app.resumable = loadResumable();
   closeSheet();
   render();
 }
@@ -1058,7 +1097,13 @@ function handleSample(sample, shouldRender) {
   }
   if (app.mode === 'trip' && app.session) {
     const snap = app.session.ingest(sample);
+    // Back on the route after a failed reroute: nothing is retried, so its "Will retry" message goes.
+    if (app.rerouteError && snap.match.status === 'onRoute') {
+      if (app.lastError === app.rerouteError) app.lastError = null;
+      app.rerouteError = null;
+    }
     publish(snap);
+    app.reroutePacer.observe(snap);
     if (app.session.needsReroute(sample.t)) reroute(sample);
     persistIfDue(sample.t);
   } else if (app.mode === 'discovery') {
@@ -1145,17 +1190,31 @@ function remainingWaypoints() {
   return app.remainingWaypoints.filter((w) => !passed.includes(w.name));
 }
 
+/// Returns { ok } and, when no new route was set, the reason.
 async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
-  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') return;
-  if (!force && app.lastRerouteAt && sample.t - app.lastRerouteAt < 20) return;
+  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') {
+    return { ok: false, reason: app.isRerouting ? 'a new route is still on its way, try again in a moment' : 'no live GPS trip' };
+  }
+  // Automatic reroutes are paced (app/reroute.js): at least 2 minutes apart, longer while each new route is left.
+  if (!force && !app.reroutePacer.allow(sample.t)) return { ok: false, reason: 'too soon' };
+  if (!force) app.reroutePacer.started(sample.t);
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
   render();
   const waypoints = remainingWaypoints();
   const here = { name: 'Current location', coordinate: sample.coordinate };
+  // Start on the road going the driver's way when the course is known at driving speed.
+  const bearing = sample.course != null && (sample.speed ?? 0) >= 3 ? sample.course : null;
   try {
-    const [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
-    if (!route || !app.session || app.mode !== 'trip') return;
+    let route;
+    try {
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false, bearing });
+    } catch (e) {
+      // No road that way near the fix (OSRM NoSegment): ask once more without the course.
+      if (bearing === null || !/segment/i.test(e.message)) throw e;
+      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
+    }
+    if (!route || !app.session || app.mode !== 'trip') return { ok: false, reason: 'the trip ended' };
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());
     app.session.replacePlan(plan, nowSeconds());
@@ -1163,9 +1222,15 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     app.serviceCache.clear();
     app.remainingWaypoints = waypoints;
     app.lastError = null;
-    if (app.settings.voice && spoken) app.announcer.speak(spoken);
+    app.rerouteError = null;
+    if (app.settings.voice && spoken) {
+      if (force) app.announcer.speak(spoken);
+      else app.announcer.rerouted(sample.t, spoken);
+    }
+    return { ok: true };
   } catch (e) {
-    app.lastError = `Reroute failed: ${e.message}. Will retry.`;
+    app.lastError = app.rerouteError = `Reroute failed: ${e.message}. Will retry.`;
+    return { ok: false, reason: e.message };
   } finally {
     app.isRerouting = false;
     render();
@@ -1188,10 +1253,19 @@ async function addWaypointStop(waypoint, alongRoute) {
   const list = remainingWaypoints();
   const at = list.findIndex((w) => along(w) > alongRoute);
   list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
+  const before = app.remainingWaypoints;
   app.remainingWaypoints = list;
   closeSheet();
   toast(`Adding ${waypoint.name}`);
-  await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  const r = await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  if (r.ok) return;
+  // Not added: the stops still ahead stay as they were (nothing retries a stop while on the route), and the
+  // driver is told, instead of a "Will retry" that would not happen.
+  if (app.remainingWaypoints === list) app.remainingWaypoints = before;
+  if (app.rerouteError && app.lastError === app.rerouteError) app.lastError = null;
+  app.rerouteError = null;
+  toast(`Could not add ${waypoint.name}: ${r.reason}`);
+  render();
 }
 
 /// The proxy's base URL for a service it offers and has not switched off, else null.
@@ -1215,15 +1289,20 @@ function persistIfDue(t, force = false) {
   recordPace();
   store.set('ea.active', {
     route: serializeRoute(app.plan.route), ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
-    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(),
+    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(), progress: app.session.recordedUpTo,
   });
 }
 
 function loadResumable() {
   const rec = store.get('ea.active');
-  if (!rec?.route || nowSeconds() - rec.savedAt > 48 * 3600) return null;
-  const ledger = new TripLedger(rec.ledger);
-  return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  if (!rec?.route || !(nowSeconds() - rec.savedAt <= 48 * 3600)) return null;
+  // Read at start up: a saved trip that cannot be read is not offered, and must not stop the app from starting.
+  try {
+    const ledger = new TripLedger(rec.ledger);
+    return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  } catch {
+    return null;
+  }
 }
 
 // MARK: Planner
@@ -1270,7 +1349,7 @@ async function runDemo({ mile = 355, alert = false, prices = false } = {}) {
       const now = Date.now() / 1000;
       app.roadAlerts.demoIncidents = [{
         id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', source: { id: 'demo', name: 'Simulated test alert' },
-        verification: 'official', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
+        verification: 'simulated', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
         geometry: { type: 'point', coordinate: route.polyline.coordinateAt(d) }, road: hw ? `${hw.ref.prefix}-${hw.ref.number}` : null,
         direction: hw?.direction ?? null, lanes: 'Right lane blocked', severity: 'major',
       }];
@@ -1752,6 +1831,7 @@ document.addEventListener('change', (ev) => {
   }
   saveProfile();
   if (key === 'keepAwake') { if (el.checked && app.mode !== 'idle') app.wake.request(); else if (!el.checked) app.wake.release(); }
+  if (key === 'voice') app.announcer.voiceSwitched(el.checked);
   lastViewHTML = '';
   render();
 });
@@ -1821,14 +1901,33 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
   sheet.addEventListener('touchcancel', (e) => release(e, false));
 }
 
+// The screen lock: taken, refused or let go changes what the Drive screen and Settings say. When Safari
+// refused (it can, without a tap), the next tap anywhere asks again.
+app.wake.onChange = () => render();
+document.addEventListener('pointerup', () => {
+  if (app.wake.wanted && !app.wake.active && !app.wake.pending) app.wake.request();
+}, { passive: true });
+
+// Turning the phone: the map and the overlays over it are placed from measured sizes (render() measures them).
+window.addEventListener('resize', () => render());
+
+let hiddenAt = null;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    // Back from a locked screen or another app: say how long location was paused (Safari stops it).
+    const away = hiddenAt ? (Date.now() - hiddenAt) / 1000 : 0;
+    hiddenAt = null;
+    if (app.mode !== 'idle' && app.gps === 'device' && away >= 30) {
+      const span = away < 90 ? `${Math.round(away)} seconds` : away < 5400 ? `${Math.round(away / 60)} minutes` : `${(away / 3600).toFixed(1)} hours`;
+      toast(`Location was paused for ${span} while Safari was in the background or the screen was locked. Updating now.`, 6000);
+    }
     if (app.wake.wanted) app.wake.request();
     if (app.location.running && (!app.lastFixAt || Date.now() - app.lastFixAt > 10000)) app.location.restart();
     if (app.session && app.gps === 'device') app.snapshot = app.session.snapshotAt(nowSeconds());
     render();
-  } else if (app.mode === 'trip') {
-    persistIfDue(nowSeconds(), true);
+  } else {
+    hiddenAt = Date.now();
+    if (app.mode === 'trip') persistIfDue(nowSeconds(), true);
   }
 });
 window.addEventListener('pagehide', () => persistIfDue(nowSeconds(), true));

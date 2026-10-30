@@ -1,6 +1,7 @@
 // Check for gas prices (docs/17): in a real browser, at phone sizes and in both themes, with SIMULATED prices
 // (?demo&prices): Road Ahead, Fuel lists every station with its price or "Price unavailable"; under Lowest
-// price no unknown or old price sorts before a current one; the cheaper stop note keeps the favorite brand;
+// price no unknown or old price sorts before a current one; a station beyond the range left says so and sorts
+// after every one the range reaches; the cheaper stop note keeps the favorite brand;
 // nothing offers Report a price (removed Oct 30, 2026) and Station details link to the consumer price pages in a
 // new tab, never in a frame; the price book still refuses a bad price and stores no position; and no paid
 // Google request is made even with a Google key stored, because Google Maps prices are off by default.
@@ -46,6 +47,9 @@ for (const [label, width, height] of SIZES) {
     await page.goto(`${base}?demo=120&prices`);
     await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
     await page.waitForTimeout(1200);
+    // The demo starts at mile 0 and jumps to mile 120 on its first tick; a range entered before that counts the
+    // 120 miles as driven (a slow runner hit this), so wait for the jump.
+    await page.waitForFunction(() => (window.exitAtlas?.snapshot?.progress ?? 0) > 100 * 1609.344, null, { timeout: 30000 });
     // A gas car with a tank size and a range reading, so a fill can be costed. Overnight Drive Mode off: in its
     // window (00:00 to 04:00 at the stop) only stops with known open hours qualify, so the cheaper stop note and
     // the stations listed would depend on the hour the test runs.
@@ -91,6 +95,24 @@ for (const [label, width, height] of SIZES) {
     const current = sorted.filter((x) => x.kind === 'current').map((x) => x.value);
     for (let i = 1; i < current.length; i++) if (current[i] < current[i - 1]) fail(`Lowest price is out of order (${current.join(', ')})`);
 
+    // With 20 miles of range and a 100 mile window, stations the range does not reach say so and come after every
+    // one it does, even under "Shell first" (a Shell beyond the range never tops the list).
+    const shortRange = async (miles, win) => {
+      await page.evaluate((m) => { const a = window.exitAtlas; a.fuel = { ...a.fuel, rangeMeters: m * 1609.344, drivenAtEntry: a.snapshot.drivenTotal, enteredAt: Date.now() / 1000 }; }, miles);
+      await click(`[data-act="exits-window"][data-arg="${win}"]`);
+      await page.waitForTimeout(400);
+    };
+    const priorWindow = await page.evaluate(() => window.exitAtlas.exitsUI.window);
+    await shortRange(20, 100);
+    for (const sort of ['brand', 'detour', 'price']) {
+      await click(`[data-act="price-sort"][data-arg="${sort}"]`);
+      await page.waitForTimeout(300);
+      const beyond = await page.evaluate(() => [...document.querySelectorAll('.pr-row')].map((r) => Boolean(r.querySelector('[data-testid="beyond-range"]'))));
+      if (!beyond.includes(true)) fail(`${sort}: no station is marked beyond a 20 mile range in a 100 mile window`);
+      if (beyond.indexOf(true) >= 0 && beyond.slice(beyond.indexOf(true)).includes(false)) fail(`${sort}: a station beyond the range sorts before one within it`);
+    }
+    await shortRange(140, priorWindow);
+
     // No Report a price anywhere; Station details link to the consumer price pages in a new tab.
     const best = await page.evaluate(() => document.querySelectorAll('.best-stop [data-act="report-price"]').length);
     if (best) fail('the recommended stop offers Report a price');
@@ -123,6 +145,26 @@ for (const [label, width, height] of SIZES) {
     if (book.bad) fail('an out of range price was accepted');
     if (!book.good || book.stored.length !== 1 || book.stored[0].price !== 3.159) fail(`the price book did not save the report (${JSON.stringify(book.stored)})`);
     if (book.stored.some((r) => 'lat' in r || 'lon' in r || 'coordinate' in r)) fail('a report stores a position');
+
+    // A range entered yesterday says when, on the Drive fuel card and in the fuel sheet; a fresh one does not.
+    const ageShown = async () => {
+      await click('.tabbar [data-arg="drive"]');
+      await page.waitForTimeout(600);
+      const card = await page.evaluate(() => document.querySelector('.card[data-act="sheet"][data-arg="fuel"] [data-testid="range-age"]')?.textContent ?? null);
+      await click('.card[data-act="sheet"][data-arg="fuel"]');
+      await page.waitForSelector('#sheet.open', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const sheet = await page.evaluate(() => document.querySelector('#sheet-body [data-testid="range-age"]')?.textContent ?? null);
+      await click('[data-act="close-sheet"]');
+      return { card, sheet };
+    };
+    const fresh = await ageShown();
+    if (fresh.card || fresh.sheet) fail(`a range entered just now shows an age: ${fresh.card ?? fresh.sheet}`);
+    await page.evaluate(() => { const a = window.exitAtlas; a.fuel = { ...a.fuel, enteredAt: Date.now() / 1000 - 26 * 3600 }; });
+    const old = await ageShown();
+    if (!/^Range entered (yesterday|\w{3}) \d/.test(old.card ?? '')) fail(`the Drive fuel card does not say when an old range was entered: ${old.card}`);
+    if (!/^Range entered (yesterday|\w{3}) \d/.test(old.sheet ?? '')) fail(`the fuel sheet does not say when an old range was entered: ${old.sheet}`);
+    await page.evaluate(() => { const a = window.exitAtlas; a.fuel = { ...a.fuel, enteredAt: Date.now() / 1000 }; });
 
     await click('#settings-btn');
     await page.waitForTimeout(400);

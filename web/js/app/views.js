@@ -3,12 +3,12 @@ import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { highwayLabel, DIRECTION_WORDS } from '../engine/route.js';
 import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
-import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
+import { miles, milesValue, duration, clock, readingAge, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
-import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
+import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText, googlePriceCurrent } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
-import { stopPrice, liveFor } from './smartstops.js';
+import { stopPrice, liveFor, stationName } from './smartstops.js';
 import { googleMapsLink, gasBuddyLink, US_STATES } from '../engine/pricecheck.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
@@ -18,7 +18,7 @@ import { nextManeuver } from '../engine/guidance.js';
 import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline, driveCardAlert, onDriveCard } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
@@ -225,6 +225,14 @@ export function driveView(app) {
       ${app.lastError ? `<p class="amber-text small">${h(app.lastError)}</p>` : ''}</div>${screenNote(app)}</div>`;
   }
   return idleCards(app);
+}
+
+/// When the screen could lock during a drive: the browser cannot keep it on, or refused this time. Short, for
+/// the Drive screen; a tap anywhere asks again (main.js).
+export function wakeNote(app) {
+  if (!app.settings.keepAwake || app.mode === 'idle' || app.wake.active) return '';
+  if (!app.wake.supported) return 'Screen may lock: set Auto Lock to Never';
+  return app.wake.wanted && app.wake.error ? 'Screen may lock: tap here to keep it on' : '';
 }
 
 function screenNote(app) {
@@ -454,13 +462,16 @@ function navView(app, s, f, extras) {
   const following = app.navMap?.following !== false;
   const offline = app.navMap?.failed ? `<div class="nav-note">Map unavailable: ${h(app.navMap.failed)}</div>`
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
+  const wake = wakeNote(app) ? `<div class="nav-note warn" role="status">${h(wakeNote(app))}</div>` : '';
   // The map status sits under the speed, beside the controls, so it never pushes the bottom panel into them.
+  // One note at a time: two stacked notes ran into the bottom panel on small phones. The screen note wins (a tap
+  // clears it); the map then shows its own missing tiles.
   // Near a state line the journey panel carries it (amber); the card shows the next item.
   const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
-      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${offline}</div>
+      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${wake || offline}</div>
       <div class="nav-right">${viewToggle(app)}${following ? '' : roundButton('nav-recenter', 'recenter', 'Follow my position')}
         ${roundButton('sheet', 'fuel', 'Fuel', 'data-arg="fuel"')}${roundButton('sheet', 'restroom', 'Restroom stop', 'data-arg="restroom"')}</div>
     </div>
@@ -473,6 +484,7 @@ function navView(app, s, f, extras) {
 /// one adaptive card and the trip strip.
 function focusView(app, s, f, extras) {
   const si = speedInfo(app, s);
+  if (wakeNote(app)) extras = [...extras, `<div class="banner warn" role="status">${h(wakeNote(app))}</div>`];
   const hw = s.highway;
   const instruments = `<section class="card fv-instruments ${si.level}">
     ${speedo(si.mph, si.limit, si.level)}
@@ -587,11 +599,10 @@ function focusSignals(app, s) {
   };
 }
 
-/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones that
+/// leave the travel lanes open, and weather advisories the driver is already in, stay in Road Ahead.
 function focusAlertItem(app, s) {
-  // Work zones that leave the travel lanes open stay in Road Ahead.
-  const alerts = (app.roadIntel()?.alerts ?? []).filter((a) => a.notable);
-  return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
+  return driveCardAlert(app.roadIntel()?.alerts ?? [], s.progress);
 }
 
 function focusAlert(app, s) {
@@ -752,13 +763,14 @@ function restAreaCard(s) {
     ${then ? `<div class="muted tiny" style="margin-top:8px">Then ${h(restAreaTitle(then.restArea))}, ${miles(then.distance)}</div>` : ''}</button>`;
 }
 
-/// Amber card when the next stretch without gas starts within 25 miles, or the driver is in one.
-function gasGapCard(app, s) {
+/// Amber card when the next stretch without gas listed starts within 25 miles, or the driver is in one. "Listed":
+/// the data can miss a station or a plaza, so a gap is never stated as fact.
+export function gasGapCard(app, s) {
   const g = app.gasGapsAhead(s).find((x) => x.from - s.progress <= 25 * MILE);
   if (!g) return '';
   const inside = !g.before || g.before.distance <= s.progress;
-  const title = inside ? `No gas for the next ${miles(g.to - s.progress)}${g.open ? '+' : ''}`
-    : `Last gas for ${miles(g.length)}${g.open ? '+' : ''}: ${h(gasStopTitle(g.before))}`;
+  const title = inside ? `No gas listed for the next ${miles(g.to - s.progress)}${g.open ? '+' : ''}`
+    : `Last gas listed for ${miles(g.length)}${g.open ? '+' : ''}: ${h(gasStopTitle(g.before))}`;
   const sub = inside ? (g.after ? `Next gas at ${h(gasStopTitle(g.after))}` : 'None listed ahead on this route')
     : `In ${miles(g.before.distance - s.progress)}${g.after ? `, then next gas at ${h(gasStopTitle(g.after))}` : ''}`;
   return `<div class="card gap-card" role="status"><span class="gap-icon" aria-hidden="true">⛽</span><div><div style="font-weight:800">${title}</div><div class="small">${sub}</div></div></div>`;
@@ -928,8 +940,10 @@ function compareCard(app, s) {
   const list = (r?.stations ?? []).filter((c) => c.ahead > 0 && c.ahead <= win);
   const favorites = app.profile.fuel.brands ?? [];
   const sort = SORTS.includes(app.priceUI.sort) ? app.priceUI.sort : 'recommended';
+  // A station the range left does not reach is listed after every one it does, under every sort, and says so.
+  const beyond = (c) => c.rangeOnArrival != null && c.rangeOnArrival < 0;
   const rows = list.map((c) => ({ id: c.id, c, ahead: c.ahead, detourMinutes: c.detourMinutes, brandRank: brandIndex(c, favorites),
-    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo }));
+    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo, beyondRange: beyond(c) }));
   const sorted = sortStations(rows, sort);
   const label = (k) => (k === 'brand' && favorites[0] ? `${favorites[0]} first` : SORT_NAMES[k]);
   const chips = `<div class="chips wrap" role="group" aria-label="Sort stations">${SORTS.map((k) => `<button class="chip${k === sort ? ' on' : ''}" data-act="price-sort" data-arg="${k}" aria-pressed="${k === sort}">${h(label(k))}</button>`).join('')}</div>`;
@@ -938,7 +952,7 @@ function compareCard(app, s) {
     const detour = c.kind === 'plaza' ? 'On the highway' : c.detourMinutes != null ? `${c.detourMinutes < 1 ? 'under 1' : Math.round(c.detourMinutes)} min detour` : 'Detour not measured';
     return `<button class="item pr-row" data-act="station" data-arg="${h(c.id)}">${brandTag(c)}<div class="main">
       <div class="t">${h(c.name)} ${c.exit ? exitSign(c.exit.label, true) : ''} <span class="muted small">${milesValue(c.ahead)} mi</span></div>
-      <div class="tiny pr-facts">${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
+      <div class="tiny pr-facts">${beyond(c) ? '<span class="amber-text" data-testid="beyond-range">Beyond your range</span>' : ''}${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
       ${price ? `<div class="tiny ${price.state === 'current' ? 'muted' : 'amber-text'}">${h(priceMeta(price))}</div>` : ''}</div>${priceTag(price, o.grade)}</button>`;
   };
   const google = app.settings.prices?.google && app.prices.enabled
@@ -1054,21 +1068,28 @@ function fuelCard(app, s) {
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);
     body = `<div class="row" style="gap:10px;margin-top:2px">${sign}<div style="flex:1;min-width:0">
         <div style="font-weight:700${low ? ';color:var(--amber)' : ''}">${low ? `${ev ? 'Charge' : 'Fuel'} low: nearest` : ev ? 'Charge stop' : 'Fuel stop'} · ${milesValue(rec.ahead)} mi${rec.favorite ? ' · ★' : ''}</div>
-        <div class="muted small">${h(stopName(rec))}</div>
+        <div class="muted small">${h(stopName(rec, app))}</div>
         ${rec.exit ? priceInfo(app, rec.exit) : ''}
         <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${miles(rec.rangeOnArrival)} left when you get there</div></div></div>`;
   }
   return `<button class="card" style="width:100%;text-align:left;cursor:pointer;display:block" data-act="sheet" data-arg="fuel">
-    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${body}</button>`;
+    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${rangeAgeLine(app)}${body}</button>`;
+}
+
+/// When the range reading is old (over 6 hours, or from an earlier day), when it was entered: it only counts
+/// down with miles driven while ExitAtlas runs, so it is never shown as current. Empty for a recent reading.
+function rangeAgeLine(app) {
+  const age = readingAge(app.fuel?.enteredAt);
+  return age ? `<div class="amber-text tiny" data-testid="range-age">Range entered ${h(age)}. Check your dashboard.</div>` : '';
 }
 
 /// Name line for a gas exit or a charger.
-function stopName(x) {
+function stopName(x, app) {
   if (x.kind === 'charge') {
     const c = x.charger;
     return `${c.name.replace(/ - Tesla Supercharger$/, '')} · ${c.stalls} stalls${c.network === 'Tesla' && c.openToOthers ? ' · open to other EVs' : ''}`;
   }
-  return stationNames(x);
+  return stationNames(x, app.data?.stations);
 }
 
 /// Google price line for an exit looked up in the last hour (Google Maps prices on): favorite brand first, then
@@ -1079,8 +1100,8 @@ function priceInfo(app, exit) {
   if (!c) return '';
   if (c.error) return '<div class="muted tiny">Google Maps prices unavailable</div>';
   const g = GRADES[app.gradeCode()];
-  const priced = pricedForGrade(c.stations, g.key);
-  if (!priced.length) return `<div class="muted tiny">No ${g.name.toLowerCase()} prices reported near this exit</div>`;
+  const priced = pricedForGrade(c.stations, g.key, { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 });
+  if (!priced.length) return `<div class="muted tiny">No current ${g.name.toLowerCase()} prices near this exit</div>`;
   const fav = priced.find((x) => matchesFavorite(x.name, app.settings.favoriteBrands));
   const cheap = priced[0];
   const parts = [];
@@ -1089,10 +1110,11 @@ function priceInfo(app, exit) {
   return `<div class="price-line">${parts.join(' · ')} <span class="muted tiny">${g.name} · ${ageText((fav ?? cheap).prices[g.key].updated)} · Google Maps</span></div>`;
 }
 
-function stationNames(st) {
+/// The station names at an exit, a rebranded one under its current brand (stationName in smartstops.js).
+function stationNames(st, stations = null) {
   const names = [];
   for (const g of st.gas) {
-    const n = placeDisplayName(g.place);
+    const n = stationName(g.place, stations?.get(g.place.id)?.b ?? g.place.brand);
     if (!names.includes(n)) names.push(n);
   }
   return names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '');
@@ -1176,11 +1198,11 @@ function stateTimelineRow(f, s) {
       ${tlDist(d, null)}</div></div>`);
 }
 
-function gapTimelineRow(g, s) {
+export function gapTimelineRow(g, s) {
   const where = g.before ? `After ${h(gasStopTitle(g.before))}` : 'From here';
-  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', none listed beyond' : ', none before your destination';
+  const next = g.after ? `, next gas at ${h(gasStopTitle(g.after))}` : g.open ? ', none listed beyond' : ', none listed before your destination';
   return tlRow('gap', `<div class="tl-card gap"><div class="tl-head"><span class="al-icon" aria-hidden="true">⛽</span>
-    <div class="main"><div class="t">No gas for ${miles(g.length)}${g.open ? '+' : ''}</div><div class="muted small">${where}${next}</div></div>
+    <div class="main"><div class="t">No gas listed for ${miles(g.length)}${g.open ? '+' : ''}</div><div class="muted small">${where}${next}</div></div>
     ${tlDist(Math.max(0, g.from - s.progress), null)}</div></div>`);
 }
 
@@ -1333,10 +1355,12 @@ export function exitsView(app) {
 }
 
 /// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
-function alertEmptyTitle(intel, window) {
+export function alertEmptyTitle(intel, window) {
   if (!intel) return 'Road alerts are off';
   const on = Object.values(intel.status).filter((st) => st.state !== 'off');
   if (on.some((st) => st.state === 'unavailable')) return 'Some alert sources are unavailable';
+  // Nothing has answered yet (just started, or offline): not a "no reports".
+  if (on.some((st) => st.state === 'loading')) return 'Checking road alert sources';
   return `No reports from connected sources in the next ${window} miles`;
 }
 
@@ -1349,12 +1373,14 @@ function alertEmptyText(intel) {
 
 /// One line on what the alert sources say, with each group's state in a details list: "no relevant
 /// reports" and "data unavailable" are different things and both are shown as such.
-function alertStatus(intel, { open = false } = {}) {
+export function alertStatus(intel, { open = false } = {}) {
   if (!intel) return '';
   const n = intel.alerts.length;
   const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
   const failing = on.filter(([, st]) => st.state === 'unavailable').length;
-  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
+  const checking = on.some(([, st]) => st.state === 'loading');
+  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable'
+    : checking ? 'Checking road alert sources' : 'Road alerts: none from connected sources';
   const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
   return `<details class="facilities alert-status"${open ? ' open' : ''}><summary>${h(summary)}</summary>${rows}</details>`;
 }
@@ -1372,8 +1398,9 @@ export function alertSheet(app, id) {
   const zone = app.plan.timeZoneIDAt(a.start);
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
-  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
-  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
+  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule', simulated: 'Simulated test data, not a real event' }[i.verification] ?? 'Not stated';
+  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : !onDriveCard(a, s.progress) ? 'Road Ahead only: an advisory where you are now'
+    : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
   const police = intel.status.police ? `${ALERT_GROUPS.police.label}: ${intel.status.police.label}.` : '';
@@ -1464,9 +1491,9 @@ function priceSection(app, exit) {
   if (o && gas.length) {
     const ctx = app.stopContext();
     const rows = gas.map((x) => {
-      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand;
+      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand, name = stationName(x.place, brand);
       const sp = stopPrice(ctx, id, liveFor(app.prices, exit, x.place, brand));
-      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name: placeDisplayName(x.place), brand })}<div class="main"><div class="t">${h(placeDisplayName(x.place))}</div>
+      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name, brand })}<div class="main"><div class="t">${h(name)}</div>
         <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current price'}</div></div>${priceTag(sp, o.grade)}</button>`;
     }).join('');
     html += `<div class="section-title">⛽ Gas prices here</div><div class="list">${rows}</div>
@@ -1482,12 +1509,17 @@ function googleSection(app, exit) {
   if (!c) return `<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="google-prices" data-arg="${h(exit.id)}">${app.prices.cache.get(exit.id)?.pending ? 'Checking Google Maps…' : 'Check Google Maps prices (paid)'}</button></div>`;
   if (c.error) return `<div class="section-title">Google Maps prices</div><div class="card small">Google Maps prices unavailable: ${h(c.error)}</div>`;
   const g = GRADES[app.gradeCode()];
-  const rows = [...c.stations].sort((a, b) => (a.prices[g.key]?.value ?? 99) - (b.prices[g.key]?.value ?? 99)).map((st) => {
+  // Current prices first, cheapest first; old ones (past the driver's age limit, or without a time) after them,
+  // greyed and never compared; stations without a price for the grade last.
+  const age = { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 };
+  const order = (st) => { const p = st.prices[g.key]; return !p ? [2, 0] : [googlePriceCurrent(p, age) ? 0 : 1, p.value]; };
+  const rows = [...c.stations].sort((a, b) => { const x = order(a), y = order(b); return x[0] - y[0] || x[1] - y[1]; }).map((st) => {
     const p = st.prices[g.key];
+    const current = googlePriceCurrent(p, age);
     const others = Object.entries(GRADES).filter(([, x]) => x.key !== g.key && st.prices[x.key]).map(([, x]) => `${x.name} ${priceText(st.prices[x.key])}`).join(' · ');
     const fav = matchesFavorite(st.name, app.settings.favoriteBrands);
-    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${ageText(p.updated)}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
-      <div class="side"><div class="big">${p ? priceText(p) : '—'}</div></div></div>`;
+    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${p.updated ? ageText(p.updated) : 'time not given'}${current ? '' : ' · old, not compared'}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
+      <div class="side"><div class="big${p && !current ? ' muted' : ''}">${p ? priceText(p) : '—'}</div></div></div>`;
   });
   return `<div class="section-title">Google Maps prices</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
     <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up for the exits you are viewing. Not stored or shared.</p>`;
@@ -1651,7 +1683,8 @@ export function settingsView(app) {
       ${toggle('announceTimeZones', 'Time zone changes', 'When the clock changes on your route')}
       <div class="field"><span style="flex:1">Test the voice</span><button class="btn sm" data-act="test-voice">Speak</button></div></div></div>
     <div><div class="section-title">Screen</div><div class="list">
-      ${toggle('keepAwake', 'Keep screen awake while driving', app.wake.supported ? (app.wake.active ? 'Active now' : 'Turns on when a drive starts') : 'Not supported here. Set Auto Lock to Never for the drive.')}
+      ${toggle('keepAwake', 'Keep screen awake while driving', !app.wake.supported ? 'Not supported here. Set Auto Lock to Never for the drive.'
+    : app.wake.active ? 'Active now' : app.wake.wanted && app.wake.error ? 'Safari did not allow it. Tap the screen to try again, or set Auto Lock to Never.' : 'Turns on when a drive starts')}
       <div class="field"><span style="flex:1">Appearance</span><div class="seg" style="width:200px">${['auto', 'light', 'dark'].map((t) => `<button class="${st.theme === t ? 'on' : ''}" data-act="theme" data-arg="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
       <div class="field"><span style="flex:1">Drive screen<div class="muted tiny">Map first, or the compact dashboard. Also on the Drive screen.</div></span><div class="seg" style="width:200px">${[['map', 'Map'], ['focus', 'Focus']].map(([k, n]) => `<button class="${(st.drivePresentation === 'focus' ? 'focus' : 'map') === k ? 'on' : ''}" data-act="drive-view" data-arg="${k}">${n}</button>`).join('')}</div></div></div></div>
     <div><div class="section-title">Speedometer</div><div class="list">
@@ -1711,8 +1744,8 @@ export function placeSearchSheet(app) {
   starred.slice(0, 8).forEach((p, i) => saved.push(`<button class="item" data-act="choose-place" data-arg="saved:${i}"><span style="font-size:20px">★</span><div class="main"><div class="t">${h(p.name)}</div></div></button>`));
   recent.slice(0, 8).filter((r) => !starred.some((p) => p.name === r.name)).forEach((r) => { const i = recent.indexOf(r); saved.push(`<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="recent:${i}"><div class="t">🕘 ${h(r.name)}</div></button>${home && home.name === r.name ? '' : homeBtn(`recent:${i}`)}</div>`); });
   return `<div class="sheet-head"><h2>${label}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
-      <button class="btn primary sm" type="submit" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
+    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
+      <button class="btn primary sm" type="submit" style="flex:none;align-self:stretch" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
     ${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
     ${ps.results.length ? `<div class="list" style="margin-top:12px">${ps.results.map((r, i) => `<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="result:${i}"><div class="t">${h(r.name)}</div><div class="muted tiny">${h(r.detail)}</div></button>${homeBtn(`result:${i}`)}</div>`).join('')}</div>` : ''}
     ${saved.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}
@@ -1781,7 +1814,7 @@ export function fuelSheet(app) {
         const act = x.kind === 'charge' ? `href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `data-act="exit" data-arg="${h(x.exit.id)}"`;
         const el = x.kind === 'charge' ? 'a' : 'button';
         return `<${el} class="item" ${act} style="color:inherit;text-decoration:none">${sign}<div class="main">
-          ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
+          ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x, app))}</div>
           ${x.exit ? priceInfo(app, x.exit) : ''}
           <div class="muted tiny">${clock(x.eta, app.plan.timeZoneIDAt(x.along), app.snapshot.t)} · arrive with about ${miles(x.rangeOnArrival)}${x.kind === 'charge' ? ` · ${miles(x.charger.offset)} off the route` : ''}</div></div>
           <div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${el}>`;
@@ -1791,7 +1824,7 @@ export function fuelSheet(app) {
       for (const e of fp.earlier) items.push(row(e, { text: 'Earlier option' }));
       if (fp.lastChance) items.push(row(fp.lastChance, { text: ev ? 'Last charger before empty' : 'Last gas before empty', amber: true }));
       const favNote = fp.favoriteMissing
-        ? `<div class="banner warn" style="margin:0 0 10px">No ${h(st.favoriteBrands.join(' or '))} before your ${st.bufferMiles} mi buffer.${fp.nextFavorite ? ` Next one: ${h(stopName(fp.nextFavorite))}, ${milesValue(fp.nextFavorite.ahead)} mi, arriving with about ${miles(fp.nextFavorite.rangeOnArrival)}.` : ''}</div>` : '';
+        ? `<div class="banner warn" style="margin:0 0 10px">No ${h(st.favoriteBrands.join(' or '))} before your ${st.bufferMiles} mi buffer.${fp.nextFavorite ? ` Next one: ${h(stopName(fp.nextFavorite, app))}, ${milesValue(fp.nextFavorite.ahead)} mi, arriving with about ${miles(fp.nextFavorite.rangeOnArrival)}.` : ''}</div>` : '';
       plan = `${favNote}<div class="list">${items.join('')}</div>`;
     }
   } else if (range !== null && !app.snapshot) {
@@ -1801,7 +1834,7 @@ export function fuelSheet(app) {
     <div class="chips" style="margin-top:8px">${[...new Set([...st.favoriteBrands, ...TOP_BRANDS])].slice(0, 16).map((b) => `<button class="chip${st.favoriteBrands.includes(b) ? ' on' : ''}" data-act="fav-brand" data-arg="${h(b)}">${h(b)}</button>`).join('')}</div></div>`;
   const prices = !ev && app.prices.cache.size && app.prices.enabled ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up for the exits you are viewing. Not stored or shared.</p>' : '';
   const others = fp && fp.stations.length
-    ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x))}</div>
+    ? `<div class="section-title">All ${ev ? 'chargers' : 'gas'} within range (${fp.stations.length})</div><div class="list">${fp.stations.slice(0, 40).map((x) => `<${x.kind === 'charge' ? `a href="https://maps.apple.com/?daddr=${x.charger.lat},${x.charger.lon}&dirflg=d" target="_blank" rel="noopener"` : `button data-act="exit" data-arg="${h(x.exit.id)}"`} class="item" style="color:inherit;text-decoration:none">${x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true)}<div class="main"><div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x, app))}</div>
         <div class="muted tiny">arrive with about ${miles(x.rangeOnArrival)}</div></div><div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${x.kind === 'charge' ? 'a' : 'button'}>`).join('')}</div>` : '';
   return `<div class="sheet-head"><h2>${ev ? 'Charging stop' : 'Fuel stop'}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <div class="stack">
@@ -1810,7 +1843,7 @@ export function fuelSheet(app) {
     <form class="card" data-form="fuel">
       <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now</div>
         ${gauge ? `<div class="seg" style="width:190px"><button type="button" class="${ui.mode !== 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="dashboard">Miles</button><button type="button" class="${ui.mode === 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="gauge">${ev ? 'Battery %' : 'Gauge'}</button></div>` : ''}</div>
-      ${input}
+      ${input}${rangeAgeLine(app)}
       ${ui.error ? `<p class="amber-text small">${h(ui.error)}</p>` : ''}
       <div class="btn-row" style="margin-top:12px"><button class="btn primary" type="submit">Save range</button>
         <button class="btn" type="button" data-act="fuel-filled">${ev ? 'I charged' : 'I filled up'}</button></div>
