@@ -47,6 +47,9 @@ for (const [label, width, height] of SIZES) {
     await page.goto(`${base}?demo=120&prices`);
     await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
     await page.waitForTimeout(1200);
+    // The demo starts at mile 0 and jumps to mile 120 on its first tick; a range entered before that counts the
+    // 120 miles as driven (a slow runner hit this), so wait for the jump.
+    await page.waitForFunction(() => (window.exitAtlas?.snapshot?.progress ?? 0) > 100 * 1609.344, null, { timeout: 30000 });
     // A gas car with a tank size and a range reading, so a fill can be costed. Overnight Drive Mode off: in its
     // window (00:00 to 04:00 at the stop) only stops with known open hours qualify, so the cheaper stop note and
     // the stations listed would depend on the hour the test runs.
