@@ -229,4 +229,50 @@ final class LongDriveTests: XCTestCase {
         XCTAssertEqual(route.highway(at: 100 * mi)?.ref.description, "New Jersey Turnpike")
         XCTAssertEqual(HighwayRef.parse("NJTP New Jersey Turnpike"), [HighwayRef(kind: .named, prefix: "", number: "New Jersey Turnpike")])
     }
+
+    // MARK: Reroutes the driver does not take
+
+    /// Found on a simulated drive: after a reroute the driver ignored, "Acquiring" lasted the whole hour and no
+    /// reroute followed.
+    func testRouteNeverJoinedIsOffRouteAfterAMinuteOfDrivingNeverWhileParked() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        var parked = RouteProgressTracker(route: route.polyline, startedAt: start)
+        for k in 0..<600 {
+            let m = parked.ingest(fix(route, 30_000, start.addingTimeInterval(Double(k)), side: 300, speed: 0, routeCourse: false))
+            XCTAssertEqual(m.status, .acquiring, "parked away from the route")
+        }
+        var driving = RouteProgressTracker(route: route.polyline, startedAt: start)
+        var offAt: Int?
+        for k in 0..<120 where offAt == nil {
+            let m = driving.ingest(fix(route, 30_000 + 25 * Double(k), start.addingTimeInterval(Double(k)), side: 500, speed: 25))
+            if m.status == .offRoute { offAt = k }
+        }
+        let timeout = Int(RouteProgressTracker.Configuration().acquireTimeout)
+        XCTAssertNotNil(offAt)
+        XCTAssertGreaterThanOrEqual(offAt ?? 0, timeout)
+        XCTAssertLessThanOrEqual(offAt ?? 999, timeout + 5)
+    }
+
+    func testARerouteTheDriverNeverReachesAsksForAnotherOne() {
+        let route = Fixtures.route("atlanta_to_nashville")
+        let (first, _) = drive(route, to: 30_000)
+        var session = first
+        // The new route starts 300 m from the driver, on another road, and the driver keeps going 2 km off it.
+        let rest = route.polyline.slice(from: 30_400, to: route.polyline.length)
+        let begin = Geodesy.offset(route.polyline.coordinate(at: 30_000), bearing: route.polyline.bearing(at: 30_000) - 90, meters: 300)
+        let polyline = RoutePolyline(points: [begin] + rest.points)
+        let rerouted = PlannedRoute(source: .osrm, polyline: polyline,
+                                    timeProfile: .uniform(length: polyline.length, totalSeconds: polyline.length / 28),
+                                    origin: Waypoint(name: "Here", coordinate: begin), destination: route.destination)
+        let t0 = session.lastSample!.timestamp.addingTimeInterval(1)
+        session.replacePlan(TripPlan(route: rerouted, datasets: datasets), at: t0)
+        var askedAt: Int?
+        for k in 0..<200 where askedAt == nil {
+            let t = t0.addingTimeInterval(Double(k))
+            session.ingest(fix(route, 30_100 + 25 * Double(k), t, side: 2_000, speed: 25))
+            if session.needsReroute(at: t) { askedAt = k }
+        }
+        XCTAssertNotNil(askedAt)
+        XCTAssertLessThanOrEqual(askedAt ?? 999, 80)
+    }
 }

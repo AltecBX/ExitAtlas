@@ -19,6 +19,8 @@ public struct TripSession: Sendable {
     private var offRouteAnchor: LocationSample?
     /// True from a reroute (whose route starts where the driver was) until the first fix on it.
     private var startsAtDriver = false
+    /// True once a fix matched the current plan.
+    private var joined = false
 
     /// Fixes further apart than this (screen locked, tunnel) teach the pace model only when the time fits driving
     /// all the way, no slower than the slowest pace it predicts: a stop hidden in the gap is not slow driving.
@@ -71,7 +73,7 @@ public struct TripSession: Sendable {
             if dt > 0, moved / dt > 2, dt <= Self.paceGapSeconds || dt <= Self.slowestPace * modeled {
                 pace.observe(expected: modeled, actual: dt, meters: moved)
             }
-        } else if previous.status == .offRoute || (previous.status == .acquiring && startsAtDriver),
+        } else if (previous.status == .offRoute && joined) || (previous.status != .onRoute && startsAtDriver),
                   current.status == .onRoute, let last = lastSample,
                   sample.timestamp.timeIntervalSince(last.timestamp) >= 120, current.distanceAlongRoute > recordedUpTo,
                   (current.distanceAlongRoute - recordedUpTo) / sample.timestamp.timeIntervalSince(last.timestamp)
@@ -97,6 +99,7 @@ public struct TripSession: Sendable {
         }
         if current.status == .onRoute {
             hasStartedDriving = true
+            joined = true
             startsAtDriver = false
             offRouteAnchor = nil
         }
@@ -127,5 +130,6 @@ public struct TripSession: Sendable {
         recordedUpTo = 0
         offRouteAnchor = nil
         startsAtDriver = true
+        joined = false
     }
 }

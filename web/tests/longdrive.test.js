@@ -10,6 +10,7 @@ import { GPSSimulator } from '../js/engine/discovery.js';
 import { PlannedRoute, TravelTimeProfile, highwayLabel, parseHighways } from '../js/engine/route.js';
 import { nextManeuver } from '../js/engine/guidance.js';
 import { RoutePolyline } from '../js/engine/geo.js';
+import { ReroutePacer, REROUTE_PACING } from '../js/app/reroute.js';
 
 const DS = { states: data.states, timeZones: null, interstates: null };
 
@@ -212,4 +213,64 @@ test('road direction: US 9 and NY 9A south out of Yonkers, not west because the 
   // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
   assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Turnpike');
   assert.deepEqual(parseHighways('NJTP New Jersey Turnpike'), [{ kind: 'named', prefix: '', number: 'New Jersey Turnpike' }]);
+});
+
+// MARK: Reroutes the driver does not take
+
+test('tracking: a route never joined is off route after a minute of driving away from it, never while parked', () => {
+  // Found on a simulated drive: after a reroute the driver ignored, "Acquiring" lasted the whole hour and no
+  // reroute followed.
+  const r = route('atlanta_to_nashville');
+  const parked = new RouteProgressTracker(r.polyline, START);
+  for (let k = 0; k < 600; k++) {
+    const m = parked.ingest(fixAt(r, 30000, START + k, { side: 300, speed: 0, course: null }));
+    assert.equal(m.status, 'acquiring', 'parked away from the route');
+  }
+  const driving = new RouteProgressTracker(r.polyline, START);
+  let offAt = null;
+  for (let k = 0; k < 120 && offAt === null; k++) {
+    if (driving.ingest(fixAt(r, 30000 + 25 * k, START + k, { side: 500, speed: 25 })).status === 'offRoute') offAt = k;
+  }
+  assert.ok(offAt !== null && offAt >= TrackerConfig.acquireTimeout && offAt <= TrackerConfig.acquireTimeout + 5, `off route after ${offAt} s`);
+});
+
+test('session: a reroute the driver never reaches asks for another one', () => {
+  const r = route('atlanta_to_nashville');
+  const session = new TripSession(new TripPlan(r, DS), data.states, START);
+  for (const { sample } of new GPSSimulator(r).trace(0, 30000, START)) session.ingest(sample);
+  // The new route starts 300 m from the driver, on another road, and the driver keeps going 500 m off it.
+  const rest = r.polyline.slice(30400, r.polyline.length);
+  const start = offset(r.polyline.coordinateAt(30000), r.polyline.bearingAt(30000) - 90, 300);
+  const polyline = new RoutePolyline([start, ...rest.points]);
+  const rerouted = new PlannedRoute({
+    source: 'osrm', polyline, timeProfile: TravelTimeProfile.uniform(polyline.length, polyline.length / 28),
+    origin: { name: 'Here', coordinate: start }, destination: r.destination,
+  });
+  const t0 = session.lastSample.t + 1;
+  session.replacePlan(new TripPlan(rerouted, DS), t0);
+  let askedAt = null;
+  for (let k = 0; k < 200 && askedAt === null; k++) {
+    session.ingest(fixAt(r, 30100 + 25 * k, t0 + k, { side: 2000, speed: 25 }));
+    if (session.needsReroute(t0 + k)) askedAt = k;
+  }
+  assert.ok(askedAt !== null && askedAt <= 80, `reroute asked after ${askedAt} s`);
+});
+
+test('reroute pacing: at least 2 minutes apart, backing off while new routes are ignored, at most 8 an hour', () => {
+  const pacer = new ReroutePacer();
+  const sent = [];
+  // Off route for an hour and asking every second.
+  for (let t = 0; t < 3600; t++) if (pacer.allow(t)) { pacer.started(t); sent.push(t); }
+  assert.deepEqual(sent.slice(0, 5), [0, 120, 360, 840, 1440]);
+  assert.ok(sent.length <= 8, `${sent.length} requests in an hour`);
+  for (let i = 1; i < sent.length; i++) assert.ok(sent[i] - sent[i - 1] >= REROUTE_PACING.spacing);
+  // A mile driven on the new route resets the back off; the 2 minute spacing stays.
+  pacer.observe({ match: { status: 'onRoute' }, progress: 1700 });
+  const last = sent[sent.length - 1];
+  assert.equal(pacer.allow(last + 119), false);
+  assert.equal(pacer.allow(last + 120), true);
+  pacer.started(last + 120);
+  assert.equal(pacer.allow(last + 240), true, 'back to 2 minutes after a followed route');
+  pacer.reset();
+  assert.equal(pacer.allow(0), true, 'a new trip starts with no wait');
 });

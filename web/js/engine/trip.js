@@ -191,6 +191,8 @@ export class TripSession {
     this.offRouteAnchor = null;
     /// True from a reroute (whose route starts where the driver was) until the first fix on it.
     this.startsAtDriver = false;
+    /// True once a fix matched the current plan.
+    this.joined = false;
     /// The traffic reading shown (engine/traffic.js, after stabilizeReading), used while it is usable.
     this.traffic = null;
     this.rerouteDelay = 8;
@@ -211,7 +213,7 @@ export class TripSession {
       if (dt > 0 && moved / dt > 2 && (dt <= PACE_GAP_SECONDS || dt <= SLOWEST_PACE * modeled)) {
         this.pace.observe(modeled, dt, moved);
       }
-    } else if ((previous.status === 'offRoute' || (previous.status === 'acquiring' && this.startsAtDriver))
+    } else if (((previous.status === 'offRoute' && this.joined) || (previous.status !== 'onRoute' && this.startsAtDriver))
       && current.status === 'onRoute' && this.lastSample
       && sample.t - this.lastSample.t >= 120 && current.distanceAlongRoute > this.recordedUpTo
       && (current.distanceAlongRoute - this.recordedUpTo) / (sample.t - this.lastSample.t) <= GAP_MAX_SPEED) {
@@ -233,6 +235,7 @@ export class TripSession {
     }
     if (current.status === 'onRoute') {
       this.hasStartedDriving = true;
+      this.joined = true;
       this.startsAtDriver = false;
       this.offRouteAnchor = null;
     }
@@ -260,5 +263,6 @@ export class TripSession {
     this.recordedUpTo = 0;
     this.offRouteAnchor = null;
     this.startsAtDriver = true;
+    this.joined = false;
   }
 }
