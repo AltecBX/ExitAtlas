@@ -664,11 +664,10 @@ function overnightCard(app, s) {
   const p = r?.primary;
   if (!p) return s.nextRestArea ? restAreaCard(s) : '';
   const act = p.exit ? `data-act="exit" data-arg="${h(p.exit.id)}"` : p.restArea ? `data-act="rest" data-arg="${h(p.restArea.id)}"` : '';
-  return `<button class="card focus-card" style="width:100%;text-align:left;display:block" ${act}>
+  return `<button class="card focus-card night-card" style="width:100%;text-align:left;display:block" ${act}>
     <div class="eyebrow">🌙 Overnight · restroom stop</div>
     <div class="row" style="gap:12px;margin-top:8px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${h(p.name)}</div>
-      ${smartConfidence(p, r)}<div class="muted tiny">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div>
-    ${r.notice ? `<div class="muted tiny" style="margin-top:6px">${h(r.notice)}</div>` : ''}</button>`;
+      ${smartConfidence(p, r)}<div class="muted tiny">${h(smartWhere(p))} · ${h(smartArrival(app, p))}</div></div></div></button>`;
 }
 
 /// Overnight, before a long stretch where no stop is listed open at its arrival time: the last one that is.
@@ -771,7 +770,7 @@ const CONF_CLASS = { verified: 'ok', reported: 'lim', unknown: 'unk', closed: 'b
 
 /// One status line with a colored dot: hours or restroom confidence (labels only, never a score).
 function confLine(status, label) {
-  return `<div class="conf ${CONF_CLASS[status] ?? 'unk'}"><span class="dot" aria-hidden="true"></span>${h(label)}</div>`;
+  return `<div class="conf ${CONF_CLASS[status] ?? 'unk'}"><span class="dot" aria-hidden="true"></span><span class="cl">${h(label)}</span></div>`;
 }
 
 function smartSign(x) {
