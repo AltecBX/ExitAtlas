@@ -56,6 +56,8 @@ jobs:
         run: node web/tests/layout/pricepath.layout.mjs
       - name: Google prices look themselves up for the exits on screen, within the budget (TEST FIXTURE)
         run: node web/tests/layout/autoprices.layout.mjs
+      - name: iPhone Safari (sheets, 44 point taps, open sections, screen wake lock, paused location, parked map)
+        run: node web/tests/layout/mobile.layout.mjs
       - name: Shared reports on the Worker runtime (wrangler dev, local D1)
         working-directory: infra/worker
         run: |
