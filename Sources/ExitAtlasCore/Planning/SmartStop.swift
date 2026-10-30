@@ -494,15 +494,17 @@ public enum SmartStop {
         }
 
         let anyPrice = pool.contains { $0.c.price != nil }
-        // Every stop is below the reserve: the nearest comes first (open ones first when hours matter).
+        // Every stop is below the reserve: the nearest comes first (open ones first when hours matter); at the
+        // same exit, the favorite brand, then the shorter detour.
         let lowRange = relaxed.contains("Below your reserve")
         func key(_ x: Entry) -> [Double] {
             let hoursRank = needs(p.require24Hours, x) ? x.e.hours.status.rank : 0
-            if lowRange { return [hoursRank, x.c.along] }
-            let restroomRank = needs(p.requireRestroom, x) ? x.e.restroom.rank : 0
             let brandRank = Double(x.brand ?? p.brands.count)
+            // Rest areas and service plazas are on the highway (no detour); a station's unmeasured detour ranks last.
+            let detour = x.c.detourMinutes ?? (x.c.isPlaza ? 0 : p.maxDetourMinutes + 1)
+            if lowRange { return [hoursRank, x.c.along, brandRank, detour] }
+            let restroomRank = needs(p.requireRestroom, x) ? x.e.restroom.rank : 0
             let priceRank = p.priceOverBrand && anyPrice ? (x.c.price ?? .infinity) : 0
-            let detour = x.c.detourMinutes ?? p.maxDetourMinutes + 1
             let (first, second) = purpose == .restroom ? (restroomRank, hoursRank) : (hoursRank, restroomRank)
             return context == .fuel
                 ? [first, second, priceRank, brandRank, -x.c.along, detour]
