@@ -25,6 +25,9 @@ const GAP_WARN = 6 * MILE;
 const ALERT_SERIOUS_WARN = 10 * MILE;
 const ALERT_WARN = 2 * MILE;
 const ALERT_MIN = 0.3 * MILE;
+/// "New route." after an automatic reroute is said at most once in this many seconds: a driver who keeps
+/// leaving the new route (a detour of their own) hears it once, not at every reroute 20 seconds apart.
+const REROUTE_QUIET = 120;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -94,6 +97,15 @@ export class Announcer {
     this.announcedAlerts = new Set();
     this.lastState = null;
     this.lastZone = null;
+    this.reroutedAt = null;
+  }
+
+  /// Says that an automatic reroute found a new route, unless it was said within REROUTE_QUIET seconds.
+  rerouted(t, text = 'New route.') {
+    if (this.reroutedAt !== null && t - this.reroutedAt < REROUTE_QUIET) return false;
+    this.reroutedAt = t;
+    this.speak(text);
+    return true;
   }
 
   get supported() {

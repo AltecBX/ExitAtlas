@@ -181,3 +181,13 @@ test('a state line warning is not repeated after a detour off the route and back
   assert.equal(warnings().length, 1, spoken.join(' | '));
   assert.ok(spoken.some((x) => x.startsWith(`Welcome to ${name}.`)), spoken.join(' | '));
 });
+
+test('"New route." is said once while the driver keeps leaving each new route', () => {
+  // Found on a simulated drive: a driver on a road of their own beside I-95 for 3 miles heard "New route." 9 times.
+  const said = [];
+  const a = new Announcer((t) => said.push(t));
+  for (let t = START; t <= START + 200; t += 20) a.rerouted(t);
+  assert.deepEqual(said, ['New route.', 'New route.']);
+  a.reset();
+  assert.ok(a.rerouted(START + 210), 'a new trip starts quiet');
+});
