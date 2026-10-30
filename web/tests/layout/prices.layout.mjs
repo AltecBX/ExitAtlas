@@ -146,6 +146,26 @@ for (const [label, width, height] of SIZES) {
     if (!book.good || book.stored.length !== 1 || book.stored[0].price !== 3.159) fail(`the price book did not save the report (${JSON.stringify(book.stored)})`);
     if (book.stored.some((r) => 'lat' in r || 'lon' in r || 'coordinate' in r)) fail('a report stores a position');
 
+    // A range entered yesterday says when, on the Drive fuel card and in the fuel sheet; a fresh one does not.
+    const ageShown = async () => {
+      await click('.tabbar [data-arg="drive"]');
+      await page.waitForTimeout(600);
+      const card = await page.evaluate(() => document.querySelector('.card[data-act="sheet"][data-arg="fuel"] [data-testid="range-age"]')?.textContent ?? null);
+      await click('.card[data-act="sheet"][data-arg="fuel"]');
+      await page.waitForSelector('#sheet.open', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const sheet = await page.evaluate(() => document.querySelector('#sheet-body [data-testid="range-age"]')?.textContent ?? null);
+      await click('[data-act="close-sheet"]');
+      return { card, sheet };
+    };
+    const fresh = await ageShown();
+    if (fresh.card || fresh.sheet) fail(`a range entered just now shows an age: ${fresh.card ?? fresh.sheet}`);
+    await page.evaluate(() => { const a = window.exitAtlas; a.fuel = { ...a.fuel, enteredAt: Date.now() / 1000 - 26 * 3600 }; });
+    const old = await ageShown();
+    if (!/^Range entered (yesterday|\w{3}) \d/.test(old.card ?? '')) fail(`the Drive fuel card does not say when an old range was entered: ${old.card}`);
+    if (!/^Range entered (yesterday|\w{3}) \d/.test(old.sheet ?? '')) fail(`the fuel sheet does not say when an old range was entered: ${old.sheet}`);
+    await page.evaluate(() => { const a = window.exitAtlas; a.fuel = { ...a.fuel, enteredAt: Date.now() / 1000 }; });
+
     await click('#settings-btn');
     await page.waitForTimeout(400);
     const settings = await page.evaluate(() => ({

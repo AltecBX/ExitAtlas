@@ -3,7 +3,7 @@ import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { highwayLabel, DIRECTION_WORDS } from '../engine/route.js';
 import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
-import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
+import { miles, milesValue, duration, clock, readingAge, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
 import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText, googlePriceCurrent } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
@@ -1061,7 +1061,14 @@ function fuelCard(app, s) {
         <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${miles(rec.rangeOnArrival)} left when you get there</div></div></div>`;
   }
   return `<button class="card" style="width:100%;text-align:left;cursor:pointer;display:block" data-act="sheet" data-arg="fuel">
-    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${body}</button>`;
+    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${rangeAgeLine(app)}${body}</button>`;
+}
+
+/// When the range reading is old (over 6 hours, or from an earlier day), when it was entered: it only counts
+/// down with miles driven while ExitAtlas runs, so it is never shown as current. Empty for a recent reading.
+function rangeAgeLine(app) {
+  const age = readingAge(app.fuel?.enteredAt);
+  return age ? `<div class="amber-text tiny" data-testid="range-age">Range entered ${h(age)}. Check your dashboard.</div>` : '';
 }
 
 /// Name line for a gas exit or a charger.
@@ -1822,7 +1829,7 @@ export function fuelSheet(app) {
     <form class="card" data-form="fuel">
       <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now</div>
         ${gauge ? `<div class="seg" style="width:190px"><button type="button" class="${ui.mode !== 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="dashboard">Miles</button><button type="button" class="${ui.mode === 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="gauge">${ev ? 'Battery %' : 'Gauge'}</button></div>` : ''}</div>
-      ${input}
+      ${input}${rangeAgeLine(app)}
       ${ui.error ? `<p class="amber-text small">${h(ui.error)}</p>` : ''}
       <div class="btn-row" style="margin-top:12px"><button class="btn primary" type="submit">Save range</button>
         <button class="btn" type="button" data-act="fuel-filled">${ev ? 'I charged' : 'I filled up'}</button></div>

@@ -65,6 +65,22 @@ export function clock(t, zone = null, now = Date.now() / 1000) {
   return text;
 }
 
+/// When a range reading was entered, for one that may be out of date: more than 6 hours ago or on an earlier
+/// day ("today 7:05 AM", "yesterday 9:40 PM", "Tue 9:40 PM", "Oct 21 9:40 PM"), in the phone's time zone. Null
+/// for a recent reading. Times are epoch seconds.
+export function readingAge(t, now = Date.now() / 1000, zone = null) {
+  if (!(t > 0)) return null;
+  const f = formattersFor(zone);
+  const at = new Date(t * 1000);
+  const day = f.day.format(at);
+  const today = day === f.day.format(new Date(now * 1000));
+  if (today && now - t <= 6 * 3600) return null;
+  const time = f.time.format(at);
+  if (today) return `today ${time}`;
+  if (day === f.day.format(new Date((now - 86400) * 1000))) return `yesterday ${time}`;
+  return `${now - t < 6 * 86400 ? f.weekday.format(at) : f.date.format(at)} ${time}`;
+}
+
 export function escapeHTML(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

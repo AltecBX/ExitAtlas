@@ -175,3 +175,16 @@ test('clock: a weekday only within the coming week, a date beyond it', async () 
   assert.equal(plain(clock(Date.UTC(2026, 9, 29, 13, 0) / 1000, 'America/New_York', now)), 'Thu 9:00 AM EDT');
   assert.equal(plain(clock(Date.UTC(2026, 11, 31, 5, 0) / 1000, 'America/New_York', now)), 'Dec 31 12:00 AM EST');
 });
+
+test('range reading age: shown when over 6 hours old or from an earlier day, never for a recent one', async () => {
+  const { readingAge } = await import('../js/app/format.js');
+  const plain = (s) => s?.replace(/[  ]/g, ' ');
+  const ny = 'America/New_York';
+  const now = Date.UTC(2026, 9, 31, 14, 0) / 1000; // Saturday October 31, 10:00 AM in New York
+  assert.equal(readingAge(now - 3600, now, ny), null, 'an hour ago, the same day');
+  assert.equal(readingAge(null, now, ny), null, 'no reading');
+  assert.equal(plain(readingAge(now - 7 * 3600, now, ny)), 'today 3:00 AM');
+  assert.equal(plain(readingAge(Date.UTC(2026, 9, 31, 1, 40) / 1000, now, ny)), 'yesterday 9:40 PM', 'last night, 12 hours ago');
+  assert.equal(plain(readingAge(Date.UTC(2026, 9, 28, 13, 0) / 1000, now, ny)), 'Wed 9:00 AM');
+  assert.equal(plain(readingAge(Date.UTC(2026, 9, 20, 13, 0) / 1000, now, ny)), 'Oct 20 9:00 AM');
+});
