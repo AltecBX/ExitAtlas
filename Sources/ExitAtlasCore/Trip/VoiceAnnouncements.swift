@@ -31,8 +31,10 @@ public struct VoiceAnnouncements: Sendable {
     static let borderWarning = 5 * Geodesy.metersPerMile
     static let borderMinimum = 0.5 * Geodesy.metersPerMile
     /// A state line warning counts as already given when one was given for the same state with an
-    /// expected crossing within this many meters on the odometer (route changes move it a little).
+    /// expected crossing within this many meters on the odometer (route changes move it a little),
+    /// or at a crossing point within `sameCrossing` meters (a detour off the route and back adds miles).
     static let sameBorder = 3 * Geodesy.metersPerMile
+    static let sameCrossing = 2_000.0
     static let restWarning = 2.5 * Geodesy.metersPerMile
     static let restMinimum = 0.4 * Geodesy.metersPerMile
     static let gapWarning = 6 * Geodesy.metersPerMile
@@ -42,7 +44,7 @@ public struct VoiceAnnouncements: Sendable {
     static let alertMinimum = 0.3 * Geodesy.metersPerMile
 
     private var announcedExitIDs = Set<String>()
-    private var announcedBorders: [(state: String, odometer: Double)] = []
+    private var announcedBorders: [(state: String, odometer: Double, at: GeoCoordinate)] = []
     private var lastState: String?
     private var lastZone: String?
     private var announcedRest = Set<String>()
@@ -89,9 +91,13 @@ public struct VoiceAnnouncements: Sendable {
                toBorder <= Self.borderWarning, toBorder > Self.borderMinimum,
                let nextState = Self.key(next.segment) {
                 let odometer = s.drivenTotal + toBorder
-                let given = announcedBorders.contains { $0.state == nextState && abs($0.odometer - odometer) <= Self.sameBorder }
+                let at = next.segment.entryCoordinate
+                let given = announcedBorders.contains {
+                    $0.state == nextState && (abs($0.odometer - odometer) <= Self.sameBorder
+                        || Geodesy.distance($0.at, at) <= Self.sameCrossing)
+                }
                 if !given {
-                    announcedBorders.append((nextState, odometer))
+                    announcedBorders.append((nextState, odometer, at))
                     let exits = current.exitsRemaining
                     return "\(next.segment.displayName) state line in \(Self.spokenMiles(toBorder)). "
                         + "\(exits) \(exits == 1 ? "exit remains" : "exits remain") in \(current.segment.displayName)."

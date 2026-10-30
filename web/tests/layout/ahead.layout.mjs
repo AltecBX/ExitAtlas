@@ -75,6 +75,7 @@ for (const [label, width, height] of SIZES) {
     const sheet = await page.evaluate(() => document.querySelector('#sheet.open')?.textContent ?? '');
     if (!/SIMULATED TEST ALERT/.test(sheet) || !/Simulated test alert/.test(sheet)) fail('the simulated alert is not labeled as test data in its sheet');
     if (/all clear/i.test(sheet)) fail('the alert sheet says all clear');
+    if (/Official source/.test(sheet) || !/Simulated test data, not a real event/.test(sheet)) fail('the simulated alert is called an official source in its sheet');
     await click('[data-act="close-sheet"]');
     await click('[data-act="ahead-filter"][data-arg="states"]');
     await page.waitForTimeout(250);

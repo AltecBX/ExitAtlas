@@ -26,7 +26,12 @@ export const NWS_EVENTS = Object.freeze({
   'Coastal Flood Warning': 'flooding',
 });
 
-const NWS_SEVERITY = { Extreme: 'severe', Severe: 'major', Moderate: 'moderate', Minor: 'minor' };
+/// Short lived storm warnings NWS issues as polygons, often a few miles wide: read for the whole states ahead
+/// (app/roadalerts.js) because they can fall between the route's sample points.
+export const NWS_STORM_EVENTS = Object.freeze(['Tornado Warning', 'Severe Thunderstorm Warning', 'Snow Squall Warning',
+  'Flash Flood Warning', 'Extreme Wind Warning', 'Dust Storm Warning', 'Flood Warning']);
+
+const NWS_SEVERITY ={ Extreme: 'severe', Severe: 'major', Moderate: 'moderate', Minor: 'minor' };
 export const NWS_SOURCE = Object.freeze({ id: 'nws', name: 'National Weather Service' });
 
 const seconds = (iso) => (iso ? Math.floor(Date.parse(iso) / 1000) : null);
@@ -34,6 +39,7 @@ const seconds = (iso) => (iso ? Math.floor(Date.parse(iso) / 1000) : null);
 /// NWS alerts returned by point queries along the route, as incidents. `responses` is
 /// [{point: {lat, lon}, features: [...]}]; an alert returned at several points is one incident. An alert
 /// with a polygon keeps it; a zone or county alert (no polygon) is placed at the points where NWS returned it.
+/// `point: null` is an answer for whole states: only its alerts with a polygon can be placed.
 export function nwsIncidents(responses) {
   const byId = new Map();
   for (const { point, features } of responses) {
@@ -44,15 +50,17 @@ export function nwsIncidents(responses) {
       const id = `nws:${p.id ?? f.id}`;
       const known = byId.get(id);
       if (known) {
-        if (known.geometry.type === 'points') known.geometry.coordinates.push(point);
+        if (point && known.geometry.type === 'points') known.geometry.coordinates.push(point);
         continue;
       }
+      const geometry = nwsGeometry(f.geometry) ?? (point ? { type: 'points', coordinates: [point] } : null);
+      if (!geometry) continue;
       byId.set(id, {
         id, category: kind, description: p.event, detail: p.headline ?? null, area: p.areaDesc ?? null,
         source: NWS_SOURCE, verification: 'official',
         reportedAt: seconds(p.sent), updatedAt: seconds(p.sent), startsAt: seconds(p.onset ?? p.effective),
         endsAt: seconds(p.ends ?? p.expires), expiresAt: seconds(p.expires),
-        geometry: nwsGeometry(f.geometry) ?? { type: 'points', coordinates: [point] },
+        geometry,
         road: null, direction: 'both', lanes: null, severity: NWS_SEVERITY[p.severity] ?? 'unknown',
       });
     }

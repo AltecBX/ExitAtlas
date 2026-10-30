@@ -81,3 +81,29 @@ test('a shape the server cannot match is marked unknown and not requested again'
   assert.equal(calls, 2, 'moves on to the next chunk');
   assert.equal(limits.at(0), null);
 });
+
+test('a speed limit server that keeps failing shows the limit as unknown, not loading for the whole trip', async () => {
+  const r = route('atlanta_to_nashville');
+  let now = 0;
+  let up = false;
+  const fake = fakeValhalla(() => 70);
+  const limits = new SpeedLimits(r, {
+    now: () => now,
+    fetchImpl: async (...a) => { if (!up) throw new Error('offline'); return fake.fetchImpl(...a); },
+  });
+  await limits.ensureAhead(0);
+  assert.equal(limits.state(0), 'loading', 'one failure: still trying');
+  now += 20000;
+  await limits.ensureAhead(0);
+  assert.equal(limits.state(0), 'loading', 'two failures: still trying');
+  now += 40000;
+  await limits.ensureAhead(0);
+  assert.equal(limits.state(0), 'unknown', 'three in a row: unknown for now');
+  assert.equal(limits.at(0), null, 'never a made up limit');
+  // The server answers again: the limit shows.
+  up = true;
+  now += 120000;
+  await limits.ensureAhead(0);
+  assert.equal(limits.state(0), 'known');
+  assert.equal(limits.at(0), 70);
+});

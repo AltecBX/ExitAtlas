@@ -73,4 +73,42 @@ final class VoiceAnnouncementTests: XCTestCase {
         }
         XCTAssertFalse(spoken.contains { $0.hasPrefix("Welcome") }, spoken.joined(separator: " | "))
     }
+
+    /// Found on a simulated Yonkers to Orlando drive: dinner 4 miles off I-95 just after the Georgia line warning
+    /// added 8 miles to the odometer, and the warning was given again on the way back.
+    func testStateLineWarningIsNotRepeatedAfterADetour() {
+        let datasets = TripDatasets(states: Fixtures.states, timeZones: nil, interstates: Fixtures.interstates)
+        let route = Fixtures.route("atlanta_to_nashville")
+        var session = TripSession(plan: TripPlan(route: route, datasets: datasets), states: Fixtures.states, startedAt: start)
+        var voice = VoiceAnnouncements()
+        var spoken: [String] = []
+        let border = session.plan.states.segments[1].startDistance
+        let name = session.plan.states.segments[1].displayName
+        func warnings() -> Int { spoken.filter { $0.hasPrefix("\(name) state line in") }.count }
+        var last: LocationSample?
+        for (sample, _) in GPSSimulator(route: route).traceWithTruth(from: 0, to: border - 4 * mile, startTime: start) {
+            if let text = voice.message(for: session.ingest(sample), settings: settings) { spoken.append(text) }
+            last = sample
+        }
+        XCTAssertEqual(warnings(), 1, spoken.joined(separator: " | "))
+        // Out 6.4 km to the side and back at 15 m/s.
+        let d = border - 4 * mile, bearing = route.polyline.bearing(at: d)
+        var t = last!.timestamp.addingTimeInterval(1)
+        for (xs, course) in [(Array(stride(from: 0.0, through: 6_400, by: 15)), bearing + 90),
+                             (Array(stride(from: 6_400.0, through: 0, by: -15)), bearing - 90)] {
+            for x in xs {
+                let c = Geodesy.offset(route.polyline.coordinate(at: d), bearing: bearing + 90, meters: x)
+                let sample = LocationSample(coordinate: c, horizontalAccuracy: 8, course: Geodesy.normalizedDegrees(course),
+                                            speed: 15, timestamp: t)
+                if let text = voice.message(for: session.ingest(sample), settings: settings) { spoken.append(text) }
+                t = t.addingTimeInterval(1)
+            }
+        }
+        XCTAssertGreaterThan(session.ledger.totalMeters, d + 12_000, "the detour counts as driven")
+        for (sample, _) in GPSSimulator(route: route).traceWithTruth(from: d + 30, to: border + 2 * mile, startTime: t) {
+            if let text = voice.message(for: session.ingest(sample), settings: settings) { spoken.append(text) }
+        }
+        XCTAssertEqual(warnings(), 1, spoken.joined(separator: " | "))
+        XCTAssertTrue(spoken.contains { $0.hasPrefix("Welcome to \(name).") }, spoken.joined(separator: " | "))
+    }
 }

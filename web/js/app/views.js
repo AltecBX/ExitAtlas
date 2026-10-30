@@ -18,7 +18,7 @@ import { nextManeuver } from '../engine/guidance.js';
 import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline, driveCardAlert, onDriveCard } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
@@ -587,11 +587,10 @@ function focusSignals(app, s) {
   };
 }
 
-/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones that
+/// leave the travel lanes open, and weather advisories the driver is already in, stay in Road Ahead.
 function focusAlertItem(app, s) {
-  // Work zones that leave the travel lanes open stay in Road Ahead.
-  const alerts = (app.roadIntel()?.alerts ?? []).filter((a) => a.notable);
-  return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
+  return driveCardAlert(app.roadIntel()?.alerts ?? [], s.progress);
 }
 
 function focusAlert(app, s) {
@@ -1336,10 +1335,12 @@ export function exitsView(app) {
 }
 
 /// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
-function alertEmptyTitle(intel, window) {
+export function alertEmptyTitle(intel, window) {
   if (!intel) return 'Road alerts are off';
   const on = Object.values(intel.status).filter((st) => st.state !== 'off');
   if (on.some((st) => st.state === 'unavailable')) return 'Some alert sources are unavailable';
+  // Nothing has answered yet (just started, or offline): not a "no reports".
+  if (on.some((st) => st.state === 'loading')) return 'Checking road alert sources';
   return `No reports from connected sources in the next ${window} miles`;
 }
 
@@ -1352,12 +1353,14 @@ function alertEmptyText(intel) {
 
 /// One line on what the alert sources say, with each group's state in a details list: "no relevant
 /// reports" and "data unavailable" are different things and both are shown as such.
-function alertStatus(intel, { open = false } = {}) {
+export function alertStatus(intel, { open = false } = {}) {
   if (!intel) return '';
   const n = intel.alerts.length;
   const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
   const failing = on.filter(([, st]) => st.state === 'unavailable').length;
-  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
+  const checking = on.some(([, st]) => st.state === 'loading');
+  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable'
+    : checking ? 'Checking road alert sources' : 'Road alerts: none from connected sources';
   const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
   return `<details class="facilities alert-status"${open ? ' open' : ''}><summary>${h(summary)}</summary>${rows}</details>`;
 }
@@ -1375,8 +1378,9 @@ export function alertSheet(app, id) {
   const zone = app.plan.timeZoneIDAt(a.start);
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
-  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
-  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
+  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule', simulated: 'Simulated test data, not a real event' }[i.verification] ?? 'Not stated';
+  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : !onDriveCard(a, s.progress) ? 'Road Ahead only: an advisory where you are now'
+    : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
   const police = intel.status.police ? `${ALERT_GROUPS.police.label}: ${intel.status.police.label}.` : '';
