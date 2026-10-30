@@ -152,6 +152,10 @@ await page.waitForTimeout(2500);
 s = await state();
 check(!s.rerouting && s.pill !== 'Rerouting' && /did not answer/.test(s.error ?? ''), `a stalled reroute ends with a reason (${s.pill}: ${s.error})`);
 before = routingCalls;
+// Automatic reroutes are paced (at least 2 minutes apart; section 8 and web/tests/longdrive.test.js check the
+// pacing). Each section here starts with the pacing cleared, so it checks only its own behavior.
+const unpaced = () => app(() => window.exitAtlas.reroutePacer.reset());
+await unpaced();
 await app(() => window.__park(25, 1500));
 check(routingCalls > before, 'a later reroute is still requested');
 await page.waitForTimeout(2500);
@@ -167,6 +171,7 @@ servers.routing = 'ok';
 const driven = (await state()).driven;
 const oldRoute = await app(() => window.exitAtlas.plan.route.id);
 before = routingCalls;
+await unpaced();
 await app(() => window.__park(40, 1500));
 await until(() => !window.exitAtlas.isRerouting);
 s = await state();
@@ -206,13 +211,18 @@ await until(() => !window.exitAtlas.isRerouting);
 check((await ahead()).length === 2 && (await ahead())[1] === 'Richmond, Virginia' && lastRoutingPoints === 3, `a stop added mid trip is routed through (${(await ahead()).join(' then ')})`);
 await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(5); });
 
-// 8. No connection while off the route: retried about every 20 seconds, not on every fix.
+// 8. No connection while off the route: paced retries (app/reroute.js: at least 2 minutes apart, longer while
+//    each new route goes unfollowed), not one on every fix.
 servers.routing = 'down';
 before = routingCalls;
+await unpaced();
 await app(() => window.__park(100, 2000));
 await page.waitForTimeout(300);
+const early = routingCalls - before;
+await app(() => window.__park(400, 2000));
+await page.waitForTimeout(300);
 const calls = routingCalls - before;
-check(calls >= 3 && calls <= 6, `about one reroute request per 20 seconds without a connection (${calls} in 100 s)`);
+check(early <= 1 && calls >= 2 && calls <= 4, `paced reroute requests without a connection (${early} in the first 100 s, ${calls} in 500 s)`);
 servers.routing = 'ok';
 await app(() => window.__drive(35));
 await app(() => window.dispatchEvent(new Event('pagehide')));
