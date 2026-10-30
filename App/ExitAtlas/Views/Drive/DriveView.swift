@@ -334,7 +334,7 @@ private struct FuelCard: View {
                     Text(headline).font(.headline).lineLimit(2)
                     if let pick = smart?.primary {
                         SmartStopConfidence(pick: pick, overnight: smart?.overnight == true)
-                        CandidatePriceLine(candidate: pick.candidate)
+                        CandidatePriceLine(candidate: pick.candidate, onMap: true)
                     }
                     Text(detail).font(.subheadline).foregroundStyle(Theme.secondaryText).lineLimit(2)
                     if let smart { CheaperNote(result: smart, compact: true) }

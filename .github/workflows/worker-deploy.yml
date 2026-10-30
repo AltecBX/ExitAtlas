@@ -1,0 +1,31 @@
+# Deploys the ExitAtlas proxy (infra/worker) to the owner's Cloudflare account on the Workers Free plan and
+# checks it with real requests. Run it by hand from the Actions tab after adding two repository secrets:
+# CLOUDFLARE_API_TOKEN (a token with Workers Scripts, Workers KV Storage and D1 edit permissions) and
+# CLOUDFLARE_ACCOUNT_ID. It never adds a payment method or changes the plan (infra/worker/README.md).
+name: Deploy proxy
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Workers Free and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Check the secrets are set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Add the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets first (infra/worker/README.md)."
+            exit 1
+          fi
+      - name: Deploy, then check with real requests
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash infra/worker/scripts/deploy.sh | tee -a "$GITHUB_STEP_SUMMARY"

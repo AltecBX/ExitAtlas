@@ -97,6 +97,10 @@ final class UserSettings {
     var communityPrices: Bool { didSet { save() } }
     var googlePrices: Bool { didSet { save() } }
 
+    /// The owner's ExitAtlas server (infra/worker), for shared driver price reports. Not a secret, kept on
+    /// this iPhone like the website keeps it in the browser.
+    var proxyURL: String = UserDefaults.standard.string(forKey: "proxyURL") ?? "" { didSet { UserDefaults.standard.set(proxyURL, forKey: "proxyURL") } }
+
     /// Google Maps Platform key for gas prices (Places API New). Empty means prices are off. Keychain.
     var googleKey: String { didSet { keychain.set(googleKey, for: "googleKey") } }
     /// NREL developer key for the charger search; empty uses the demo key (10 an hour). Keychain.

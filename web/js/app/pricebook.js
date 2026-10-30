@@ -14,7 +14,7 @@ export const SIMULATED_SOURCE = Object.freeze({ id: 'simulated', name: 'Simulate
 const KEY = 'ea.priceReports';
 const INSTALL = 'ea.installId';
 /// Shared reports are asked for again after this long, and after a failure not before this.
-const SHARED_TTL = 5 * 60 * 1000;
+const SHARED_TTL = 90 * 1000;
 const SHARED_RETRY = 2 * 60 * 1000;
 const PER_REQUEST = 50;
 

@@ -33,14 +33,17 @@ export function createHandler({ fetchImpl = (...a) => fetch(...a), cache = null,
     const url = new URL(request.url);
     const origin = request.headers.get('Origin') ?? '';
     const allowed = (env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    // The iOS app sends no Origin (it is not a web page); it names itself instead and gets no CORS headers.
+    const native = !origin && /^ios\/[\w.-]{1,20}$/.test(request.headers.get('X-ExitAtlas-Client') ?? '');
     const cors = allowed.includes(origin)
       ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' }
-      : null;
+      : native ? {} : null;
     const reply = (status, body, headers = {}) => new Response(typeof body === 'string' ? body : JSON.stringify(body),
       { status, headers: { 'Content-Type': 'application/json', ...(cors ?? {}), ...headers } });
 
-    // Browsers send Origin on these requests; anything else is refused. (A non-browser client can fake
-    // the header, which is why every endpoint also has a budget.)
+    // Browsers send Origin on these requests; other sites, and clients that are neither a listed page nor
+    // the iOS app, are refused. (A non-browser client can fake either header, which is why every endpoint
+    // also has a budget.)
     if (!cors) return reply(403, { error: 'origin not allowed' });
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors, 'Access-Control-Max-Age': '86400' } });
 
@@ -85,13 +88,10 @@ export function createHandler({ fetchImpl = (...a) => fetch(...a), cache = null,
     async function priceReports() {
       const hash = (s) => sha256(`${env.CLIENT_SALT ?? ''}:${s}`);
       if (request.method === 'GET') {
-        const key = new Request(`https://cache.exitatlas/price-reports?${url.searchParams.toString()}`);
-        const hit = await cache?.match(key);
-        if (hit) return reply(200, await hit.text(), { 'X-Cache': 'hit', 'Cache-Control': 'max-age=60' });
+        // Not cached: a report must reach other drivers right away. The daily lookup budget keeps the
+        // database reads under the free limit (src/prices.js).
         const [status, body] = await getReports(url, env, { nowMs: now(), hash });
-        const text = JSON.stringify(body);
-        if (status === 200) await cache?.put(key, new Response(text, { headers: { 'Cache-Control': 'max-age=60' } }));
-        return reply(status, text, { 'X-Cache': 'miss', 'Cache-Control': status === 200 ? 'max-age=60' : 'no-store' });
+        return reply(status, body, { 'Cache-Control': 'no-store' });
       }
       if (request.method === 'POST') {
         if (Number(request.headers.get('Content-Length') ?? 0) > 2048) return reply(413, { error: 'request too large' });

@@ -91,6 +91,9 @@ final class TripController {
     @ObservationIgnored let priceReports = PriceReportStore()
     /// -demoPrices: SIMULATED prices at the first stations ahead, for screenshots.
     @ObservationIgnored var demoPrices = false
+    /// Shared reports from other ExitAtlas drivers through the owner's server (docs/17).
+    @ObservationIgnored let sharedPrices = SharedPriceService()
+    @ObservationIgnored private var sharedAskedAt: Date?
     /// Road alert sources for the active trip (NWS weather; others when connected).
     @ObservationIgnored let roadAlerts = RoadAlertService()
     /// Current weather where you are, while a trip runs (NWS).
@@ -127,6 +130,7 @@ final class TripController {
         prices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
         prices.onCall = { PriceCallCounter.count() }
         priceReports.onUpdate = { [weak self] in self?.feedsVersion += 1 }
+        sharedPrices.onUpdate = { [weak self] in self?.feedsVersion += 1 }
     }
 
     func attach(data: BundledData) {
@@ -354,6 +358,7 @@ final class TripController {
         snapshot = snap
         if mode == .trip { considerTraffic(snap) }
         if demoPrices { seedDemoPrices() }
+        refreshSharedPrices()
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
             announcer.consider(snap, settings: settings, zoneID: plan?.timeZoneID(at: snap.progress), gasGap: gap, lastOpen: lastOpenAhead,
@@ -472,7 +477,62 @@ final class TripController {
         guard let plan, let snapshot, let interstates, let settings else { return nil }
         return SmartStop.TripContext(plan: plan, snapshot: snapshot, dataset: interstates, stations: data?.stations,
                                      live: prices.loadedStations, grade: settings.gasGrade,
-                                     priceRecords: priceReports.records(includeOwn: settings.ownPriceReports), priceOptions: priceOptions)
+                                     priceRecords: priceRecords(settings), priceOptions: priceOptions)
+    }
+
+    /// The driver's own reports (when used), SIMULATED demo prices, and shared reports (when on) without
+    /// the shared copies of the driver's own.
+    private func priceRecords(_ settings: UserSettings) -> [String: [GasPrices.Record]] {
+        var records = priceReports.records(includeOwn: settings.ownPriceReports)
+        guard sharedOn else { return records }
+        let mine = priceReports.sharedIDs
+        for (id, list) in sharedPrices.all {
+            let others = list.filter { !mine.contains($0.id) }
+            if !others.isEmpty { records[id, default: []].append(contentsOf: others) }
+        }
+        return records
+    }
+
+    /// Shared driver reports are on: the driver turned them on and the server offers them.
+    var sharedOn: Bool {
+        _ = feedsVersion
+        return settings?.communityPrices == true && sharedPrices.offered
+    }
+
+    /// The location check before a shared report: the phone's own GPS (not a simulated drive), a recent fix
+    /// accurate to 150 m, within 250 m of the station. The position is never sent.
+    func nearCheck(_ c: SmartStop.Candidate) -> (near: Bool, note: String) {
+        guard gpsSource == .device else { return (false, "Simulated GPS: sharing needs your real location at the station") }
+        guard let fix = lastSample, Date().timeIntervalSince(fix.timestamp) < 120, fix.horizontalAccuracy >= 0 else {
+            return (false, "Location not available: saved on this iPhone only")
+        }
+        guard fix.horizontalAccuracy <= 150 else { return (false, "Your location is too rough to check: saved on this iPhone only") }
+        guard let at = c.coordinate else { return (false, "This station's position is not known: saved on this iPhone only") }
+        let d = Geodesy.distance(fix.coordinate, at)
+        return d <= 250 ? (true, "You are at this station (location checked)") : (false, "About \(Format.miles(d)) from this station: saved on this iPhone only")
+    }
+
+    /// Sends one of the driver's own reports to other drivers. Returns what to tell the driver.
+    func share(_ record: GasPrices.Record) async -> String {
+        switch await sharedPrices.share(record, install: priceReports.installID) {
+        case let .success(id):
+            if !id.isEmpty { priceReports.markShared(record.id, as: id) }
+            return "Shared with other ExitAtlas drivers."
+        case let .failure(e):
+            return "Not shared: \(e.message)."
+        }
+    }
+
+    /// Asks the server for shared reports at the stations ahead, at most every 30 seconds while driving.
+    private func refreshSharedPrices() {
+        guard let settings else { return }
+        sharedPrices.configure(settings.proxyURL)
+        guard sharedOn else { return }
+        if let at = sharedAskedAt, Date().timeIntervalSince(at) < 30 { return }
+        sharedAskedAt = Date()
+        var ids = priceStations(miles: 100).stations.map(\.id)
+        if let p = smartStop?.primary?.candidate.id { ids.insert(p, at: 0) }
+        sharedPrices.load(ids, enabled: settings.communityPrices)
     }
 
     /// What prices are compared on: the driver's grade and payment, reports up to their age limit. Nil when
@@ -626,6 +686,20 @@ final class TripController {
         guard let exitID = c.exitID, let stations = prices.loadedStations[exitID], let exit = plan?.exits.first(where: { $0.id == exitID }),
               let place = services(for: exit).first(where: { $0.place.id == c.id })?.place else { return nil }
         return SmartStop.live(stations, place: place, brand: c.brand)
+    }
+
+    /// Google Maps prices for the next three exits in the price comparison that were not checked in the last
+    /// 15 minutes: paid, so only when the driver turned them on and taps (docs/17).
+    func checkGooglePricesAhead(miles: Double) {
+        guard let settings, settings.googlePrices, !settings.googleKey.isEmpty, let plan else { return }
+        var seen = Set<String>(), exits: [RouteExit] = []
+        for c in priceStations(miles: miles).stations.sorted(by: { ($0.ahead ?? 0) < ($1.ahead ?? 0) }) {
+            guard let id = c.exitID, seen.insert(id).inserted else { continue }
+            if let e = prices.entry(for: id), Date().timeIntervalSince(e.loadedAt) < 15 * 60 { continue }
+            if let exit = plan.exits.first(where: { $0.id == id }) { exits.append(exit) }
+            if exits.count == 3 { break }
+        }
+        for exit in exits { prices.load(exit: exit, apiKey: settings.googleKey) }
     }
 
     /// Google Maps prices for an exit: paid, so only when the driver turned them on and asked (docs/17).

@@ -1,3 +1,4 @@
+import CoreLocation
 import ExitAtlasCore
 import SwiftUI
 
@@ -99,10 +100,16 @@ struct PriceTag: View {
 struct CandidatePriceLine: View {
     @Environment(TripController.self) private var trip
     let candidate: SmartStop.Candidate
+    /// On the Drive screen (a map) a Google Maps price is not shown: Google's terms keep its data off
+    /// non-Google maps.
+    var onMap = false
 
     var body: some View {
         if let o = trip.priceOptions, candidate.kind != .rest {
-            if let sp = candidate.priceInfo {
+            if onMap, candidate.priceInfo?.record.source.kind == .google {
+                Text("Google Maps price: see Road Ahead").font(.caption).foregroundStyle(Theme.secondaryText)
+                    .accessibilityIdentifier("stopPrice")
+            } else if let sp = candidate.priceInfo {
                 (Text(GasPrices.dollars(sp.record.price)).font(.subheadline.weight(.bold).monospacedDigit())
                  + Text("  \(o.grade.name) · \(PriceText.meta(sp))").font(.caption).foregroundStyle(Theme.secondaryText))
                     .foregroundStyle(sp.state == .current ? Color.primary : Theme.secondaryText)
@@ -124,7 +131,8 @@ struct CheaperNote: View {
     var compact = false
 
     var body: some View {
-        if compact, let ch = result.cheaper {
+        if compact, let ch = result.cheaper, ch.candidate.priceInfo?.record.source.kind != .google,
+           result.primary?.candidate.priceInfo?.record.source.kind != .google {
             (Text("Cheaper: ").foregroundStyle(Theme.amber).bold()
              + Text("\(ch.candidate.name)\(ch.candidate.exitLabel.map { ", Exit \($0)" } ?? ""), about \(String(format: "$%.2f", ch.savings)) less (estimate)"))
                 .font(.caption).lineLimit(1)
@@ -201,6 +209,16 @@ struct ComparePricesCard: View {
                         }
                     }
                 }
+                if settings.googlePrices, !settings.googleKey.isEmpty {
+                    Button { trip.checkGooglePricesAhead(miles: settings.exitLookaheadMiles) } label: {
+                        Text("Check Google Maps prices for the next 3 exits").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                            .background(Theme.raised, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("googleAhead")
+                    Text("Paid, on your own key (keep it capped in Google Cloud). This month: \(PriceCallCounter.thisMonth) lookups. Shown here with Google's name, never on the map, not saved.")
+                        .font(.caption2).foregroundStyle(Theme.secondaryText)
+                }
                 if sorted.isEmpty {
                     Text("No gas listed in the next \(Int(settings.exitLookaheadMiles)) miles. Try a longer window.")
                         .font(.footnote).foregroundStyle(Theme.secondaryText)
@@ -254,6 +272,7 @@ struct StationPricesView: View {
     @Environment(\.dismiss) private var dismiss
     let id: String
     @State private var reporting = false
+    @State private var place: (city: String?, state: String?)?
 
     var body: some View {
         NavigationStack {
@@ -289,6 +308,28 @@ struct StationPricesView: View {
                             }
                             .accessibilityElement(children: .combine)
                         }
+                    }
+                    if let at = c.coordinate {
+                        let state = place?.state ?? stateCode(c)
+                        let gb = PriceCheck.gasBuddy(city: place?.city, state: state)
+                        let area = place?.city ?? state.flatMap { PriceCheck.states[$0.uppercased()] ?? $0 } ?? "state"
+                        let brand = c.brand.isEmpty ? c.name : c.brand
+                        Section {
+                            if let url = URL(string: PriceCheck.googleMaps(name: c.name, brand: c.brand, latitude: at.latitude, longitude: at.longitude)) {
+                                Link(destination: url) { Label("Google Maps", systemImage: "arrow.up.right.square") }
+                                    .accessibilityIdentifier("checkGoogle")
+                            }
+                            if let gb, let url = URL(string: gb) {
+                                Link(destination: url) { Label("GasBuddy", systemImage: "arrow.up.right.square") }
+                                    .accessibilityIdentifier("checkGasBuddy")
+                            }
+                        } header: {
+                            Text("Check the posted price")
+                        } footer: {
+                            Text(gb == nil ? "Opens \(brand) on Google Maps. ExitAtlas does not read or copy prices from it; report the one you see."
+                                 : "Opens \(brand) on Google Maps, or the \(area) price page on GasBuddy. ExitAtlas does not read or copy prices from those sites; report the one you see.")
+                        }
+                        .task(id: c.id) { await lookUpPlace(at) }
                     }
                     Section {
                         Button { reporting = true } label: { Label("Report a price", systemImage: "square.and.pencil") }
@@ -330,6 +371,18 @@ struct StationPricesView: View {
             .sheet(isPresented: $reporting) { ReportPriceView(id: id) }
         }
     }
+
+    /// The state the station is in, from the route (the GasBuddy link before the city is known).
+    private func stateCode(_ c: SmartStop.Candidate) -> String? {
+        trip.plan?.states.segment(at: c.along)?.code
+    }
+
+    /// The station's city from Apple's free reverse geocoder, once, when the sheet opens.
+    private func lookUpPlace(_ at: GeoCoordinate) async {
+        guard place == nil else { return }
+        let marks = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: at.latitude, longitude: at.longitude))
+        if let m = marks?.first { place = (m.locality, m.administrativeArea) }
+    }
 }
 
 /// Report a price: a few taps, no photo, no account; saved on this iPhone. Only when parked or by a passenger.
@@ -344,6 +397,8 @@ struct ReportPriceView: View {
     @State private var member = false
     @State private var passenger = false
     @State private var message: (ok: Bool, text: String)?
+    @State private var share = true
+    @State private var sharing = false
     @FocusState private var focused: Bool
 
     private var moving: Bool { trip.gpsSource == .device && (trip.currentSpeed ?? 0) > 4.5 }
@@ -376,6 +431,16 @@ struct ReportPriceView: View {
                     }
                     .pickerStyle(.segmented)
                     Toggle("Member or loyalty price", isOn: $member)
+                    if trip.sharedOn, let c = trip.findStation(id: id) {
+                        let check = trip.nearCheck(c)
+                        Toggle(isOn: $share) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Share with other ExitAtlas drivers")
+                                Text(check.note).font(.caption).foregroundStyle(check.near ? Theme.success : Theme.secondaryText)
+                            }
+                        }
+                        .accessibilityIdentifier("sharePrice")
+                    }
                     if moving {
                         Toggle(isOn: $passenger) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -385,12 +450,12 @@ struct ReportPriceView: View {
                         }
                     }
                 } footer: {
-                    Text("Saved on this iPhone, never with your location. You can correct it for 30 minutes. Enter the price on the pump, for example 3.099.")
+                    Text("Saved on this iPhone, never with your location\(trip.sharedOn ? ", and shared only when the switch is on and you are at the station: no account, no name, no location" : ""). You can correct it for 30 minutes. Enter the price on the pump, for example 3.099.")
                 }
                 Section {
                     Button("Save price") { save() }
                         .frame(maxWidth: .infinity).bold()
-                        .disabled(moving && !passenger)
+                        .disabled((moving && !passenger) || sharing)
                         .accessibilityIdentifier("savePrice")
                     if let message {
                         Text(message.text).font(.footnote).foregroundStyle(message.ok ? Theme.success : Theme.amber)
@@ -411,7 +476,16 @@ struct ReportPriceView: View {
     private func save() {
         let text = priceText.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
         let out = trip.priceReports.report(stationId: id, grade: grade.code, price: Double(text) ?? .nan, payment: payment, member: member)
-        if out.saved { message = (true, "Saved on this iPhone."); focused = false }
+        if out.saved, let record = out.record, share, trip.sharedOn, let c = trip.findStation(id: id), trip.nearCheck(c).near {
+            message = (true, "Saved on this iPhone. Sharing…")
+            focused = false
+            sharing = true
+            Task { @MainActor in
+                let result = await trip.share(record)
+                message = (true, "Saved on this iPhone. \(result)")
+                sharing = false
+            }
+        } else if out.saved { message = (true, "Saved on this iPhone."); focused = false }
         else if out.duplicate { message = (true, "Already saved: the same price within 30 minutes.") }
         else { message = (false, out.problems.map { PriceText.problems[$0] ?? $0 }.joined(separator: ". ")) }
     }
@@ -421,6 +495,13 @@ struct ReportPriceView: View {
 struct PriceSettingsRows: View {
     @Environment(UserSettings.self) private var settings
     @Environment(TripController.self) private var trip
+
+    private var sharedNote: String {
+        if SharedPriceService.base(settings.proxyURL) == nil { return "Needs the ExitAtlas server below (free plan; off until it is set up)" }
+        if !trip.sharedPrices.offered { return "The server does not offer shared reports (or cannot be reached)" }
+        if case .unavailable = trip.sharedPrices.state(enabled: settings.communityPrices) { return "On, but the last lookup failed" }
+        return "From other ExitAtlas drivers, website and iPhone: no account, reports expire after 7 days"
+    }
 
     var body: some View {
         @Bindable var settings = settings
@@ -458,14 +539,21 @@ struct PriceSettingsRows: View {
                     Text("On this iPhone · \(trip.priceReports.own().count) saved").font(.caption).foregroundStyle(Theme.secondaryText)
                 }
             }
-            HStack {
+            Toggle(isOn: $settings.communityPrices) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Shared driver reports")
-                    Text("On the website with the owner's free server; not in the iOS app yet").font(.caption).foregroundStyle(Theme.secondaryText)
+                    Text(sharedNote).font(.caption).foregroundStyle(Theme.secondaryText)
                 }
-                Spacer()
-                Text("Off").foregroundStyle(Theme.secondaryText)
             }
+            .accessibilityIdentifier("sharedPricesToggle")
+            LabeledContent("ExitAtlas server") {
+                TextField("https://…workers.dev", text: $settings.proxyURL)
+                    .multilineTextAlignment(.trailing).keyboardType(.URL)
+                    .autocorrectionDisabled().textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("proxyURLField")
+                    .onChange(of: settings.proxyURL) { trip.sharedPrices.configure(settings.proxyURL) }
+            }
+            .onAppear { trip.sharedPrices.configure(settings.proxyURL) }
             Toggle(isOn: $settings.googlePrices) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Google Maps prices")

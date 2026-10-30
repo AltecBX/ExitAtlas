@@ -1,0 +1,4 @@
+wrangler.deploy.toml
+smoke.log
+.wrangler/
+node_modules/

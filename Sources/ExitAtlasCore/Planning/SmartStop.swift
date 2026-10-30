@@ -131,6 +131,8 @@ public enum SmartStop {
         public var priceInfo: GasPrices.StationPrice?
         /// The detour both ways in meters, for detour fuel.
         public var detourMeters: Double?
+        /// Where the station is (the location check before a shared price report).
+        public var coordinate: GeoCoordinate?
         /// OpenStreetMap: opening_hours text, the date it was checked, the toilets tag, and why the
         /// station should not be offered (removed or no longer a gas station).
         public var osmHours: String?
@@ -156,7 +158,7 @@ public enum SmartStop {
                     exitID: String? = nil, exitLabel: String? = nil, along: Double, ahead: Double? = nil, arrival: Date, timeZone: TimeZone,
                     detourMinutes: Double? = nil, rangeOnArrival: Double? = nil, price: Double? = nil,
                     pricePayment: String? = nil, priceText: String? = nil, priceSource: String? = nil, priceInfo: GasPrices.StationPrice? = nil,
-                    detourMeters: Double? = nil,
+                    detourMeters: Double? = nil, coordinate: GeoCoordinate? = nil,
                     osmHours: String? = nil, osmChecked: String? = nil, osmToilets: Bool? = nil, gone: String? = nil,
                     livePeriods: [GooglePeriod]? = nil, liveRestroom: Bool? = nil, liveSource: String = "Google Maps",
                     plazaHours: String? = nil, plazaToilets: Bool? = nil, truckSpaces: Int? = nil,
@@ -178,6 +180,7 @@ public enum SmartStop {
             self.pricePayment = pricePayment
             self.priceText = priceText
             self.priceInfo = priceInfo
+            self.coordinate = coordinate
             self.priceSource = priceSource
             self.detourMeters = detourMeters
             self.osmHours = osmHours

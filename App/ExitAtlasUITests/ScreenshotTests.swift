@@ -184,6 +184,7 @@ final class ScreenshotTests: XCTestCase {
             row.tap()
             XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10), "No station price sheet")
             sleep(1)
+            XCTAssertTrue(app.descendants(matching: .any)["checkGoogle"].firstMatch.exists, "No Google Maps price check link")
             snap("2j Station prices", dark)
             app.buttons["reportPrice"].firstMatch.tap()
             XCTAssertTrue(app.navigationBars["Report a price"].waitForExistence(timeout: 10), "No report sheet")
@@ -211,10 +212,78 @@ final class ScreenshotTests: XCTestCase {
             for _ in 0..<12 where !(google.exists && google.isHittable) { app.swipeUp() }
             XCTAssertTrue(google.exists, "No Google prices switch")
             XCTAssertEqual(google.value as? String, "0", "Google Maps prices are not off by default")
+            let shared = app.switches["sharedPricesToggle"].firstMatch
+            XCTAssertTrue(shared.exists, "No shared reports switch")
+            XCTAssertEqual(shared.value as? String, "0", "Shared reports are not off by default")
             sleep(1)
             snap("6g Price settings", dark)
             app.terminate()
         }
+    }
+
+    /// The price data path (docs/17) with one TEST REPORT and no simulated prices: a price entered through
+    /// Report a price at the fuel stop SmartStop picks shows in Drive, Road Ahead, Compare Prices, Station
+    /// details and SmartStop's reasons. This proves the app shows a price it has, not that a live feed exists.
+    func testPricePath() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoTrip", "370", "-demoVehicle", "-demoRange", "140", "-overnight", "auto", "-alertsOff", "-drive", "map"]
+        app.launch()
+        XCTAssertTrue(drive(app), "Drive screen did not appear")
+        sleep(3)
+        let price = "$3.459"
+        func shows(_ element: XCUIElement, _ what: String) {
+            let has = NSPredicate(format: "label CONTAINS %@", price)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: has, object: element)], timeout: 10), .completed,
+                           "\(what) does not show \(price): \(element.label)")
+        }
+        // Report it at SmartStop's pick: Fuel, Prices and reports, Report a price.
+        app.buttons["fuelButton"].firstMatch.tap()
+        let prices = app.buttons["pickPrices"].firstMatch
+        for _ in 0..<6 where !(prices.exists && prices.isHittable) { app.swipeUp() }
+        XCTAssertTrue(prices.waitForExistence(timeout: 10), "No Prices and reports button on the fuel stop")
+        prices.tap()
+        XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10))
+        app.buttons["reportPrice"].firstMatch.tap()
+        let field = app.textFields["reportPriceField"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("3.459")
+        app.buttons["savePrice"].firstMatch.tap()
+        let message = app.staticTexts["reportMessage"].firstMatch
+        XCTAssertTrue(message.waitForExistence(timeout: 5) && message.label.contains("Saved"), "Not saved: \(message.label)")
+        // Station details now show it for the driver's grade.
+        app.buttons["Close"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts[price].firstMatch.waitForExistence(timeout: 10), "Station details do not show the price")
+        snap("8a Price path station", false)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+        // SmartStop: the price is one of the pick's reasons.
+        let reason = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "\(price) a gallon")).firstMatch
+        XCTAssertTrue(reason.waitForExistence(timeout: 10), "SmartStop's reasons do not include the price")
+        snap("8b Price path SmartStop", false)
+        app.buttons["Done"].firstMatch.tap()
+        sleep(1)
+        // Drive: the fuel card (Focus View shows it).
+        app.buttons["focusViewButton"].firstMatch.tap()
+        let card = app.buttons["fuelCard"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "No fuel card")
+        shows(card, "The Drive fuel card")
+        snap("8c Price path drive", false)
+        // Road Ahead: the recommended stop, and Compare Prices over 100 miles.
+        app.tabBars.buttons["Ahead"].tap()
+        XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+        app.buttons["filter-fuel"].firstMatch.tap()
+        app.buttons["100 mi"].firstMatch.tap()
+        sleep(2)
+        let best = app.descendants(matching: .any)["stopPrice"].firstMatch
+        XCTAssertTrue(best.waitForExistence(timeout: 10), "No price on the recommended stop")
+        shows(best, "The recommended stop")
+        snap("8d Price path road ahead", false)
+        let row = app.buttons.matching(NSPredicate(format: "identifier == 'priceRow' AND label CONTAINS %@", price)).firstMatch
+        for _ in 0..<8 where !(row.exists && row.isHittable) { app.swipeUp() }
+        XCTAssertTrue(row.exists, "Compare Prices has no row with the price")
+        snap("8e Price path compare", false)
+        app.terminate()
     }
 
     /// Waits for either Drive presentation.

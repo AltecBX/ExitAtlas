@@ -37,7 +37,7 @@ for (const [label, width, height] of SIZES) {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.route('https://**', (r) => r.fulfill({ status: 503, body: '' }));
+    await page.route((u) => u.protocol === 'https:', (r) => r.fulfill({ status: 503, body: '' }));
     // Mile 120 of the sample route, with the simulated crash 6 miles ahead.
     await page.goto(`${base}?demo=120&alert`);
     await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
