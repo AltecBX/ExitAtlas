@@ -1,5 +1,5 @@
-// Check for the price data path (docs/17): one TEST REPORT, entered through the Report a price sheet at the
-// fuel stop SmartStop picks, must show with its time and source in all five places: Drive (the fuel card),
+// Check for the price data path (docs/17): one TEST REPORT, saved on the device for the fuel stop SmartStop
+// picks (through the price book: the app has no Report a price button since Oct 30, 2026), must show with its time and source in all five places: Drive (the fuel card),
 // Road Ahead (the recommended stop), Compare Prices, Station details and SmartStop's reasons in the fuel
 // sheet. Every other station keeps "Price unavailable". No simulated prices; outside requests are blocked and
 // none goes to a paid Google service.
@@ -53,21 +53,25 @@ for (const scheme of ['dark', 'light']) {
   const pick = await page.evaluate(() => { const p = window.exitAtlas.smartStop()?.primary; return p ? { id: p.id, name: p.name } : null; });
   if (!pick) { fail('SmartStop picked no fuel stop'); await ctx.close(); continue; }
 
-  // Report the price through the app: fuel card, fuel sheet, Prices, Report a price.
+  // Station details at the pick: no Report a price, and the consumer page links open in a new tab.
   await click('[data-act="sheet"][data-arg="fuel"]');
   await page.waitForSelector(`#sheet.open [data-act="station"][data-arg="${pick.id}"]`, { timeout: 10000 });
   await click(`#sheet-body [data-act="station"][data-arg="${pick.id}"]`);
-  await page.waitForSelector('#sheet-body [data-act="report-price"]', { timeout: 10000 });
-  await click('#sheet-body [data-act="report-price"]');
-  await page.waitForSelector('#sheet-body [data-report="price"]', { timeout: 10000 });
-  await page.evaluate(() => { const t = document.querySelector('#sheet-body [data-report="passenger"]'); if (t && !t.checked) t.click(); });
-  await page.fill('#sheet-body [data-report="price"]', PRICE);
-  await click('#sheet-body [data-act="report-save"]');
-  await page.waitForTimeout(500);
-  const saved = await text('#sheet-body .banner');
-  if (!/Saved on this device/.test(saved)) fail(`the report was not saved: ${saved}`);
+  await page.waitForSelector('#sheet-body [data-testid="check-google"]', { timeout: 10000 });
+  const links = await page.evaluate(() => ({
+    report: document.querySelectorAll('[data-act="report-price"]').length,
+    frames: document.querySelectorAll('iframe').length,
+    google: [...document.querySelectorAll('#sheet-body a.link-row')].map((a) => ({ href: a.href, target: a.target, text: a.textContent.replace(/\s+/g, ' ') })),
+  }));
+  if (links.report) fail('Station details still offer Report a price');
+  if (links.frames) fail('a page is embedded in an iframe');
+  if (!links.google.length || !links.google[0].href.startsWith('https://www.google.com/maps/search/?api=1&query=')) fail(`Google Maps link: ${JSON.stringify(links.google[0])}`);
+  if (links.google.some((l) => l.target !== '_blank' || !/opens in a new tab/.test(l.text))) fail(`a consumer link does not open in a new tab: ${JSON.stringify(links.google)}`);
   await click('[data-act="close-sheet"]');
-  await page.waitForTimeout(600);
+  // The TEST REPORT, saved on this device only.
+  const saved = await page.evaluate(async ({ id, price }) => (await window.exitAtlas.priceBook.report({ stationId: id, grade: 'R', price: Number(price), payment: 'credit', member: false }, {})).ok, { id: pick.id, price: PRICE });
+  if (!saved) fail('the TEST REPORT was not saved');
+  await page.waitForTimeout(1500);
 
   // 1. Drive: the fuel card.
   const drive = await text('.card[data-act="sheet"][data-arg="fuel"]');
@@ -96,7 +100,8 @@ for (const scheme of ['dark', 'light']) {
   await page.waitForTimeout(400);
   const sheet = await text('#sheet-body');
   if (!new RegExp(`Regular your grade.*you.*\\$${PRICE.replace('.', '\\.')}`).test(sheet)) fail(`Station details: ${sheet.slice(0, 200)}`);
-  if ((sheet.match(/Price unavailable/g) ?? []).length !== 3) fail('Station details: the other grades are not unavailable');
+  const grades = await text('#sheet-body .list'); // Prices here: one row per grade
+  if ((grades.match(/Price unavailable/g) ?? []).length !== 3) fail(`Station details: the other grades are not unavailable: ${grades}`);
   await shot('3-station');
   await click('[data-act="close-sheet"]');
   // 5. SmartStop: the price is one of the pick's reasons.

@@ -91,6 +91,9 @@ final class TripController {
     @ObservationIgnored let priceReports = PriceReportStore()
     /// -demoPrices: SIMULATED prices at the first stations ahead, for screenshots.
     @ObservationIgnored var demoPrices = false
+    /// -testPriceReport <price>: one TEST REPORT saved on this iPhone at SmartStop's pick, once, for the price path
+    /// UI test (the app has no Report a price button since Oct 30, 2026).
+    @ObservationIgnored var pendingTestReport: Double?
     /// Shared reports from other ExitAtlas drivers through the owner's server (docs/17).
     @ObservationIgnored let sharedPrices = SharedPriceService()
     @ObservationIgnored private var sharedAskedAt: Date?
@@ -358,6 +361,10 @@ final class TripController {
         snapshot = snap
         if mode == .trip { considerTraffic(snap) }
         if demoPrices { seedDemoPrices() }
+        if let price = pendingTestReport, let settings, let pick = smartStop?.primary?.candidate {
+            pendingTestReport = nil
+            _ = priceReports.report(stationId: pick.id, grade: settings.gasGrade.code, price: price, payment: .credit, member: false)
+        }
         refreshSharedPrices()
         if let settings {
             let gap = gasGapsAhead().first { ($0.before?.distance ?? 0) > snap.progress }
@@ -497,30 +504,6 @@ final class TripController {
     var sharedOn: Bool {
         _ = feedsVersion
         return settings?.communityPrices == true && sharedPrices.offered
-    }
-
-    /// The location check before a shared report: the phone's own GPS (not a simulated drive), a recent fix
-    /// accurate to 150 m, within 250 m of the station. The position is never sent.
-    func nearCheck(_ c: SmartStop.Candidate) -> (near: Bool, note: String) {
-        guard gpsSource == .device else { return (false, "Simulated GPS: sharing needs your real location at the station") }
-        guard let fix = lastSample, Date().timeIntervalSince(fix.timestamp) < 120, fix.horizontalAccuracy >= 0 else {
-            return (false, "Location not available: saved on this iPhone only")
-        }
-        guard fix.horizontalAccuracy <= 150 else { return (false, "Your location is too rough to check: saved on this iPhone only") }
-        guard let at = c.coordinate else { return (false, "This station's position is not known: saved on this iPhone only") }
-        let d = Geodesy.distance(fix.coordinate, at)
-        return d <= 250 ? (true, "You are at this station (location checked)") : (false, "About \(Format.miles(d)) from this station: saved on this iPhone only")
-    }
-
-    /// Sends one of the driver's own reports to other drivers. Returns what to tell the driver.
-    func share(_ record: GasPrices.Record) async -> String {
-        switch await sharedPrices.share(record, install: priceReports.installID) {
-        case let .success(id):
-            if !id.isEmpty { priceReports.markShared(record.id, as: id) }
-            return "Shared with other ExitAtlas drivers."
-        case let .failure(e):
-            return "Not shared: \(e.message)."
-        }
     }
 
     /// Asks the server for shared reports at the stations ahead, at most every 30 seconds while driving.

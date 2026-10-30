@@ -147,6 +147,8 @@ final class AppModel {
         // -googleFixture: Google Maps prices answered by made up TEST prices instead of Google (no key, no request),
         // labeled simulated, for screenshots of the automatic lookups. The Google setting itself is not changed.
         if args.contains("-googleFixture") { trip.useGoogleFixture() }
+        // -testPriceReport <price>: one TEST REPORT at SmartStop's pick, saved on this iPhone, for the price path test.
+        if let r = args.firstIndex(of: "-testPriceReport"), r + 1 < args.count, let price = Double(args[r + 1]) { trip.pendingTestReport = price }
         // -demoRange <miles>: range entered from the dashboard at the demo's starting point.
         // The simulator jumps to the start mile, which the trip counts as driven, so count down from there.
         if let r = args.firstIndex(of: "-demoRange"), r + 1 < args.count, let range = Double(args[r + 1]) {

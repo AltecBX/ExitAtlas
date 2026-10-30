@@ -66,6 +66,8 @@ A report is never called live or verified: the app says "Prices are reports with
 
 ## 17.5 Reporting prices
 
+**Removed from the app on 2026-10-30, at Jerry's request** (17.14): no Report a price button or form on the website or iPhone. Reports saved before still show with their time and source until they expire after 7 days, and can be deleted in Station details. The price book, the Worker's shared reports and their tests stay, so a licensed source can feed the same engine; the text below describes that code.
+
 **On the device (no server, no account).** Station details or a station row, "Report a price": grade, price, credit or cash, member price. Saved in the browser (`ea.priceReports`) or the app; corrected or deleted for 30 minutes from Station details. No photo. If the phone is moving faster than about 10 mph, saving waits for "I'm a passenger".
 
 **Shared (optional, off by default).** Only when the owner deploys the Worker with a D1 database and the driver turns "Shared driver reports" on.
@@ -113,7 +115,7 @@ Paid by whoever owns the key (Enterprise + Atmosphere tier). Off by default. Wit
 * Drive: the fuel card's pick with its price (or "price unavailable") and the cheaper stop note.
 * Road Ahead, Fuel: the recommended stop, then Compare Prices: every station and fuel plaza in the window with brand, exit, miles, price, grade, age, hours at arrival, restroom and detour; sorted by Recommended, Lowest price, Closest, Shortest detour, or the first favorite ("Shell first"). Urgent alerts and gas gaps stay below.
 * Fuel stop sheet: the pick's price, the note, a Prices button.
-* Station details: every grade with its source, the driver's own reports there, Report a price, and Check Google Maps prices when that is on.
+* Station details: every grade with its source, saved reports there (delete only), links to the station's posted price on Google Maps and GasBuddy (17.14), and Check Google Maps prices when that is on.
 * Exit details: each gas station's price for the driver's grade.
 * Settings: Gas prices and Price sources.
 
@@ -233,7 +235,7 @@ No Exxon branded station is mapped inside the Yonkers search area. Regular, prem
 * Google Maps URLs: "You don't need a Google API key to use Maps URLs"; on iOS the URL opens the Google Maps app if installed, else a browser ([Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)) [V]. Google's consumer terms forbid copying the content and bulk feeds ([Google Maps terms](https://www.google.com/help/terms_maps/)) [V]; ExitAtlas reads nothing from the page.
 * GasBuddy: its terms forbid users to "use, display, mirror or frame the Site" and to scrape fuel prices ([terms, effective Apr 24, 2026](https://www.gasbuddy.com/Disclaimer)) [V]. So GasBuddy is only ever a plain link that opens in the browser, never shown inside ExitAtlas.
 * Waze: documented deep links (`https://waze.com/ul?ll=...`) need no key ([Waze deep links](https://developers.google.com/waze/deeplinks)) [V]; Waze shows its prices inside its own app only.
-* No page is put in an iframe. Proposed (awaiting Jerry's approval; render sent to him on Oct 30): on iPhone, Google Maps opens in Apple's Safari view inside ExitAtlas; GasBuddy opens in Safari; the wording no longer asks the driver to report a price. Whether Google's mobile web page shows the price for a given station is not verified here (automated viewing of Google Maps was not done).
+* No page is put in an iframe. Approved by Jerry on Oct 30 from a render, and built: Station details, "See the posted price". On iPhone, Google Maps opens in Apple's Safari view inside ExitAtlas (`SFSafariViewController`; Done returns to the station with the trip running), and GasBuddy opens in Safari. On the website both open in a new tab. Both are labeled "Consumer webpages, not ExitAtlas data"; the station keeps "Price unavailable". Report a price was removed at the same time (17.5). Whether Google's mobile web page shows the price for a given station is not verified here (automated viewing of Google Maps was not done). Checked by `web/tests/layout/prices.layout.mjs`, `pricepath.layout.mjs` and the iOS UI test `testPrices`.
 
 **Strongest next steps (permission, not payment).**
 1. OpenFuel: the only US community network that invites a data request; follow up on Jerry's Oct 30 email. Coverage near Yonkers is thin (one Yonkers listing seen in 17.12).

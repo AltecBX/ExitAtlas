@@ -6,10 +6,10 @@ import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
 import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
-import { GRADE_NAMES, PRICE_GRADES, PRICE_RULES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
+import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
 import { stopPrice, liveFor } from './smartstops.js';
-import { googleMapsLink, gasBuddyLink } from '../engine/pricecheck.js';
+import { googleMapsLink, gasBuddyLink, US_STATES } from '../engine/pricecheck.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
 import { DISCOVER_CATEGORIES } from '../engine/discover.js';
@@ -949,7 +949,7 @@ function compareCard(app, s) {
   const sim = app.priceBook.simulated.length ? '<div class="sim-tag">SIMULATED PRICES · test data, not real</div>' : '';
   return `<div class="card compare" data-testid="price-compare">${sim}<div class="row"><b style="flex:1">${h(GRADE_NAMES[o.grade])} · ${o.payment}</b><span class="muted tiny">${list.length} ${list.length === 1 ? 'stop' : 'stops'} in ${app.exitsUI.window} mi</span></div>${chips}${google}</div>
     ${list.length ? `<div class="list">${sorted.slice(0, 20).map(row).join('')}</div>` : `<div class="card empty">No gas listed in the next ${app.exitsUI.window} miles. Try a longer window.</div>`}
-    ${shared}${benchmarkLine(app, o.grade)}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Prices are reports with their time and source, not verified pump prices.' : 'No current reports for these stations. Tap a station to add the price you see.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
+    ${shared}${benchmarkLine(app, o.grade)}<p class="muted tiny" style="margin:6px 4px 0">${any ? 'Each price shows its time and source, never as a verified pump price.' : 'No current prices for these stations. Tap a station to see its posted price on Google Maps or GasBuddy.'} Reports older than ${o.maxAgeHours} h show greyed and are not compared.</p>`;
 }
 
 /// EIA's regional average as context: never a station's price, always with its week.
@@ -974,53 +974,27 @@ export function stationSheet(app, id) {
   const now = Math.floor(Date.now() / 1000);
   const mine = app.priceBook.own().filter((r) => r.stationId === id).sort((a, b) => b.reportedAt - a.reportedAt);
   const mineRows = mine.map((r) => `<div class="field"><span style="flex:1">${h(GRADE_NAMES[r.grade])} ${h(dollars(r.price))}<div class="muted tiny">${h(r.payment ?? 'cash or credit not said')}${r.member ? ' · member price' : ''} · ${h(new Date(r.reportedAt * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}${r.sharedId ? ' · shared' : ''}</div></span>
-    ${now - r.reportedAt <= PRICE_RULES.correctMinutes * 60 ? `<button class="btn sm" data-act="report-price" data-arg="${h(id)}|${h(r.grade)}">Correct</button>` : ''}<button class="btn sm" data-act="price-delete" data-arg="${h(r.id)}" aria-label="Delete this report">✕</button></div>`).join('');
+    <button class="btn sm" data-act="price-delete" data-arg="${h(r.id)}" aria-label="Delete this report">✕</button></div>`).join('');
   const google = app.settings.prices?.google && x.exit && app.prices.enabled
     ? `<button class="btn sm" data-act="google-prices" data-arg="${h(x.exit.id)}">Check Google Maps prices</button>` : '';
   const gNote = x.live ? '<p class="attrib">Google prices: <span class="gattr">Google Maps</span>, looked up for the exits you are viewing. Not stored or shared.</p>' : '';
   const place = app.stationPlace(x);
   const gb = gasBuddyLink(place);
-  const check = x.coordinate ? `<div class="section-title">Check the posted price</div>
-    <div class="btn-row"><a class="btn sm" data-testid="check-google" href="${h(googleMapsLink(x))}" target="_blank" rel="noopener">Google Maps ↗</a>${gb ? `<a class="btn sm" data-testid="check-gasbuddy" href="${h(gb)}" target="_blank" rel="noopener">GasBuddy ↗</a>` : ''}</div>
-    <p class="muted tiny" style="margin:6px 4px 0">Opens ${h(x.brand || x.name)} on Google Maps${gb ? `, or the ${h(place.city ?? place.state)} price page on GasBuddy` : ''}. ExitAtlas does not read or copy prices from those sites; report the one you see.</p>` : '';
+  const area = place.city ?? US_STATES[String(place.state ?? '').toUpperCase()] ?? place.state;
+  const check = x.coordinate ? `<div class="section-title">See the posted price</div>
+    <div class="list">
+      <a class="item link-row" data-testid="check-google" href="${h(googleMapsLink(x))}" target="_blank" rel="noopener"><span style="flex:1"><b>Google Maps</b><div class="muted tiny">${h(x.brand || x.name)} at this spot · opens in a new tab</div></span><span class="muted" aria-hidden="true">↗</span></a>
+      ${gb ? `<a class="item link-row" data-testid="check-gasbuddy" href="${h(gb)}" target="_blank" rel="noopener"><span style="flex:1"><b>GasBuddy</b><div class="muted tiny">${h(area)} prices · opens in a new tab</div></span><span class="muted" aria-hidden="true">↗</span></a>` : ''}
+    </div>
+    <p class="muted tiny" style="margin:6px 4px 0">Consumer webpages, not ExitAtlas data. ExitAtlas does not read, copy or save their prices, so this station stays "Price unavailable" here. Your trip keeps running in this tab.</p>` : '';
   return `<div class="sheet-head">${brandTag(x)}<h2>${h(x.name)}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="muted small" style="margin-top:0">${x.exit ? `${h(exitTitle(x.exit))} · ` : x.kind === 'plaza' ? 'Service plaza · ' : ''}<span data-along="${x.along}">${aheadText(app.snapshot, x.along)}</span></p>
     <div class="section-title">Prices here</div><div class="list">${rows}</div>
     ${check}
-    <div class="btn-row" style="margin-top:10px"><button class="btn primary" data-act="report-price" data-arg="${h(id)}">Report a price</button>${google}${x.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(x.exit.id)}">Exit details</button>` : ''}</div>
+    ${google || x.exit ? `<div class="btn-row" style="margin-top:10px">${google}${x.exit ? `<button class="btn sm" data-act="exit" data-arg="${h(x.exit.id)}">Exit details</button>` : ''}</div>` : ''}
     ${gNote}
     ${mine.length ? `<div class="section-title">Your reports here</div><div class="list">${mineRows}</div>` : ''}
-    <p class="note">Prices are what drivers reported, with the time and source of each, not verified pump prices. Your reports stay on this device${app.priceBook.sharedOn ? '; ones you share go to other ExitAtlas drivers without your name or location and expire after 7 days' : ''}. Reports older than ${o.maxAgeHours} h are shown but not compared; after 7 days they are dropped. Grades are never mixed.</p>`;
-}
-
-const REPORT_PROBLEMS = {
-  station: 'Pick a station', grade: 'Pick a grade', 'price out of range': 'Enter the price per gallon, for example 3.099',
-  'far from the regional average': 'That price is far from the regional average; check it', payment: 'Pick cash or credit', time: 'The time is off', storage: 'This browser did not let ExitAtlas save it',
-};
-
-/// Report a price: a few taps, no photo, no account. Saved on this device; shared only when the driver
-/// turned shared reports on and the location check places them at the station.
-export function reportSheet(app) {
-  const r = app.report;
-  if (!r) return '';
-  const moving = app.gps === 'device' && (app.lastSpeed ?? 0) > 4.5; // about 10 mph
-  const blocked = moving && !r.passenger;
-  const shareRow = app.priceBook.sharedOn
-    ? `<label class="field"><span style="flex:1">Share with other ExitAtlas drivers<div class="muted tiny">${
-      r.near === true ? 'You are at this station (location checked)' : r.checking ? 'Checking your location…' : r.near === false ? h(r.nearNote ?? 'Not at this station: saved on this device only') : 'Needs a location check at the station'}</div></span>
-      <input type="checkbox" class="toggle" data-report="share" ${r.share ? 'checked' : ''}></label>` : '';
-  const done = r.result
-    ? `<div class="banner ${r.result.ok ? '' : 'warn'}" style="margin:10px 0 0">${r.result.ok ? `${r.result.duplicate ? 'Already saved: the same price within 30 minutes.' : 'Saved on this device.'}${r.result.shared ? ` Shared: ${h(r.result.shared)}.` : ''}` : h(r.result.problems.map((p) => REPORT_PROBLEMS[p] ?? p).join('. '))}</div>` : '';
-  return `<div class="sheet-head"><h2>Report a price</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <div class="card"><div class="row" style="gap:10px">${brandTag(r)}<div style="flex:1;min-width:0"><b>${h(r.name)}</b><div class="muted tiny">${h(r.place ?? '')}</div></div></div></div>
-    <div class="seg report-seg" style="margin-top:10px">${PRICE_GRADES.map((g) => `<button class="${r.grade === g ? 'on' : ''}" data-act="report-grade" data-arg="${g}">${h(GRADE_NAMES[g])}</button>`).join('')}</div>
-    <label class="report-price"><span class="sr-only">Price per gallon in dollars</span>$<input type="text" inputmode="decimal" autocomplete="off" data-report="price" placeholder="3.099" value="${h(r.priceText ?? '')}" maxlength="6"></label>
-    <div class="seg report-seg">${[['credit', 'Credit'], ['cash', 'Cash']].map(([k, n]) => `<button class="${r.payment === k ? 'on' : ''}" data-act="report-pay" data-arg="${k}">${n}</button>`).join('')}</div>
-    <div class="list" style="margin-top:10px"><label class="field"><span style="flex:1">Member or loyalty price</span><input type="checkbox" class="toggle" data-report="member" ${r.member ? 'checked' : ''}></label>
-      ${shareRow}
-      ${moving ? `<label class="field"><span style="flex:1"><b class="amber-text">You are moving.</b><div class="muted tiny">Report only when parked, or let a passenger do it.</div></span><span class="muted tiny" style="margin-right:6px">I'm a passenger</span><input type="checkbox" class="toggle" data-report="passenger" ${r.passenger ? 'checked' : ''}></label>` : ''}</div>
-    <button class="btn primary block" style="margin-top:12px" data-act="report-save" ${blocked ? 'disabled' : ''}>Save price</button>${done}
-    <p class="note">Saved on this device${app.priceBook.sharedOn ? ', and shared only when the switch above is on: no account, no name, no location, just the station, grade, price, payment and time' : ''}. You can correct it for 30 minutes. Enter the price on the pump, for example 3.099.</p>`;
+    <p class="note">Each price shows its time and source, never as a verified pump price. Prices older than ${o.maxAgeHours} h are shown but not compared. Grades are never mixed.${mine.length ? ' Your saved reports stay on this device and are dropped after 7 days.' : ''}</p>`;
 }
 
 function priceSettings(app) {
@@ -1047,7 +1021,7 @@ function priceSettings(app) {
       ${toggle('google', 'Google Maps prices', 'Paid, billed to your own key. Off: never called', pr.google === true)}</div>
     ${google}
     <label class="field" style="margin-top:8px;border-radius:14px"><span style="flex:1">ExitAtlas server<div class="muted tiny">${app.proxy ? `Connected: shared reports ${app.proxy.community ? 'on' : 'off'}, Google prices ${app.proxy.prices ? 'on' : 'off'}, chargers ${app.proxy.chargers ? 'on' : 'off'}${app.proxy.disabled.length ? `; switched off: ${h(app.proxy.disabled.join(', '))}` : ''}.` : 'Optional. The owner\'s Cloudflare Worker (infra/worker) on the free plan, with daily limits.'}</div></span><input type="url" autocomplete="off" data-secret="ea.proxyURL" placeholder="https://" value="${h(app.secret('ea.proxyURL'))}" style="width:150px;border:1px solid var(--stroke);border-radius:10px;padding:9px;background:var(--bg)"></label>
-    <p class="note">No free, licensed source publishes station prices for the US (docs/17), so prices come from reports: yours, and other drivers' when shared reports are on. A station without a current report says "Price unavailable" and never ranks as cheaper. Regional averages are never shown as a station's price.</p>`;
+    <p class="note">No free, licensed source publishes station prices for the US (docs/17). A station shows a price only from Google Maps prices (when on) or a report already saved; otherwise it says "Price unavailable" and never ranks as cheaper. Regional averages are never shown as a station's price.</p>`;
 }
 
 function fuelCard(app, s) {
@@ -1239,7 +1213,7 @@ function bestStopCard(app, s, { restroom = false } = {}) {
       ${confLine(x.evaluation.hours.status, x.evaluation.hours.label)}${confLine(x.evaluation.restroom.status, x.evaluation.restroom.label)}${restroom ? '' : priceLine(app, x)}</div>
       <button class="btn sm" data-act="skip-stop" data-arg="${h(x.id)}" aria-label="Not this one: ${h(x.name)}">Skip</button></div>`;
   const priceButtons = !restroom && app.priceOptions() && p.kind !== 'rest'
-    ? `${app.exitsUI.filter === 'fuel' ? '' : '<button class="btn sm" data-act="ahead-filter" data-arg="fuel">Compare prices</button>'}<button class="btn sm" data-act="report-price" data-arg="${h(p.id)}">Report a price</button>` : '';
+    ? `${app.exitsUI.filter === 'fuel' ? '' : '<button class="btn sm" data-act="ahead-filter" data-arg="fuel">Compare prices</button>'}` : '';
   return `<div class="card best-stop${fuel?.lowRange ? ' low' : ''}">
     <div class="row"><div class="eyebrow success-text" style="flex:1">${r.overnight ? '🌙 ' : ''}${h(title)}</div>${p.brandRank !== null ? '<span class="muted tiny">★ Favorite brand</span>' : ''}</div>
     <div class="row bs-main">${smartSign(p)}<div class="main"><div class="title-md">${h(p.name)}</div><div class="muted small">${h(smartArrival(app, p))}</div></div>${tlDist(p.ahead, null)}</div>
@@ -1493,10 +1467,10 @@ function priceSection(app, exit) {
       const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand;
       const sp = stopPrice(ctx, id, liveFor(app.prices, exit, x.place, brand));
       return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name: placeDisplayName(x.place), brand })}<div class="main"><div class="t">${h(placeDisplayName(x.place))}</div>
-        <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current report'}</div></div>${priceTag(sp, o.grade)}</button>`;
+        <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current price'}</div></div>${priceTag(sp, o.grade)}</button>`;
     }).join('');
     html += `<div class="section-title">⛽ Gas prices here</div><div class="list">${rows}</div>
-      <p class="muted tiny" style="margin:6px 4px 0">Reports with their time and source, not verified pump prices. Tap a station to report the price you see.</p>`;
+      <p class="muted tiny" style="margin:6px 4px 0">Each price shows its time and source, never as a verified pump price. Tap a station to see its posted price on Google Maps or GasBuddy.</p>`;
   }
   if (app.settings.prices?.google) html += googleSection(app, exit);
   return html;

@@ -85,11 +85,10 @@ const app = {
   prices: new GasPrices({ getKey: () => store.get('ea.googleKey', ''), getProxy: () => proxyFor('prices'), allowed: () => app.settings.prices?.google === true, onCall: countPriceCall, usedToday: () => app.priceCallsToday() }),
   /// Reported prices: the driver's own on this device, and shared driver reports when on (app/pricebook.js).
   priceBook: new PriceBook({ store, getProxy: () => proxyFor('community'), sources: () => ({ own: app.settings.prices?.ownReports !== false, shared: app.settings.prices?.community === true }) }),
-  /// Road Ahead price comparison sort, and the price report sheet's state.
+  /// Road Ahead price comparison sort.
   priceUI: { sort: 'recommended' },
   /// EIA's weekly averages through the proxy (context only): {summary, at, error}.
   benchmarks: { summary: null, at: 0, error: null },
-  report: null,
   /// The owner's key proxy when set in Settings and reachable: { base, prices, chargers, disabled }.
   proxy: null,
   chargers: { routeId: null, projected: [], loading: false, error: null, retryAt: 0 },
@@ -523,7 +522,6 @@ function renderSheet() {
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') html = V.fuelSheet(app);
   else if (kind === 'station') { html = V.stationSheet(app, arg); lookupStationPlace(arg); }
-  else if (kind === 'report') html = V.reportSheet(app);
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   else if (kind === 'weather') html = V.weatherSheet(app);
@@ -536,7 +534,6 @@ function renderSheet() {
 
 function closeSheet() {
   app.sheet = null;
-  app.report = null;
   $('#sheet-backdrop').classList.remove('open');
   $('#sheet').classList.remove('open');
 }
@@ -808,26 +805,6 @@ function setPrices(patch) {
   lastViewHTML = '';
   render();
   if (app.sheet) renderSheet();
-}
-
-/// Shared reports need the driver at the station: one location reading, compared with the station, never
-/// sent anywhere. Simulated GPS cannot pass.
-function checkReportLocation() {
-  const r = app.report;
-  if (!r) return;
-  const fail = (note) => { if (app.report === r) { r.near = false; r.checking = false; r.nearNote = note; renderSheet(); } };
-  if (app.gps === 'simulation') return fail('Simulated GPS: sharing needs your real location at the station');
-  if (!navigator.geolocation || !r.coordinate) return fail('Location not available: saved on this device only');
-  r.checking = true;
-  renderSheet();
-  navigator.geolocation.getCurrentPosition((pos) => {
-    if (app.report !== r) return;
-    const d = distance({ lat: pos.coords.latitude, lon: pos.coords.longitude }, r.coordinate);
-    if (pos.coords.accuracy > 150) return fail('Your location is too rough to check: saved on this device only');
-    if (d > 250) return fail(`About ${miles(d)} from this station: saved on this device only`);
-    r.near = true; r.checking = false; r.nearNote = null;
-    renderSheet();
-  }, () => fail('Location not allowed: saved on this device only'), { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 
 /// Google Maps prices for exits, only when the driver taps "Check Google Maps prices" (paid; off unless
@@ -1558,36 +1535,6 @@ const actions = {
   'price-pay'(arg) { setPrices({ payment: arg }); },
   'price-age'(arg) { setPrices({ maxAgeHours: Number(arg) }); },
   'price-min'(arg) { setPrices({ minSavingsDollars: Number(arg) }); },
-  'report-price'(arg) {
-    const [id, grade] = arg.split('|');
-    const x = app.findStation(id);
-    if (!x) return;
-    // Correcting: the driver's latest report for that grade, within the 30 minutes a correction is allowed.
-    const last = grade ? app.priceBook.own().filter((r) => r.stationId === id && r.grade === grade).sort((a, b) => b.reportedAt - a.reportedAt)[0] : null;
-    app.report = {
-      stationId: id, name: x.name, brand: x.brand, coordinate: x.coordinate,
-      place: x.exit ? exitTitle(x.exit) : x.kind === 'plaza' ? 'Service plaza' : '',
-      grade: grade || app.gradeCode(), payment: last?.payment ?? app.settings.prices?.payment ?? 'credit', member: Boolean(last?.member),
-      priceText: last ? String(last.price) : '', share: app.priceBook.sharedOn, near: null, checking: false, passenger: false, result: null,
-    };
-    openSheet('report');
-    if (app.report.share) checkReportLocation();
-  },
-  'report-grade'(arg) { if (app.report) { app.report.grade = arg; app.report.result = null; renderSheet(); } },
-  'report-pay'(arg) { if (app.report) { app.report.payment = arg; app.report.result = null; renderSheet(); } },
-  async 'report-save'() {
-    const r = app.report;
-    if (!r) return;
-    const text = ($('#sheet-body [data-report="price"]')?.value ?? r.priceText ?? '').replace(/[$\s]/g, '');
-    r.priceText = text;
-    const out = await app.priceBook.report({ stationId: r.stationId, grade: r.grade, price: text === '' ? NaN : Number(text), payment: r.payment, member: r.member, stationName: r.name, place: r.place },
-      { share: r.share, near: r.near === true, benchmark: app.benchmark(r.grade)?.price ?? null });
-    r.result = out;
-    if (out.ok && !out.duplicate) toast(out.shared === 'sent' ? 'Price saved and shared' : 'Price saved on this device');
-    lastViewHTML = '';
-    render();
-    renderSheet();
-  },
   'price-delete'(arg) { app.priceBook.remove(arg); toast('Report deleted'); lastViewHTML = ''; render(); renderSheet(); },
   'google-ahead'() {
     // The next three exits in the comparison whose Google prices were not looked up in the last hour.
@@ -1785,14 +1732,6 @@ document.addEventListener('change', (ev) => {
   if (el.dataset?.price) {
     setPrices({ [el.dataset.price]: el.checked });
     if (el.dataset.price === 'community' && el.checked) loadSharedPrices();
-    return;
-  }
-  if (el.dataset?.report && app.report) {
-    const k = el.dataset.report;
-    if (k === 'price') { app.report.priceText = el.value; return; }
-    app.report[k] = el.checked;
-    if (k === 'share' && el.checked && app.report.near == null) checkReportLocation();
-    renderSheet();
     return;
   }
   if (el.dataset?.alert) {

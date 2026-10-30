@@ -128,7 +128,7 @@ struct SmartStopSections: View {
                 }
                 .font(.subheadline)
                 if trip.priceOptions != nil {
-                    Button("Prices and reports") { station = StationRef(id: p.candidate.id) }.accessibilityIdentifier("pickPrices")
+                    Button("Prices") { station = StationRef(id: p.candidate.id) }.accessibilityIdentifier("pickPrices")
                 }
                 Button("Not this one", role: .destructive) { trip.skipStop(p.candidate.id) }
                 if let fav = result.favorite {
