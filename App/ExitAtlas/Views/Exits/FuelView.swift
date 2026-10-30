@@ -8,6 +8,7 @@ struct FuelView: View {
     @Environment(UserSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var rangeText = ""
+    @State private var priceStation: StationRef?
     @FocusState private var rangeFocused: Bool
 
     private var electric: Bool { settings.vehicle?.isElectric == true }
@@ -45,7 +46,7 @@ struct FuelView: View {
                     Text("Range counts down with the miles you drive. ExitAtlas cannot read your fuel gauge; enter the number your car shows.")
                 }
                 if !electric, let sm = trip.smartStop, sm.primary != nil {
-                    SmartStopSections(result: sm)
+                    SmartStopSections(result: sm, station: $priceStation)
                     if let plan = trip.rangePlan, !plan.stations.isEmpty {
                         Section("All gas exits within range (\(plan.stations.count))") {
                             ForEach(plan.stations.prefix(40), id: \.key) { StopRow(stop: $0) }
@@ -79,6 +80,7 @@ struct FuelView: View {
                     }
                 }
             }
+            .sheet(item: $priceStation) { StationPricesView(id: $0.id) }
             .navigationTitle(electric ? "Charging Stop" : "Fuel Stop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

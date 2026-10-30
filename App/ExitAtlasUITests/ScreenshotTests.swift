@@ -263,9 +263,9 @@ final class ScreenshotTests: XCTestCase {
         snap("8b Price path SmartStop", false)
         app.buttons["Done"].firstMatch.tap()
         sleep(1)
-        // Drive: the fuel card (Focus View shows it).
-        app.buttons["focusViewButton"].firstMatch.tap()
+        // Drive: the fuel card (the Navigation View first, else the Focus View).
         let card = app.buttons["fuelCard"].firstMatch
+        if !card.waitForExistence(timeout: 8) { app.buttons["focusViewButton"].firstMatch.tap() }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No fuel card")
         shows(card, "The Drive fuel card")
         snap("8c Price path drive", false)
