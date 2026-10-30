@@ -55,7 +55,9 @@ public struct HighwayRef: Sendable, Codable, Hashable, CustomStringConvertible {
             return HighwayRef(kind: .stateRoute, prefix: prefix, number: ns.substring(with: m.range(at: 2)))
         }
         scan(#"(?i)\b((?:[A-Z][\w']*\s){0,3}Turnpike|NJTP|Parkway|Expressway|Thruway)\b"#) { m in
+            // OSRM names the road "NJTP New Jersey Turnpike" (ref and name): one road, "New Jersey Turnpike".
             let name = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: #"^(?i)NJTP\s+(?=\S)"#, with: "", options: .regularExpression)
             return HighwayRef(kind: .named, prefix: "", number: name == "NJTP" ? "New Jersey Turnpike" : name)
         }
         found.sort { $0.0 < $1.0 }
@@ -82,10 +84,12 @@ public enum CardinalDirection: String, Sendable, Codable {
     /// Interstates follow the national convention: odd numbers are signed north/south, even
     /// numbers east/west. The sign comes from net displacement over the next 25 km of route,
     /// so local curves do not flip it. Other roads use the dominant axis of displacement.
+    /// `within`: meters along the route the window stays inside (the stretch on that road).
     public static func signed(for ref: HighwayRef?, along route: RoutePolyline, at distance: Double,
-                              window: Double = 25_000) -> CardinalDirection {
-        var start = distance, end = min(route.length, distance + window)
-        if end - start < window / 2 { start = max(0, end - window) }
+                              window: Double = 25_000, within: ClosedRange<Double>? = nil) -> CardinalDirection {
+        let lo = max(0, within?.lowerBound ?? 0), hi = min(route.length, within?.upperBound ?? route.length)
+        var start = distance, end = min(hi, distance + window)
+        if end - start < window / 2 { start = max(lo, end - window) }
         if end <= start { end = min(route.length, start + 1) }
         let a = route.coordinate(at: start), b = route.coordinate(at: end)
         let north = (b.latitude - a.latitude) * Geodesy.metersPerDegreeLatitude(at: a.latitude)

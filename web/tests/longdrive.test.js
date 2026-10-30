@@ -7,7 +7,8 @@ import { offset, normalizedDegrees } from '../js/engine/geo.js';
 import { RouteProgressTracker, TrackerConfig } from '../js/engine/tracking.js';
 import { TripPlan, TripSession } from '../js/engine/trip.js';
 import { GPSSimulator } from '../js/engine/discovery.js';
-import { PlannedRoute, TravelTimeProfile } from '../js/engine/route.js';
+import { PlannedRoute, TravelTimeProfile, highwayLabel, parseHighways } from '../js/engine/route.js';
+import { nextManeuver } from '../js/engine/guidance.js';
 import { RoutePolyline } from '../js/engine/geo.js';
 
 const DS = { states: data.states, timeZones: null, interstates: null };
@@ -188,4 +189,27 @@ test('ledger: the same after a reroute from the exit, and never for a resumed tr
   const total = resumed.ledger.totalMeters;
   for (let k = 0; k < 5; k++) resumed.ingest(fixAt(r, 120000 + 28 * k, t + 5000 + k));
   assert.ok(resumed.ledger.totalMeters - total < 200, 'resume credited the route before the first fix');
+});
+
+// MARK: Road and direction out of Yonkers (real routes: yonkers_to_orlando, yonkers_to_morristown fixtures)
+
+test('road direction: US 9 and NY 9A south out of Yonkers, not west because the route turns west later', () => {
+  const MI = 1609.344;
+  const label = (r, mi) => {
+    const hw = r.highwayAt(mi * MI);
+    return `${highwayLabel(hw.ref)} ${hw.direction}`;
+  };
+  for (const name of ['yonkers_to_orlando', 'yonkers_to_morristown']) {
+    const r = route(name);
+    assert.equal(label(r, 0.5), 'US-9 S', name);
+    assert.equal(label(r, 1.5), 'US-9 S', name);
+    assert.equal(label(r, 4), 'NY-9A S', name);
+    assert.equal(nextManeuver(r, 1.5 * MI).text, 'Take the ramp onto NY-9A S', name);
+  }
+  const r = route('yonkers_to_orlando');
+  assert.equal(label(r, 8.5), 'I-95 S');
+  assert.equal(label(r, 220), 'MD-295 S', 'Baltimore-Washington Parkway');
+  // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
+  assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Turnpike');
+  assert.deepEqual(parseHighways('NJTP New Jersey Turnpike'), [{ kind: 'named', prefix: '', number: 'New Jersey Turnpike' }]);
 });
