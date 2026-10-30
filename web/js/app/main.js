@@ -1404,7 +1404,11 @@ const actions = {
   tab(arg) { app.tab = arg === 'exits' ? 'ahead' : arg; lastViewHTML = ''; window.scrollTo(0, 0); render(); },
   discovery() { startDiscovery(); },
   demo() { runDemo(); },
-  end() { endTrip(); },
+  end() {
+    // One mis tap must not end a real trip: it cannot be resumed after this. Simulations and discovery end at once.
+    if (app.mode === 'trip' && app.gps === 'device' && !confirm('End this trip? It cannot be resumed after this.')) return;
+    endTrip();
+  },
   resume() {
     const rec = app.resumable;
     if (!rec) return;

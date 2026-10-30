@@ -68,6 +68,10 @@ await ctx.addInitScript(() => {
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+// Questions the app asks (confirm): kept, and answered with `answerYes`.
+const dialogs = [];
+let answerYes = true;
+page.on('dialog', (d) => { dialogs.push(d.message()); return answerYes ? d.accept() : d.dismiss(); });
 await page.route((u) => u.protocol === 'https:', async (r) => {
   const u = new URL(r.request().url());
   const backup = u.host === 'routing.openstreetmap.de';
@@ -266,8 +270,10 @@ check((await view()).includes('Resume your trip to Richmond'), 'after a reload t
 // 10. A simulated drive in between does not throw the saved trip away.
 await tap('[data-act="demo"]');
 await until(() => window.exitAtlas.mode === 'trip' && window.exitAtlas.gps === 'simulation', null, 20000);
+dialogs.length = 0;
 await tap('#end');
 await page.waitForTimeout(300);
+check(dialogs.length === 0 && await app(() => window.exitAtlas.mode === 'idle'), 'a simulated drive ends at once, without asking');
 check(await app(() => Boolean(localStorage.getItem('ea.active'))) && (await view()).includes('Resume your trip to Richmond'),
   'ending a simulated drive keeps the saved trip');
 
@@ -309,7 +315,15 @@ await app(async () => { window.__route = window.exitAtlas.plan.route; window.__g
 check(routingCalls > before, 'resumed off the route: a new route is requested');
 await until(() => !window.exitAtlas.isRerouting);
 
-// 13. End: nothing left to resume, the trip is in history.
+// 13. End: on a real trip the driver is asked first (one mis tap must not end it). No keeps the trip going;
+//     yes ends it: nothing left to resume, the trip is in history.
+dialogs.length = 0;
+answerYes = false;
+await tap('#end');
+await page.waitForTimeout(300);
+check(dialogs.join() === 'End this trip? It cannot be resumed after this.' && await app(() => window.exitAtlas.mode === 'trip' && Boolean(localStorage.getItem('ea.active'))),
+  `ending a real trip asks first, and no keeps it going (${dialogs.join() || 'nothing asked'})`);
+answerYes = true;
 await tap('#end');
 await page.waitForTimeout(300);
 check(await app(() => localStorage.getItem('ea.active') === null && window.exitAtlas.history.length === 1 && !document.querySelector('[data-act="resume"]')),
