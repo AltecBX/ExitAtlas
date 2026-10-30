@@ -167,7 +167,7 @@ iOS: the engine, profile and SmartStop changes are shared and tested; the iOS sc
 
 **Shared reports.** Tested on Cloudflare's own runtime (`wrangler dev` with a local D1): a report from one install is read by another, repeats are dropped, a report without the location check, an out of range price and other sites are refused (`infra/worker/scripts/smoke.mjs`, `web/tests/layout/share.layout.mjs`; both run in CI). Not deployed: deploying needs Jerry's Cloudflare account (README, "One click deploy").
 
-**Draft request to OpenFuel (support@openfuel.app), for Jerry to send:**
+**Request to OpenFuel (support@openfuel.app), sent by Jerry on 2026-10-30:**
 
 > Hi Anthony, I'm Jerry, and I build ExitAtlas, a free, personal, non-commercial road trip planner (web and iOS). I'd like to show drivers recent gas prices along their route, and OpenFuel's community reports would be a great fit. Would you consider giving me a free, read-only feed or periodic extract of the public price reports? I would credit OpenFuel (and OpenStreetMap where station data is used) and link back to your station pages; keep to whatever rate limits or refresh schedule you set; and use the data only to display each price with its grade, report time and source, never resold or republished. I won't scrape the site or call your backend without your OK. Thanks for building OpenFuel. Jerry
 
@@ -187,5 +187,5 @@ One lookup covers every station Google lists within 1 mile of the exit, so 4 loo
 
 **Coverage.** 24 automatic lookups a day are about two fuel decisions (each about 4 exits, refreshed once as the stop nears) plus station details. Which US stations Google has prices for is not verified until a real key runs; a station Google has no price for shows "Price unavailable".
 
-**Other sources checked again on 2026-10-30.** No Azure Maps fuel price API was found. Gemini's Grounding with Google Maps is not in the Gemini free tier (5,000 a month on the paid tier, then $14 per 1,000) and returns prices only inside generated text, which could misstate a price; not used. API marketplaces (Zyla, Apify) sell GasBuddy scrapes or state averages; not used. OpenFuel still has no API; the request for a read only feed is drafted in Jerry's Gmail, not sent.
+**Other sources checked again on 2026-10-30.** No Azure Maps fuel price API was found. Gemini's Grounding with Google Maps is not in the Gemini free tier (5,000 a month on the paid tier, then $14 per 1,000) and returns prices only inside generated text, which could misstate a price; not used. API marketplaces (Zyla, Apify) sell GasBuddy scrapes or state averages; not used. OpenFuel still has no API; Jerry sent the request below for a free read only feed on 2026-10-30, no reply yet.
 
