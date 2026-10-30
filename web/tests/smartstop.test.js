@@ -5,12 +5,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parseOpeningHours, weekFromPeriods, openAt, localTime } from '../js/engine/openinghours.js';
-import { evaluateStop, smartStop, lastOpenBeforeGap } from '../js/engine/smartstop.js';
+import { evaluateStop, smartStop, lastOpenBeforeGap, brandIndex } from '../js/engine/smartstop.js';
 import { defaultProfile } from '../js/engine/profile.js';
 import { TripPlan } from '../js/engine/trip.js';
 import { TripLedger, PaceModel } from '../js/engine/tracking.js';
 import { servicesForExit } from '../js/engine/exits.js';
-import { StationFacts, fuelCandidates, aheadCandidates } from '../js/app/smartstops.js';
+import { StationFacts, fuelCandidates, aheadCandidates, stationName } from '../js/app/smartstops.js';
 import { writeFileSync } from 'node:fs';
 import { data, route, START } from './support.js';
 
@@ -114,6 +114,15 @@ test('F, G, H, P. SmartStop rankings on the shared fixtures', () => {
     if (!r.lowRange && r.primary?.rangeOnArrival != null && c.options.context === 'fuel') {
       assert.ok(r.primary.rangeOnArrival >= profile.fuel.reserveMiles * MILE, `${c.name}: reserve kept`);
     }
+  }
+});
+
+test('a rebranded station shows its current brand and never ranks as its old one (Shell first)', () => {
+  for (const c of load('cases').stationNames) {
+    const brand = c.current ?? c.brand;
+    const name = stationName({ name: c.name, brand: c.brand, category: 1 }, brand);
+    assert.equal(name, c.expect, `${c.name} (${c.brand}) now ${c.current}`);
+    assert.equal(brandIndex({ name, brand }, ['Shell']), c.shell ? 0 : null, `${c.name} (${c.brand}) now ${c.current}: Shell`);
   }
 });
 
