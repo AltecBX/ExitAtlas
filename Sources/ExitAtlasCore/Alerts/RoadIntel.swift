@@ -179,6 +179,9 @@ public enum RoadIntel {
         public var otherCarriageway = 15.0
         public var lineOffset = 120.0
         public var lineBearing = 60.0
+        /// A reported direction (southbound, or a bearing) agrees with the way the route runs when it is less
+        /// than this many degrees off: a road signed south may run southwest; the other carriageway is about 180 off.
+        public var directionAngle = 90.0
         public var areaStep = 1000.0
         public var duplicate = 800.0
         /// An area alert known only at sample points (every 25 miles) still stands for the road this far past a
@@ -278,27 +281,94 @@ public enum RoadIntel {
 
     // MARK: Normalizing provider text
 
+    static let stateNames: [String: String] = [
+        "ALABAMA": "AL", "ALASKA": "AK", "ARIZONA": "AZ", "ARKANSAS": "AR", "CALIFORNIA": "CA", "COLORADO": "CO", "CONNECTICUT": "CT",
+        "DELAWARE": "DE", "DISTRICT OF COLUMBIA": "DC", "FLORIDA": "FL", "FLORIDAS": "FL", "GEORGIA": "GA", "HAWAII": "HI", "IDAHO": "ID",
+        "ILLINOIS": "IL", "INDIANA": "IN", "IOWA": "IA", "KANSAS": "KS", "KENTUCKY": "KY", "LOUISIANA": "LA", "MAINE": "ME", "MARYLAND": "MD",
+        "MASSACHUSETTS": "MA", "MICHIGAN": "MI", "MINNESOTA": "MN", "MISSISSIPPI": "MS", "MISSOURI": "MO", "MONTANA": "MT", "NEBRASKA": "NE",
+        "NEVADA": "NV", "NEW HAMPSHIRE": "NH", "NEW JERSEY": "NJ", "NEW MEXICO": "NM", "NEW YORK": "NY", "NORTH CAROLINA": "NC",
+        "NORTH DAKOTA": "ND", "OHIO": "OH", "OKLAHOMA": "OK", "OREGON": "OR", "PENNSYLVANIA": "PA", "RHODE ISLAND": "RI",
+        "SOUTH CAROLINA": "SC", "SOUTH DAKOTA": "SD", "TENNESSEE": "TN", "TEXAS": "TX", "UTAH": "UT", "VERMONT": "VT", "VIRGINIA": "VA",
+        "WASHINGTON": "WA", "WEST VIRGINIA": "WV", "WISCONSIN": "WI", "WYOMING": "WY",
+    ]
+    static let stateNameRegex = try! NSRegularExpression(pattern: "\\b(" + stateNames.keys.sorted { $0.count > $1.count }.joined(separator: "|") + ")\\b")
+    /// Short forms written out, in order, once capitals and punctuation are dealt with.
+    static let roadForms: [(String, String)] = [
+        (#"\bINTERSTATE (?=\d)"#, "I "), (#"\bU S\b"#, "US"), (#"\bUS (?:ROUTE|RT|HWY|HIGHWAY) (?=\d)"#, "US "), (#"\bN J\b"#, "NJ"),
+        (#"\bNJTP\b"#, "NJ TURNPIKE"), (#"\b(?:TPKE|TPK|TNPK|TURNPK)\b"#, "TURNPIKE"), (#"\b(?:PKWY|PKY|PWY)\b"#, "PARKWAY"),
+        (#"\b(?:EXPWY|EXPY|EXWY)\b"#, "EXPRESSWAY"), (#"\b(?:THWY|THRWY|THROUGHWAY)\b"#, "THRUWAY"), (#"\bNYS\b"#, "NY STATE"),
+    ]
+
+    /// Road text in one form for comparison: capitals, no punctuation, common short forms written out and state
+    /// names as codes. "N.J. Tpke", "NJTP" and "New Jersey Turnpike" all read "NJ TURNPIKE"; "Interstate 95" and
+    /// "i-95" read "I 95". Separators (";" and "/") are kept so names on either side of one stay apart.
+    /// Same as normalizeRoadText in roadintel.js.
+    public static func normalizeRoadText(_ text: String?) -> String {
+        var t = (text ?? "").uppercased()
+            .replacingOccurrences(of: "[.'\u{2019}]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[^A-Z0-9;/]+"#, with: " ", options: .regularExpression)
+        for (pattern, to) in roadForms { t = t.replacingOccurrences(of: pattern, with: to, options: .regularExpression) }
+        let out = NSMutableString(string: t)
+        for m in stateNameRegex.matches(in: t, range: NSRange(location: 0, length: out.length)).reversed() {
+            out.replaceCharacters(in: m.range, with: stateNames[out.substring(with: m.range)] ?? out.substring(with: m.range))
+        }
+        t = out as String
+        return t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+    }
+
     /// "I-95", "Interstate 95", "I 95 N" as a highway reference, or nil.
     public static func roadRef(_ text: String?) -> HighwayRef? {
-        guard let text, !text.isEmpty else { return nil }
-        return HighwayRef.parse(text.uppercased().replacingOccurrences(of: "INTERSTATE", with: "I")).first
+        roadRefs(text).first
     }
 
     /// Every highway named in the text ("I 95 / J F K Memorial Hwy" names I-95).
     public static func roadRefs(_ text: String?) -> [HighwayRef] {
         guard let text, !text.isEmpty else { return [] }
-        return HighwayRef.parse(text.uppercased().replacingOccurrences(of: "INTERSTATE", with: "I"))
+        return HighwayRef.parse(normalizeRoadText(text))
+    }
+
+    /// Named roads in the text by their full name ("NJ TURNPIKE", "HENRY HUDSON PARKWAY"). A bare "Parkway" names
+    /// no road in particular, so one word names are left out.
+    public static func namedRoads(_ text: String?) -> [String] {
+        let t = normalizeRoadText(text)
+        let ns = t as NSString
+        guard let regex = try? NSRegularExpression(pattern: #"((?:[A-Z0-9]+ ){0,4})(TURNPIKE|PARKWAY|EXPRESSWAY|THRUWAY)\b"#) else { return [] }
+        var out: [String] = []
+        for m in regex.matches(in: t, range: NSRange(location: 0, length: ns.length)) {
+            let name = (ns.substring(with: m.range(at: 1)) + ns.substring(with: m.range(at: 2))).trimmingCharacters(in: .whitespaces)
+            if name.contains(" ") && !out.contains(name) { out.append(name) }
+        }
+        return out
+    }
+
+    /// One name is the other, or ends with it ("NY 9A HENRY HUDSON PARKWAY" and "HENRY HUDSON PARKWAY").
+    static func sameName(_ a: String, _ b: String) -> Bool {
+        let (long, short) = a.count >= b.count ? (a, b) : (b, a)
+        return long == short || long.hasSuffix(" " + short)
+    }
+
+    static func spur(_ text: String?) -> String? {
+        let t = normalizeRoadText(text)
+        guard let r = t.range(of: #"\b(EASTERN|WESTERN) SPUR\b"#, options: .regularExpression) else { return nil }
+        return String(t[r])
     }
 
     /// Is the incident's road the route's road at `d`? A highway must be one the route is on there (all its
-    /// names count, as where I-95 runs on the New Jersey Turnpike). A named road that is not a highway (a
-    /// street, a county road) is never the route's road while the route is on a highway there. No name: unknown.
+    /// names count, as where I-95 runs on the New Jersey Turnpike), whatever the case, punctuation or short form
+    /// on either side. A named road that is not a highway (a street, a county road) is never the route's road
+    /// while the route is on a highway there. No name: unknown.
     static func onSameRoad(_ route: PlannedRoute, _ i: Incident, _ d: Double) -> Bool {
         guard let road = i.road, !road.isEmpty else { return true }
-        let here = route.step(at: d)?.highways ?? route.highway(at: d).map { [$0.ref] } ?? []
-        let refs = roadRefs(road)
-        if !refs.isEmpty { return refs.contains { here.contains($0) } }
-        return here.isEmpty
+        let step = route.step(at: d)
+        let here = step?.highways ?? route.highway(at: d).map { [$0.ref] } ?? []
+        let refs = roadRefs(road), names = namedRoads(road)
+        if refs.isEmpty && names.isEmpty { return here.isEmpty }
+        if refs.contains(where: { r in r.kind != .named && here.contains(r) }) { return true }
+        // Turnpikes and parkways by their full name. The Turnpike's two spurs run side by side and are not one road.
+        let ours = ([step?.roadName].compactMap { $0 } + here.filter { $0.kind == .named }.map(\.number)).joined(separator: " ; ")
+        if let a = spur(road), let b = spur(ours), a != b { return false }
+        let known = namedRoads(ours)
+        return names.contains { a in known.contains { sameName(a, $0) } }
     }
 
     /// "Northbound", "NB", "north", "both directions" as "N", "S", "E", "W" or "both", else nil.
@@ -340,28 +410,57 @@ public enum RoadIntel {
         }
     }
 
-    static func cardinal(_ bearing: Double) -> String {
-        let b = (bearing.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
-        return b < 45 || b >= 315 ? "N" : b < 135 ? "E" : b < 225 ? "S" : "W"
+    /// The way the route runs at `d`, from its geometry over a kilometer around it (a curve or a lane shift does
+    /// not decide it). Not the road's signed name: on the New Jersey Turnpike, southbound runs southwest.
+    static func travelBearing(_ route: PlannedRoute, _ d: Double) -> Double {
+        let a = max(0, d - 500), b = min(route.polyline.length, d + 500)
+        return b - a >= 100 ? Geodesy.initialBearing(route.polyline.coordinate(at: a), route.polyline.coordinate(at: b)) : route.polyline.bearing(at: d)
     }
 
-    static func travel(_ route: PlannedRoute, _ d: Double) -> String {
-        route.highway(at: d)?.direction.rawValue ?? cardinal(route.polyline.bearing(at: d))
+    /// A reported direction as a bearing in degrees (northbound 0, eastbound 90, or a bearing the provider gives
+    /// as a number), nil for both directions or none. Same as directionBearing in roadintel.js.
+    static func directionBearing(_ text: String?) -> Double? {
+        let t = (text ?? "").trimmingCharacters(in: .whitespaces)
+        if t.range(of: #"^\d{1,3}(?:\.\d+)?$"#, options: .regularExpression) != nil, let b = Double(t), b <= 360 {
+            return b.truncatingRemainder(dividingBy: 360)
+        }
+        return ["N": 0.0, "E": 90, "S": 180, "W": 270][directionCode(t) ?? ""]
+    }
+
+    static func axis(_ code: String) -> String { code == "N" || code == "S" ? "NS" : "EW" }
+
+    /// Is a reported direction not the way the route runs at `d`? A report in the same pair as the road's signed
+    /// direction (southbound on a road signed north and south) is compared with that sign: I-95 in Delaware and
+    /// I-295 in New Jersey are signed north and south while they run east and west, where the map alone cannot
+    /// tell the carriageways apart. Otherwise (the New Jersey Turnpike reads west on the map but is signed south,
+    /// or a bearing) the way the route actually runs decides, within `directionAngle`. Same as roadintel.js.
+    static func otherDirection(_ route: PlannedRoute, _ text: String?, _ d: Double, _ rules: Rules) -> Bool {
+        guard let dir = directionBearing(text) else { return false }
+        if let code = directionCode(text), code != "both", let signed = route.highway(at: d)?.direction.rawValue, axis(code) == axis(signed) {
+            return code != signed
+        }
+        return Geodesy.angleDifference(dir, travelBearing(route, d)) >= rules.directionAngle
+    }
+
+    /// The direction is given (a direction, a bearing, or both directions).
+    static func directionGiven(_ text: String?) -> Bool {
+        directionCode(text) != nil || directionBearing(text) != nil
     }
 
     static func placePoint(_ c: GeoCoordinate, _ i: Incident, _ route: PlannedRoute, _ progress: Double, _ rules: Rules) -> Placement {
-        let dir = directionCode(i.direction)
+        let given = directionGiven(i.direction)
         var best: Double?
         var why = "off route"
-        for p in route.polyline.projections(of: c, within: roadRefs(i.road).isEmpty ? rules.unnamedOffset : rules.sameRoadOffset) {
+        let named = !roadRefs(i.road).isEmpty || !namedRoads(i.road).isEmpty
+        for p in route.polyline.projections(of: c, within: named ? rules.sameRoadOffset : rules.unnamedOffset) {
             if p.distanceAlong < progress { why = "behind"; continue }
             if !onSameRoad(route, i, p.distanceAlong) { why = "other road"; continue }
-            if let dir, dir != "both", dir != travel(route, p.distanceAlong) { why = "other direction"; continue }
-            if dir == nil && p.signedOffset < -rules.otherCarriageway { why = "other direction"; continue }
+            if otherDirection(route, i.direction, p.distanceAlong, rules) { why = "other direction"; continue }
+            if !given && p.signedOffset < -rules.otherCarriageway { why = "other direction"; continue }
             if best.map({ p.distanceAlong < $0 }) ?? true { best = p.distanceAlong }
         }
         guard let best else { return .rejected(why) }
-        return .ahead(start: best, end: best, directionKnown: dir != nil)
+        return .ahead(start: best, end: best, directionKnown: given)
     }
 
     static func placeLine(_ cs: [GeoCoordinate], _ i: Incident, _ route: PlannedRoute, _ progress: Double, _ rules: Rules) -> Placement {
@@ -370,13 +469,13 @@ public enum RoadIntel {
         if end < progress { return .rejected("behind") }
         let mid = (start + end) / 2
         if !onSameRoad(route, i, mid) { return .rejected("other road") }
-        let dir = directionCode(i.direction)
-        if let dir, dir != "both", dir != travel(route, mid) { return .rejected("other direction") }
-        if dir == nil, cs.count >= 2,
+        let given = directionGiven(i.direction)
+        if otherDirection(route, i.direction, mid, rules) { return .rejected("other direction") }
+        if !given, cs.count >= 2,
            Geodesy.angleDifference(Geodesy.initialBearing(cs[0], cs[cs.count - 1]), route.polyline.bearing(at: mid)) > rules.lineBearing {
             return .rejected("other direction")
         }
-        return .ahead(start: max(start, progress), end: end, directionKnown: dir != nil || cs.count >= 2)
+        return .ahead(start: max(start, progress), end: end, directionKnown: given || cs.count >= 2)
     }
 
     static func placeArea(_ rings: [[GeoCoordinate]], _ route: PlannedRoute, _ progress: Double, _ rules: Rules) -> Placement {
