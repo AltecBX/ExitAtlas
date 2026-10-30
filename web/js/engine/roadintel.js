@@ -72,6 +72,9 @@ export const MATCH_RULES = Object.freeze({
   areaStep: 1000,
   /// Two reports of the same kind within this distance (same direction) are one event.
   duplicate: 800,
+  /// An area alert known only at sample points (every 25 miles, app/roadalerts.js) still stands for the road
+  /// this far past a point the driver has passed (half the spacing), until the next answer moves the points.
+  pointsReach: 12.5 * MILE,
 });
 
 /// "I-95", "Interstate 95", "I 95 N" as {kind, prefix, number}, or null.
@@ -202,10 +205,13 @@ export function matchIncident(route, i, progress, rules = MATCH_RULES) {
   if (g.type === 'point') return matchPoint(route, g.coordinate, i, progress, rules);
   if (g.type === 'points') {
     // Sample points on the route (an area alert queried by point): each is on the route by construction.
-    const hits = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean)
-      .map((p) => p.distanceAlong).filter((d) => d >= progress);
+    const along = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean).map((p) => p.distanceAlong);
+    const hits = along.filter((d) => d >= progress);
+    // A point just passed (the first one is where the driver was when NWS answered): the driver is in the area.
+    const here = along.some((d) => d < progress && progress - d <= (rules.pointsReach ?? 0));
+    if (!hits.length && !here) return { why: along.length ? 'behind' : 'off route' };
     // Where it starts and ends between the sample points is not known, so the extent is approximate.
-    return hits.length ? { start: Math.min(...hits), end: Math.max(...hits), directionKnown: true, approximate: true } : { why: 'off route' };
+    return { start: here ? progress : Math.min(...hits), end: hits.length ? Math.max(...hits) : progress, directionKnown: true, approximate: true };
   }
   if (g.type === 'line') return matchLine(route, g.coordinates, i, progress, rules);
   if (g.type === 'polygon') return matchArea(route, g.rings, progress, rules.window, rules);
