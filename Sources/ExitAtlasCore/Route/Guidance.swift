@@ -57,7 +57,7 @@ public enum Guidance {
         if ref.kind == .named {
             return ref.number.replacingOccurrences(of: "^NJTP\\s+", with: "", options: .regularExpression)
         }
-        return "\(ref) \(CardinalDirection.signed(for: ref, along: route.polyline, at: at).rawValue)"
+        return "\(ref) \(route.direction(of: ref, at: at).rawValue)"
     }
 
     /// The next maneuver after `progress` (meters along the route), or nil when none comes within `within`.

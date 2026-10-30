@@ -209,4 +209,24 @@ final class LongDriveTests: XCTestCase {
         for k in 0..<5 { resumed.ingest(fix(route, 120_000 + 28 * Double(k), t.addingTimeInterval(5_000 + Double(k)))) }
         XCTAssertLessThan(resumed.ledger.totalMeters - total, 200)
     }
+
+    // MARK: Road and direction out of Yonkers (real routes: yonkers_to_orlando, yonkers_to_morristown fixtures)
+
+    func testUS9AndNY9ASouthOutOfYonkers() {
+        let mi = Geodesy.metersPerMile
+        func label(_ route: PlannedRoute, _ miles: Double) -> String? { route.highway(at: miles * mi)?.shortLabel }
+        for name in ["yonkers_to_orlando", "yonkers_to_morristown"] {
+            let route = Fixtures.route(name)
+            XCTAssertEqual(label(route, 0.5), "US-9 S", name)
+            XCTAssertEqual(label(route, 1.5), "US-9 S", name)
+            XCTAssertEqual(label(route, 4), "NY-9A S", name)
+            XCTAssertEqual(Guidance.next(on: route, progress: 1.5 * mi)?.text, "Take the ramp onto NY-9A S", name)
+        }
+        let route = Fixtures.route("yonkers_to_orlando")
+        XCTAssertEqual(label(route, 8.5), "I-95 S")
+        XCTAssertEqual(label(route, 220), "MD-295 S", "Baltimore-Washington Parkway")
+        // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
+        XCTAssertEqual(route.highway(at: 100 * mi)?.ref.description, "New Jersey Turnpike")
+        XCTAssertEqual(HighwayRef.parse("NJTP New Jersey Turnpike"), [HighwayRef(kind: .named, prefix: "", number: "New Jersey Turnpike")])
+    }
 }

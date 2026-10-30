@@ -40,7 +40,7 @@ const sameRef = (a, b) => Boolean(a && b && a.kind === b.kind && a.prefix === b.
 /// their own directions, which the shape of the route does not tell reliably, so they get none.
 function roadLabel(route, ref, at) {
   if (ref.kind === 'named') return ref.number.replace(/^NJTP\s+/, '');
-  return `${highwayLabel(ref)} ${signedDirection(ref, route.polyline, at)}`;
+  return `${highwayLabel(ref)} ${route.directionAt ? route.directionAt(ref, at) : signedDirection(ref, route.polyline, at)}`;
 }
 
 /// The highway driven just before step i (the last step before it that names one).
