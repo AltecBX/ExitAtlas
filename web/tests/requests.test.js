@@ -185,6 +185,24 @@ test('routing calls that arrive together still go out a second apart, and a canc
   }
 });
 
+test('a routing timer that fires late still leaves a second before the next request', async () => {
+  const times = [];
+  ROUTING_SPACING.ms = 1000;
+  try {
+    globalThis.fetch = async () => { times.push(Date.now()); return answer(200, OK); };
+    await fetchRoutes([here, there]);
+    const second = fetchRoutes([here, there]); // waits about a second for its slot
+    const until = Date.now() + 1500;
+    while (Date.now() < until) { /* the page is paused: the timer fires late */ }
+    await second;
+    await fetchRoutes([here, there]);
+    for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 990, `${times[i] - times[i - 1]} ms apart`);
+  } finally {
+    ROUTING_SPACING.ms = 0;
+    globalThis.fetch = realFetch;
+  }
+});
+
 test('the backup server\'s terms: OpenStreetMap credit with a link to report map errors, and the server named', () => {
   const views = readFileSync(new URL('../js/app/views.js', import.meta.url), 'utf8');
   const at = views.indexOf('export function attribution');

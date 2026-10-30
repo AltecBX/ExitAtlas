@@ -170,6 +170,7 @@ export const ROUTING_SERVERS = Object.freeze([
 /// Both servers allow at most one request per second.
 export const ROUTING_SPACING = { ms: 1000 };
 const routingAskedAt = new Map();
+const routingSentAt = new Map();
 
 /// Public services the owner's proxy has switched off for everyone (see proxy.js), set at start.
 export const serviceSwitches = { disabled: [] };
@@ -233,7 +234,16 @@ async function askRouter(server, query, signal, timeout) {
   const at = Math.max(now, (routingAskedAt.get(server.base) ?? -Infinity) + ROUTING_SPACING.ms);
   routingAskedAt.set(server.base, at);
   if (at > now) await pause(at - now, signal);
-  if (signal?.aborted) throw abortError();
+  // A timer can fire late (Safari pauses a hidden page): keep a second after the request actually sent last too.
+  // The check and the record below run with no wait between them, so two waiters cannot both pass.
+  for (;;) {
+    if (signal?.aborted) throw abortError();
+    const gap = (routingSentAt.get(server.base) ?? -Infinity) + ROUTING_SPACING.ms - Date.now();
+    if (gap <= 0) break;
+    await pause(gap, signal);
+  }
+  routingSentAt.set(server.base, Date.now());
+  routingAskedAt.set(server.base, Math.max(routingAskedAt.get(server.base), Date.now()));
   let res, body;
   try {
     ({ res, body } = await timed(`the ${server.name}`, timeout, signal, async (s) => {
