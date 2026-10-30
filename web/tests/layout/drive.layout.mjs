@@ -25,23 +25,29 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/web/index.html`;
 
-const SIZES = [['phone', 390, 844], ['small phone', 375, 667], ['landscape', 844, 390]];
+const SIZES = [['phone', 390, 844], ['small phone', 375, 667], ['large phone', 430, 932], ['landscape', 844, 390], ['small landscape', 667, 375]];
+// Safari on iPhone sizes text from the Text Size setting (html { font: -apple-system-body }): 17 px at the
+// default, where Chromium uses 16 px. The check runs at Safari's default so the screen is checked as it shows.
+const IOS_TEXT = 'html { font-size: 17px !important; }';
 const failures = [];
 const browser = await chromium.launch();
 // Overnight Drive Mode on shows the overnight restroom card (taller) whatever the hour; the default (Auto)
 // shows it only from midnight to 4 AM at the stop, so both are checked.
-const RUNS = [['dark', 'auto'], ['light', 'auto'], ['dark', 'on']];
+// "road": as on a real drive, the driver's own GPS and no simulation banner (the demo's banner takes about 50
+// points at the top that a real drive has). "alert": the simulated crash ahead, the tallest adaptive card.
+const RUNS = [['dark', 'auto'], ['light', 'auto'], ['dark', 'on'], ['dark', 'auto', 'road'], ['dark', 'on', 'road'], ['dark', 'auto', 'road', 'alert']];
 for (const [label, width, height] of SIZES) {
-  for (const [scheme, overnight] of RUNS) {
+  for (const [scheme, overnight, road, alert] of RUNS) {
     for (const presentation of ['map', 'focus']) {
-      const name = `${label} ${scheme}${overnight === 'on' ? ' overnight' : ''} ${presentation}`;
+      const name = `${label} ${scheme}${overnight === 'on' ? ' overnight' : ''}${road ? ' road' : ''}${alert ? ' alert' : ''} ${presentation}`;
       const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
+      await page.addInitScript((css) => document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.append(s); }), IOS_TEXT);
       // Offline (no tiles, no live sources): the layout must not depend on the network.
       await page.route((u) => u.protocol === 'https:', (r) => r.fulfill({ status: 503, body: '' }));
-      await page.goto(`${base}?demo`);
+      await page.goto(`${base}?demo${alert ? '=120&alert' : ''}`);
       await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
       await page.waitForSelector('.nav-view, .focus-view', { timeout: 60000 });
       if (presentation === 'focus') await page.evaluate(() => document.querySelector('[data-act="drive-view"][data-arg="focus"]').click());
@@ -53,12 +59,24 @@ for (const [label, width, height] of SIZES) {
         });
       }
       await page.waitForTimeout(1500);
+      if (road) {
+        await page.evaluate(() => {
+          const a = window.exitAtlas;
+          clearInterval(a.sim.timer);
+          a.sim = null;
+          a.gps = 'device';
+          document.querySelector('.tabbar [data-arg="drive"]').click();
+        });
+        await page.waitForTimeout(400);
+        if (await page.evaluate(() => document.querySelector('#banner').textContent.trim() !== '')) failures.push(`${name}: a banner shows on a real drive`);
+      }
       if (overnight === 'on' && !(await page.evaluate(() => Boolean(document.querySelector('.night-card'))))) failures.push(`${name}: the overnight restroom card does not show`);
+      if (alert && !(await page.evaluate(() => Boolean(document.querySelector('.nav-card .alert-card, .fv-card .alert-card'))))) failures.push(`${name}: the alert card does not show`);
       const r = await page.evaluate((pres) => {
         const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right }; };
         const chrome = Math.max(box('.appbar').bottom, box('#banner').bottom);
         const tab = box('.tabbar').top;
-        const essentials = pres === 'map' ? ['.guide', '.speed-chip', '.journey'] : ['.fv-instruments', '.journey', '.fv-exit, .fv-guide'];
+        const essentials = pres === 'map' ? ['.guide', '.speed-chip', '.journey', '.trip-strip'] : ['.fv-instruments', '.journey', '.trip-strip', '.fv-exit, .fv-guide'];
         const overlays = pres === 'map' ? ['.nav-top', '.nav-left', '.nav-right', '.nav-bottom'] : [];
         return { chrome, tab, width: innerWidth, scrollWidth: document.documentElement.scrollWidth, scrollY: scrollY,
           essentials: essentials.map((s) => [s, box(s)]), overlays: overlays.map((s) => [s, box(s)]),
@@ -71,8 +89,9 @@ for (const [label, width, height] of SIZES) {
         if (b.top < r.chrome - 1) fail(`${sel} starts under the top bar (${Math.round(b.top)} < ${Math.round(r.chrome)})`);
         if (b.bottom > r.tab + 1) fail(`${sel} ends behind the tab bar or below the screen (${Math.round(b.bottom)} > ${Math.round(r.tab)})`);
       }
-      // The adaptive card and the action buttons too, except sideways where they may sit in a second column.
-      if (label !== 'landscape') for (const [what, b] of [['adaptive card', r.card], ['fuel and restroom buttons', r.actions]]) {
+      // The adaptive card and the action buttons too: on a real drive at every size, sideways included (iPhone SE
+      // sideways is 375 points tall); with the demo banner on portrait screens without the taller overnight card.
+      if (road || (!label.endsWith('landscape') && overnight !== 'on')) for (const [what, b] of [['adaptive card', r.card], ['fuel and restroom buttons', r.actions]]) {
         if (b && b.bottom > r.tab + 1) fail(`${what} below the fold (${Math.round(b.bottom)} > ${Math.round(r.tab)})`);
       }
       const hit = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
