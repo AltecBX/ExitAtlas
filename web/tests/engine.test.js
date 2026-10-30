@@ -16,7 +16,8 @@ import { HighwayDiscovery, GPSSimulator } from '../js/engine/discovery.js';
 import { PlannedRoute, TravelTimeProfile, parseHighways, highwayLabel } from '../js/engine/route.js';
 import { serializeRoute, deserializeRoute } from '../js/engine/osrm.js';
 
-const FIXTURES = ['miami_to_manhattan', 'atlanta_to_nashville', 'richmond_to_nyc_turnpike', 'richmond_to_nyc_via_pa'];
+const FIXTURES = ['miami_to_manhattan', 'atlanta_to_nashville', 'richmond_to_nyc_turnpike', 'richmond_to_nyc_via_pa',
+  'yonkers_to_orlando', 'yonkers_to_morristown'];
 const TOL = 0.05 * METERS_PER_MILE;
 
 // MARK: Geodesy and polyline
@@ -142,10 +143,12 @@ test('Georgia is reentered on Atlanta to Nashville', () => {
 });
 
 test('published I-95 state lengths (GA 111.80, SC 198.76, NC 181.36 mi)', () => {
-  const profile = new RegionSegmenter().segment(route('miami_to_manhattan').polyline, data.states);
-  for (const [code, miles] of [['GA', 111.80], ['SC', 198.76], ['NC', 181.36]]) {
-    const s = profile.segments.find((x) => x.code === code);
-    near(s.length / METERS_PER_MILE, miles, 0.25, code);
+  for (const name of ['miami_to_manhattan', 'yonkers_to_orlando']) {
+    const profile = new RegionSegmenter().segment(route(name).polyline, data.states);
+    for (const [code, miles] of [['GA', 111.80], ['SC', 198.76], ['NC', 181.36]]) {
+      const s = profile.segments.find((x) => x.code === code);
+      near(s.length / METERS_PER_MILE, miles, 0.25, `${name} ${code}`);
+    }
   }
 });
 

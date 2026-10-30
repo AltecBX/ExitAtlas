@@ -12,6 +12,8 @@ Real driving routes from the OSRM demo server on OpenStreetMap data (ODbL), fetc
 | Atlanta to Nashville | 248.7 | Reenters Georgia on I-24 (GA, TN, GA, TN) and changes from Eastern to Central time inside Tennessee |
 | Richmond to NYC via NJ Turnpike | 333.0 | Reroute base |
 | Richmond to NYC via Pennsylvania | 346.6 | Alternative that adds Pennsylvania, for the reroute test |
+| Yonkers to Orlando | 1,091.3 | Fetched 2026-10-30. Henry Hudson Parkway, George Washington Bridge, NJ Turnpike, Delaware Memorial Bridge, I-895 Harbor Tunnel, Baltimore-Washington Parkway, DC, I-395, I-95 to Daytona, I-4 |
+| Yonkers to Morristown | 43.7 | Fetched 2026-10-30. Short two state trip: George Washington Bridge, I-80, I-287 |
 
 `tools/data-pipeline/make_route_fixture.py` also writes the oracle expectations next to each route.
 
@@ -30,8 +32,14 @@ State mileage, engine compared with the oracle, tolerance 0.05 mi per segment, a
 | Atlanta to Nashville | GA 108.21, TN 15.95, GA 3.89, TN 120.62 |
 | Richmond to NYC, Turnpike | VA 105.46, DC 7.92, MD 86.61, DE 16.27, NJ 114.76, NY 1.94 |
 | Richmond to NYC, via PA | VA 105.46, DC 7.92, MD 86.61, DE 23.78, PA 52.39, NJ 68.47, NY 1.94 |
+| Yonkers to Orlando | NY 8.51, NJ 123.81, DE 16.62, MD 87.12, DC 7.97, VA 184.85, NC 181.37, SC 198.67, GA 111.85, FL 170.59 |
+| Yonkers to Morristown | NY 8.51, NJ 35.24 |
 
 External check (automated, `testMatchesPublishedI95StateLengths`): the Miami route follows I-95 across the full width of Georgia, South Carolina and North Carolina. The published I-95 lengths are GA 111.80, SC 198.76 and NC 181.36 mi ([Wikipedia route table](https://en.wikipedia.org/wiki/Interstate_95), checked 2026-10-27). The engine gives 111.81, 198.70 and 181.37 mi.
+
+The Yonkers to Orlando route also crosses Georgia, South Carolina and North Carolina on I-95: the engine gives 111.85, 198.67 and 181.37 mi against the same published 111.80, 198.76 and 181.36 mi (same automated test). Its exits match OSM node membership in every state (312 nodes; 2 extra matches within 0.1 m of the route).
+
+Long drive simulation (2026-10-30): the trip session, announcer and a modeled reroute, fed 1 Hz simulated fixes over the Yonkers to Orlando route (about 64,000 to 71,000 fixes, 18 to 21 simulated hours, departure 9:30 AM on Oct 31 so the drive runs past midnight and through the end of daylight saving time). With 5 to 6 m noise: along route error p50 3.4 m, p95 9.8 m, worst 22 m; ledger 1,091.50 of 1,091.51 mi; state miles equal to the oracle; zero false off route; each state line warned once and welcomed once. GPS gaps of 1, 5, 10, 15 and 20 minutes while driving were reacquired on the first fix with no lost miles. Defects found and fixed (tests in `web/tests/longdrive.test.js` and `LongDriveTests.swift`): 60 to 80 m of GPS drift flagged off route within 6 s and flapped up to 39 times in a mile; a stop hidden in a GPS gap moved the ETA 2.5 hours; a phone parked off the route without a reroute added about 0.6 mi per minute of wander; miles driven with the screen locked after leaving the route were lost; a state line warning was repeated after a detour; US 9 and NY 9A out of Yonkers were labeled west instead of south.
 
 Boundary simplification: on the Miami route, per state miles at 3 m simplification differ from full resolution by at most 0.002 mi, and at 10 m by at most 0.005 mi.
 

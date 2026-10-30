@@ -41,6 +41,8 @@ final class ExitMatchingFixtureTests: XCTestCase {
     func testAtlantaToNashville() { check("atlanta_to_nashville") }
     func testRichmondToNYCTurnpike() { check("richmond_to_nyc_turnpike") }
     func testRichmondToNYCViaPennsylvania() { check("richmond_to_nyc_via_pa") }
+    func testYonkersToOrlando() { check("yonkers_to_orlando") }
+    func testYonkersToMorristown() { check("yonkers_to_morristown") }
 
     /// Driving the same pavement in reverse must not pick up exits for the other direction.
     func testReversedRouteRejectsOppositeDirectionExits() {
