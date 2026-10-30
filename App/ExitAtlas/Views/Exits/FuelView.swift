@@ -81,8 +81,9 @@ struct FuelView: View {
                 }
             }
             .sheet(item: $priceStation) { StationPricesView(id: $0.id) }
-            // Google Maps prices at SmartStop's pick and alternatives, without a tap, every half mile (docs/17).
-            .task(id: Int((trip.snapshot?.progress ?? 0) / 800)) { if !electric { trip.autoGooglePrices(.fuelStop) } }
+            // Google Maps prices at SmartStop's pick and alternatives, without a tap, every half mile and when a
+            // range is entered (docs/17).
+            .task(id: "\(Int((trip.snapshot?.progress ?? 0) / 800))|\(trip.fuelReading?.rangeMeters ?? -1)") { if !electric { trip.autoGooglePrices(.fuelStop) } }
             .navigationTitle(electric ? "Charging Stop" : "Fuel Stop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

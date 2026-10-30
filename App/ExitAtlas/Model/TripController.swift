@@ -725,7 +725,10 @@ final class TripController {
         case .station(let id): screenName = "station \(id)"
         }
         let rules = GasPrices.AutoLookupRules()
-        let key = "\(plan.route.id)|\(screenName)|\(Int(snapshot.progress / (rules.cohortMiles * Geodesy.metersPerMile)))"
+        // The driver's own inputs (a range reading, a stop turned down, fuel preferences) choose again; Google's do not.
+        let inputs = "\(fuelReading.map { "\($0.rangeMeters)@\($0.drivenAtEntry)" } ?? "no range")|\(rejectedNow.sorted())|"
+            + "\(settings.favoriteBrands)|\(settings.bufferMiles)|\(settings.maxDetourMinutes)|\(settings.priceOverBrand)"
+        let key = "\(plan.route.id)|\(screenName)|\(inputs)|\(Int(snapshot.progress / (rules.cohortMiles * Geodesy.metersPerMile)))"
         autoCohort = GasPrices.LookupCohort.choose(autoCohort, key: key, rules: rules) {
             var exits: [(id: String, ahead: Double)] = []
             func add(_ id: String?) {
