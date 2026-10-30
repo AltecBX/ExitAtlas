@@ -58,6 +58,12 @@ await ctx.addInitScript(() => {
     getCurrentPosition: (ok) => setTimeout(() => ok({ coords: { latitude: 40.758, longitude: -73.9855, accuracy: 10, heading: null, speed: null }, timestamp: Date.now() }), 20),
     watchPosition: () => 1, clearWatch: () => {},
   } });
+  const set = Storage.prototype.setItem;
+  window.__writes = [];
+  Storage.prototype.setItem = function (key, value) {
+    window.__writes.push({ key, size: String(value).length, id: key === 'ea.activeRoute' ? JSON.parse(value).id : null });
+    return set.call(this, key, value);
+  };
 });
 const page = await ctx.newPage();
 const errors = [];
@@ -154,7 +160,13 @@ check((await state()).mode === 'trip' && await app(() => window.exitAtlas.places
 await app(() => window.__drive(120));
 let s = await state();
 check(s.status === 'onRoute' && s.driven > 3000, `on route after 2 minutes (${Math.round(s.driven)} m driven)`);
-check(await app(() => Boolean(JSON.parse(localStorage.getItem('ea.active'))?.route)), 'the trip is saved for resuming');
+check(await app(() => JSON.parse(localStorage.getItem('ea.active'))?.routeId === window.exitAtlas.plan.route.id
+  && JSON.parse(localStorage.getItem('ea.activeRoute'))?.id === window.exitAtlas.plan.route.id), 'the trip is saved for resuming');
+// The route (large) is written once; the save every 30 seconds is small.
+const writes = await app(() => window.__writes.filter((w) => w.key.startsWith('ea.active')));
+const small = writes.filter((w) => w.key === 'ea.active');
+check(writes.filter((w) => w.key === 'ea.activeRoute').length === 1 && small.length >= 3 && small.every((w) => w.size < 5000),
+  `the route is saved once, the progress every 30 s is small (${small.length} saves, largest ${Math.max(...small.map((w) => w.size))} characters)`);
 
 // 5. Off the route while the routing server stalls: the reroute gives up, says so, and does not block the next.
 servers.routing = 'hang';
@@ -241,6 +253,9 @@ await app(() => window.__drive(35));
 await app(() => window.dispatchEvent(new Event('pagehide')));
 const saved = await app(() => JSON.parse(localStorage.getItem('ea.active')));
 const savedMeters = saved.ledger.stints.reduce((a, x) => a + x.meters, 0);
+const routeWrites = await app(() => window.__writes.filter((w) => w.key === 'ea.activeRoute').map((w) => w.id));
+check(routeWrites.length >= 2 && new Set(routeWrites).size === routeWrites.length && routeWrites.at(-1) === saved.routeId,
+  `each new route is saved once, when it changes (${routeWrites.length} routes)`);
 
 // 9. The page reloads mid trip (iOS does this to background tabs): offered to resume.
 await page.reload();
@@ -267,12 +282,28 @@ s = await state();
 check(s.mode === 'trip' && s.gps === 'device' && s.status === 'onRoute' && s.driven >= savedMeters + 20000,
   `resumed with the miles driven, including the 20 km while the page was gone (${Math.round(s.driven)} m, ${Math.round(savedMeters)} m saved)`);
 
-// 12. Resumed while off the route (the page reloaded at a gas station): a new route is requested.
-await app(() => window.dispatchEvent(new Event('pagehide')));
+// 12. Resumed while off the route (the page reloaded at a gas station): a new route is requested. The trip was
+//     saved by the version live before this one (v33: the route inside ea.active, with progress).
+// Rewritten from an idle page: a page with the trip running saves it again when it unloads.
+await page.reload();
+await loaded();
+const v33 = await app(() => {
+  const rec = JSON.parse(localStorage.getItem('ea.active'));
+  const { routeId, ...rest } = rec;
+  const old = { ...rest, route: JSON.parse(localStorage.getItem('ea.activeRoute')) };
+  localStorage.setItem('ea.active', JSON.stringify(old));
+  localStorage.removeItem('ea.activeRoute');
+  return old;
+});
 await page.reload();
 await loaded();
 await page.waitForSelector('[data-act="resume"]', { timeout: 5000 });
 await tap('[data-act="resume"]');
+check(await app((rec) => window.exitAtlas.mode === 'trip' && window.exitAtlas.plan.route.id === rec.route.id
+  && Math.abs(window.exitAtlas.snapshot.progress - rec.progress) < 1, v33), 'a trip saved by the version before (v33) resumes where it was');
+await app(() => window.dispatchEvent(new Event('pagehide')));
+check(await app(() => !JSON.parse(localStorage.getItem('ea.active')).route && Boolean(localStorage.getItem('ea.activeRoute'))),
+  'and is saved again the new way');
 before = routingCalls;
 await app(async () => { window.__route = window.exitAtlas.plan.route; window.__gps.d = window.exitAtlas.snapshot.progress; await window.__park(30, 1500); });
 check(routingCalls > before, 'resumed off the route: a new route is requested');
@@ -283,6 +314,18 @@ await tap('#end');
 await page.waitForTimeout(300);
 check(await app(() => localStorage.getItem('ea.active') === null && window.exitAtlas.history.length === 1 && !document.querySelector('[data-act="resume"]')),
   'ending the trip clears it and records it');
+
+// 13b. A trip saved by v32 (the route inside ea.active, no progress) resumes too.
+await app((rec) => { const { progress, ...v32 } = rec; localStorage.setItem('ea.active', JSON.stringify({ ...v32, savedAt: Date.now() / 1000 })); }, v33);
+await page.reload();
+await loaded();
+await page.waitForSelector('[data-act="resume"]', { timeout: 5000 }).catch(() => {});
+check((await view()).includes('Resume your trip to Richmond'), 'a trip saved by v32 is offered');
+await tap('[data-act="resume"]');
+check(await app((id) => window.exitAtlas.mode === 'trip' && window.exitAtlas.plan.route.id === id, v33.route.id), 'and resumes');
+await tap('#end');
+await page.waitForTimeout(300);
+check(await app(() => localStorage.getItem('ea.active') === null && localStorage.getItem('ea.activeRoute') === null), 'ending it clears both saved parts');
 
 // 14. A saved trip that cannot be read is not offered, and the app still starts.
 await app(() => localStorage.setItem('ea.active', JSON.stringify({ route: { destination: { name: 'X' } }, ledger: { stints: 5 }, savedAt: Date.now() / 1000 })));

@@ -977,6 +977,8 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
   }
   app.resumable = null;
   app.lastPersistAt = null;
+  // A resumed trip's route is saved already; any other is saved with the trip's first save.
+  app.savedRouteId = restoring?.routeId ?? null;
   app.remainingWaypoints = restoring?.remainingWaypoints ?? [...route.stops.map((s) => s.waypoint), route.destination];
   app.mode = 'trip';
   if (!simulate) { recordPlace(route.destination); for (const st of route.stops) recordPlace(st.waypoint); }
@@ -1017,7 +1019,7 @@ function endTrip() {
   resetTripState();
   app.mode = 'idle';
   app.gps = 'device';
-  if (real) store.remove('ea.active');
+  if (real) forgetActiveTrip();
   else app.resumable = loadResumable();
   closeSheet();
   render();
@@ -1261,24 +1263,42 @@ async function refreshProxy() {
   render();
 }
 
+/// The trip saved for resuming. ea.active is small and written every 30 seconds (miles per state, pace, how far
+/// along, stops left); the route (about 0.9 MB for 1,000 miles) is in ea.activeRoute, written only when it
+/// changes (a new trip, a reroute). Up to version v33 the route was inside ea.active; such a trip still resumes.
+const ACTIVE_KEY = 'ea.active', ACTIVE_ROUTE_KEY = 'ea.activeRoute';
+
 function persistIfDue(t, force = false) {
   if (app.mode !== 'trip' || app.gps !== 'device' || !app.session) return;
   if (!force && app.lastPersistAt && t - app.lastPersistAt < 30) return;
   app.lastPersistAt = t;
   recordPace();
-  store.set('ea.active', {
-    route: serializeRoute(app.plan.route), ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
+  const route = app.plan.route;
+  if (app.savedRouteId !== route.id) {
+    // Not kept (storage full): the trip saved before stays as it was, whole.
+    if (!store.set(ACTIVE_ROUTE_KEY, serializeRoute(route))) return;
+    app.savedRouteId = route.id;
+  }
+  store.set(ACTIVE_KEY, {
+    routeId: route.id, ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
     startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(), progress: app.session.recordedUpTo,
   });
 }
 
+function forgetActiveTrip() {
+  store.remove(ACTIVE_KEY);
+  store.remove(ACTIVE_ROUTE_KEY);
+}
+
 function loadResumable() {
-  const rec = store.get('ea.active');
-  if (!rec?.route || !(nowSeconds() - rec.savedAt <= 48 * 3600)) return null;
+  const rec = store.get(ACTIVE_KEY);
+  if (!rec || !(nowSeconds() - rec.savedAt <= 48 * 3600)) return null;
   // Read at start up: a saved trip that cannot be read is not offered, and must not stop the app from starting.
   try {
+    const route = rec.route ?? (rec.routeId ? store.get(ACTIVE_ROUTE_KEY) : null);
+    if (!route || (rec.routeId && route.id !== rec.routeId)) return null;
     const ledger = new TripLedger(rec.ledger);
-    return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+    return { ...rec, route, destination: route.destination, drivenMeters: ledger.totalMeters };
   } catch {
     return null;
   }
@@ -1394,7 +1414,7 @@ const actions = {
       toast(`Could not resume: ${e.message}`);
     }
   },
-  'discard-resume'() { rebaseFuel(app.resumable?.drivenMeters ?? 0); app.resumable = null; store.remove('ea.active'); render(); },
+  'discard-resume'() { rebaseFuel(app.resumable?.drivenMeters ?? 0); app.resumable = null; forgetActiveTrip(); render(); },
   exit(arg) { openSheet('exit', arg); },
   rest(arg) { openSheet('rest', arg); },
   'add-trip-stop'(arg) { const [exitID, placeID] = arg.split('|'); addStop(exitID, placeID); },
@@ -1498,7 +1518,7 @@ const actions = {
   theme(arg) { app.settings.theme = arg; saveProfile(); render(); },
   'clear-data'() {
     if (!confirm('Erase your profile (vehicles, preferences, places and saved trips) and trip history on this device? API keys stay.')) return;
-    for (const k of [PROFILE_KEY, `${PROFILE_KEY}.previous`, 'ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.window',
+    for (const k of [PROFILE_KEY, `${PROFILE_KEY}.previous`, 'ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.activeRoute', 'ea.window',
       'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles', 'ea.plates']) store.remove(k);
     app.profile = defaultProfile();
     app.settings = settingsFromProfile(app.profile);
