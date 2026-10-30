@@ -464,12 +464,14 @@ function navView(app, s, f, extras) {
     : app.navMap?.offline ? '<div class="nav-note">Map offline: your route and stops still show</div>' : '';
   const wake = wakeNote(app) ? `<div class="nav-note warn" role="status">${h(wakeNote(app))}</div>` : '';
   // The map status sits under the speed, beside the controls, so it never pushes the bottom panel into them.
+  // One note at a time: two stacked notes ran into the bottom panel on small phones. The screen note wins (a tap
+  // clears it); the map then shows its own missing tiles.
   // Near a state line the journey panel carries it (amber); the card shows the next item.
   const card = adaptiveCard(app, s, f, { exitShown: true });
   return `<div class="nav-view" data-focus="${f.focus}">
     <div class="nav-top">${guidanceBanner(app, s)}</div>
     <div class="nav-mid">
-      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${wake}${offline}</div>
+      <div class="nav-left"><div class="nav-speed"><div class="speed-chip ${si.level}" aria-label="${si.mph === null ? 'Speed unavailable' : `${si.mph} miles per hour`}"><span class="num">${si.mph === null ? '—' : si.mph}</span><small>MPH</small></div>${limitSign(si, true)}</div>${wake || offline}</div>
       <div class="nav-right">${viewToggle(app)}${following ? '' : roundButton('nav-recenter', 'recenter', 'Follow my position')}
         ${roundButton('sheet', 'fuel', 'Fuel', 'data-arg="fuel"')}${roundButton('sheet', 'restroom', 'Restroom stop', 'data-arg="restroom"')}</div>
     </div>

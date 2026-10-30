@@ -72,6 +72,21 @@ for (const [label, width, height] of SIZES) {
       }
       if (overnight === 'on' && !(await page.evaluate(() => Boolean(document.querySelector('.night-card'))))) failures.push(`${name}: the overnight restroom card does not show`);
       if (alert && !(await page.evaluate(() => Boolean(document.querySelector('.nav-card .alert-card, .fv-card .alert-card'))))) failures.push(`${name}: the alert card does not show`);
+      // Navigation View with both left column notes due at once (the browser refused to keep the screen on, and
+      // the map is offline): only one shows, and the column stays clear of the bottom panel on every size.
+      if (presentation === 'map') {
+        const notes = await page.evaluate(async () => {
+          const a = window.exitAtlas;
+          a.settings.keepAwake = true;
+          a.wake.wanted = true;
+          a.wake.error = 'Test: refused';
+          if (a.wake.lock) { a.wake.lock = null; }
+          if (a.navMap) a.navMap.offline = true;
+          await new Promise((r) => setTimeout(r, 1500));
+          return document.querySelectorAll('.nav-left .nav-note').length;
+        });
+        if (notes > 1) failures.push(`${name}: ${notes} notes stacked in the left column`);
+      }
       const r = await page.evaluate((pres) => {
         const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right }; };
         const chrome = Math.max(box('.appbar').bottom, box('#banner').bottom);
