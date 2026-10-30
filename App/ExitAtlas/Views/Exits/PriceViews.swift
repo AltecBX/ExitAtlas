@@ -236,8 +236,11 @@ struct ComparePricesCard: View {
             .timelineCard(stroke: Theme.cardStroke)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("comparePrices")
-            // Google Maps prices for the exits shown, without a tap, every half mile while shown (docs/17).
-            .task(id: Int((trip.snapshot?.progress ?? 0) / 800)) { trip.autoGooglePrices(.roadAhead(miles: settings.exitLookaheadMiles)) }
+            // Google Maps prices for the exits shown, without a tap, every half mile while shown and when a range is
+            // entered (docs/17).
+            .task(id: "\(Int((trip.snapshot?.progress ?? 0) / 800))|\(trip.fuelReading?.rangeMeters ?? -1)") {
+                trip.autoGooglePrices(.roadAhead(miles: settings.exitLookaheadMiles))
+            }
         }
     }
 

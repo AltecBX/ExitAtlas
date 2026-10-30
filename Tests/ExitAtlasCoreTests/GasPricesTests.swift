@@ -176,5 +176,11 @@ final class GasPricesTests: XCTestCase {
         cohort = GasPrices.LookupCohort.choose(cohort, key: "ahead|1", build: build)
         XCTAssertEqual(cohort.ids, ["e", "f", "g", "h"], "five miles on, the new ranking")
         XCTAssertEqual(GasPrices.LookupCohort.choose(nil, key: "k", build: { [("x", -5), ("y", 5), ("y", 5)] }).ids, ["y"])
+        // No range yet: nothing to look up, and that is not kept; the range arriving on the same screen chooses again.
+        var pick: [(id: String, ahead: Double)] = []
+        let empty = GasPrices.LookupCohort.choose(nil, key: "fuel|0", build: { pick })
+        XCTAssertEqual(empty.ids, [])
+        pick = [("p", 3 * mile)]
+        XCTAssertEqual(GasPrices.LookupCohort.choose(empty, key: "fuel|0", build: { pick }).ids, ["p"])
     }
 }

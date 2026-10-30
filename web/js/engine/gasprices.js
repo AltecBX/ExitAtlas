@@ -255,11 +255,13 @@ export const AUTO_LOOKUP_RULES = Object.freeze({
 });
 
 /// The exits the automatic lookups consider: the first perPass distinct exits ahead of build() (most relevant
-/// first), chosen once per key (the screen and every cohortMiles of progress). Google's answers reorder the
-/// ranking (a station it lists closed at arrival drops out), so choosing again on every update would pull in
-/// exit after exit while the driver stays on one screen. prev: the last {key, exits}, or null.
+/// first), chosen once per key (the screen, the driver's own inputs such as the range reading, and every
+/// cohortMiles of progress). Google's answers reorder the ranking (a station it lists closed at arrival drops
+/// out), so choosing again on every update would pull in exit after exit while the driver stays on one screen.
+/// An empty choice is not kept: nothing was looked up, so the next update chooses again. prev: the last
+/// {key, exits}, or null.
 export function lookupCohort(prev, key, build, rules = AUTO_LOOKUP_RULES) {
-  if (prev && prev.key === key) return prev;
+  if (prev && prev.key === key && prev.exits.length) return prev;
   const exits = [];
   for (const e of build()) {
     if (exits.length === rules.perPass) break;

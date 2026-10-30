@@ -733,7 +733,9 @@ function autoGooglePrices() {
   const { kind, arg } = app.sheet ?? {};
   const ahead = app.tab === 'ahead' && app.mode !== 'idle' && app.exitsUI.filter === 'fuel' && !app.sheet;
   if (!ahead && !['exit', 'station', 'fuel'].includes(kind)) return;
-  const key = `${app.plan.route.id}|${ahead ? `ahead ${app.exitsUI.window}` : `${kind} ${arg ?? ''}`}|${Math.floor(progress / (AUTO_LOOKUP_RULES.cohortMiles * MILE))}`;
+  // The driver's own inputs (a range reading, a stop turned down, fuel preferences) choose again; Google's do not.
+  const inputs = `${app.fuel?.enteredAt ?? 'no range'}|${app.rejectedStops.join()}|${JSON.stringify(app.profile.fuel)}|${app.settings.bufferMiles}`;
+  const key = `${app.plan.route.id}|${ahead ? `ahead ${app.exitsUI.window}` : `${kind} ${arg ?? ''}`}|${inputs}|${Math.floor(progress / (AUTO_LOOKUP_RULES.cohortMiles * MILE))}`;
   autoCohort = lookupCohort(autoCohort, key, () => {
     const exits = [];
     const add = (exit) => { if (exit) exits.push({ id: exit.id, exit }); };

@@ -128,4 +128,10 @@ test('the exits looked up stay the same on a screen until the driver moves on, w
   cohort = lookupCohort(cohort, 'ahead|1', build);
   assert.deepEqual(cohort.exits.map((e) => e.id), ['e', 'f', 'g', 'h'], 'five miles on, the new ranking');
   assert.deepEqual(lookupCohort(null, 'k', () => [{ id: 'x', ahead: -5 }, { id: 'y', ahead: 5 }, { id: 'y', ahead: 5 }]).exits.map((e) => e.id), ['y']);
+  // No range yet: nothing to look up, and that is not kept; the range arriving on the same screen chooses again.
+  let pick = [];
+  const empty = lookupCohort(null, 'fuel|0', () => pick);
+  assert.deepEqual(empty.exits, []);
+  pick = [{ id: 'p', ahead: 3 * MILE }];
+  assert.deepEqual(lookupCohort(empty, 'fuel|0', () => pick).exits.map((e) => e.id), ['p']);
 });
