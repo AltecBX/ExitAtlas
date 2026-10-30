@@ -150,9 +150,19 @@ export async function loadDemoRouteJSON() {
   return res.json();
 }
 
-// MARK: Routing (OSRM demo server, OpenStreetMap data)
+// MARK: Routing (OSRM demo server, OpenStreetMap data; the FOSSGIS OSRM server as its backup)
 
-const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+/// Asked in order. The backup runs the same OSRM API and is asked only when the first fails (no connection, no
+/// answer in time, HTTP 5xx or 429), never for an answer such as NoRoute. Its terms (fossgis.de, OSM-Server
+/// Nutzungsbedingungen, routing): light use only, at most one request per second, OpenStreetMap attribution
+/// with a link to report map errors (views.js attribution), and a reachable contact for the site's operator.
+export const ROUTING_SERVERS = Object.freeze([
+  { base: 'https://router.project-osrm.org/route/v1/driving/', name: 'routing server' },
+  { base: 'https://routing.openstreetmap.de/routed-car/route/v1/driving/', name: 'backup routing server' },
+]);
+/// Both servers allow at most one request per second.
+export const ROUTING_SPACING = { ms: 1000 };
+const routingAskedAt = new Map();
 
 /// Public services the owner's proxy has switched off for everyone (see proxy.js), set at start.
 export const serviceSwitches = { disabled: [] };
@@ -185,7 +195,9 @@ async function timed(what, ms, outer, run) {
   try {
     return await Promise.race([work, late]);
   } catch (e) {
-    if (!outer?.aborted && e instanceof TypeError) throw new Error(`${what} could not be reached (no connection, or the server is busy)`);
+    if (outer?.aborted) throw e;
+    if (e instanceof TypeError) throw Object.assign(new Error(`${what} could not be reached (no connection, or the server is busy)`), { kind: 'network' });
+    if (ctl.signal.aborted) e.kind = 'timeout';
     throw e;
   } finally {
     clearTimeout(timer);
@@ -193,16 +205,46 @@ async function timed(what, ms, outer, run) {
   }
 }
 
+/// One routing server's answer. A failure that another server may not share (no connection, no answer in time,
+/// HTTP 5xx or 429) is marked `retry`; an answer such as NoRoute or NoSegment is not.
+async function askRouter(server, query, signal, timeout) {
+  const wait = ROUTING_SPACING.ms - (Date.now() - (routingAskedAt.get(server.base) ?? 0));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  routingAskedAt.set(server.base, Date.now());
+  let res, body;
+  try {
+    ({ res, body } = await timed(`the ${server.name}`, timeout, signal, async (s) => {
+      const r = await fetch(`${server.base}${query}`, { signal: s });
+      return { res: r, body: await r.json().catch((e) => { if (s.aborted) throw e; return null; }) };
+    }));
+  } catch (e) {
+    e.retry = Boolean(e.kind);
+    throw e;
+  }
+  if (res.ok && body?.code === 'Ok') return body;
+  throw Object.assign(new Error(body?.message || `${server.name} error (HTTP ${res.status})`), { retry: res.status >= 500 || res.status === 429 });
+}
+
 /// Routes through the waypoints. Alternatives only exist without stops. `bearing`: the driver's course for the
-/// start of a reroute (engine/osrm.js osrmRouteQuery), or null.
+/// start of a reroute (engine/osrm.js osrmRouteQuery), or null. The backup server is asked only when the first
+/// fails, so the driver hears of it only when both do.
 export async function fetchRoutes(waypoints, { alternatives = true, signal, bearing = null, timeout = REQUEST_TIMEOUT.routing } = {}) {
   checkSwitch('routing', 'Routing');
-  const { res, body } = await timed('the routing server', timeout, signal, async (s) => {
-    const r = await fetch(`${OSRM}${osrmRouteQuery(waypoints, { alternatives, bearing })}`, { signal: s });
-    return { res: r, body: await r.json().catch((e) => { if (s.aborted) throw e; return null; }) };
-  });
-  if (!res.ok || !body || body.code !== 'Ok') {
-    throw new Error(body?.message || `routing server error (HTTP ${res.status})`);
+  const query = osrmRouteQuery(waypoints, { alternatives, bearing });
+  let body;
+  try {
+    body = await askRouter(ROUTING_SERVERS[0], query, signal, timeout);
+  } catch (first) {
+    if (!first.retry) throw first;
+    try {
+      body = await askRouter(ROUTING_SERVERS[1], query, signal, timeout);
+    } catch (second) {
+      if (!second.retry) throw second;
+      if (first.kind === 'network' && second.kind === 'network') {
+        throw new Error('the routing servers could not be reached (no connection, or both are busy)');
+      }
+      throw new Error(`${first.message}, and ${second.message.replace(/^backup routing server error/, 'the backup failed too')}`);
+    }
   }
   return body.routes.map((r) => routeFromOSRM(r, waypoints));
 }

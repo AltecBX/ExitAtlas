@@ -42,9 +42,10 @@ function osrmFrom(start) {
     legs: [{ annotation: { duration: durs }, steps }] }] });
 }
 
-// What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection).
-const servers = { routing: 'ok', search: 'ok' };
-let routingCalls = 0, lastRoutingPoints = 0;
+// What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection). The backup routing
+// server (FOSSGIS) does what the OSRM demo server does unless `backup` says otherwise.
+const servers = { routing: 'ok', search: 'ok', backup: null };
+let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0;
 const failures = [];
 const fail = (m) => { failures.push(m); console.log(`FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); else console.log(`ok   ${m}`); };
@@ -63,11 +64,14 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.route((u) => u.protocol === 'https:', async (r) => {
   const u = new URL(r.request().url());
-  const kind = u.host === 'router.project-osrm.org' ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
+  const backup = u.host === 'routing.openstreetmap.de';
+  const kind = u.host === 'router.project-osrm.org' || backup ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
   if (!kind) return r.fulfill({ status: 503, body: '' });
-  if (kind === 'routing') { routingCalls++; lastRoutingPoints = u.pathname.split('/').pop().split(';').length; }
-  if (servers[kind] === 'hang') return; // accepted, never answered
-  if (servers[kind] === 'down') return r.abort('internetdisconnected');
+  if (backup) backupCalls++;
+  else if (kind === 'routing') { routingCalls++; lastRoutingPoints = u.pathname.split('/').pop().split(';').length; }
+  const mode = backup ? servers.backup ?? servers.routing : servers[kind];
+  if (mode === 'hang') return; // accepted, never answered
+  if (mode === 'down') return r.abort('internetdisconnected');
   if (kind === 'search') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: 'Richmond, Virginia, United States', lat: '37.5407', lon: '-77.436' }]) });
   const [lon, lat] = u.pathname.split('/').pop().split(';')[0].split(',').map(Number);
   return r.fulfill({ status: 200, contentType: 'application/json', body: osrmFrom({ lat, lon }) });
@@ -80,7 +84,7 @@ const view = () => app(() => document.querySelector('#view').textContent);
 const loaded = async () => {
   await page.waitForFunction(() => window.exitAtlas?.data, null, { timeout: 60000 });
   // Short time limits so the stalls below take seconds. Same module instance as the app's.
-  await app(async () => { const m = await import('./js/app/services.js'); if (m.REQUEST_TIMEOUT) Object.assign(m.REQUEST_TIMEOUT, { routing: 1500, search: 1500 }); });
+  await app(async () => { const m = await import('./js/app/services.js'); if (m.REQUEST_TIMEOUT) Object.assign(m.REQUEST_TIMEOUT, { routing: 1500, search: 1500 }); if (m.ROUTING_SPACING) m.ROUTING_SPACING.ms = 0; });
   // Fixes along window.__route (the route being driven), one per second of GPS time.
   await app(() => {
     window.__gps = { t: Math.floor(Date.now() / 1000), d: 0 };
@@ -130,6 +134,15 @@ await page.waitForSelector('[data-act="find-routes"]:not([disabled])');
 await tap('[data-act="find-routes"]');
 check(await until(() => !window.exitAtlas.planner.busy, null, 6000), 'a stalled route request ends');
 check(/did not answer/.test(await view()) && await app(() => !document.querySelector('[data-act="find-routes"]').disabled), 'it says why, and Find routes works again');
+// The OSRM demo server down, the FOSSGIS backup up: routes, and nothing extra to read.
+servers.routing = 'down';
+servers.backup = 'ok';
+const backupBefore = backupCalls;
+await tap('[data-act="find-routes"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+check(backupCalls === backupBefore + 1 && await app(() => window.exitAtlas.planner.results.length > 0 && !window.exitAtlas.planner.error),
+  'with the routing server down the backup server answers, and no error shows');
+servers.backup = null;
 servers.routing = 'ok';
 await tap('[data-act="find-routes"]');
 await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 });
@@ -148,7 +161,7 @@ servers.routing = 'hang';
 let before = routingCalls;
 await app(() => window.__park(30, 1500));
 check(routingCalls > before, 'leaving the route requests a new route');
-await page.waitForTimeout(2500);
+await until(() => !window.exitAtlas.isRerouting, null, 8000);
 s = await state();
 check(!s.rerouting && s.pill !== 'Rerouting' && /did not answer/.test(s.error ?? ''), `a stalled reroute ends with a reason (${s.pill}: ${s.error})`);
 before = routingCalls;
@@ -158,7 +171,7 @@ const unpaced = () => app(() => window.exitAtlas.reroutePacer.reset());
 await unpaced();
 await app(() => window.__park(25, 1500));
 check(routingCalls > before, 'a later reroute is still requested');
-await page.waitForTimeout(2500);
+await until(() => !window.exitAtlas.isRerouting, null, 8000);
 
 // 6. Back on the route: no reroute is pending, so "Will retry" goes.
 await app(() => window.__drive(10));
@@ -202,7 +215,7 @@ await addStop();
 await page.waitForTimeout(300);
 await until(() => !window.exitAtlas.isRerouting);
 const notAdded = await app(() => document.querySelector('#toast').textContent);
-check(/^Could not add .+: the routing server could not be reached/.test(notAdded) && (await ahead()).join() === 'Richmond, Virginia',
+check(/^Could not add .+: the routing servers could not be reached/.test(notAdded) && (await ahead()).join() === 'Richmond, Virginia',
   `a stop that could not be added is not kept, and the driver is told (${notAdded})`);
 servers.routing = 'ok';
 await addStop();

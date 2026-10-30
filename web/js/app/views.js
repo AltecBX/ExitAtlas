@@ -209,7 +209,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © OpenStreetMap contributors (ODbL); navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">report a map error</a>; navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -1708,7 +1708,7 @@ export function settingsView(app) {
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
       <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. When you check Google Maps prices, Google's business hours and restroom field for those stations.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
-      <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data. Light personal use only.</p>
+      <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data; when it does not answer, the FOSSGIS server (routing.openstreetmap.de). Light personal use only.</p>
       <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
       <p><b>Gas prices:</b> reports by you (on this device) and, when turned on, by other ExitAtlas drivers through the owner's server; each shows its time and source. Google Maps prices only when you turn them on and tap to check (paid, your key). No regional average is shown as a station's price.</p>
       <p><b>EV chargers:</b> U.S. DOE Alternative Fuels Data Center (developer.nlr.gov).</p>
