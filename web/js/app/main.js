@@ -926,6 +926,7 @@ function resetTripState() {
   app.snapshot = null;
   app.discovery = null;
   app.lastError = null;
+  app.rerouteError = null;
   app.isRerouting = false;
   app.serviceCache.clear();
   app.rejectedStops = [];
@@ -983,7 +984,9 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
 function endTrip() {
   recordPace();
   const session = app.session;
-  if (app.mode === 'trip' && session && app.gps === 'device' && session.ledger.totalMeters > 0) {
+  // Only a real GPS trip is saved for resuming; ending a simulated drive or discovery mode keeps a saved trip.
+  const real = app.mode === 'trip' && app.gps === 'device';
+  if (real && session && session.ledger.totalMeters > 0) {
     app.history.unshift({
       title: `${app.plan.route.origin.name} to ${app.plan.route.destination.name}`,
       startedAt: app.tripStartedAt, endedAt: nowSeconds(),
@@ -1000,7 +1003,8 @@ function endTrip() {
   resetTripState();
   app.mode = 'idle';
   app.gps = 'device';
-  store.remove('ea.active');
+  if (real) store.remove('ea.active');
+  else app.resumable = loadResumable();
   closeSheet();
   render();
 }
@@ -1058,6 +1062,11 @@ function handleSample(sample, shouldRender) {
   }
   if (app.mode === 'trip' && app.session) {
     const snap = app.session.ingest(sample);
+    // Back on the route after a failed reroute: nothing is retried, so its "Will retry" message goes.
+    if (app.rerouteError && snap.match.status === 'onRoute') {
+      if (app.lastError === app.rerouteError) app.lastError = null;
+      app.rerouteError = null;
+    }
     publish(snap);
     if (app.session.needsReroute(sample.t)) reroute(sample);
     persistIfDue(sample.t);
@@ -1163,9 +1172,10 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     app.serviceCache.clear();
     app.remainingWaypoints = waypoints;
     app.lastError = null;
+    app.rerouteError = null;
     if (app.settings.voice && spoken) app.announcer.speak(spoken);
   } catch (e) {
-    app.lastError = `Reroute failed: ${e.message}. Will retry.`;
+    app.lastError = app.rerouteError = `Reroute failed: ${e.message}. Will retry.`;
   } finally {
     app.isRerouting = false;
     render();
