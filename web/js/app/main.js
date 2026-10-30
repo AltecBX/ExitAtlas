@@ -931,6 +931,7 @@ function resetTripState() {
   app.snapshot = null;
   app.discovery = null;
   app.lastError = null;
+  app.rerouteError = null;
   app.isRerouting = false;
   app.serviceCache.clear();
   app.rejectedStops = [];
@@ -960,6 +961,14 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
     app.session = new TripSession(plan, app.data.states, now, {
       ledger: new TripLedger(restoring.ledger), pace: new PaceModel(restoring.pace),
     });
+    // Back where the trip was when saved, shown as an estimate until the first fix: miles driven while the page
+    // was gone are then credited to their states, and leaving the route is noticed (a reroute) as on a live trip.
+    const at = Math.min(Number(restoring.progress) || 0, route.length);
+    if (at > 0) {
+      app.session.tracker.reset(at, Number(restoring.savedAt) || now);
+      app.session.tracker.match.isEstimated = true;
+      app.session.recordedUpTo = at;
+    }
     app.tripStartedAt = restoring.startedAt;
   } else {
     app.tripStartedAt = now;
@@ -989,7 +998,9 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
 function endTrip() {
   recordPace();
   const session = app.session;
-  if (app.mode === 'trip' && session && app.gps === 'device' && session.ledger.totalMeters > 0) {
+  // Only a real GPS trip is saved for resuming; ending a simulated drive or discovery mode keeps a saved trip.
+  const real = app.mode === 'trip' && app.gps === 'device';
+  if (real && session && session.ledger.totalMeters > 0) {
     app.history.unshift({
       title: `${app.plan.route.origin.name} to ${app.plan.route.destination.name}`,
       startedAt: app.tripStartedAt, endedAt: nowSeconds(),
@@ -1006,7 +1017,8 @@ function endTrip() {
   resetTripState();
   app.mode = 'idle';
   app.gps = 'device';
-  store.remove('ea.active');
+  if (real) store.remove('ea.active');
+  else app.resumable = loadResumable();
   closeSheet();
   render();
 }
@@ -1064,6 +1076,11 @@ function handleSample(sample, shouldRender) {
   }
   if (app.mode === 'trip' && app.session) {
     const snap = app.session.ingest(sample);
+    // Back on the route after a failed reroute: nothing is retried, so its "Will retry" message goes.
+    if (app.rerouteError && snap.match.status === 'onRoute') {
+      if (app.lastError === app.rerouteError) app.lastError = null;
+      app.rerouteError = null;
+    }
     publish(snap);
     app.reroutePacer.observe(snap);
     if (app.session.needsReroute(sample.t)) reroute(sample);
@@ -1152,10 +1169,13 @@ function remainingWaypoints() {
   return app.remainingWaypoints.filter((w) => !passed.includes(w.name));
 }
 
+/// Returns { ok } and, when no new route was set, the reason.
 async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
-  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') return;
+  if (app.mode !== 'trip' || app.isRerouting || !app.remainingWaypoints.length || app.gps !== 'device') {
+    return { ok: false, reason: app.isRerouting ? 'a new route is still on its way, try again in a moment' : 'no live GPS trip' };
+  }
   // Automatic reroutes are paced (app/reroute.js): at least 2 minutes apart, longer while each new route is left.
-  if (!force && !app.reroutePacer.allow(sample.t)) return;
+  if (!force && !app.reroutePacer.allow(sample.t)) return { ok: false, reason: 'too soon' };
   if (!force) app.reroutePacer.started(sample.t);
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
@@ -1173,7 +1193,7 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
       if (bearing === null || !/segment/i.test(e.message)) throw e;
       [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
     }
-    if (!route || !app.session || app.mode !== 'trip') return;
+    if (!route || !app.session || app.mode !== 'trip') return { ok: false, reason: 'the trip ended' };
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());
     app.session.replacePlan(plan, nowSeconds());
@@ -1181,12 +1201,15 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     app.serviceCache.clear();
     app.remainingWaypoints = waypoints;
     app.lastError = null;
+    app.rerouteError = null;
     if (app.settings.voice && spoken) {
       if (force) app.announcer.speak(spoken);
       else app.announcer.rerouted(sample.t, spoken);
     }
+    return { ok: true };
   } catch (e) {
-    app.lastError = `Reroute failed: ${e.message}. Will retry.`;
+    app.lastError = app.rerouteError = `Reroute failed: ${e.message}. Will retry.`;
+    return { ok: false, reason: e.message };
   } finally {
     app.isRerouting = false;
     render();
@@ -1209,10 +1232,19 @@ async function addWaypointStop(waypoint, alongRoute) {
   const list = remainingWaypoints();
   const at = list.findIndex((w) => along(w) > alongRoute);
   list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
+  const before = app.remainingWaypoints;
   app.remainingWaypoints = list;
   closeSheet();
   toast(`Adding ${waypoint.name}`);
-  await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  const r = await reroute(app.lastSample, { force: true, spoken: `Stop added: ${waypoint.name}.` });
+  if (r.ok) return;
+  // Not added: the stops still ahead stay as they were (nothing retries a stop while on the route), and the
+  // driver is told, instead of a "Will retry" that would not happen.
+  if (app.remainingWaypoints === list) app.remainingWaypoints = before;
+  if (app.rerouteError && app.lastError === app.rerouteError) app.lastError = null;
+  app.rerouteError = null;
+  toast(`Could not add ${waypoint.name}: ${r.reason}`);
+  render();
 }
 
 /// The proxy's base URL for a service it offers and has not switched off, else null.
@@ -1236,15 +1268,20 @@ function persistIfDue(t, force = false) {
   recordPace();
   store.set('ea.active', {
     route: serializeRoute(app.plan.route), ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
-    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(),
+    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(), progress: app.session.recordedUpTo,
   });
 }
 
 function loadResumable() {
   const rec = store.get('ea.active');
-  if (!rec?.route || nowSeconds() - rec.savedAt > 48 * 3600) return null;
-  const ledger = new TripLedger(rec.ledger);
-  return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  if (!rec?.route || !(nowSeconds() - rec.savedAt <= 48 * 3600)) return null;
+  // Read at start up: a saved trip that cannot be read is not offered, and must not stop the app from starting.
+  try {
+    const ledger = new TripLedger(rec.ledger);
+    return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  } catch {
+    return null;
+  }
 }
 
 // MARK: Planner
