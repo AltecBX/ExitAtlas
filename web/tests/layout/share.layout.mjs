@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { dollars } from '../../js/engine/gasprices.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -25,6 +26,8 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(8765, '127.0.0.1', r));
 const PRICE = (3 + Math.floor(Math.random() * 900) / 1000).toFixed(3); // a fresh price each run
+// As the app shows it: $3.120 shows as $3.12 (engine/gasprices.js dollars).
+const SHOWN = dollars(Number(PRICE));
 const shotDir = process.env.SHOTS ?? null;
 const browser = await chromium.launch();
 const until = async (page, fn, arg, ms, label) => {
@@ -84,8 +87,8 @@ if (shotDir) await A.page.screenshot({ path: `${shotDir}/share-a.png` });
 
 const B = await install();
 try {
-  await until(B.page, (a) => [...document.querySelectorAll('.pr-row')].some((r) => r.dataset.arg === a.id && r.textContent.includes(`$${a.price}`) && /ExitAtlas drivers/.test(r.textContent)),
-    { id: station.id, price: PRICE }, 30000, 'install B sees the shared price');
+  await until(B.page, (a) => [...document.querySelectorAll('.pr-row')].some((r) => r.dataset.arg === a.id && r.textContent.includes(a.shown) && /ExitAtlas drivers/.test(r.textContent)),
+    { id: station.id, shown: SHOWN }, 30000, 'install B sees the shared price');
 } catch (e) { failures.push(e.message); }
 const row = await B.page.evaluate((id) => document.querySelector(`.pr-row[data-arg="${id}"]`)?.textContent.replace(/\s+/g, ' ').trim(), station.id);
 const own = await B.page.evaluate(() => localStorage.getItem('ea.priceReports'));
