@@ -1333,10 +1333,12 @@ export function exitsView(app) {
 }
 
 /// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
-function alertEmptyTitle(intel, window) {
+export function alertEmptyTitle(intel, window) {
   if (!intel) return 'Road alerts are off';
   const on = Object.values(intel.status).filter((st) => st.state !== 'off');
   if (on.some((st) => st.state === 'unavailable')) return 'Some alert sources are unavailable';
+  // Nothing has answered yet (just started, or offline): not a "no reports".
+  if (on.some((st) => st.state === 'loading')) return 'Checking road alert sources';
   return `No reports from connected sources in the next ${window} miles`;
 }
 
@@ -1349,12 +1351,14 @@ function alertEmptyText(intel) {
 
 /// One line on what the alert sources say, with each group's state in a details list: "no relevant
 /// reports" and "data unavailable" are different things and both are shown as such.
-function alertStatus(intel, { open = false } = {}) {
+export function alertStatus(intel, { open = false } = {}) {
   if (!intel) return '';
   const n = intel.alerts.length;
   const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
   const failing = on.filter(([, st]) => st.state === 'unavailable').length;
-  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
+  const checking = on.some(([, st]) => st.state === 'loading');
+  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable'
+    : checking ? 'Checking road alert sources' : 'Road alerts: none from connected sources';
   const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
   return `<details class="facilities alert-status"${open ? ' open' : ''}><summary>${h(summary)}</summary>${rows}</details>`;
 }
