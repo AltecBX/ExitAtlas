@@ -229,6 +229,27 @@ final class RoadIntelTests: XCTestCase {
         guard case .ahead = place(nil) else { return XCTFail("no name") }
     }
 
+    /// Same case as web/tests/roadalerts.test.js: a zone alert NWS returned where the driver was stays "here"
+    /// as the driver moves on, until half the sample spacing past the point; a later sample point is not "ahead".
+    func testZoneAlertWhereTheDriverIsStaysHere() throws {
+        let route = Fixtures.route("richmond_to_nyc_via_pa")
+        let at = 40 * mile
+        func place(_ points: [Double], progress: Double) -> RoadIntel.Placement {
+            RoadIntel.place(RoadIntel.Incident(id: "fog", kind: .weather, description: "Dense Fog Advisory", source: .init(id: "nws", name: "NWS"),
+                                               verification: .official, geometry: .points(points.map { route.polyline.coordinate(at: $0) }),
+                                               road: nil, direction: "both", severity: .minor),
+                            on: route, progress: progress)
+        }
+        for moved in [0.5, 5.0] {
+            guard case let .ahead(start, _, _, approximate) = place([at], progress: at + moved * mile) else { return XCTFail("\(moved) mi on: gone") }
+            XCTAssertEqual(start, at + moved * mile, accuracy: 1, "\(moved) mi on: here")
+            XCTAssertTrue(approximate)
+        }
+        guard case let .ahead(start, _, _, _) = place([at, at + 25 * mile], progress: at + 3 * mile) else { return XCTFail("wide alert") }
+        XCTAssertEqual(start, at + 3 * mile, accuracy: 1, "here, not 22 miles ahead")
+        guard case .rejected("behind") = place([at], progress: at + 20 * mile) else { return XCTFail("far past the point") }
+    }
+
     func testAlertTiersAndHeadlines() throws {
         let file = Fixtures.fixtureDirectory.appendingPathComponent("roadintel/tiers.json")
         for c in try JSONValue(data: Data(contentsOf: file))["cases"]!.array! {
