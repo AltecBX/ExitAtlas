@@ -5,10 +5,10 @@ import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
-import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
+import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText, googlePriceCurrent } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
-import { stopPrice, liveFor } from './smartstops.js';
+import { stopPrice, liveFor, stationName } from './smartstops.js';
 import { googleMapsLink, gasBuddyLink, US_STATES } from '../engine/pricecheck.js';
 import { matchesFavorite } from '../engine/fuel.js';
 import { KIND_TITLES, restAreaTitle, amenityBadges, hoursText } from '../engine/restareas.js';
@@ -18,7 +18,7 @@ import { nextManeuver } from '../engine/guidance.js';
 import { routeBearing } from './navmap.js';
 import { localTime } from '../engine/openinghours.js';
 import { inOvernightWindow } from '../engine/profile.js';
-import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline } from '../engine/roadintel.js';
+import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline, driveCardAlert, onDriveCard } from '../engine/roadintel.js';
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
@@ -587,11 +587,10 @@ function focusSignals(app, s) {
   };
 }
 
-/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest.
+/// The alert the focus rule considers: the first serious one within 50 miles, else the nearest. Work zones that
+/// leave the travel lanes open, and weather advisories the driver is already in, stay in Road Ahead.
 function focusAlertItem(app, s) {
-  // Work zones that leave the travel lanes open stay in Road Ahead.
-  const alerts = (app.roadIntel()?.alerts ?? []).filter((a) => a.notable);
-  return alerts.find((a) => a.serious && a.start - s.progress <= 50 * MILE) ?? alerts[0] ?? null;
+  return driveCardAlert(app.roadIntel()?.alerts ?? [], s.progress);
 }
 
 function focusAlert(app, s) {
@@ -928,8 +927,10 @@ function compareCard(app, s) {
   const list = (r?.stations ?? []).filter((c) => c.ahead > 0 && c.ahead <= win);
   const favorites = app.profile.fuel.brands ?? [];
   const sort = SORTS.includes(app.priceUI.sort) ? app.priceUI.sort : 'recommended';
+  // A station the range left does not reach is listed after every one it does, under every sort, and says so.
+  const beyond = (c) => c.rangeOnArrival != null && c.rangeOnArrival < 0;
   const rows = list.map((c) => ({ id: c.id, c, ahead: c.ahead, detourMinutes: c.detourMinutes, brandRank: brandIndex(c, favorites),
-    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo }));
+    recommendedRank: r.order.includes(c.id) ? r.order.indexOf(c.id) : null, price: c.priceInfo, beyondRange: beyond(c) }));
   const sorted = sortStations(rows, sort);
   const label = (k) => (k === 'brand' && favorites[0] ? `${favorites[0]} first` : SORT_NAMES[k]);
   const chips = `<div class="chips wrap" role="group" aria-label="Sort stations">${SORTS.map((k) => `<button class="chip${k === sort ? ' on' : ''}" data-act="price-sort" data-arg="${k}" aria-pressed="${k === sort}">${h(label(k))}</button>`).join('')}</div>`;
@@ -938,7 +939,7 @@ function compareCard(app, s) {
     const detour = c.kind === 'plaza' ? 'On the highway' : c.detourMinutes != null ? `${c.detourMinutes < 1 ? 'under 1' : Math.round(c.detourMinutes)} min detour` : 'Detour not measured';
     return `<button class="item pr-row" data-act="station" data-arg="${h(c.id)}">${brandTag(c)}<div class="main">
       <div class="t">${h(c.name)} ${c.exit ? exitSign(c.exit.label, true) : ''} <span class="muted small">${milesValue(c.ahead)} mi</span></div>
-      <div class="tiny pr-facts">${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
+      <div class="tiny pr-facts">${beyond(c) ? '<span class="amber-text" data-testid="beyond-range">Beyond your range</span>' : ''}${confLine(e.hours.status, e.hours.label)}${confLine(e.restroom.status, e.restroom.label)}<span class="muted">${h(detour)}</span></div>
       ${price ? `<div class="tiny ${price.state === 'current' ? 'muted' : 'amber-text'}">${h(priceMeta(price))}</div>` : ''}</div>${priceTag(price, o.grade)}</button>`;
   };
   const google = app.settings.prices?.google && app.prices.enabled
@@ -1079,8 +1080,8 @@ function priceInfo(app, exit) {
   if (!c) return '';
   if (c.error) return '<div class="muted tiny">Google Maps prices unavailable</div>';
   const g = GRADES[app.gradeCode()];
-  const priced = pricedForGrade(c.stations, g.key);
-  if (!priced.length) return `<div class="muted tiny">No ${g.name.toLowerCase()} prices reported near this exit</div>`;
+  const priced = pricedForGrade(c.stations, g.key, { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 });
+  if (!priced.length) return `<div class="muted tiny">No current ${g.name.toLowerCase()} prices near this exit</div>`;
   const fav = priced.find((x) => matchesFavorite(x.name, app.settings.favoriteBrands));
   const cheap = priced[0];
   const parts = [];
@@ -1333,10 +1334,12 @@ export function exitsView(app) {
 }
 
 /// The Alerts filter with nothing in the window: never "all clear" when a source failed or none is connected.
-function alertEmptyTitle(intel, window) {
+export function alertEmptyTitle(intel, window) {
   if (!intel) return 'Road alerts are off';
   const on = Object.values(intel.status).filter((st) => st.state !== 'off');
   if (on.some((st) => st.state === 'unavailable')) return 'Some alert sources are unavailable';
+  // Nothing has answered yet (just started, or offline): not a "no reports".
+  if (on.some((st) => st.state === 'loading')) return 'Checking road alert sources';
   return `No reports from connected sources in the next ${window} miles`;
 }
 
@@ -1349,12 +1352,14 @@ function alertEmptyText(intel) {
 
 /// One line on what the alert sources say, with each group's state in a details list: "no relevant
 /// reports" and "data unavailable" are different things and both are shown as such.
-function alertStatus(intel, { open = false } = {}) {
+export function alertStatus(intel, { open = false } = {}) {
   if (!intel) return '';
   const n = intel.alerts.length;
   const on = Object.entries(intel.status).filter(([, st]) => st.state !== 'off');
   const failing = on.filter(([, st]) => st.state === 'unavailable').length;
-  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable' : 'Road alerts: none from connected sources';
+  const checking = on.some(([, st]) => st.state === 'loading');
+  const summary = n ? `${n} road ${n === 1 ? 'alert' : 'alerts'} on your route` : failing ? 'Some road alert sources are unavailable'
+    : checking ? 'Checking road alert sources' : 'Road alerts: none from connected sources';
   const rows = on.map(([g, st]) => `<div class="fac"><span class="fn">${h(ALERT_GROUPS[g].label)}</span><span class="fv">${h(st.label)}${st.note ? ` · ${h(st.note)}` : ''}</span></div>`).join('');
   return `<details class="facilities alert-status"${open ? ' open' : ''}><summary>${h(summary)}</summary>${rows}</details>`;
 }
@@ -1372,8 +1377,9 @@ export function alertSheet(app, id) {
   const zone = app.plan.timeZoneIDAt(a.start);
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
-  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
-  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
+  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule', simulated: 'Simulated test data, not a real event' }[i.verification] ?? 'Not stated';
+  const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : !onDriveCard(a, s.progress) ? 'Road Ahead only: an advisory where you are now'
+    : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');
   const police = intel.status.police ? `${ALERT_GROUPS.police.label}: ${intel.status.police.label}.` : '';
@@ -1464,9 +1470,9 @@ function priceSection(app, exit) {
   if (o && gas.length) {
     const ctx = app.stopContext();
     const rows = gas.map((x) => {
-      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand;
+      const id = x.place.id, brand = app.data?.stations?.get(id)?.b ?? x.place.brand, name = stationName(x.place, brand);
       const sp = stopPrice(ctx, id, liveFor(app.prices, exit, x.place, brand));
-      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name: placeDisplayName(x.place), brand })}<div class="main"><div class="t">${h(placeDisplayName(x.place))}</div>
+      return `<button class="item pr-row" data-act="station" data-arg="${h(id)}">${brandTag({ name, brand })}<div class="main"><div class="t">${h(name)}</div>
         <div class="muted tiny">${sp ? h(priceMeta(sp)) : 'No current price'}</div></div>${priceTag(sp, o.grade)}</button>`;
     }).join('');
     html += `<div class="section-title">⛽ Gas prices here</div><div class="list">${rows}</div>
@@ -1482,12 +1488,17 @@ function googleSection(app, exit) {
   if (!c) return `<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="google-prices" data-arg="${h(exit.id)}">${app.prices.cache.get(exit.id)?.pending ? 'Checking Google Maps…' : 'Check Google Maps prices (paid)'}</button></div>`;
   if (c.error) return `<div class="section-title">Google Maps prices</div><div class="card small">Google Maps prices unavailable: ${h(c.error)}</div>`;
   const g = GRADES[app.gradeCode()];
-  const rows = [...c.stations].sort((a, b) => (a.prices[g.key]?.value ?? 99) - (b.prices[g.key]?.value ?? 99)).map((st) => {
+  // Current prices first, cheapest first; old ones (past the driver's age limit, or without a time) after them,
+  // greyed and never compared; stations without a price for the grade last.
+  const age = { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 };
+  const order = (st) => { const p = st.prices[g.key]; return !p ? [2, 0] : [googlePriceCurrent(p, age) ? 0 : 1, p.value]; };
+  const rows = [...c.stations].sort((a, b) => { const x = order(a), y = order(b); return x[0] - y[0] || x[1] - y[1]; }).map((st) => {
     const p = st.prices[g.key];
+    const current = googlePriceCurrent(p, age);
     const others = Object.entries(GRADES).filter(([, x]) => x.key !== g.key && st.prices[x.key]).map(([, x]) => `${x.name} ${priceText(st.prices[x.key])}`).join(' · ');
     const fav = matchesFavorite(st.name, app.settings.favoriteBrands);
-    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${ageText(p.updated)}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
-      <div class="side"><div class="big">${p ? priceText(p) : '—'}</div></div></div>`;
+    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${p.updated ? ageText(p.updated) : 'time not given'}${current ? '' : ' · old, not compared'}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
+      <div class="side"><div class="big${p && !current ? ' muted' : ''}">${p ? priceText(p) : '—'}</div></div></div>`;
   });
   return `<div class="section-title">Google Maps prices</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
     <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up for the exits you are viewing. Not stored or shared.</p>`;

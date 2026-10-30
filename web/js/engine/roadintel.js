@@ -5,7 +5,7 @@
 //
 // An incident (the common schema every provider converts to):
 //   {id, category, description, source: {id, name},
-//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped',
+//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped' | 'simulated' (the demo only),
 //    reportedAt, updatedAt, startsAt, endsAt, expiresAt (unix seconds or null),
 //    geometry: {type: 'point', coordinate} | {type: 'line', coordinates} | {type: 'polygon', rings} |
 //              {type: 'points', coordinates} (an area alert known only at sample points on the route) |
@@ -72,6 +72,9 @@ export const MATCH_RULES = Object.freeze({
   areaStep: 1000,
   /// Two reports of the same kind within this distance (same direction) are one event.
   duplicate: 800,
+  /// An area alert known only at sample points (every 25 miles, app/roadalerts.js) still stands for the road
+  /// this far past a point the driver has passed (half the spacing), until the next answer moves the points.
+  pointsReach: 12.5 * MILE,
 });
 
 /// "I-95", "Interstate 95", "I 95 N" as {kind, prefix, number}, or null.
@@ -202,10 +205,13 @@ export function matchIncident(route, i, progress, rules = MATCH_RULES) {
   if (g.type === 'point') return matchPoint(route, g.coordinate, i, progress, rules);
   if (g.type === 'points') {
     // Sample points on the route (an area alert queried by point): each is on the route by construction.
-    const hits = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean)
-      .map((p) => p.distanceAlong).filter((d) => d >= progress);
+    const along = g.coordinates.map((c) => route.polyline.nearestProjection(c, rules.unnamedOffset)).filter(Boolean).map((p) => p.distanceAlong);
+    const hits = along.filter((d) => d >= progress);
+    // A point just passed (the first one is where the driver was when NWS answered): the driver is in the area.
+    const here = along.some((d) => d < progress && progress - d <= (rules.pointsReach ?? 0));
+    if (!hits.length && !here) return { why: along.length ? 'behind' : 'off route' };
     // Where it starts and ends between the sample points is not known, so the extent is approximate.
-    return hits.length ? { start: Math.min(...hits), end: Math.max(...hits), directionKnown: true, approximate: true } : { why: 'off route' };
+    return { start: here ? progress : Math.min(...hits), end: hits.length ? Math.max(...hits) : progress, directionKnown: true, approximate: true };
   }
   if (g.type === 'line') return matchLine(route, g.coordinates, i, progress, rules);
   if (g.type === 'polygon') return matchArea(route, g.rings, progress, rules.window, rules);
@@ -228,6 +234,24 @@ export function isSerious(i) {
 /// open or does not say (those stay in Road Ahead).
 export function isNotable(i) {
   return isSerious(i) || !(i.category === 'construction' && (i.severity === 'minor' || i.severity === 'unknown'));
+}
+
+/// Takes the Drive card: a notable alert, except a weather or flooding alert the driver is already inside that
+/// is not Severe or Extreme (NWS) and not a warning. Advisories where the driver is stay in Road Ahead and the
+/// weather details; ahead of the driver nothing changes. Same rule as RoadIntel.Alert.onDriveCard in RoadIntel.swift.
+export function onDriveCard(a, progress) {
+  if (!a.notable) return false;
+  const i = a.incident;
+  // Inside: the alert starts where the driver is (within a meter, for rounding) or behind.
+  if ((i.category !== 'weather' && i.category !== 'flooding') || a.start - progress > 1) return true;
+  return i.severity === 'severe' || i.severity === 'major' || /warning$/i.test(String(i.description ?? '').trim());
+}
+
+/// The alert the Drive screen considers: the first serious one within 50 miles, else the nearest, of those that
+/// take the Drive card. Same rule as RoadIntel.Result.focusAlert in RoadIntel.swift.
+export function driveCardAlert(alerts, progress) {
+  const shown = alerts.filter((a) => onDriveCard(a, progress));
+  return shown.find((a) => a.serious && a.start - progress <= 50 * MILE) ?? shown[0] ?? null;
 }
 
 /// How loud an alert looks: 'urgent' (red: closures, major or severe crashes, weather, flooding and hazards),

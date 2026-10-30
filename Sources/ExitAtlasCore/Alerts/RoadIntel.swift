@@ -181,6 +181,9 @@ public enum RoadIntel {
         public var lineBearing = 60.0
         public var areaStep = 1000.0
         public var duplicate = 800.0
+        /// An area alert known only at sample points (every 25 miles) still stands for the road this far past a
+        /// point the driver has passed (half the spacing), until the next answer moves the points.
+        public var pointsReach = 12.5 * Geodesy.metersPerMile
         public init() {}
     }
 
@@ -200,6 +203,17 @@ public enum RoadIntel {
         public let approximate: Bool
         public let serious: Bool
         public var notable: Bool { incident.isNotable }
+        /// Takes the Drive card: notable, except a weather or flooding alert the driver is already inside that is
+        /// not Severe or Extreme (NWS) and not a warning; those advisories stay in Road Ahead and the weather
+        /// details. Ahead of the driver nothing changes. Same rule as onDriveCard in roadintel.js.
+        public func onDriveCard(progress: Double) -> Bool {
+            guard notable else { return false }
+            let i = incident
+            // Inside: the alert starts where the driver is (within a meter, for rounding) or behind.
+            if (i.kind != .weather && i.kind != .flooding) || start - progress > 1 { return true }
+            return i.severity == .severe || i.severity == .major
+                || i.description.trimmingCharacters(in: .whitespaces).lowercased().hasSuffix("warning")
+        }
         public internal(set) var sources: [Source]
     }
 
@@ -310,10 +324,13 @@ public enum RoadIntel {
         case nil: return .rejected("no location")
         case .point(let c): return placePoint(c, i, route, progress, rules)
         case .points(let cs):
-            let hits = cs.compactMap { route.polyline.nearestProjection(of: $0, within: rules.unnamedOffset)?.distanceAlong }.filter { $0 >= progress }
-            guard let lo = hits.min(), let hi = hits.max() else { return .rejected("off route") }
+            let along = cs.compactMap { route.polyline.nearestProjection(of: $0, within: rules.unnamedOffset)?.distanceAlong }
+            let hits = along.filter { $0 >= progress }
+            // A point just passed (the first one is where the driver was when NWS answered): the driver is in the area.
+            let here = along.contains { $0 < progress && progress - $0 <= rules.pointsReach }
+            if hits.isEmpty && !here { return .rejected(along.isEmpty ? "off route" : "behind") }
             // Where it starts and ends between the sample points is not known, so the extent is approximate.
-            return .ahead(start: lo, end: hi, directionKnown: true, approximate: true)
+            return .ahead(start: here ? progress : hits.min()!, end: hits.max() ?? progress, directionKnown: true, approximate: true)
         case .line(let cs): return placeLine(cs, i, route, progress, rules)
         case .polygon(let rings): return placeArea(rings, route, progress, rules)
         case .route(let routeId, let from, let to):
@@ -498,9 +515,10 @@ public enum RoadIntel {
 
 extension RoadIntel.Result {
     /// The alert the Drive screen considers: the first serious one within 50 miles, else the nearest. Work
-    /// zones that leave the travel lanes open stay in Road Ahead (same rule as focusAlertItem in views.js).
+    /// zones that leave the travel lanes open, and weather advisories the driver is already in, stay in Road
+    /// Ahead (same rule as driveCardAlert in roadintel.js).
     public func focusAlert(progress: Double) -> RoadIntel.Alert? {
-        let shown = alerts.filter(\.notable)
+        let shown = alerts.filter { $0.onDriveCard(progress: progress) }
         return shown.first { $0.serious && $0.start - progress <= 50 * Geodesy.metersPerMile } ?? shown.first
     }
 }

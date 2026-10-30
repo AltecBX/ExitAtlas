@@ -171,7 +171,8 @@ export const SORT_NAMES = Object.freeze({ recommended: 'Recommended', price: 'Lo
 
 /// Orders stations for the Fuel comparison. rows: [{id, ahead (m), detourMinutes (or null), brandRank (0 is
 /// the first favorite, null none), recommendedRank (SmartStop order, or null), price (stationPrice result or
-/// null)}]. A station without a current price never sorts as cheaper than one with a price.
+/// null), beyondRange (true when the range left does not reach it)}]. A station without a current price never
+/// sorts as cheaper than one with a price, and one beyond the range always comes after those within it.
 export function sortStations(rows, sort = 'recommended') {
   const inf = Number.POSITIVE_INFINITY;
   const keys = {
@@ -183,7 +184,7 @@ export function sortStations(rows, sort = 'recommended') {
   };
   const key = keys[sort] ?? keys.recommended;
   return [...rows].sort((a, b) => {
-    const ka = key(a), kb = key(b);
+    const ka = [a.beyondRange ? 1 : 0, ...key(a)], kb = [b.beyondRange ? 1 : 0, ...key(b)];
     for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });

@@ -4,6 +4,7 @@
 // The ranking is in engine/smartstop.js.
 import { METERS_PER_MILE as MILE, distance } from '../engine/geo.js';
 import { gasCandidates, matchesFavorite } from '../engine/fuel.js';
+import { simplified } from '../engine/exits.js';
 import { placeDisplayName } from '../engine/datasets.js';
 import { restAreaTitle } from '../engine/restareas.js';
 import { stationPrice } from '../engine/gasprices.js';
@@ -73,6 +74,16 @@ function osmFacts(stations, id) {
     collected: f.ah || f.at ? stations.metadata.brand_collected ?? null : null } : {};
 }
 
+/// The name a station shows. When OpenStreetMap now tags another brand and the exit data's name was only the old
+/// brand ("Shell", now tagged Circle K), the current brand, so a former Shell is never shown or ranked as a Shell;
+/// otherwise the exit data's name. brand: stations.json's current brand, or the exit data's. Same rule as
+/// SmartStop.stationName in SmartStopCandidates.swift.
+export function stationName(place, brand) {
+  const name = placeDisplayName(place);
+  const old = place.brand ?? '';
+  return brand && old && brand !== old && simplified(name) === simplified(old) ? brand : name;
+}
+
 /// Gas stations at exits from `d` to `d + window`, one candidate per station.
 ///   rangeLeft: meters of range now (null when unknown)
 export function stationCandidates(ctx, d, window, { rangeLeft = null } = {}) {
@@ -88,7 +99,7 @@ export function stationCandidates(ctx, d, window, { rangeLeft = null } = {}) {
       const live = liveFor(prices, x.exit, g.place, brand);
       const sp = stopPrice(ctx, g.place.id, live);
       out.push({
-        id: g.place.id, name: placeDisplayName(g.place), brand, kind: 'station', exitId: x.exit.id, exit: x.exit,
+        id: g.place.id, name: stationName(g.place, brand), brand, kind: 'station', exitId: x.exit.id, exit: x.exit,
         along: x.along, ahead, arrival: eta + (g.detourSeconds ?? 0) / 2, timeZone: zone,
         detourMinutes: g.detourBasis === 'routed' && g.detourSeconds != null ? g.detourSeconds / 60 : null,
         detourMeters: g.detourMeters,

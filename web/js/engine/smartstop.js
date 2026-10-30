@@ -206,15 +206,17 @@ export function smartStop(candidates, profile, { context = 'fuel', purpose = 'fu
   }
 
   const anyPrice = pool.some((x) => x.c.price?.value != null);
-  // Every stop is below the reserve: the nearest comes first (open ones first when hours matter).
+  // Every stop is below the reserve: the nearest comes first (open ones first when hours matter); at the
+  // same exit, the favorite brand, then the shorter detour.
   const lowRange = relaxed.includes('Below your reserve');
   const key = (x) => {
-    if (lowRange) return [needs(f.require24Hours, x) ? HOURS_RANK[x.e.hours.status] : 0, x.c.along];
     const hoursRank = needs(f.require24Hours, x) ? HOURS_RANK[x.e.hours.status] : 0;
-    const restroomRank = needs(f.requireRestroom, x) ? RESTROOM_RANK[x.e.restroom.status] : 0;
     const brandRank = x.brand ?? favorites.length;
+    // Rest areas and service plazas are on the highway (no detour); a station's unmeasured detour ranks last.
+    const detour = x.c.detourMinutes ?? (x.c.kind === 'plaza' || x.c.kind === 'rest' ? 0 : f.maxDetourMinutes + 1);
+    if (lowRange) return [hoursRank, x.c.along, brandRank, detour];
+    const restroomRank = needs(f.requireRestroom, x) ? RESTROOM_RANK[x.e.restroom.status] : 0;
     const priceRank = f.priceOverBrand && anyPrice ? (x.c.price?.value ?? Infinity) : 0;
-    const detour = x.c.detourMinutes ?? f.maxDetourMinutes + 1;
     const order = context === 'fuel' ? -x.c.along : x.c.along;
     const [first, second] = purpose === 'restroom' ? [restroomRank, hoursRank] : [hoursRank, restroomRank];
     return context === 'fuel'
@@ -347,7 +349,8 @@ const listedOpen = (e) => e.hours.status === 'verified' || e.hours.status === 'r
 export function lastOpenBeforeGap(candidates, profile, { minLength, windowEnd, rejected = [] }) {
   const skip = new Set(rejected);
   const stops = candidates
-    .filter((c) => (c.ahead == null || c.ahead > 0) && !c.gone && !skip.has(c.id))
+    // A station no longer listed carries it in its OpenStreetMap facts (osm.gone), as smartStop reads it.
+    .filter((c) => (c.ahead == null || c.ahead > 0) && !(c.gone || c.osm?.gone) && !skip.has(c.id))
     .map((c) => ({ c, e: evaluateStop(c, profile) }))
     .sort((a, b) => a.c.along - b.c.along || (a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0));
   const ends = (x) => listedOpen(x.e) || (!x.e.overnight && x.e.hours.status !== 'closed');

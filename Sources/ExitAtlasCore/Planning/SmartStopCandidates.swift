@@ -71,6 +71,16 @@ public extension SmartStop {
         return best?.0
     }
 
+    /// The name a station shows. When OpenStreetMap now tags another brand and the exit data's name was only the
+    /// old brand ("Shell", now tagged Circle K), the current brand, so a former Shell is never shown or ranked as a
+    /// Shell; otherwise the exit data's name. Same rule as stationName in web/js/app/smartstops.js.
+    static func stationName(_ place: Place, brand: String) -> String {
+        let name = place.displayName
+        guard !brand.isEmpty, !place.brand.isEmpty, brand != place.brand,
+              ServiceRequirement.simplified(name) == ServiceRequirement.simplified(place.brand) else { return name }
+        return brand
+    }
+
     /// How prices are compared: the driver's grade and payment, and how old a report may be.
     struct PriceOptions: Sendable {
         public var grade: GasPriceFeed.Grade
@@ -157,7 +167,7 @@ public extension SmartStop {
                 let current = sp?.state == .current ? sp : nil
                 let routed = g.detourBasis == .routedOneWayDoubled
                 out.append(Candidate(
-                    id: g.place.id, name: g.place.displayName, brand: brand, kind: .station, exitID: exit.id, exitLabel: exit.label,
+                    id: g.place.id, name: stationName(g.place, brand: brand), brand: brand, kind: .station, exitID: exit.id, exitLabel: exit.label,
                     along: x.along, ahead: ahead, arrival: eta.addingTimeInterval((g.detourSeconds ?? 0) / 2), timeZone: zone,
                     detourMinutes: routed ? g.detourSeconds.map { $0 / 60 } : nil,
                     rangeOnArrival: rangeLeft.map { $0 - ahead - g.detourMeters / 2 },

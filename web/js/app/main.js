@@ -16,7 +16,7 @@ import { GasPrices, GRADES, LOOKUP_TTL, pacificDay } from './prices.js';
 import { PriceBook, SIMULATED_SOURCE } from './pricebook.js';
 import { benchmarkFor, autoLookups, lookupCohort, AUTO_LOOKUP_RULES } from '../engine/gasprices.js';
 import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.js';
-import { fuelCandidates, aheadCandidates, liveFor } from './smartstops.js';
+import { fuelCandidates, aheadCandidates, liveFor, stationName } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
@@ -258,7 +258,11 @@ const app = {
     if (!x) {
       for (const e of this.plan.exits) {
         const g = this.servicesFor(e).find((y) => y.place.id === id && y.place.category === 1);
-        if (g) { x = { id, name: placeDisplayName(g.place), brand: this.data?.stations?.get(id)?.b ?? g.place.brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate }; break; }
+        if (g) {
+          const brand = this.data?.stations?.get(id)?.b ?? g.place.brand;
+          x = { id, name: stationName(g.place, brand), brand, kind: 'station', exit: e, exitId: e.id, along: e.distanceAlongRoute, coordinate: g.place.coordinate };
+          break;
+        }
       }
     }
     if (!x) {
@@ -1273,7 +1277,7 @@ async function runDemo({ mile = 355, alert = false, prices = false } = {}) {
       const now = Date.now() / 1000;
       app.roadAlerts.demoIncidents = [{
         id: 'demo:crash', category: 'crash', description: 'Crash (SIMULATED TEST ALERT)', source: { id: 'demo', name: 'Simulated test alert' },
-        verification: 'official', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
+        verification: 'simulated', reportedAt: now - 360, updatedAt: now - 360, startsAt: null, endsAt: null, expiresAt: null,
         geometry: { type: 'point', coordinate: route.polyline.coordinateAt(d) }, road: hw ? `${hw.ref.prefix}-${hw.ref.number}` : null,
         direction: hw?.direction ?? null, lanes: 'Right lane blocked', severity: 'major',
       }];
@@ -1755,6 +1759,7 @@ document.addEventListener('change', (ev) => {
   }
   saveProfile();
   if (key === 'keepAwake') { if (el.checked && app.mode !== 'idle') app.wake.request(); else if (!el.checked) app.wake.release(); }
+  if (key === 'voice') app.announcer.voiceSwitched(el.checked);
   lastViewHTML = '';
   render();
 });
