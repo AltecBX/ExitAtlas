@@ -42,9 +42,10 @@ function osrmFrom(start) {
     legs: [{ annotation: { duration: durs }, steps }] }] });
 }
 
-// What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection).
-const servers = { routing: 'ok', search: 'ok' };
-let routingCalls = 0, lastRoutingPoints = 0;
+// What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection). The backup routing
+// server (FOSSGIS) does what the OSRM demo server does unless `backup` says otherwise.
+const servers = { routing: 'ok', search: 'ok', backup: null };
+let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0, lastRoutingStart = null;
 const failures = [];
 const fail = (m) => { failures.push(m); console.log(`FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); else console.log(`ok   ${m}`); };
@@ -57,17 +58,36 @@ await ctx.addInitScript(() => {
     getCurrentPosition: (ok) => setTimeout(() => ok({ coords: { latitude: 40.758, longitude: -73.9855, accuracy: 10, heading: null, speed: null }, timestamp: Date.now() }), 20),
     watchPosition: () => 1, clearWatch: () => {},
   } });
+  const set = Storage.prototype.setItem;
+  window.__writes = [];
+  Storage.prototype.setItem = function (key, value) {
+    window.__writes.push({ key, size: String(value).length, id: key === 'ea.activeRoute' ? JSON.parse(value).id : null });
+    return set.call(this, key, value);
+  };
 });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+// Questions the app asks (confirm): kept, and answered with `answerYes`.
+const dialogs = [];
+let answerYes = true;
+page.on('dialog', (d) => { dialogs.push(d.message()); return answerYes ? d.accept() : d.dismiss(); });
 await page.route((u) => u.protocol === 'https:', async (r) => {
   const u = new URL(r.request().url());
-  const kind = u.host === 'router.project-osrm.org' ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
+  const backup = u.host === 'routing.openstreetmap.de';
+  const kind = u.host === 'router.project-osrm.org' || backup ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
   if (!kind) return r.fulfill({ status: 503, body: '' });
-  if (kind === 'routing') { routingCalls++; lastRoutingPoints = u.pathname.split('/').pop().split(';').length; }
-  if (servers[kind] === 'hang') return; // accepted, never answered
-  if (servers[kind] === 'down') return r.abort('internetdisconnected');
+  if (backup) backupCalls++;
+  else if (kind === 'routing') {
+    routingCalls++;
+    const points = u.pathname.split('/').pop().split(';');
+    lastRoutingPoints = points.length;
+    const [lon, lat] = points[0].split(',').map(Number);
+    lastRoutingStart = { lat, lon };
+  }
+  const mode = backup ? servers.backup ?? servers.routing : servers[kind];
+  if (mode === 'hang') return; // accepted, never answered
+  if (mode === 'down') return r.abort('internetdisconnected');
   if (kind === 'search') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: 'Richmond, Virginia, United States', lat: '37.5407', lon: '-77.436' }]) });
   const [lon, lat] = u.pathname.split('/').pop().split(';')[0].split(',').map(Number);
   return r.fulfill({ status: 200, contentType: 'application/json', body: osrmFrom({ lat, lon }) });
@@ -80,7 +100,7 @@ const view = () => app(() => document.querySelector('#view').textContent);
 const loaded = async () => {
   await page.waitForFunction(() => window.exitAtlas?.data, null, { timeout: 60000 });
   // Short time limits so the stalls below take seconds. Same module instance as the app's.
-  await app(async () => { const m = await import('./js/app/services.js'); if (m.REQUEST_TIMEOUT) Object.assign(m.REQUEST_TIMEOUT, { routing: 1500, search: 1500 }); });
+  await app(async () => { const m = await import('./js/app/services.js'); if (m.REQUEST_TIMEOUT) Object.assign(m.REQUEST_TIMEOUT, { routing: 1500, search: 1500 }); if (m.ROUTING_SPACING) m.ROUTING_SPACING.ms = 0; });
   // Fixes along window.__route (the route being driven), one per second of GPS time.
   await app(() => {
     window.__gps = { t: Math.floor(Date.now() / 1000), d: 0 };
@@ -130,6 +150,15 @@ await page.waitForSelector('[data-act="find-routes"]:not([disabled])');
 await tap('[data-act="find-routes"]');
 check(await until(() => !window.exitAtlas.planner.busy, null, 6000), 'a stalled route request ends');
 check(/did not answer/.test(await view()) && await app(() => !document.querySelector('[data-act="find-routes"]').disabled), 'it says why, and Find routes works again');
+// The OSRM demo server down, the FOSSGIS backup up: routes, and nothing extra to read.
+servers.routing = 'down';
+servers.backup = 'ok';
+const backupBefore = backupCalls;
+await tap('[data-act="find-routes"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+check(backupCalls === backupBefore + 1 && await app(() => window.exitAtlas.planner.results.length > 0 && !window.exitAtlas.planner.error),
+  'with the routing server down the backup server answers, and no error shows');
+servers.backup = null;
 servers.routing = 'ok';
 await tap('[data-act="find-routes"]');
 await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 });
@@ -141,14 +170,20 @@ check((await state()).mode === 'trip' && await app(() => window.exitAtlas.places
 await app(() => window.__drive(120));
 let s = await state();
 check(s.status === 'onRoute' && s.driven > 3000, `on route after 2 minutes (${Math.round(s.driven)} m driven)`);
-check(await app(() => Boolean(JSON.parse(localStorage.getItem('ea.active'))?.route)), 'the trip is saved for resuming');
+check(await app(() => JSON.parse(localStorage.getItem('ea.active'))?.routeId === window.exitAtlas.plan.route.id
+  && JSON.parse(localStorage.getItem('ea.activeRoute'))?.id === window.exitAtlas.plan.route.id), 'the trip is saved for resuming');
+// The route (large) is written once; the save every 30 seconds is small.
+const writes = await app(() => window.__writes.filter((w) => w.key.startsWith('ea.active')));
+const small = writes.filter((w) => w.key === 'ea.active');
+check(writes.filter((w) => w.key === 'ea.activeRoute').length === 1 && small.length >= 3 && small.every((w) => w.size < 5000),
+  `the route is saved once, the progress every 30 s is small (${small.length} saves, largest ${Math.max(...small.map((w) => w.size))} characters)`);
 
 // 5. Off the route while the routing server stalls: the reroute gives up, says so, and does not block the next.
 servers.routing = 'hang';
 let before = routingCalls;
 await app(() => window.__park(30, 1500));
 check(routingCalls > before, 'leaving the route requests a new route');
-await page.waitForTimeout(2500);
+await until(() => !window.exitAtlas.isRerouting, null, 8000);
 s = await state();
 check(!s.rerouting && s.pill !== 'Rerouting' && /did not answer/.test(s.error ?? ''), `a stalled reroute ends with a reason (${s.pill}: ${s.error})`);
 before = routingCalls;
@@ -158,7 +193,7 @@ const unpaced = () => app(() => window.exitAtlas.reroutePacer.reset());
 await unpaced();
 await app(() => window.__park(25, 1500));
 check(routingCalls > before, 'a later reroute is still requested');
-await page.waitForTimeout(2500);
+await until(() => !window.exitAtlas.isRerouting, null, 8000);
 
 // 6. Back on the route: no reroute is pending, so "Will retry" goes.
 await app(() => window.__drive(10));
@@ -202,7 +237,7 @@ await addStop();
 await page.waitForTimeout(300);
 await until(() => !window.exitAtlas.isRerouting);
 const notAdded = await app(() => document.querySelector('#toast').textContent);
-check(/^Could not add .+: the routing server could not be reached/.test(notAdded) && (await ahead()).join() === 'Richmond, Virginia',
+check(/^Could not add .+: the routing servers could not be reached/.test(notAdded) && (await ahead()).join() === 'Richmond, Virginia',
   `a stop that could not be added is not kept, and the driver is told (${notAdded})`);
 servers.routing = 'ok';
 await addStop();
@@ -228,6 +263,9 @@ await app(() => window.__drive(35));
 await app(() => window.dispatchEvent(new Event('pagehide')));
 const saved = await app(() => JSON.parse(localStorage.getItem('ea.active')));
 const savedMeters = saved.ledger.stints.reduce((a, x) => a + x.meters, 0);
+const routeWrites = await app(() => window.__writes.filter((w) => w.key === 'ea.activeRoute').map((w) => w.id));
+check(routeWrites.length >= 2 && new Set(routeWrites).size === routeWrites.length && routeWrites.at(-1) === saved.routeId,
+  `each new route is saved once, when it changes (${routeWrites.length} routes)`);
 
 // 9. The page reloads mid trip (iOS does this to background tabs): offered to resume.
 await page.reload();
@@ -238,8 +276,10 @@ check((await view()).includes('Resume your trip to Richmond'), 'after a reload t
 // 10. A simulated drive in between does not throw the saved trip away.
 await tap('[data-act="demo"]');
 await until(() => window.exitAtlas.mode === 'trip' && window.exitAtlas.gps === 'simulation', null, 20000);
+dialogs.length = 0;
 await tap('#end');
 await page.waitForTimeout(300);
+check(dialogs.length === 0 && await app(() => window.exitAtlas.mode === 'idle'), 'a simulated drive ends at once, without asking');
 check(await app(() => Boolean(localStorage.getItem('ea.active'))) && (await view()).includes('Resume your trip to Richmond'),
   'ending a simulated drive keeps the saved trip');
 
@@ -254,22 +294,58 @@ s = await state();
 check(s.mode === 'trip' && s.gps === 'device' && s.status === 'onRoute' && s.driven >= savedMeters + 20000,
   `resumed with the miles driven, including the 20 km while the page was gone (${Math.round(s.driven)} m, ${Math.round(savedMeters)} m saved)`);
 
-// 12. Resumed while off the route (the page reloaded at a gas station): a new route is requested.
-await app(() => window.dispatchEvent(new Event('pagehide')));
+// 12. Resumed while off the route (the page reloaded at a gas station): a new route is requested. The trip was
+//     saved by the version live before this one (v33: the route inside ea.active, with progress).
+// Rewritten from an idle page: a page with the trip running saves it again when it unloads.
+await page.reload();
+await loaded();
+const v33 = await app(() => {
+  const rec = JSON.parse(localStorage.getItem('ea.active'));
+  const { routeId, ...rest } = rec;
+  const old = { ...rest, route: JSON.parse(localStorage.getItem('ea.activeRoute')) };
+  localStorage.setItem('ea.active', JSON.stringify(old));
+  localStorage.removeItem('ea.activeRoute');
+  return old;
+});
 await page.reload();
 await loaded();
 await page.waitForSelector('[data-act="resume"]', { timeout: 5000 });
 await tap('[data-act="resume"]');
+check(await app((rec) => window.exitAtlas.mode === 'trip' && window.exitAtlas.plan.route.id === rec.route.id
+  && Math.abs(window.exitAtlas.snapshot.progress - rec.progress) < 1, v33), 'a trip saved by the version before (v33) resumes where it was');
+await app(() => window.dispatchEvent(new Event('pagehide')));
+check(await app(() => !JSON.parse(localStorage.getItem('ea.active')).route && Boolean(localStorage.getItem('ea.activeRoute'))),
+  'and is saved again the new way');
 before = routingCalls;
 await app(async () => { window.__route = window.exitAtlas.plan.route; window.__gps.d = window.exitAtlas.snapshot.progress; await window.__park(30, 1500); });
 check(routingCalls > before, 'resumed off the route: a new route is requested');
 await until(() => !window.exitAtlas.isRerouting);
 
-// 13. End: nothing left to resume, the trip is in history.
+// 13. End: on a real trip the driver is asked first (one mis tap must not end it). No keeps the trip going;
+//     yes ends it: nothing left to resume, the trip is in history.
+dialogs.length = 0;
+answerYes = false;
+await tap('#end');
+await page.waitForTimeout(300);
+check(dialogs.join() === 'End this trip? It cannot be resumed after this.' && await app(() => window.exitAtlas.mode === 'trip' && Boolean(localStorage.getItem('ea.active'))),
+  `ending a real trip asks first, and no keeps it going (${dialogs.join() || 'nothing asked'})`);
+answerYes = true;
 await tap('#end');
 await page.waitForTimeout(300);
 check(await app(() => localStorage.getItem('ea.active') === null && window.exitAtlas.history.length === 1 && !document.querySelector('[data-act="resume"]')),
   'ending the trip clears it and records it');
+
+// 13b. A trip saved by v32 (the route inside ea.active, no progress) resumes too.
+await app((rec) => { const { progress, ...v32 } = rec; localStorage.setItem('ea.active', JSON.stringify({ ...v32, savedAt: Date.now() / 1000 })); }, v33);
+await page.reload();
+await loaded();
+await page.waitForSelector('[data-act="resume"]', { timeout: 5000 }).catch(() => {});
+check((await view()).includes('Resume your trip to Richmond'), 'a trip saved by v32 is offered');
+await tap('[data-act="resume"]');
+check(await app((id) => window.exitAtlas.mode === 'trip' && window.exitAtlas.plan.route.id === id, v33.route.id), 'and resumes');
+await tap('#end');
+await page.waitForTimeout(300);
+check(await app(() => localStorage.getItem('ea.active') === null && localStorage.getItem('ea.activeRoute') === null), 'ending it clears both saved parts');
 
 // 14. A saved trip that cannot be read is not offered, and the app still starts.
 await app(() => localStorage.setItem('ea.active', JSON.stringify({ route: { destination: { name: 'X' } }, ledger: { stints: 5 }, savedAt: Date.now() / 1000 })));
@@ -278,6 +354,39 @@ await loaded();
 await page.waitForTimeout(500);
 check(await app(() => !document.querySelector('#loading') && !document.querySelector('[data-act="resume"]') && /Where are you headed/.test(document.querySelector('#view').textContent)),
   'an unreadable saved trip does not stop the app from starting');
+
+// 15. A trip planned from another start, through a stop, then ended. Home from "Where to?" plans the next trip
+//     from the current location with no stops; a stop the driver sets for the new trip is kept.
+const place = (name, lat, lon) => ({ name, coordinate: { lat, lon } });
+await app(([home, from, stop, to]) => {
+  const a = window.exitAtlas;
+  a.places.home = home;
+  Object.assign(a.planner, { from, stops: [stop], to, results: [] });
+  document.querySelector('.tabbar [data-arg="trip"]').click();
+}, [place('Home, Yonkers', 40.9312, -73.8988), place('Newark, NJ', 40.7357, -74.1724), place('Trenton, NJ', 40.2206, -74.7597), place('Richmond, Virginia', 37.5407, -77.436)]);
+await page.waitForSelector('[data-act="find-routes"]:not([disabled])');
+await tap('[data-act="find-routes"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 });
+const planned = lastRoutingPoints;
+await tap('[data-act="start-route"][data-arg="0"]');
+await tap('#end');
+await page.waitForTimeout(300);
+await page.waitForSelector('[data-act="go-to"][data-arg="home"]', { timeout: 5000 });
+await tap('[data-act="go-to"][data-arg="home"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+const nearTimesSquare = (c) => c && Math.abs(c.lat - 40.758) < 0.001 && Math.abs(c.lon + 73.9855) < 0.001;
+check(planned === 3 && lastRoutingPoints === 2 && nearTimesSquare(lastRoutingStart),
+  `after a trip, Home is planned from the current location with no stops (${lastRoutingPoints} points from ${JSON.stringify(lastRoutingStart)})`);
+await app((stop) => {
+  const a = window.exitAtlas;
+  a.planner.stops = [stop];
+  a.tab = 'drive';
+  document.querySelector('.tabbar [data-arg="drive"]').click();
+}, place('Trenton, NJ', 40.2206, -74.7597));
+await page.waitForSelector('[data-act="go-to"]:not([data-arg="home"])', { timeout: 5000 });
+await tap('[data-act="go-to"]:not([data-arg="home"])');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+check(lastRoutingPoints === 3 && nearTimesSquare(lastRoutingStart), `a stop set for the new trip is kept (${lastRoutingPoints} points)`);
 
 if (errors.length) fail(`page errors: ${errors.join('; ')}`);
 await browser.close();
