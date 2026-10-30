@@ -5,7 +5,7 @@ import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
-import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText } from './prices.js';
+import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText, googlePriceCurrent } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
 import { evaluateStop, brandIndex } from '../engine/smartstop.js';
 import { stopPrice, liveFor, stationName } from './smartstops.js';
@@ -1080,8 +1080,8 @@ function priceInfo(app, exit) {
   if (!c) return '';
   if (c.error) return '<div class="muted tiny">Google Maps prices unavailable</div>';
   const g = GRADES[app.gradeCode()];
-  const priced = pricedForGrade(c.stations, g.key);
-  if (!priced.length) return `<div class="muted tiny">No ${g.name.toLowerCase()} prices reported near this exit</div>`;
+  const priced = pricedForGrade(c.stations, g.key, { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 });
+  if (!priced.length) return `<div class="muted tiny">No current ${g.name.toLowerCase()} prices near this exit</div>`;
   const fav = priced.find((x) => matchesFavorite(x.name, app.settings.favoriteBrands));
   const cheap = priced[0];
   const parts = [];
@@ -1488,12 +1488,17 @@ function googleSection(app, exit) {
   if (!c) return `<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="google-prices" data-arg="${h(exit.id)}">${app.prices.cache.get(exit.id)?.pending ? 'Checking Google Maps…' : 'Check Google Maps prices (paid)'}</button></div>`;
   if (c.error) return `<div class="section-title">Google Maps prices</div><div class="card small">Google Maps prices unavailable: ${h(c.error)}</div>`;
   const g = GRADES[app.gradeCode()];
-  const rows = [...c.stations].sort((a, b) => (a.prices[g.key]?.value ?? 99) - (b.prices[g.key]?.value ?? 99)).map((st) => {
+  // Current prices first, cheapest first; old ones (past the driver's age limit, or without a time) after them,
+  // greyed and never compared; stations without a price for the grade last.
+  const age = { maxAgeHours: app.settings.prices?.maxAgeHours ?? 24 };
+  const order = (st) => { const p = st.prices[g.key]; return !p ? [2, 0] : [googlePriceCurrent(p, age) ? 0 : 1, p.value]; };
+  const rows = [...c.stations].sort((a, b) => { const x = order(a), y = order(b); return x[0] - y[0] || x[1] - y[1]; }).map((st) => {
     const p = st.prices[g.key];
+    const current = googlePriceCurrent(p, age);
     const others = Object.entries(GRADES).filter(([, x]) => x.key !== g.key && st.prices[x.key]).map(([, x]) => `${x.name} ${priceText(st.prices[x.key])}`).join(' · ');
     const fav = matchesFavorite(st.name, app.settings.favoriteBrands);
-    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${ageText(p.updated)}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
-      <div class="side"><div class="big">${p ? priceText(p) : '—'}</div></div></div>`;
+    return `<div class="item"><div class="main"><div class="t">${fav ? '★ ' : ''}${h(st.name)}</div><div class="muted tiny">${p ? `${g.name} · ${p.updated ? ageText(p.updated) : 'time not given'}${current ? '' : ' · old, not compared'}` : 'No price listed'}${others ? ` · ${others}` : ''}</div></div>
+      <div class="side"><div class="big${p && !current ? ' muted' : ''}">${p ? priceText(p) : '—'}</div></div></div>`;
   });
   return `<div class="section-title">Google Maps prices</div>${rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="card empty">No gas stations found by Google near this exit.</div>'}
     <p class="attrib">Prices: <span class="gattr">Google Maps</span>, within 1 mile of the exit, looked up for the exits you are viewing. Not stored or shared.</p>`;
