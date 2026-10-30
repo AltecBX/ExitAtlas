@@ -55,16 +55,23 @@ function readLastGood() {
   try { return JSON.parse(localStorage.getItem(LAST_GOOD_KEY)); } catch { return null; }
 }
 
+/// How long start up waits for a fresh data list when a last good one is stored (it is asked again next load).
+export const MANIFEST_WAIT = { ms: 4000 };
+
 /// The data manifest: fetched fresh (the service worker falls back to its copy offline), or the last
 /// manifest that loaded, when the fetched one is missing, unreadable or older.
 async function manifestSet() {
   if (dataSet.manifest) return dataSet;
   let fetched = null;
+  const lastGood = readLastGood();
+  // With a last good list the data is on the phone: a stalled connection must not hold the loading screen.
   try {
-    const res = await fetch(new URL('manifest.json', DATA_BASE), { cache: 'no-store' });
-    if (res.ok) fetched = await res.json();
+    fetched = await timed('the data list', lastGood ? MANIFEST_WAIT.ms : 60000, null, async (s) => {
+      const res = await fetch(new URL('manifest.json', DATA_BASE), { cache: 'no-store', signal: s });
+      return res.ok ? res.json() : null;
+    });
   } catch { fetched = null; }
-  const chosen = chooseManifest(fetched, readLastGood());
+  const chosen = chooseManifest(fetched, lastGood);
   if (!chosen.manifest) throw new Error('The data list (manifest.json) could not be loaded. Check the connection and reload.');
   dataSet = chosen;
   dataStatus.manifest = chosen.manifest;
