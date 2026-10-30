@@ -4,7 +4,7 @@ import { routeFromOSRM } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
 import { StationFacts } from './smartstops.js';
 import { DiscoverDataset } from '../engine/discover.js';
-import { chooseManifest, candidates, loadVerified, usedManifest } from '../engine/datamanifest.js';
+import { chooseManifest, candidates, loadVerified, usedManifest, fileURL } from '../engine/datamanifest.js';
 import { distance, initialBearing } from '../engine/geo.js';
 
 export const DATA_BASE = new URL('../App/ExitAtlas/Resources/Data/', document.baseURI);
@@ -71,13 +71,32 @@ async function manifestSet() {
   return dataSet;
 }
 
+/// The service worker's cache for data files (web/sw.js DATA_CACHE).
+const DATA_CACHE = 'exitatlas-data';
+
+/// On a first visit (or after Safari cleared the site's storage) the data loads before the new service worker
+/// controls the page, so the worker never sees it, and it would be kept for offline use only after another
+/// visit online. A file that loaded and passed its check is put in the worker's data cache here unless it is
+/// already there: no second download.
+async function keepOffline(url, bytes) {
+  try {
+    const sw = navigator.serviceWorker;
+    if (!bytes || !sw || !globalThis.caches || !(await sw.getRegistration())) return;
+    const cache = await caches.open(DATA_CACHE);
+    if (await cache.match(url.href)) return;
+    await cache.put(url.href, new Response(bytes, { headers: { 'content-length': String(bytes.byteLength) } }));
+  } catch { /* kept on the next visit online */ }
+}
+
 /// One data file, checked against the manifest; the last good version if the new one fails.
 async function loadFile(name, parse, onProgress) {
   const { manifest, fallback } = await manifestSet();
-  const io = { fetchBytes: (url) => fetchBytes(url, onProgress), digestHex, dropCached };
+  let bytes = null;
+  const io = { fetchBytes: async (url) => (bytes = await fetchBytes(url, onProgress)), digestHex, dropCached };
   try {
     const r = await loadVerified(name, candidates(name, manifest, fallback), DATA_BASE, io, parse);
     if (r.rolledBack) dataStatus.rolledBack.push(name);
+    keepOffline(fileURL(name, r.entry, DATA_BASE), bytes);
     return r;
   } catch (e) {
     dataStatus.failed.push(name);

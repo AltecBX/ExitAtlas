@@ -1,6 +1,6 @@
-// Offline check for the service worker (web/sw.js) in a real browser: after the app loaded once online,
-// a deploy (a new service worker with a new cache name) must not throw away the offline data, and the app
-// must then start with no network at all, data and all, and offer to resume a saved trip.
+// Offline check for the service worker (web/sw.js) in a real browser: after one visit online the offline data
+// is kept and the app starts with no network; a deploy (a new service worker with a new cache name) must not
+// throw that data away, and the app must then still start with no network, and offer to resume a saved trip.
 // Run: node web/tests/layout/offline.layout.mjs   (needs Playwright with Chromium)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -16,9 +16,11 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 
 // `deploy` renames the cache in sw.js, as every release does; `offline` drops every connection.
 let deploy = 0, offline = false;
+const downloads = {};
 const server = http.createServer(async (req, res) => {
   if (offline) { req.socket.destroy(); return; }
   const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (pathname.includes('/Resources/Data/')) downloads[path.basename(pathname)] = (downloads[path.basename(pathname)] ?? 0) + 1;
   // Like GitHub Pages: a folder serves its index.html.
   const file = path.join(root, pathname.endsWith('/') ? `${pathname}index.html` : pathname);
   if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
@@ -56,14 +58,29 @@ const dataCached = () => page.evaluate(async () => {
 const required = ['states.eab', 'timezones.eab', 'interstates.eax', 'manifest.json'];
 const hasAll = (lists) => required.every((n) => Object.values(lists).some((l) => l.includes(n)));
 
-// 1. First visit online. The app registers its service worker only on https, so register it here
-//    (localhost counts as secure), then load again under its control so the data goes into its cache.
+// 1. First visit online. The app registers its service worker only on https; here it is registered as each
+//    page starts (localhost counts as secure), as main.js does there. The data starts loading before the new
+//    worker controls the page, and must still be kept for offline use without a second visit.
+await ctx.addInitScript(() => { navigator.serviceWorker?.register('sw.js'); });
 await page.goto(base);
 await loaded();
-await page.evaluate(async () => { await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; });
+const kept = await until(async () => {
+  const names = [];
+  for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) names.push(new URL(r.url).pathname.split('/').pop());
+  return ['states.eab', 'timezones.eab', 'interstates.eax'].every((n) => names.includes(n));
+});
+if (!kept) fail('after a first visit the offline data is not kept');
+// Kept from what was just loaded: nothing downloads twice (routing here also turns off the browser's HTTP cache).
+const twice = Object.entries(downloads).filter(([, n]) => n > 1);
+if (twice.length) fail(`downloaded more than once on the first visit: ${twice.map(([f, n]) => `${f} ${n} times`).join(', ')}`);
+if (!(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)))) fail('the service worker does not control the page');
+offline = true;
+await page.reload().catch((e) => fail(`reload offline after a first visit: ${e.message}`));
+if (!(await loaded().then(() => true, () => false))) fail('after a first visit the app does not start offline');
+offline = false;
+// A second visit online, as most phones have had.
 await page.reload();
 await loaded();
-if (!(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)))) fail('the service worker does not control the page');
 // A trip in progress, saved as the app saves it (a real GPS trip).
 await page.evaluate(() => localStorage.setItem('ea.active', JSON.stringify({
   route: { v: 1, id: 'r1', source: 'osrm', lat: [40.93, 40.80], lon: [-73.89, -73.95], tpd: [0, 15000], tps: [0, 900], steps: [],
