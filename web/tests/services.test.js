@@ -27,9 +27,16 @@ test('Google Places prices: parsing, grade sort, one request per exit per hour',
   assert.equal(stations[0].restroom, true);
   assert.equal(stations[1].periods, null, 'no hours listed: unknown, not closed');
   assert.equal(stations[1].restroom, null);
-  const regular = pricedForGrade(stations, 'REGULAR_UNLEADED');
+  const regular = pricedForGrade(stations, 'REGULAR_UNLEADED', { now: Date.parse('2026-10-28T03:00:00Z') });
   assert.deepEqual(regular.map((s) => s.name), ['Wawa', 'Shell']);
   assert.equal(priceText(regular[0].prices.REGULAR_UNLEADED), '$3.15');
+  // An old Google price (past the driver's age limit) or one without a time is never the cheapest.
+  assert.deepEqual(pricedForGrade(stations, 'REGULAR_UNLEADED', { now: Date.parse('2026-10-29T01:30:00Z') }).map((s) => s.name), ['Shell'],
+    'the Wawa price is 24.5 hours old: not compared');
+  assert.deepEqual(pricedForGrade(stations, 'REGULAR_UNLEADED', { now: Date.parse('2026-10-28T03:00:00Z'), maxAgeHours: 6 }).map((s) => s.name), ['Wawa', 'Shell']);
+  const untimed = [{ name: 'X', prices: { REGULAR_UNLEADED: { value: 2.5, updated: null } } }, ...stations];
+  assert.deepEqual(pricedForGrade(untimed, 'REGULAR_UNLEADED', { now: Date.parse('2026-10-28T03:00:00Z') }).map((s) => s.name), ['Wawa', 'Shell']);
+  assert.equal(priceText({ value: 3.099 }), '$3.099', 'tenths of a cent as posted, not rounded up to $3.10');
   assert.equal(ageText(Date.parse('2026-10-28T01:00:00Z'), Date.parse('2026-10-28T01:25:00Z')), '25 min ago');
 
   let now = 0, calls = 0, lastReq = null;

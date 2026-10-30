@@ -6,6 +6,8 @@
 // prices appear without a Google map, never put them on a non-Google map, do not pre-fetch, and do not store
 // them (memory only, an hour); they never go into the shared driver reports.
 
+import { dollars } from '../engine/gasprices.js';
+
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
 // Hours and the restroom field ride on the same request: Google bills a Nearby Search once, at the
 // highest SKU among its fields, and fuelOptions is already the highest (Enterprise + Atmosphere).
@@ -117,13 +119,21 @@ export class GasPrices {
   }
 }
 
-/// Stations with a price for the grade, cheapest first.
-export function pricedForGrade(stations, gradeKey) {
-  return stations.filter((s) => s.prices[gradeKey]).sort((a, b) => a.prices[gradeKey].value - b.prices[gradeKey].value);
+/// Whether a Google price is current: updated within the driver's age limit (Settings, 24 hours by default). One
+/// without an update time, or older, is shown as old and is never the cheapest (docs/17, 17.4).
+export function googlePriceCurrent(p, { now = Date.now(), maxAgeHours = 24 } = {}) {
+  return Boolean(p?.updated) && now - p.updated <= maxAgeHours * 3600000;
 }
 
+/// Stations with a current price for the grade, cheapest first.
+export function pricedForGrade(stations, gradeKey, options = {}) {
+  return stations.filter((s) => googlePriceCurrent(s.prices[gradeKey], options))
+    .sort((a, b) => a.prices[gradeKey].value - b.prices[gradeKey].value);
+}
+
+/// "$3.15", or "$3.099" with the tenths of a cent a pump posts.
 export function priceText(p) {
-  return `$${p.value.toFixed(2)}`;
+  return dollars(p.value);
 }
 
 export function ageText(updated, now = Date.now()) {
