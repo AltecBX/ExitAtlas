@@ -1376,7 +1376,7 @@ export function alertSheet(app, id) {
   const zone = app.plan.timeZoneIDAt(a.start);
   const road = alertRoad(app, a);
   const row = (name, value) => (value ? `<div class="fac"><span class="fn">${h(name)}</span><span class="fv">${value}</span></div>` : '');
-  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule' }[i.verification] ?? 'Not stated';
+  const verification = { official: 'Official source', measured: 'Measured by a traffic provider on your route', community: 'Reported by drivers, not confirmed', mapped: 'Mapped work zone schedule', simulated: 'Simulated test data, not a real event' }[i.verification] ?? 'Not stated';
   const drive = !a.notable ? 'Road Ahead only: lanes open or not stated' : a.serious ? 'Shown from 50 mi ahead, before routine stops' : 'Shown within 10 mi';
   const time = [i.startsAt ? `${i.startsAt > now ? 'Starts' : 'Started'} ${clock(i.startsAt, zone, s.t)}` : null, i.endsAt ? `until ${clock(i.endsAt, zone, s.t)}` : null,
     i.expiresAt ? `report expires ${clock(i.expiresAt, zone, s.t)}` : null].filter(Boolean).join(' · ');

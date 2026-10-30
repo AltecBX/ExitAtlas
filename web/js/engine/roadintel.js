@@ -5,7 +5,7 @@
 //
 // An incident (the common schema every provider converts to):
 //   {id, category, description, source: {id, name},
-//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped',
+//    verification: 'official' | 'measured' (traffic provider data) | 'community' | 'mapped' | 'simulated' (the demo only),
 //    reportedAt, updatedAt, startsAt, endsAt, expiresAt (unix seconds or null),
 //    geometry: {type: 'point', coordinate} | {type: 'line', coordinates} | {type: 'polygon', rings} |
 //              {type: 'points', coordinates} (an area alert known only at sample points on the route) |
