@@ -250,7 +250,23 @@ export const AUTO_LOOKUP_RULES = Object.freeze({
   dailyBudget: 24,
   /// An exit is looked up again after this long; Google's answer is kept in memory this long, never saved.
   refreshMinutes: 60,
+  /// The exits considered are chosen again only on another screen or after this many miles of driving.
+  cohortMiles: 5,
 });
+
+/// The exits the automatic lookups consider: the first perPass distinct exits ahead of build() (most relevant
+/// first), chosen once per key (the screen and every cohortMiles of progress). Google's answers reorder the
+/// ranking (a station it lists closed at arrival drops out), so choosing again on every update would pull in
+/// exit after exit while the driver stays on one screen. prev: the last {key, exits}, or null.
+export function lookupCohort(prev, key, build, rules = AUTO_LOOKUP_RULES) {
+  if (prev && prev.key === key) return prev;
+  const exits = [];
+  for (const e of build()) {
+    if (exits.length === rules.perPass) break;
+    if (e && e.ahead > 0 && !exits.some((x) => x.id === e.id)) exits.push(e);
+  }
+  return { key, exits };
+}
 
 /// Google Maps prices without a tap (docs/17): which exits to look up now. exits: [{id, ahead (m)}], most
 /// relevant first, only exits the driver is looking at (Google does not allow pre-fetching). lastLookup(id):

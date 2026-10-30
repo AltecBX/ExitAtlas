@@ -713,29 +713,48 @@ final class TripController {
     /// relevant first: a station sheet's own exit, SmartStop's pick and alternatives, then Road Ahead's
     /// stations in SmartStop's order (favorite brand first). Price screens call it when they appear and every
     /// half mile while shown. Google does not allow pre-fetching, so exits that are not shown are never
-    /// looked up. A few at a time, within the daily budget (GasPrices.AutoLookupRules).
+    /// looked up. A few at a time, within the daily budget (GasPrices.AutoLookupRules); the exits considered stay
+    /// the same on a screen until the driver has gone cohortMiles, so Google's own answers cannot pull in more.
     func autoGooglePrices(_ screen: PriceScreen) {
         guard let settings, (settings.googlePrices && !settings.googleKey.isEmpty) || prices.fixture != nil,
               settings.vehicle?.isElectric != true, let plan, let snapshot else { return }
-        var exits: [(id: String, ahead: Double)] = []
-        func add(_ id: String?) {
-            guard let id, let e = plan.exits.first(where: { $0.id == id }) else { return }
-            exits.append((id, e.distanceAlongRoute - snapshot.progress))
-        }
+        let screenName: String
         switch screen {
-        case .station(let id): add(findStation(id: id)?.exitID)
-        case .fuelStop, .roadAhead:
-            if let sm = smartStop { for p in [sm.primary].compactMap({ $0 }) + sm.alternatives { add(p.candidate.exitID) } }
+        case .roadAhead(let miles): screenName = "ahead \(miles)"
+        case .fuelStop: screenName = "fuel"
+        case .station(let id): screenName = "station \(id)"
         }
-        if case .roadAhead(let miles) = screen {
-            let ps = priceStations(miles: miles)
-            let byID = Dictionary(ps.stations.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            for id in ps.order { add(byID[id]?.exitID) }
-            for c in ps.stations.sorted(by: { ($0.ahead ?? 0) < ($1.ahead ?? 0) }) { add(c.exitID) }
+        let rules = GasPrices.AutoLookupRules()
+        let key = "\(plan.route.id)|\(screenName)|\(Int(snapshot.progress / (rules.cohortMiles * Geodesy.metersPerMile)))"
+        autoCohort = GasPrices.LookupCohort.choose(autoCohort, key: key, rules: rules) {
+            var exits: [(id: String, ahead: Double)] = []
+            func add(_ id: String?) {
+                guard let id, let e = plan.exits.first(where: { $0.id == id }) else { return }
+                exits.append((id, e.distanceAlongRoute - snapshot.progress))
+            }
+            switch screen {
+            case .station(let id): add(findStation(id: id)?.exitID)
+            case .fuelStop, .roadAhead:
+                if let sm = smartStop { for p in [sm.primary].compactMap({ $0 }) + sm.alternatives { add(p.candidate.exitID) } }
+            }
+            if case .roadAhead(let miles) = screen {
+                let ps = priceStations(miles: miles)
+                let byID = Dictionary(ps.stations.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                for id in ps.order { add(byID[id]?.exitID) }
+                for c in ps.stations.sorted(by: { ($0.ahead ?? 0) < ($1.ahead ?? 0) }) { add(c.exitID) }
+            }
+            return exits
         }
-        let ids = GasPrices.autoLookups(exits, now: Date(), usedToday: PriceCallCounter.today, lastLookup: { self.prices.lastLookup($0) })
+        let exits: [(id: String, ahead: Double)] = (autoCohort?.ids ?? []).compactMap { id in
+            plan.exits.first(where: { $0.id == id }).map { (id, $0.distanceAlongRoute - snapshot.progress) }
+        }
+        let ids = GasPrices.autoLookups(exits, now: Date(), usedToday: PriceCallCounter.today, lastLookup: { self.prices.lastLookup($0) },
+                                        rules: rules)
         for id in ids { if let exit = plan.exits.first(where: { $0.id == id }) { prices.load(exit: exit, apiKey: settings.googleKey) } }
     }
+
+    /// The exits the automatic lookups consider on the current screen (GasPrices.LookupCohort).
+    @ObservationIgnored private var autoCohort: GasPrices.LookupCohort?
 
     /// -googleFixture (UI tests only): Google's answers are made up from the gas stations mapped at each exit, at
     /// their own spots, with TEST prices ($3.411, $3.421, ...), so the automatic lookups can be shown without a

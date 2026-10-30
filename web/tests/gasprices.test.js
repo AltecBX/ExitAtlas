@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { METERS_PER_MILE as MILE } from '../js/engine/geo.js';
-import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars, parseEiaSummary, benchmarkFor, autoLookups, AUTO_LOOKUP_RULES } from '../js/engine/gasprices.js';
+import { validateReport, freshness, addReport, stationPrice, fillCost, compareStops, sortStations, paddFor, dollars, parseEiaSummary, benchmarkFor, autoLookups, lookupCohort, AUTO_LOOKUP_RULES } from '../js/engine/gasprices.js';
 
 const f = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '../../Tests/ExitAtlasCoreTests/Fixtures/prices/cases.json'), 'utf8'));
@@ -102,7 +102,7 @@ test('automatic Google lookups: the top exits on screen only, each once an hour,
   const at = (id) => seen.get(id) ?? null;
   const exits = [{ id: 'a', ahead: 5 * MILE }, { id: 'a', ahead: 5 * MILE }, { id: 'behind', ahead: -MILE }, { id: 'b', ahead: 9 * MILE },
     { id: 'c', ahead: 20 * MILE }, { id: 'd', ahead: 30 * MILE }, { id: 'e', ahead: 40 * MILE }];
-  assert.deepEqual(AUTO_LOOKUP_RULES, { perPass: 4, dailyBudget: 24, refreshMinutes: 60 });
+  assert.deepEqual(AUTO_LOOKUP_RULES, { perPass: 4, dailyBudget: 24, refreshMinutes: 60, cohortMiles: 5 });
   assert.deepEqual(autoLookups(exits, { now, usedToday: 0, lastLookup: at }), ['a', 'b', 'c', 'd'], 'repeats and exits behind are skipped');
   for (const id of ['a', 'b', 'c', 'd']) seen.set(id, now);
   assert.deepEqual(autoLookups(exits, { now: now + 59 * 60000, usedToday: 4, lastLookup: at }), [], 'not again within the hour, and e is not in the top 4');
@@ -110,4 +110,22 @@ test('automatic Google lookups: the top exits on screen only, each once an hour,
   assert.deepEqual(autoLookups(exits, { now: now + 60 * 60000, usedToday: 22, lastLookup: at }), ['a', 'b'], 'only what is left of the 24');
   assert.deepEqual(autoLookups(exits, { now, usedToday: 24, lastLookup: () => null }), []);
   assert.deepEqual(autoLookups(exits, { now, usedToday: 30, lastLookup: () => null }), [], 'never a negative budget');
+});
+
+test('the exits looked up stay the same on a screen until the driver moves on, whatever Google answers', () => {
+  // Google lists the first stations closed, so the ranking that picks the exits now starts lower down.
+  let ranking = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  let built = 0;
+  const build = () => { built += 1; return ranking.map((id, i) => ({ id, ahead: (i + 1) * MILE })); };
+  let cohort = lookupCohort(null, 'ahead|0', build);
+  assert.deepEqual(cohort.exits.map((e) => e.id), ['a', 'b', 'c', 'd']);
+  const seen = new Map(cohort.exits.map((e) => [e.id, 0]));
+  ranking = ['e', 'f', 'g', 'h', 'a', 'b', 'c', 'd'];
+  cohort = lookupCohort(cohort, 'ahead|0', build);
+  assert.deepEqual(cohort.exits.map((e) => e.id), ['a', 'b', 'c', 'd'], 'same screen, same exits');
+  assert.equal(built, 1, 'not ranked again');
+  assert.deepEqual(autoLookups(cohort.exits, { now: 60000, usedToday: 4, lastLookup: (id) => seen.get(id) ?? null }), [], 'so nothing more is asked');
+  cohort = lookupCohort(cohort, 'ahead|1', build);
+  assert.deepEqual(cohort.exits.map((e) => e.id), ['e', 'f', 'g', 'h'], 'five miles on, the new ranking');
+  assert.deepEqual(lookupCohort(null, 'k', () => [{ id: 'x', ahead: -5 }, { id: 'y', ahead: 5 }, { id: 'y', ahead: 5 }]).exits.map((e) => e.id), ['y']);
 });

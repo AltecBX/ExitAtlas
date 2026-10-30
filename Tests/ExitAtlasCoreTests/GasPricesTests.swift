@@ -148,6 +148,7 @@ final class GasPricesTests: XCTestCase {
         let rules = GasPrices.AutoLookupRules()
         XCTAssertEqual([rules.perPass, rules.dailyBudget], [4, 24])
         XCTAssertEqual(rules.refreshMinutes, 60)
+        XCTAssertEqual(rules.cohortMiles, 5)
         XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 0, lastLookup: { seen[$0] }), ["a", "b", "c", "d"])
         for id in ["a", "b", "c", "d"] { seen[id] = now }
         XCTAssertEqual(GasPrices.autoLookups(exits, now: now.addingTimeInterval(59 * 60), usedToday: 4, lastLookup: { seen[$0] }), [])
@@ -155,5 +156,25 @@ final class GasPricesTests: XCTestCase {
         XCTAssertEqual(GasPrices.autoLookups(exits, now: now.addingTimeInterval(60 * 60), usedToday: 22, lastLookup: { seen[$0] }), ["a", "b"])
         XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 24, lastLookup: { _ in nil }), [])
         XCTAssertEqual(GasPrices.autoLookups(exits, now: now, usedToday: 30, lastLookup: { _ in nil }), [])
+    }
+
+    /// The exits looked up stay the same on a screen until the driver moves on, whatever Google answers.
+    func testLookupCohortStaysPut() {
+        let mile = Geodesy.metersPerMile
+        var ranking = ["a", "b", "c", "d", "e", "f", "g", "h"]
+        var built = 0
+        let build: () -> [(id: String, ahead: Double)] = {
+            built += 1
+            return ranking.enumerated().map { ($0.element, Double($0.offset + 1) * mile) }
+        }
+        var cohort = GasPrices.LookupCohort.choose(nil, key: "ahead|0", build: build)
+        XCTAssertEqual(cohort.ids, ["a", "b", "c", "d"])
+        ranking = ["e", "f", "g", "h", "a", "b", "c", "d"]
+        cohort = GasPrices.LookupCohort.choose(cohort, key: "ahead|0", build: build)
+        XCTAssertEqual(cohort.ids, ["a", "b", "c", "d"], "same screen, same exits")
+        XCTAssertEqual(built, 1, "not ranked again")
+        cohort = GasPrices.LookupCohort.choose(cohort, key: "ahead|1", build: build)
+        XCTAssertEqual(cohort.ids, ["e", "f", "g", "h"], "five miles on, the new ranking")
+        XCTAssertEqual(GasPrices.LookupCohort.choose(nil, key: "k", build: { [("x", -5), ("y", 5), ("y", 5)] }).ids, ["y"])
     }
 }
