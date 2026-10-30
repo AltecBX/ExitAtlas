@@ -60,6 +60,9 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
 await page.goto(`${base}?demo=120`);
 await page.waitForSelector('.tabbar [data-arg="ahead"]', { timeout: 60000 });
 await page.waitForTimeout(1500);
+// The demo starts at mile 0 and jumps to mile 120 on its first tick; a range entered before that counts the
+// 120 miles as driven (a slow runner hit this), so wait for the jump.
+await page.waitForFunction(() => (window.exitAtlas?.snapshot?.progress ?? 0) > 100 * 1609.344, null, { timeout: 30000 });
 await page.evaluate(() => {
   const a = window.exitAtlas;
   a.settings.vehicle = { id: 'test', year: 2022, make: 'Test', model: 'Car', label: 'SIMULATED test vehicle', fuel: 'R', city: 28, hwy: 39, comb: 32, tankGallons: 15.8, ev: false };
