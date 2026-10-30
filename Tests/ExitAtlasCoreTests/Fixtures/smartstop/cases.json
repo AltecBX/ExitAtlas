@@ -1400,6 +1400,107 @@
      "$3.09 a gallon (You)"
     ]
    }
+  },
+  {
+   "name": "Restroom stop by day: a rest area on the highway has no detour, so it is not ranked behind a far station",
+   "options": {
+    "context": "ahead",
+    "purpose": "restroom"
+   },
+   "profile": {
+    "fuel": {
+     "requireRestroom": "always"
+    }
+   },
+   "candidates": [
+    {
+     "id": "welcome12",
+     "name": "Welcome Center",
+     "kind": "rest",
+     "aheadMiles": 12,
+     "detourMinutes": null,
+     "arrival": "2026-10-29T16:00:00Z",
+     "plaza": {
+      "toilets": true
+     }
+    },
+    {
+     "id": "bp52",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "92",
+     "aheadMiles": 52,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:00:00Z",
+     "osm": {
+      "toilets": true
+     }
+    }
+   ],
+   "expect": {
+    "primary": "welcome12",
+    "alternatives": [
+     "bp52"
+    ],
+    "primaryRestroom": "available",
+    "reasonsInclude": [
+     "On the highway, no exit needed"
+    ]
+   }
+  },
+  {
+   "name": "Every stop is below the reserve: at the nearest exit, the first choice brand comes first",
+   "options": {
+    "context": "fuel"
+   },
+   "candidates": [
+    {
+     "id": "loves29",
+     "name": "Love's",
+     "brand": "Love's",
+     "exitId": "29",
+     "aheadMiles": 2,
+     "rangeOnArrivalMiles": 26,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "shell29",
+     "name": "Shell",
+     "brand": "Shell",
+     "exitId": "29",
+     "aheadMiles": 2,
+     "rangeOnArrivalMiles": 26,
+     "detourMinutes": 4,
+     "arrival": "2026-10-29T16:00:00Z"
+    },
+    {
+     "id": "bp36",
+     "name": "BP",
+     "brand": "BP",
+     "exitId": "36",
+     "aheadMiles": 9,
+     "rangeOnArrivalMiles": 19,
+     "detourMinutes": 2,
+     "arrival": "2026-10-29T16:00:00Z"
+    }
+   ],
+   "expect": {
+    "primary": "shell29",
+    "alternatives": [
+     "bp36",
+     "loves29"
+    ],
+    "relaxed": [
+     "Below your reserve"
+    ],
+    "lowRange": true,
+    "favorite": null,
+    "reasonsInclude": [
+     "Arrive with about 26 mi, below your 50 mi reserve",
+     "Shell, your 1st choice"
+    ]
+   }
   }
  ],
  "lastOpen": [
