@@ -202,13 +202,29 @@ await page.waitForTimeout(300);
 check(await app(() => Boolean(localStorage.getItem('ea.active'))) && (await view()).includes('Resume your trip to Richmond'),
   'ending a simulated drive keeps the saved trip');
 
-// 11. Resume: same miles, same destination, back on GPS.
+// 11. Resume: where the trip was (an estimate until a fix), same miles, back on GPS. The page was gone for
+//     20 km: those miles count, in their states, as they do when a backgrounded page catches up.
 await tap('[data-act="resume"]');
-await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(10); });
+const resumedAt = await app(() => ({ progress: window.exitAtlas.snapshot.progress, pill: document.querySelector('#status').textContent.trim() }));
+check(Math.abs(resumedAt.progress - saved.progress) < 1 && resumedAt.pill === 'Estimating',
+  `resumed where the trip was saved, as an estimate (${Math.round(resumedAt.progress)} of ${Math.round(saved.progress)} m, ${resumedAt.pill})`);
+await app((d) => { window.__route = window.exitAtlas.plan.route; window.__gps.d = d + 20000; window.__drive(10); }, saved.progress);
 s = await state();
-check(s.mode === 'trip' && s.gps === 'device' && s.status === 'onRoute' && s.driven >= savedMeters - 1, `resumed with the miles driven (${Math.round(s.driven)} of ${Math.round(savedMeters)} m)`);
+check(s.mode === 'trip' && s.gps === 'device' && s.status === 'onRoute' && s.driven >= savedMeters + 20000,
+  `resumed with the miles driven, including the 20 km while the page was gone (${Math.round(s.driven)} m, ${Math.round(savedMeters)} m saved)`);
 
-// 12. End: nothing left to resume, the trip is in history.
+// 12. Resumed while off the route (the page reloaded at a gas station): a new route is requested.
+await app(() => window.dispatchEvent(new Event('pagehide')));
+await page.reload();
+await loaded();
+await page.waitForSelector('[data-act="resume"]', { timeout: 5000 });
+await tap('[data-act="resume"]');
+before = routingCalls;
+await app(async () => { window.__route = window.exitAtlas.plan.route; window.__gps.d = window.exitAtlas.snapshot.progress; await window.__park(30, 1500); });
+check(routingCalls > before, 'resumed off the route: a new route is requested');
+await until(() => !window.exitAtlas.isRerouting);
+
+// 13. End: nothing left to resume, the trip is in history.
 await tap('#end');
 await page.waitForTimeout(300);
 check(await app(() => localStorage.getItem('ea.active') === null && window.exitAtlas.history.length === 1 && !document.querySelector('[data-act="resume"]')),

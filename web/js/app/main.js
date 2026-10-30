@@ -955,6 +955,14 @@ function startTrip(route, { simulate = false, startMeters = 0, restoring = null 
     app.session = new TripSession(plan, app.data.states, now, {
       ledger: new TripLedger(restoring.ledger), pace: new PaceModel(restoring.pace),
     });
+    // Back where the trip was when saved, shown as an estimate until the first fix: miles driven while the page
+    // was gone are then credited to their states, and leaving the route is noticed (a reroute) as on a live trip.
+    const at = Math.min(Number(restoring.progress) || 0, route.length);
+    if (at > 0) {
+      app.session.tracker.reset(at, Number(restoring.savedAt) || now);
+      app.session.tracker.match.isEstimated = true;
+      app.session.recordedUpTo = at;
+    }
     app.tripStartedAt = restoring.startedAt;
   } else {
     app.tripStartedAt = now;
@@ -1225,7 +1233,7 @@ function persistIfDue(t, force = false) {
   recordPace();
   store.set('ea.active', {
     route: serializeRoute(app.plan.route), ledger: app.session.ledger.toJSON(), pace: app.session.pace.toJSON(),
-    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(),
+    startedAt: app.tripStartedAt, savedAt: t, remainingWaypoints: remainingWaypoints(), progress: app.session.recordedUpTo,
   });
 }
 
