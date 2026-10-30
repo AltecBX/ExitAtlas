@@ -1508,7 +1508,13 @@ const actions = {
   },
   'charger-network'(arg) { app.settings.chargerNetwork = arg; saveProfile(); app.chargers.routeId = null; render(); },
   'find-routes'() { findRoutes(); },
-  'start-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) { app.planner.results = []; startTrip(r.route); } },
+  'start-route'(arg) {
+    const r = app.planner.results[Number(arg)];
+    if (!r) return;
+    // The next trip is planned fresh: from the current location, with no stops, unless the driver sets them.
+    Object.assign(app.planner, { results: [], from: null, stops: [] });
+    startTrip(r.route);
+  },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
   'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
   'drive-view'(arg) { app.settings.drivePresentation = arg === 'focus' ? 'focus' : 'map'; saveProfile(); window.scrollTo(0, 0); render(); },

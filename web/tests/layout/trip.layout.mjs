@@ -45,7 +45,7 @@ function osrmFrom(start) {
 // What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection). The backup routing
 // server (FOSSGIS) does what the OSRM demo server does unless `backup` says otherwise.
 const servers = { routing: 'ok', search: 'ok', backup: null };
-let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0;
+let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0, lastRoutingStart = null;
 const failures = [];
 const fail = (m) => { failures.push(m); console.log(`FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); else console.log(`ok   ${m}`); };
@@ -78,7 +78,13 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
   const kind = u.host === 'router.project-osrm.org' || backup ? 'routing' : u.host === 'nominatim.openstreetmap.org' && u.pathname === '/search' ? 'search' : null;
   if (!kind) return r.fulfill({ status: 503, body: '' });
   if (backup) backupCalls++;
-  else if (kind === 'routing') { routingCalls++; lastRoutingPoints = u.pathname.split('/').pop().split(';').length; }
+  else if (kind === 'routing') {
+    routingCalls++;
+    const points = u.pathname.split('/').pop().split(';');
+    lastRoutingPoints = points.length;
+    const [lon, lat] = points[0].split(',').map(Number);
+    lastRoutingStart = { lat, lon };
+  }
   const mode = backup ? servers.backup ?? servers.routing : servers[kind];
   if (mode === 'hang') return; // accepted, never answered
   if (mode === 'down') return r.abort('internetdisconnected');
@@ -348,6 +354,39 @@ await loaded();
 await page.waitForTimeout(500);
 check(await app(() => !document.querySelector('#loading') && !document.querySelector('[data-act="resume"]') && /Where are you headed/.test(document.querySelector('#view').textContent)),
   'an unreadable saved trip does not stop the app from starting');
+
+// 15. A trip planned from another start, through a stop, then ended. Home from "Where to?" plans the next trip
+//     from the current location with no stops; a stop the driver sets for the new trip is kept.
+const place = (name, lat, lon) => ({ name, coordinate: { lat, lon } });
+await app(([home, from, stop, to]) => {
+  const a = window.exitAtlas;
+  a.places.home = home;
+  Object.assign(a.planner, { from, stops: [stop], to, results: [] });
+  document.querySelector('.tabbar [data-arg="trip"]').click();
+}, [place('Home, Yonkers', 40.9312, -73.8988), place('Newark, NJ', 40.7357, -74.1724), place('Trenton, NJ', 40.2206, -74.7597), place('Richmond, Virginia', 37.5407, -77.436)]);
+await page.waitForSelector('[data-act="find-routes"]:not([disabled])');
+await tap('[data-act="find-routes"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 });
+const planned = lastRoutingPoints;
+await tap('[data-act="start-route"][data-arg="0"]');
+await tap('#end');
+await page.waitForTimeout(300);
+await page.waitForSelector('[data-act="go-to"][data-arg="home"]', { timeout: 5000 });
+await tap('[data-act="go-to"][data-arg="home"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+const nearTimesSquare = (c) => c && Math.abs(c.lat - 40.758) < 0.001 && Math.abs(c.lon + 73.9855) < 0.001;
+check(planned === 3 && lastRoutingPoints === 2 && nearTimesSquare(lastRoutingStart),
+  `after a trip, Home is planned from the current location with no stops (${lastRoutingPoints} points from ${JSON.stringify(lastRoutingStart)})`);
+await app((stop) => {
+  const a = window.exitAtlas;
+  a.planner.stops = [stop];
+  a.tab = 'drive';
+  document.querySelector('.tabbar [data-arg="drive"]').click();
+}, place('Trenton, NJ', 40.2206, -74.7597));
+await page.waitForSelector('[data-act="go-to"]:not([data-arg="home"])', { timeout: 5000 });
+await tap('[data-act="go-to"]:not([data-arg="home"])');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
+check(lastRoutingPoints === 3 && nearTimesSquare(lastRoutingStart), `a stop set for the new trip is kept (${lastRoutingPoints} points)`);
 
 if (errors.length) fail(`page errors: ${errors.join('; ')}`);
 await browser.close();
