@@ -6,12 +6,15 @@
 // App/ExitAtlas/Services/WeatherService.swift.
 import { METERS_PER_MILE as MILE, distance } from '../engine/geo.js';
 import { currentWeather, nearestStations } from '../engine/weather.js';
+import { withTimeout } from './net.js';
 
 const API = 'https://api.weather.gov';
 
 export class LiveWeather {
-  constructor({ fetchFn = (...a) => fetch(...a), clock = () => Date.now() / 1000 } = {}) {
+  /// timeoutMs: a request with no answer by then fails, so a stall in a dead zone does not stop the refreshes.
+  constructor({ fetchFn = (...a) => fetch(...a), clock = () => Date.now() / 1000, timeoutMs = 15000 } = {}) {
     this.fetchFn = fetchFn;
+    this.timeoutMs = timeoutMs;
     this.clock = clock;
     this.reset();
   }
@@ -84,8 +87,10 @@ export class LiveWeather {
   }
 
   async get(url) {
-    const res = await this.fetchFn(url, { headers: { Accept: 'application/geo+json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    return withTimeout(async (signal) => {
+      const res = await this.fetchFn(url, { headers: { Accept: 'application/geo+json' }, signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }, this.timeoutMs);
   }
 }

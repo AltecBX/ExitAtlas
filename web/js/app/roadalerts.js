@@ -4,6 +4,7 @@
 // Same plan as App/ExitAtlas/Services/RoadAlertService.swift.
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { nwsIncidents, NWS_EVENTS, NWS_STORM_EVENTS, WZDX_FEEDS, WZDX_KINDS, parseWzdx, wzdxIncidents, wzdxSource, wzdxUpdatedAt } from '../engine/alertsources.js';
+import { withTimeout } from './net.js';
 
 const NWS_URL = 'https://api.weather.gov/alerts/active';
 /// Work zone feeds are read for the states within this distance ahead.
@@ -19,8 +20,10 @@ function source(id, name, kinds, refreshSeconds, maxAgeSeconds) {
 
 export class RoadAlerts {
   /// proxyBase: the key proxy's base URL when it serves work zone feeds (infra/worker /v1/wzdx), else null.
-  constructor({ fetchFn = (...a) => fetch(...a), clock = () => Date.now() / 1000, proxyBase = () => null } = {}) {
+  /// timeoutMs: an NWS request with no answer by then fails (work zone feeds, up to a few MB, get twice as long).
+  constructor({ fetchFn = (...a) => fetch(...a), clock = () => Date.now() / 1000, proxyBase = () => null, timeoutMs = 15000 } = {}) {
     this.fetchFn = fetchFn;
+    this.timeoutMs = timeoutMs;
     this.clock = clock;
     this.proxyBase = proxyBase;
     this.sources = {
@@ -123,9 +126,7 @@ export class RoadAlerts {
       const responses = [];
       for (const point of RoadAlerts.samplePoints(plan, progress)) {
         const url = `${NWS_URL}?point=${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
-        const res = await this.fetchFn(url, { headers: { Accept: 'application/geo+json' } });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json();
+        const body = await this.request(url, 'application/geo+json', this.timeoutMs, (res) => res.json());
         responses.push({ point: { lat: point.lat, lon: point.lon }, features: body.features ?? [] });
       }
       // Storm warnings (snow squalls, tornadoes, thunderstorms, flash floods) are polygons a few miles wide that
@@ -133,9 +134,7 @@ export class RoadAlerts {
       const states = RoadAlerts.statesAhead(plan, progress).filter((c) => /^[A-Z]{2}$/.test(c));
       if (states.length) {
         const query = new URLSearchParams({ area: states.join(','), event: NWS_STORM_EVENTS.join(',') });
-        const res = await this.fetchFn(`${NWS_URL}?${query}`, { headers: { Accept: 'application/geo+json' } });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json();
+        const body = await this.request(`${NWS_URL}?${query}`, 'application/geo+json', this.timeoutMs, (res) => res.json());
         responses.push({ point: null, features: (body.features ?? []).filter((f) => f?.geometry) });
       }
       s.incidents = nwsIncidents(responses);
@@ -149,13 +148,21 @@ export class RoadAlerts {
     const feed = WZDX_FEEDS[state];
     await this.attempt(s, now, async () => {
       const url = feed.cors ? feed.url : new URL(`v1/wzdx/${state}`, this.proxyBase()).href;
-      const res = await this.fetchFn(url, { headers: { Accept: 'application/geo+json, application/json' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = parseWzdx(await res.text());
+      const data = parseWzdx(await this.request(url, 'application/geo+json, application/json', 2 * this.timeoutMs, (res) => res.text()));
       const updated = wzdxUpdatedAt(data);
       if (updated != null && now - updated > WZDX_STALE) throw new Error('feed not updated for over a day');
       s.incidents = wzdxIncidents(data, state);
     });
+  }
+
+  /// One request and its answer, given up after `ms` (app/net.js): a stalled request fails like any other, so
+  /// the backoff below applies and the source shows as unavailable, never as "no alerts".
+  request(url, accept, ms, read) {
+    return withTimeout(async (signal) => {
+      const res = await this.fetchFn(url, { headers: { Accept: accept }, signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return read(res);
+    }, ms);
   }
 
   /// Runs one fetch with the shared bookkeeping: success marks the source fresh; a failure keeps the last
