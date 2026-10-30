@@ -230,6 +230,14 @@ await page.waitForTimeout(300);
 check(await app(() => localStorage.getItem('ea.active') === null && window.exitAtlas.history.length === 1 && !document.querySelector('[data-act="resume"]')),
   'ending the trip clears it and records it');
 
+// 14. A saved trip that cannot be read is not offered, and the app still starts.
+await app(() => localStorage.setItem('ea.active', JSON.stringify({ route: { destination: { name: 'X' } }, ledger: { stints: 5 }, savedAt: Date.now() / 1000 })));
+await page.reload();
+await loaded();
+await page.waitForTimeout(500);
+check(await app(() => !document.querySelector('#loading') && !document.querySelector('[data-act="resume"]') && /Where are you headed/.test(document.querySelector('#view').textContent)),
+  'an unreadable saved trip does not stop the app from starting');
+
 if (errors.length) fail(`page errors: ${errors.join('; ')}`);
 await browser.close();
 server.close();

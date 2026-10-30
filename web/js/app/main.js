@@ -1239,9 +1239,14 @@ function persistIfDue(t, force = false) {
 
 function loadResumable() {
   const rec = store.get('ea.active');
-  if (!rec?.route || nowSeconds() - rec.savedAt > 48 * 3600) return null;
-  const ledger = new TripLedger(rec.ledger);
-  return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  if (!rec?.route || !(nowSeconds() - rec.savedAt <= 48 * 3600)) return null;
+  // Read at start up: a saved trip that cannot be read is not offered, and must not stop the app from starting.
+  try {
+    const ledger = new TripLedger(rec.ledger);
+    return { ...rec, destination: rec.route.destination, drivenMeters: ledger.totalMeters };
+  } catch {
+    return null;
+  }
 }
 
 // MARK: Planner
