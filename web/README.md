@@ -19,7 +19,7 @@ A browser version of ExitAtlas for using on a phone before the iOS app is instal
 * Home and recent places: set Home from any search result; Home and recent places appear first when choosing a start, stop or destination, and on the Drive screen for one tap routing.
 * Voice for state lines, exits and fuel stops, screen wake lock, light and dark mode.
 * The trip is saved on the phone every 30 seconds and can be resumed after the page reloads, without a network connection.
-* Offline data: states, time zones and 38,553 exits load once (about 15 MB) and are cached by a service worker.
+* Offline data: states, time zones, 38,553 interstate exits and 22,468 exits on other freeways load once (about 24 MB) and are cached by a service worker.
 * Simulated demo (Miami to Manhattan), clearly marked as a simulation.
 
 ## Limits of a web page on iPhone

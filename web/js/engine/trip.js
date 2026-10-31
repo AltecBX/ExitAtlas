@@ -6,6 +6,7 @@ import { matchRestAreas } from './restareas.js';
 import { matchDiscover } from './discover.js';
 import { RouteProgressTracker, TripLedger, PaceModel } from './tracking.js';
 import { readingProblem, trafficSecondsTo, etaBasis } from './traffic.js';
+import { signedDirection } from './route.js';
 
 function lowerBound(a, x) {
   let lo = 0, hi = a.length;
@@ -30,6 +31,9 @@ export class TripPlan {
       ? (matcher ?? new ExitMatcher(optionsForSource(route.source))).match(route.polyline, datasets.interstates)
       : [];
     this.exitDistances = this.exits.map((e) => e.distanceAlongRoute);
+    // Roads the plan's exits are on ("Taconic State Parkway", "FDR Drive"), to name a freeway a step's name alone
+    // does not show as one.
+    this.exitRoads = new Set(this.exits.flatMap((e) => e.highways));
     this.restAreas = datasets.restAreas
       ? matchRestAreas(route.polyline, datasets.restAreas, { highwayAt: (d) => route.stepAt(d)?.highways ?? null })
       : [];
@@ -65,6 +69,21 @@ export class TripPlan {
   nextRestArea(distance) {
     const i = upperBound(this.restAreaDistances, distance);
     return i < this.restAreas.length ? this.restAreas[i] : null;
+  }
+
+  /// The road at `distance` when its route step names no highway but the plan's exits sit on a road of that name
+  /// ("FDR Drive"): {ref, direction} as route.highwayAt gives, else null.
+  freewayAt(distance) {
+    const step = this.route.stepAt(distance);
+    const name = step && !step.highways?.length ? (step.roadName ?? '').trim() : '';
+    if (!name) return null;
+    for (const road of this.exitRoads) {
+      if (name !== road && !name.endsWith(` ${road}`)) continue;
+      const ref = { kind: 'named', prefix: '', number: road };
+      const stretch = [step.startDistance, step.startDistance + step.length];
+      return { ref, direction: signedDirection(ref, this.route.polyline, distance, 25000, stretch) };
+    }
+    return null;
   }
 
   timeZoneIDAt(distance) {
@@ -153,7 +172,7 @@ export class TripPlan {
       drivenTotal: Math.max(ledger.totalMeters, d), eta: arrival, timeRemaining: arrival - now,
       paceFactor: pace.factor, paceRecent: pace.recentFactor, recentSpeed: pace.recentSpeed, etaTo: eta,
       traffic: reading, basisTo, arrivalBasis: basisTo(route.length),
-      highway: route.highwayAt(d), current, next, itinerary,
+      highway: route.highwayAt(d) ?? this.freewayAt(d), current, next, itinerary,
       nextExit: ne ? toUpcoming(ne) : null, upcomingExits,
       nextRestArea: nr ? toRest(nr) : null, upcomingRestAreas: this.restAreasBetween(d, d + exitLookahead).map(toRest),
       borderCrossingsRemaining: ahead.length, statesAhead,

@@ -37,9 +37,9 @@ function sideOf(text) {
 const sameRef = (a, b) => Boolean(a && b && a.kind === b.kind && a.prefix === b.prefix && a.number === b.number);
 
 /// "I-295 N" for a highway at a distance along the route. Named roads (turnpikes, parkways) are signed by
-/// their own directions, which the shape of the route does not tell reliably, so they get none.
+/// their own directions, which the shape of the route does not tell reliably, so they get none: "Sprain Brook Pkwy".
 function roadLabel(route, ref, at) {
-  if (ref.kind === 'named') return ref.number.replace(/^NJTP\s+/, '');
+  if (ref.kind === 'named') return highwayLabel(ref);
   return `${highwayLabel(ref)} ${route.directionAt ? route.directionAt(ref, at) : signedDirection(ref, route.polyline, at)}`;
 }
 

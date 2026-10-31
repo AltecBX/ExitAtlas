@@ -185,9 +185,9 @@
     "miles": 2.6,
     "kind": "fork",
     "side": "left",
-    "road": "New Jersey Turnpike",
+    "road": "New Jersey Tpke",
     "exitLabel": null,
-    "text": "Keep left onto New Jersey Turnpike"
+    "text": "Keep left onto New Jersey Tpke"
    }
   },
   {
@@ -196,9 +196,9 @@
     "miles": 12.2,
     "kind": "fork",
     "side": "left",
-    "road": "New Jersey Turnpike",
+    "road": "New Jersey Tpke",
     "exitLabel": null,
-    "text": "Keep left to stay on New Jersey Turnpike"
+    "text": "Keep left to stay on New Jersey Tpke"
    }
   },
   {

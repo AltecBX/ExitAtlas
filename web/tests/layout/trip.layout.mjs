@@ -1,7 +1,8 @@
 // The trip from start to end in a real browser, with the routing and place search servers replaced by fixtures
 // (a recorded OSRM route, New York City to Richmond) and GPS fed through the app's own location code:
 // search and route when the servers stall, start, drive, leave the route while the routing server stalls,
-// come back, reroute, reload mid trip, run a simulated drive, resume and end.
+// come back, reroute, reload mid trip, run a simulated drive, resume and end. Then the Taconic State Parkway
+// (recorded OSRM answers): past the exit of the route and on along the Taconic, a reroute that keeps to it.
 // Run: node web/tests/layout/trip.layout.mjs   (needs Playwright with Chromium)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -9,7 +10,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { encodePolyline, distance } from '../../js/engine/geo.js';
+import { encodePolyline, decodePolyline, distance } from '../../js/engine/geo.js';
+import { loadOSRM, osrmAnswerFrom } from '../support.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -44,8 +46,13 @@ function osrmFrom(start) {
 
 // What the servers do: 'ok', 'hang' (accept and never answer) or 'down' (no connection). The backup routing
 // server (FOSSGIS) does what the OSRM demo server does unless `backup` says otherwise.
-const servers = { routing: 'ok', search: 'ok', backup: null };
-let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0, lastRoutingStart = null;
+// Section 16 answers from the Taconic State Parkway (`taconic`): from Briarcliff Manor the answer recorded there,
+// from anywhere else (the driver past the NY 82 exit) the one recorded 600 m past that exit, from the driver on.
+const servers = { routing: 'ok', search: 'ok', backup: null, taconic: false };
+let routingCalls = 0, backupCalls = 0, lastRoutingPoints = 0, lastRoutingStart = null, lastRoutingQuery = '';
+const fromBriarcliff = loadOSRM('taconic_briarcliff_to_lenox'), pastNY82 = loadOSRM('taconic_past_ny82_to_lenox');
+const BRIARCLIFF = { lat: 41.1533, lon: -73.8166 };
+const taconicFrom = (start) => JSON.stringify(distance(start, BRIARCLIFF) < 500 ? fromBriarcliff : osrmAnswerFrom(pastNY82, start));
 const failures = [];
 const fail = (m) => { failures.push(m); console.log(`FAIL ${m}`); };
 const check = (ok, m) => { if (!ok) fail(m); else console.log(`ok   ${m}`); };
@@ -86,13 +93,14 @@ await page.route((u) => u.protocol === 'https:', async (r) => {
     lastRoutingPoints = points.length;
     const [lon, lat] = points[0].split(',').map(Number);
     lastRoutingStart = { lat, lon };
+    lastRoutingQuery = u.search;
   }
   const mode = backup ? servers.backup ?? servers.routing : servers[kind];
   if (mode === 'hang') return; // accepted, never answered
   if (mode === 'down') return r.abort('internetdisconnected');
   if (kind === 'search') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ display_name: 'Richmond, Virginia, United States', lat: '37.5407', lon: '-77.436' }]) });
   const [lon, lat] = u.pathname.split('/').pop().split(';')[0].split(',').map(Number);
-  return r.fulfill({ status: 200, contentType: 'application/json', body: osrmFrom({ lat, lon }) });
+  return r.fulfill({ status: 200, contentType: 'application/json', body: servers.taconic ? taconicFrom({ lat, lon }) : osrmFrom({ lat, lon }) });
 });
 
 const app = (fn, arg) => page.evaluate(fn, arg);
@@ -113,6 +121,10 @@ const loaded = async () => {
     window.__drive = (seconds, speed = 30) => {
       const poly = window.__route.polyline;
       for (let k = 0; k < seconds; k++) { window.__gps.d += speed; fix(poly.coordinateAt(window.__gps.d), poly.bearingAt(window.__gps.d), speed); }
+    };
+    /// The same, yielding between fixes as a real GPS does, so a request started by one fix can finish.
+    window.__driveOn = async (seconds, speed = 30) => {
+      for (let k = 0; k < seconds; k++) { window.__drive(1, speed); await new Promise((r) => setTimeout(r, 15)); }
     };
     /// Stopped `meters` east of the route (a gas station off the highway). Yields between fixes, as a real
     /// GPS does, so a request started by one fix can finish before the next.
@@ -400,6 +412,78 @@ await page.waitForSelector('[data-act="go-to"]:not([data-arg="home"])', { timeou
 await tap('[data-act="go-to"]:not([data-arg="home"])');
 await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 }).catch(() => {});
 check(lastRoutingPoints === 3 && nearTimesSquare(lastRoutingStart), `a stop set for the new trip is kept (${lastRoutingPoints} points)`);
+
+// 16. Yonkers to the Berkshires on the Taconic State Parkway (recorded OSRM answers, Fixtures/reroute). The route
+//     from Briarcliff Manor leaves the Taconic at the NY 82 exit; the driver passes that exit and keeps on the
+//     Taconic. The reroute is one request, with alternatives, and its route stays on the Taconic: 30 miles on, past
+//     the US 44 exit the fastest would take and the exits after it, the driver is still on the route, with no other
+//     request, no exit to take on the screen, and "New route." said once.
+servers.taconic = true;
+const MI = 1609.344;
+await app(([from, to]) => {
+  const a = window.exitAtlas;
+  Object.assign(a.planner, { from, stops: [], to, results: [] });
+  window.__spoken = [];
+  a.announcer.speaker = (t) => window.__spoken.push(t);
+  document.querySelector('.tabbar [data-arg="trip"]').click();
+}, [place('Taconic State Parkway, Briarcliff Manor', BRIARCLIFF.lat, BRIARCLIFF.lon), place('Lenox, MA', 42.3565, -73.2848)]);
+await page.waitForSelector('[data-act="find-routes"]:not([disabled])');
+const planCalls = routingCalls;
+await tap('[data-act="find-routes"]');
+await page.waitForSelector('[data-act="start-route"]', { timeout: 8000 });
+await tap('[data-act="start-route"][data-arg="0"]');
+// The driver: the last 3 km of the Taconic before the NY 82 exit, then straight on along the Taconic as recorded
+// from 600 m past the exit.
+await app((ahead) => import('./js/engine/geo.js').then(({ RoutePolyline }) => {
+  const route = window.exitAtlas.plan.route, ramp = route.steps[1].startDistance;
+  window.__route = { polyline: new RoutePolyline([...route.polyline.slice(ramp - 3000, ramp).points, ...ahead]) };
+  window.__gps.d = 0;
+}), decodePolyline(pastNY82.routes[1].geometry, 6));
+const frame = () => app(() => new Promise((r) => requestAnimationFrame(() => r())));
+await app(() => window.__drive(90, 28));
+await frame();
+check((await state()).status === 'onRoute' && /Take Exit 43A toward NY-82 N/.test(await view()) && routingCalls - planCalls === 1,
+  'from Briarcliff Manor the route says to take the NY 82 exit, by its number (Exit 43A)');
+before = routingCalls;
+await app(() => window.__driveOn(60, 28));
+await until(() => !window.exitAtlas.isRerouting);
+const rerouted = await app(async () => {
+  const a = window.exitAtlas, r = a.plan.route;
+  const { nextManeuver } = await import('./js/engine/guidance.js');
+  return { first: r.steps[0].roadName, next: nextManeuver(r, a.snapshot.progress), status: a.snapshot.match.status };
+});
+check(routingCalls - before === 1 && /alternatives=3/.test(lastRoutingQuery) && /bearings=\d+,45;$/.test(lastRoutingQuery),
+  `passing the exit on the Taconic: one reroute request, with alternatives and the course (${routingCalls - before}: ${lastRoutingQuery.slice(-40)})`);
+check(rerouted.first === 'Taconic State Parkway' && rerouted.next.distance > 49 * MI && rerouted.status === 'onRoute',
+  `the new route stays on the Taconic (${rerouted.next.text} in ${(rerouted.next.distance / MI).toFixed(1)} mi)`);
+// 30 miles on along the Taconic, checking every fix: on the route, and no maneuver within 10 miles (the guidance
+// banner's own rule); the screen checked every mile.
+const onTaconic = { fixes: 0, off: 0, told: [], screens: 0 };
+for (let k = 0; k < 30; k++) {
+  const part = await app(async (mile) => {
+    const { nextManeuver } = await import('./js/engine/guidance.js');
+    const out = { fixes: 0, off: 0, told: [] };
+    for (let n = 0; n < Math.round(mile / 28); n++) {
+      window.__drive(1, 28);
+      const a = window.exitAtlas, s = a.snapshot;
+      out.fixes++;
+      if (s.match.status !== 'onRoute') out.off++;
+      const m = nextManeuver(a.plan.route, s.progress, { within: 10 * mile });
+      if (m) out.told.push(m.text);
+    }
+    return out;
+  }, MI);
+  onTaconic.fixes += part.fixes;
+  onTaconic.off += part.off;
+  onTaconic.told.push(...part.told);
+  await frame();
+  if (/Take the exit|Take Exit/.test(await view())) onTaconic.screens++;
+}
+const spokenNew = await app(() => window.__spoken.filter((t) => t === 'New route.').length);
+check(onTaconic.off === 0 && onTaconic.told.length === 0 && onTaconic.screens === 0 && routingCalls - before === 1,
+  `30 miles on along the Taconic: on the route at all ${onTaconic.fixes} fixes, no exit to take (${onTaconic.told[0] ?? 'none'}), no other request (${routingCalls - before} in all)`);
+check(spokenNew === 1, `"New route." said once (${spokenNew})`);
+servers.taconic = false;
 
 if (errors.length) fail(`page errors: ${errors.join('; ')}`);
 await browser.close();

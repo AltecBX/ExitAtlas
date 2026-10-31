@@ -7,11 +7,11 @@
 // Datasets (URLs carry the file's hash from manifest.json): cache first, keeping the newest two versions of
 // each file so the app can fall back to the last good one. The manifest itself: network first.
 // The datasets have their own cache that an app update keeps, so a deploy never leaves the phone without
-// its offline data (about 16 MB that would otherwise download again, or fail to, on the road).
+// its offline data (about 24 MB that would otherwise download again, or fail to, on the road).
 
 /// SHA-256 over APP_FILES (each line "file sha256", web/tests/sw.test.js computes it and says the new value
 /// when an app file changes). It names this version's cache.
-const APP_HASH = '1d72d36aaf8418fb2333d45d9c2cde6dfa5d9391dc77131891f4382e78b9e542';
+const APP_HASH = '5369bb4f753a6e5ddb88d4894dba37812dcff18dc806d2aebb1a938ff119fd2a';
 const CACHE = `exitatlas-v34-${APP_HASH.slice(0, 12)}`;
 const DATA_CACHE = 'exitatlas-data';
 const APP_FILES = [

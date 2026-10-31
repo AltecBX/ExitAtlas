@@ -225,8 +225,8 @@ final class LongDriveTests: XCTestCase {
         let route = Fixtures.route("yonkers_to_orlando")
         XCTAssertEqual(label(route, 8.5), "I-95 S")
         XCTAssertEqual(label(route, 220), "MD-295 S", "Baltimore-Washington Parkway")
-        // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
-        XCTAssertEqual(route.highway(at: 100 * mi)?.ref.description, "New Jersey Turnpike")
+        // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road, in short as on signs.
+        XCTAssertEqual(route.highway(at: 100 * mi)?.ref.description, "New Jersey Tpke")
         XCTAssertEqual(HighwayRef.parse("NJTP New Jersey Turnpike"), [HighwayRef(kind: .named, prefix: "", number: "New Jersey Turnpike")])
     }
 

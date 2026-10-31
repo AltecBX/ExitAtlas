@@ -1,9 +1,9 @@
 {
  "kind": "manifest",
  "schema": 1,
- "version": 202610301410,
- "content": "9c6ded6b977d666a5bd21470b96c8498aaf417cf93e37cb05a9514e94b3eac2b",
- "generated_at": "2026-10-30T14:10:53+00:00",
+ "version": 202610310308,
+ "content": "1f7e178881e171a65b147b9e3a79c4feda4c16111bcac002f4b0d25e337ad9fa",
+ "generated_at": "2026-10-31T03:08:18+00:00",
  "files": {
   "states.eab": {
    "bytes": 2786240,
@@ -49,6 +49,18 @@
    "attribution": "© OpenStreetMap contributors. Exit and place data from OpenInterstate (ODbL).",
    "generated_at": "2026-10-27T20:43:55+00:00",
    "osm_extract_date": "2026-07-12"
+  },
+  "freeways.eax": {
+   "bytes": 7442280,
+   "sha256": "c1212be9423d17d7bedd8b221a7a68169d581f4a2aa15a930c88ffb9b2f32a4d",
+   "required": false,
+   "role": "Exits and services on parkways, turnpikes and other freeways",
+   "kind": "freeways",
+   "source": "OpenStreetMap regional extracts of the United States (download.openstreetmap.fr: us-northeast, us-south, us-midwest, us-west), motorway and trunk junctions that are not on Interstates, places by OpenInterstate's categories and limits",
+   "license": "ODbL-1.0",
+   "attribution": "© OpenStreetMap contributors. Exits on other freeways and the places near them from OpenStreetMap (ODbL).",
+   "generated_at": "2026-10-31T03:07:55+00:00",
+   "osm_extract_date": "2026-10-30"
   },
   "restareas.json": {
    "bytes": 263273,

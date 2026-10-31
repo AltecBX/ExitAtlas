@@ -88,3 +88,28 @@ def read_eax_exit_node_ids(path):
     (exits,) = struct.unpack_from("<I", data, off)
     off += 4
     return {struct.unpack_from("<q", data, off + 40 * i)[0] for i in range(exits)}
+
+
+def read_eac_parts(path):
+    """Yield (highway, direction code, [(lat, lon), ...]) for every corridor part in an EAC1 file."""
+    data = open(path, "rb").read()
+    magic, _, _, off = read_header(data)
+    assert magic == "EAC1", magic
+    count, total = struct.unpack_from("<II", data, off)
+    offsets = struct.unpack_from("<%dI" % (count + 1), data, off + 8)
+    blob_start = off + 8 + 4 * (count + 1)
+
+    def string(i):
+        return data[blob_start + offsets[i]:blob_start + offsets[i + 1]].decode("utf-8") if i != NONE32 else ""
+
+    off = blob_start + total
+    (corridors,) = struct.unpack_from("<I", data, off)
+    off += 4
+    for _ in range(corridors):
+        highway, direction, _, _, _, parts = struct.unpack_from("<IIIffI", data, off)
+        off += 24
+        for _ in range(parts):
+            (n,) = struct.unpack_from("<I", data, off)
+            coords = struct.unpack_from("<%di" % (2 * n), data, off + 4)
+            off += 4 + 8 * n
+            yield string(highway), string(direction), [(coords[k] / E7, coords[k + 1] / E7) for k in range(0, 2 * n, 2)]

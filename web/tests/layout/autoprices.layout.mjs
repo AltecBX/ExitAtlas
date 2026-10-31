@@ -114,7 +114,11 @@ await click('[data-act="ahead-filter"][data-arg="all"]');
 await page.waitForTimeout(300);
 await click('[data-act="ahead-filter"][data-arg="fuel"]');
 await page.waitForTimeout(4000);
-if (asked.length !== first) fail(`fresh exits were asked again (${asked.length - first} more)`);
+// The demo keeps driving, so crossing into the next 5 miles may bring in an exit not asked yet (the rule); an
+// exit already answered in the last hour must not be asked again.
+const again = asked.slice(first).filter((c) => asked.slice(0, first).includes(c));
+if (again.length) fail(`fresh exits were asked again (${again.join(' | ')})`);
+if (asked.length - first > 4) fail(`${asked.length - first} more lookups after switching filters`);
 
 // 4b. Exit details, Google Maps prices: an old price is greyed, says "old, not compared" and comes after the current ones.
 const googleRows = await page.evaluate(() => {

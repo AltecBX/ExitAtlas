@@ -146,8 +146,26 @@ final class HighwayRefTests: XCTestCase {
         XCTAssertEqual(HighwayRef.parse("I 95; US 17").map(\.description), ["I-95", "US-17"])
         XCTAssertEqual(HighwayRef.parse("Merge onto I-95 N toward New York").map(\.description), ["I-95"])
         XCTAssertEqual(HighwayRef.parse("I-35E").first?.number, "35E")
-        XCTAssertEqual(HighwayRef.parse("NJTP").first?.description, "New Jersey Turnpike")
+        XCTAssertEqual(HighwayRef.parse("NJTP").first?.description, "New Jersey Tpke")
         XCTAssertEqual(HighwayRef.parse("SR 70").first?.description, "SR-70")
         XCTAssertTrue(HighwayRef.parse("Brickell Avenue").isEmpty)
+    }
+
+    /// Named freeways by their full name, shown short, as web/tests/freeways.test.js checks the JavaScript twin.
+    func testNamedFreeways() {
+        func labels(_ text: String) -> [String] { HighwayRef.parse(text).map(\.description) }
+        XCTAssertEqual(HighwayRef.parse("Taconic State Parkway new name straight").map(\.number), ["Taconic State Parkway"])
+        XCTAssertEqual(labels("Taconic State Parkway new name straight"), ["Taconic State Pkwy"])
+        XCTAssertEqual(labels("GSP Garden State Parkway merge slight left"), ["Garden State Pkwy"])
+        XCTAssertEqual(labels("SO Southern State Parkway"), ["Southern State Pkwy"])
+        XCTAssertEqual(HighwayRef.parse("NJTP New Jersey Turnpike").map(\.number), ["New Jersey Turnpike"])
+        XCTAssertEqual(labels("NJTP"), ["New Jersey Tpke"])
+        XCTAssertEqual(labels("Cross County Parkway (express lanes)"), ["Cross County Pkwy"])
+        XCTAssertEqual(labels("I 495 Long Island Expressway"), ["I-495", "Long Island Expy"])
+        XCTAssertEqual(labels("I 95;NJTP New Jersey Turnpike"), ["I-95", "New Jersey Tpke"])
+        XCTAssertEqual(labels("I 87 New York State Thruway"), ["I-87", "New York State Thruway"])
+        XCTAssertEqual(labels("CT 15 Merritt Parkway"), ["CT-15", "Merritt Pkwy"])
+        XCTAssertEqual(labels("US 78;GA 410 Stone Mountain Freeway"), ["US-78", "GA-410", "Stone Mountain Freeway"])
+        XCTAssertNotEqual(HighwayRef.parse("Sprain Brook Parkway"), HighwayRef.parse("Taconic State Parkway"))
     }
 }

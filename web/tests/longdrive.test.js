@@ -2,16 +2,16 @@
 // parked phones and GPS gaps. Each test drives a real route fixture (OSRM, OpenStreetMap) with simulated fixes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { data, route, START, near } from './support.js';
+import { data, route, START, near, loadOSRM, osrmAnswerFrom } from './support.js';
 import { offset, normalizedDegrees } from '../js/engine/geo.js';
 import { RouteProgressTracker, TrackerConfig } from '../js/engine/tracking.js';
 import { TripPlan, TripSession } from '../js/engine/trip.js';
 import { GPSSimulator } from '../js/engine/discovery.js';
-import { PlannedRoute, TravelTimeProfile, highwayLabel, parseHighways } from '../js/engine/route.js';
+import { PlannedRoute, TravelTimeProfile, highwayLabel, parseHighways, makeStep } from '../js/engine/route.js';
 import { nextManeuver } from '../js/engine/guidance.js';
 import { RoutePolyline } from '../js/engine/geo.js';
-import { osrmRouteQuery } from '../js/engine/osrm.js';
-import { ReroutePacer, REROUTE_PACING } from '../js/app/reroute.js';
+import { osrmRouteQuery, routeFromOSRM } from '../js/engine/osrm.js';
+import { ReroutePacer, REROUTE_PACING, STAY_ON_ROAD, chooseReroute, startingRoad, metersOnRoad } from '../js/app/reroute.js';
 
 const DS = { states: data.states, timeZones: null, interstates: null };
 
@@ -211,8 +211,8 @@ test('road direction: US 9 and NY 9A south out of Yonkers, not west because the 
   const r = route('yonkers_to_orlando');
   assert.equal(label(r, 8.5), 'I-95 S');
   assert.equal(label(r, 220), 'MD-295 S', 'Baltimore-Washington Parkway');
-  // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
-  assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Turnpike');
+  // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road, in short as on signs.
+  assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Tpke');
   assert.deepEqual(parseHighways('NJTP New Jersey Turnpike'), [{ kind: 'named', prefix: '', number: 'New Jersey Turnpike' }]);
 });
 
@@ -285,4 +285,138 @@ test('reroute request: the course goes to OSRM as the first coordinate\'s bearin
   assert.equal(osrmRouteQuery(three.slice(0, 2), { alternatives: false, bearing: 359.7 }).split('&bearings=')[1], '0,45;');
   assert.ok(!osrmRouteQuery(three, { bearing: null }).includes('bearings'));
   assert.match(osrmRouteQuery(three.slice(0, 2)), /alternatives=3$/);
+  // An automatic reroute while driving asks for alternatives in the same request: one request, the course kept.
+  assert.equal(osrmRouteQuery(three.slice(0, 2), { alternatives: true, bearing: 313 }).split('alternatives=')[1], '3&bearings=313,45;');
+});
+
+// MARK: Reroutes that keep the driver on their highway (real OSRM answers: Fixtures/reroute, recorded on the
+// Taconic State Parkway, where a driver to the Berkshires was told at each reroute to get off at the next exit)
+
+const MI = 1609.344;
+
+/// The routes of a recorded OSRM answer, as the app builds them.
+function answerRoutes(answer) {
+  const waypoints = answer.waypoints.map((w) => ({ name: w.name, coordinate: { lat: w.location[1], lon: w.location[0] } }));
+  return answer.routes.map((r) => routeFromOSRM(r, waypoints));
+}
+
+test('reroute choice: past the NY 82 exit on the Taconic, the route that stays on it is taken, not the one off at US 44', () => {
+  const routes = answerRoutes(loadOSRM('taconic_past_ny82_to_lenox'));
+  const road = startingRoad(routes[0]);
+  assert.deepEqual([...road], ['Taconic State Parkway']);
+  near(metersOnRoad(routes[0], road) / MI, 10.6, 0.1, 'fastest on the Taconic');
+  near(metersOnRoad(routes[1], road) / MI, 50.8, 0.1, 'other on the Taconic');
+  const extra = routes[1].timeProfile.totalSeconds - routes[0].timeProfile.totalSeconds;
+  assert.ok(extra > 0 && extra < 120, `the other is ${extra.toFixed(0)} s slower`);
+  assert.equal(chooseReroute(routes), routes[1]);
+  assert.equal(nextManeuver(routes[0], 0).text, 'Take the exit on the right toward US-44 E');
+  const next = nextManeuver(routes[1], 0);
+  assert.ok(next.text === 'Turn right onto Rigor Hill Road' && next.distance > 50 * MI, `${next.text} in ${next.distance}`);
+});
+
+test('reroute choice: the fastest is kept when staying on the road is much slower, or when it stays on longest itself', () => {
+  // To Canaan, CT, staying on the Taconic past the US 44 exit is much slower: no route that does is offered, and
+  // the other route (10 minutes slower) leaves the Taconic sooner.
+  const canaan = answerRoutes(loadOSRM('taconic_past_ny82_to_canaan'));
+  assert.ok(metersOnRoad(canaan[1], startingRoad(canaan[0])) < metersOnRoad(canaan[0], startingRoad(canaan[0])));
+  assert.equal(chooseReroute(canaan), canaan[0]);
+  // From Briarcliff Manor the fastest stays on the Taconic 37 miles; the other leaves after 2, 18 minutes slower.
+  const briarcliff = answerRoutes(loadOSRM('taconic_briarcliff_to_lenox'));
+  assert.equal(chooseReroute(briarcliff), briarcliff[0]);
+  // With stops there are no alternatives: the one route.
+  assert.equal(chooseReroute(briarcliff.slice(1)), briarcliff[1]);
+  assert.equal(chooseReroute([]), null);
+});
+
+/// A route on `road` for `miles`, then an off ramp and another road; `seconds` long.
+function onRoad(seconds, miles, road = 'I 87 New York State Thruway', then = [['turn right', 'NY 32 Main Street']]) {
+  const steps = [makeStep(0, miles * MI, 'depart', road)];
+  let at = miles * MI;
+  for (const [instruction, name, length = 400] of [['off ramp slight right', ''], ...then]) {
+    steps.push(makeStep(at, length, instruction, name));
+    at += length;
+  }
+  return { steps, timeProfile: { totalSeconds: seconds } };
+}
+
+test('reroute choice: slower by at most 10 percent or 10 minutes, whichever is larger, and a mile farther on the road', () => {
+  // The recorded Taconic routes: the one that stays is taken only within the time allowed.
+  const taconic = answerRoutes(loadOSRM('taconic_past_ny82_to_lenox'));
+  const extra = taconic[1].timeProfile.totalSeconds - taconic[0].timeProfile.totalSeconds;
+  assert.equal(chooseReroute(taconic, { ...STAY_ON_ROAD, fraction: 0, seconds: extra - 1 }), taconic[0]);
+  assert.equal(chooseReroute(taconic, { ...STAY_ON_ROAD, fraction: 0, seconds: extra }), taconic[1]);
+  // An hour: 10 minutes. Three hours: 18 minutes (10 percent).
+  for (const [fastest, allowed] of [[3600, 600], [10800, 1080]]) {
+    const off = onRoad(fastest, 2);
+    assert.equal(chooseReroute([off, onRoad(fastest + allowed, 30)]).steps[0].length, 30 * MI, `${fastest} s, ${allowed} s slower`);
+    assert.equal(chooseReroute([off, onRoad(fastest + allowed + 1, 30)]), off, `${fastest} s, more than ${allowed} s slower`);
+  }
+  // Less than a mile farther is the same exit as far as the driver is concerned: the fastest.
+  const off = onRoad(3600, 2);
+  assert.equal(chooseReroute([off, onRoad(3610, 2.9)]), off);
+  assert.equal(chooseReroute([off, onRoad(3610, 3.1)]).steps[0].length, 3.1 * MI);
+  // Of the routes that stay farther, the one that stays farthest; of two about as far, the quicker.
+  const far = onRoad(3900, 30), farther = onRoad(4000, 30.5), less = onRoad(3700, 10);
+  assert.equal(chooseReroute([off, less, far]), far);
+  assert.equal(chooseReroute([off, farther, far]), far, 'half a mile more is not worth 100 s');
+  // OSRM's order is kept as the default even when an alternative is a little quicker and stays no farther.
+  assert.equal(chooseReroute([onRoad(3600, 2), onRoad(3590, 2)]).timeProfile.totalSeconds, 3600);
+});
+
+test('reroute choice: the road is the one the routes start on, by its name or number', () => {
+  // A street is no highway: the fastest, however far another route stays on it.
+  assert.equal(chooseReroute([onRoad(3600, 1, 'Main Street'), onRoad(3601, 20, 'Main Street')]).timeProfile.totalSeconds, 3600);
+  // Another parkway is another road: the Sprain Brook Parkway ends where the Taconic State Parkway begins.
+  const sprain = onRoad(3600, 3, 'Sprain Brook Parkway', [['merge slight left', 'I 287 Cross Westchester Expressway']]);
+  const toTaconic = { steps: [makeStep(0, 11 * MI, 'depart', 'Sprain Brook Parkway'), makeStep(11 * MI, 90 * MI, 'new name straight', 'Taconic State Parkway')], timeProfile: { totalSeconds: 3700 } };
+  assert.equal(metersOnRoad(toTaconic, startingRoad(sprain)), 11 * MI);
+  // A number shared with another road (I-684 and NY 22 together) is still the road; a ramp with no name between
+  // two stretches of it does not end it.
+  const i684 = { steps: [makeStep(0, 5 * MI, 'depart', 'I 684 '), makeStep(5 * MI, 600, 'fork slight left', ''), makeStep(5 * MI + 600, 20 * MI, 'merge slight left', 'I 684; NY 22 '), makeStep(25 * MI + 600, 400, 'off ramp slight right', ''), makeStep(25 * MI + 1000, 9000, 'turn left', 'Main Street')], timeProfile: { totalSeconds: 3700 } };
+  near(metersOnRoad(i684, startingRoad(i684)), 25 * MI + 600, 1, 'on I-684');
+  assert.equal(chooseReroute([onRoad(3600, 5, 'I 684 '), i684]), i684);
+});
+
+/// Drives the Taconic past the NY 82 exit on the route from Briarcliff Manor that leaves there, then on along the
+/// Taconic for `miles` past the exit, with fixes every second. A reroute is answered from the answer OSRM gave
+/// just past the exit, trimmed to where the driver is, and `pick` chooses the route. Pacing as in the app.
+function driveOnPastTheExit(pick, miles = 30) {
+  const first = answerRoutes(loadOSRM('taconic_briarcliff_to_lenox'))[0];
+  const past = loadOSRM('taconic_past_ny82_to_lenox');
+  const ramp = first.steps[1].startDistance;
+  // The Taconic as recorded past the exit (its first point is 600 m past the ramp, along the Taconic).
+  const taconic = answerRoutes(past)[1].polyline;
+  const path = new RoutePolyline([...first.polyline.slice(ramp - 3000, ramp).points, ...taconic.points]);
+  const session = new TripSession(new TripPlan(first, DS), data.states, START);
+  const pacer = new ReroutePacer();
+  const reroutes = [];
+  let off = 0;
+  for (let d = 0, t = START; d < 3000 + miles * MI; d += 28, t += 1) {
+    const fix = { coordinate: path.coordinateAt(d), accuracy: 8, course: path.bearingAt(d), speed: 28, t };
+    const snap = session.ingest(fix);
+    pacer.observe(snap);
+    if (reroutes.length && snap.match.status === 'offRoute') off += 1;
+    if (!session.needsReroute(t) || !pacer.allow(t)) continue;
+    pacer.started(t);
+    const route = pick(answerRoutes(osrmAnswerFrom(past, fix.coordinate)));
+    session.replacePlan(new TripPlan(route, DS), t);
+    reroutes.push({ at: d - 3000, route, next: nextManeuver(route, 0) });
+  }
+  return { reroutes, off, status: session.tracker.match.status };
+}
+
+test('reroute on the Taconic: past the exit of the route, one reroute keeps the driver on the Taconic past the next exits', () => {
+  const { reroutes, off, status } = driveOnPastTheExit(chooseReroute);
+  assert.equal(reroutes.length, 1, `reroutes at ${reroutes.map((r) => (r.at / MI).toFixed(1)).join(', ')} mi past the exit`);
+  const [r] = reroutes;
+  assert.ok(r.at > 0 && r.at < 1 * MI, `rerouted ${r.at.toFixed(0)} m past the exit`);
+  assert.equal(r.route.steps[0].roadName, 'Taconic State Parkway');
+  assert.ok(r.next.distance > 49 * MI, `next: ${r.next.text} in ${(r.next.distance / MI).toFixed(1)} mi`);
+  // 30 miles on, past the US 44 exit (where the fastest route would have left) and the ones after: never off it.
+  assert.equal(off, 0);
+  assert.equal(status, 'onRoute');
+  // Taking the fastest each time (as before) sends the driver off at the US 44 exit, and a second reroute follows.
+  const before = driveOnPastTheExit((routes) => routes[0]);
+  assert.equal(before.reroutes[0].next.text, 'Take the exit on the right toward US-44 E');
+  assert.ok(before.reroutes.length >= 2, `${before.reroutes.length} reroutes taking the fastest`);
 });

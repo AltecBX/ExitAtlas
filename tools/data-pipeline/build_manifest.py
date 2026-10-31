@@ -29,6 +29,7 @@ FILES = {
     "timezones.eab": (True, "Time zones"),
     "interstates.eax": (True, "Exits and services"),
     "corridors.eac": (True, "Interstate corridors (discovery mode)"),
+    "freeways.eax": (False, "Exits and services on parkways, turnpikes and other freeways"),
     "restareas.json": (False, "Rest areas and service plazas"),
     "discover.json": (False, "Discover ahead places"),
     "stations.json": (False, "Gas station hours and restrooms"),
