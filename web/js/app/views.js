@@ -1,6 +1,6 @@
 // Screen templates. Pure functions of app state that return HTML strings.
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
-import { highwayLabel, DIRECTION_WORDS } from '../engine/route.js';
+import { highwayLabel, DIRECTION_WORDS, routeVia } from '../engine/route.js';
 import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
 import { miles, milesValue, duration, clock, readingAge, escapeHTML as h } from './format.js';
@@ -1662,9 +1662,10 @@ function routeCard(r, i, count, app) {
   const totals = plan.states.totals;
   const v = app.vehicleProfile();
   const perTank = v?.tankGallons ? v.tankGallons * v.mpg * MILE : null;
+  const via = routeVia(plan.route); // tells choices apart: "via Sprain Brook Pkwy, Taconic State Pkwy"
   const fuelLine = perTank ? `<div class="muted tiny" style="margin-top:6px">⛽ About ${(plan.route.length / perTank).toFixed(1)} tanks for your ${h(`${v.year} ${v.make} ${v.model}`)} (${Math.round(perTank / MILE)} mi per tank at ${v.mpg} mpg)</div>` : '';
   return `<div class="card"><div class="row"><div style="flex:1"><div class="title-md num">${duration(plan.route.timeProfile.totalSeconds)}</div>
-      <div class="muted small">${miles(plan.route.length)} · ${plural(totals.length, 'state')} · ${plural(plan.states.segments.length - 1, 'state line')} · ${plural(plan.exits.length, 'exit')}</div></div>
+      ${via ? `<div class="small" style="margin-top:2px;font-weight:600" data-testid="route-via">${h(via)}</div>` : ''}<div class="muted small">${miles(plan.route.length)} · ${plural(totals.length, 'state')} · ${plural(plan.states.segments.length - 1, 'state line')} · ${plural(plan.exits.length, 'exit')}</div></div>
       ${i === 0 && count > 1 ? '<span class="pill ok">Fastest</span>' : ''}</div>
     <div class="strip">${totals.map((t) => `<span class="s">${badge(t.code, false, true)} ${miles(t.length)}</span>`).join('')}</div>${fuelLine}
     <div class="btn-row" style="margin-top:12px"><button class="btn primary" data-act="start-route" data-arg="${i}">Start</button><button class="btn" data-act="simulate-route" data-arg="${i}">Simulate</button></div></div>`;
