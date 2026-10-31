@@ -21,7 +21,7 @@ import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
 import { roadIntel } from '../engine/roadintel.js';
 import { FocusStabilizer } from '../engine/dashboard.js';
-import { ReroutePacer } from './reroute.js';
+import { ReroutePacer, chooseReroute } from './reroute.js';
 import { NavMap } from './navmap.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
@@ -1207,10 +1207,13 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   const here = { name: 'Current location', coordinate: sample.coordinate };
   // Start on the road going the driver's way when the course is known at driving speed.
   const bearing = sample.course != null && (sample.speed ?? 0) >= 3 ? sample.course : null;
+  // While driving, an automatic reroute also asks for OSRM's alternatives (given only without stops; still one
+  // request) and keeps the driver on the highway they are on when a route that does is not much slower.
+  const alternatives = !force && bearing !== null;
   try {
     let route;
     try {
-      [route] = await fetchRoutes([here, ...waypoints], { alternatives: false, bearing });
+      route = chooseReroute(await fetchRoutes([here, ...waypoints], { alternatives, bearing }));
     } catch (e) {
       // No road that way near the fix (OSRM NoSegment): ask once more without the course.
       if (bearing === null || !/segment/i.test(e.message)) throw e;
