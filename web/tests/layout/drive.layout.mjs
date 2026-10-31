@@ -32,7 +32,7 @@ const IOS_TEXT = 'html { font-size: 17px !important; }';
 const failures = [];
 const browser = await chromium.launch();
 // Overnight Drive Mode on shows the overnight restroom card (taller) whatever the hour; the default (Auto)
-// shows it only from midnight to 4 AM at the stop, so both are checked.
+// shows it only from midnight to 5 AM at the stop, so both are checked.
 // "road": as on a real drive, the driver's own GPS and no simulation banner (the demo's banner takes about 50
 // points at the top that a real drive has). "alert": the simulated crash ahead, the tallest adaptive card.
 const RUNS = [['dark', 'auto'], ['light', 'auto'], ['dark', 'on'], ['dark', 'auto', 'road'], ['dark', 'on', 'road'], ['dark', 'auto', 'road', 'alert']];
@@ -106,7 +106,7 @@ for (const [label, width, height] of SIZES) {
       }
       // The adaptive card and the action buttons too: on a real drive at every size, sideways included (iPhone SE
       // sideways is 375 points tall); with the demo banner on portrait screens without the taller overnight card
-      // (which Auto also shows from midnight to 4 AM, so the check looks at the card, not the setting).
+      // (which Auto also shows from midnight to 5 AM, so the check looks at the card, not the setting).
       if (road || (!label.endsWith('landscape') && !r.night)) for (const [what, b] of [['adaptive card', r.card], ['fuel and restroom buttons', r.actions]]) {
         if (b && b.bottom > r.tab + 1) fail(`${what} below the fold (${Math.round(b.bottom)} > ${Math.round(r.tab)})`);
       }

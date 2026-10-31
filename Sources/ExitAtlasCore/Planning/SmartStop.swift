@@ -64,7 +64,7 @@ public enum SmartStop {
 
         public init(brands: [String] = ["Shell"], maxDetourMinutes: Double = 8, require24Hours: String = "overnight",
                     requireRestroom: String = "overnight", priceOverBrand: Bool = false, overnightMode: String = "auto",
-                    overnightStart: String = "00:00", overnightEnd: String = "04:00", tellCheaper: Bool = true, minSavingsDollars: Double = 2) {
+                    overnightStart: String = "00:00", overnightEnd: String = "05:00", tellCheaper: Bool = true, minSavingsDollars: Double = 2) {
             self.brands = brands
             self.maxDetourMinutes = maxDetourMinutes
             self.require24Hours = require24Hours

@@ -170,8 +170,9 @@ test('S. export and import carry the profile between devices, never the API keys
 test('overnight window: local minutes, windows across midnight, manual override', () => {
   const p = defaultProfile();
   assert.equal(inOvernightWindow(p, 0), true);
-  assert.equal(inOvernightWindow(p, 239), true);
-  assert.equal(inOvernightWindow(p, 240), false);
+  // The default window is midnight to 5 AM.
+  assert.equal(inOvernightWindow(p, 299), true);
+  assert.equal(inOvernightWindow(p, 300), false);
   p.overnight.start = '22:00';
   assert.equal(inOvernightWindow(p, 23 * 60), true);
   assert.equal(inOvernightWindow(p, 12 * 60), false);

@@ -16,7 +16,7 @@ public enum ProfileRules {
             "fuel": ["brands": ["Shell"], "grade": nil, "reserveMiles": 50, "maxDetourMinutes": 8,
                      "require24Hours": "overnight", "requireRestroom": "overnight", "priceOverBrand": false,
                      "chargerNetwork": "Tesla"],
-            "overnight": ["mode": "auto", "start": "00:00", "end": "04:00"],
+            "overnight": ["mode": "auto", "start": "00:00", "end": "05:00"],
             "places": ["home": nil, "saved": [], "recent": [], "plans": []],
             "favorites": ["hotels": [], "restaurants": []],
             "driving": ["speedAlertOver": 5, "exitLookaheadMiles": 25, "gasGapMiles": 40, "favoriteCategories": [],

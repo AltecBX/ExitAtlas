@@ -94,7 +94,7 @@ A report is never called live or verified: the app says "Prices are reports with
 
 * Total cost of a fill: gallons bought = tank size minus the fuel left on arrival (range at the stop divided by mpg); detour fuel = round trip detour miles divided by mpg, bought at the same pump. Cost = price times (gallons plus detour gallons). Labeled an estimate everywhere.
 * A cheaper stop is mentioned when it saves at least the driver's minimum ($2 by default; $1, $3 or $5 in Settings) and at least $0.05 a gallon, for the same gallons, both prices current and of the same payment kind.
-* It must be one the ranking kept: in range, inside the detour limit, with a restroom when one is required; overnight (12 to 4 AM by default) never one with worse listed hours or restroom confidence than the pick. Cheaper fuel never makes an out of range or closed stop the answer.
+* It must be one the ranking kept: in range, inside the detour limit, with a restroom when one is required; overnight (12 to 5 AM by default) never one with worse listed hours or restroom confidence than the pick. Cheaper fuel never makes an out of range or closed stop the answer.
 * The pick does not change and the favorite brands are not touched: "Cheaper stop: Wawa, Exit 212, 3 mi farther. $2.899 regular, reported 2 hours ago (ExitAtlas drivers). Estimate: about $2.20 less for a 12.6 gal fill, detour fuel included. Your Shell preference stays as it is."
 * "Cheaper fuel over favorite brands" (an existing switch) still lets price rank above brand for drivers who want that.
 
