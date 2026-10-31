@@ -211,8 +211,8 @@ test('road direction: US 9 and NY 9A south out of Yonkers, not west because the 
   const r = route('yonkers_to_orlando');
   assert.equal(label(r, 8.5), 'I-95 S');
   assert.equal(label(r, 220), 'MD-295 S', 'Baltimore-Washington Parkway');
-  // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road.
-  assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Turnpike');
+  // OSRM names the turnpike "NJTP New Jersey Turnpike": shown as one road, in short as on signs.
+  assert.equal(highwayLabel(r.highwayAt(100 * MI).ref), 'New Jersey Tpke');
   assert.deepEqual(parseHighways('NJTP New Jersey Turnpike'), [{ kind: 'named', prefix: '', number: 'New Jersey Turnpike' }]);
 });
 

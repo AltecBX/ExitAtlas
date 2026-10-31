@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../js/engine/datasets.js';
+import { RegionIndex, InterstateDataset, CombinedExitDataset, CorridorDataset, TimeZoneResolver } from '../js/engine/datasets.js';
 import { routeFromJSON } from '../js/engine/osrm.js';
 import { RestAreaDataset } from '../js/engine/restareas.js';
 import { DiscoverDataset } from '../js/engine/discover.js';
@@ -22,6 +22,9 @@ export const data = {
   get timeZoneIndex() { return (cache.tz ??= new RegionIndex(buffer(path.join(dataDir, 'timezones.eab')))); },
   get timeZones() { return (cache.tzr ??= new TimeZoneResolver(this.timeZoneIndex)); },
   get interstates() { return (cache.ix ??= new InterstateDataset(buffer(path.join(dataDir, 'interstates.eax')))); },
+  get freeways() { return (cache.fw ??= new InterstateDataset(buffer(path.join(dataDir, 'freeways.eax')))); },
+  /// What the app routes with: interstate exits and the other freeways' exits as one dataset.
+  get exits() { return (cache.ex ??= new CombinedExitDataset([this.interstates, this.freeways])); },
   get corridors() { return (cache.cx ??= new CorridorDataset(buffer(path.join(dataDir, 'corridors.eac')))); },
   get discover() { return (cache.dc ??= new DiscoverDataset(JSON.parse(readFileSync(path.join(dataDir, 'discover.json'), 'utf8')))); },
   get restAreas() { return (cache.ra ??= new RestAreaDataset(JSON.parse(readFileSync(path.join(dataDir, 'restareas.json'), 'utf8')))); },

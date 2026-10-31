@@ -481,6 +481,31 @@ export class InterstateDataset {
   }
 }
 
+/// The interstate exits and the exits on other freeways (freeways.eax, the same EAX1 format) as one dataset with
+/// the InterstateDataset API, so a route matches, counts and lists both kinds alike. Each exit remembers the file
+/// it came from (`part`) and resolves its links and places there.
+export class CombinedExitDataset {
+  constructor(parts) {
+    this.parts = parts;
+    this.metadata = parts[0].metadata;
+    this.exits = [];
+    this.grid = new SpatialGrid(0.02);
+    parts.forEach((dataset, part) => {
+      for (const e of dataset.exits) {
+        const i = this.exits.length;
+        this.exits.push({ ...e, datasetIndex: i, part });
+        this.grid.insertPoint(i, e.coordinate.lat, e.coordinate.lon);
+      }
+    });
+  }
+
+  exitsNear(box, radius = 0) { return InterstateDataset.prototype.exitsNear.call(this, box, radius); }
+
+  exitIndicesAlongSegment(a, b, radius, out) { return this.grid.querySegment(a.lat, a.lon, b.lat, b.lon, radius, out); }
+
+  links(exit) { return this.parts[exit.part ?? 0].links(exit); }
+}
+
 export function placeDisplayName(place) {
   return place.name || place.brand || CATEGORY_NAMES[place.category] || 'Place';
 }

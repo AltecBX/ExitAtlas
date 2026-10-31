@@ -209,7 +209,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">report a map error</a>; navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">report a map error</a>; navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate, and OpenStreetMap for parkways and other freeways. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -486,10 +486,12 @@ function focusView(app, s, f, extras) {
   const si = speedInfo(app, s);
   if (wakeNote(app)) extras = [...extras, `<div class="banner warn" role="status">${h(wakeNote(app))}</div>`];
   const hw = s.highway;
+  // A named road (a parkway, a turnpike) has no number for a sign: its name alone, on up to three lines.
+  const named = hw?.ref.kind === 'named';
   const instruments = `<section class="card fv-instruments ${si.level}">
     ${speedo(si.mph, si.limit, si.level)}
     <div class="limit-col">${limitSign(si)}${si.next ? `<div class="limit-next"><b class="num">${si.next.mph}</b> in ${miles(si.next.distance)}</div>` : si.limit === null && si.limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : ''}</div>
-    <div class="road-col">${shield(hw?.ref, 40)}<div class="road-name">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
+    <div class="road-col">${named ? '' : shield(hw?.ref, 40)}<div class="road-name${named ? ' named' : ''}">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
       <div class="road-dir">${hw ? DIRECTION_WORDS[hw.direction] : 'roads'}</div></div>
     ${viewToggle(app)}</section>`;
   const ne = s.nextExit;
@@ -1055,7 +1057,8 @@ function fuelCard(app, s) {
     body = `<div class="muted small">${app.chargers.error ? h(`Chargers unavailable: ${app.chargers.error}`) : 'Finding Superchargers along your route…'}</div>`;
   } else if (fp.status === 'none' && !app.smartStop()?.primary) {
     body = ev ? '<div style="font-weight:700;color:var(--danger)">No charger listed before empty</div><div class="muted small">Within 2.5 miles of the route, on the network chosen in Settings.</div>'
-      : '<div style="font-weight:700;color:var(--danger)">No interstate gas listed before empty</div><div class="muted small">Leave the highway for gas. Turnpikes and US routes have no exit data yet.</div>';
+      : app.data?.freeways ? '<div style="font-weight:700;color:var(--danger)">No gas listed at exits before empty</div><div class="muted small">Leave the highway for gas.</div>'
+        : '<div style="font-weight:700;color:var(--danger)">No interstate gas listed before empty</div><div class="muted small">Leave the highway for gas. Turnpikes and US routes have no exit data yet.</div>';
   } else if (app.smartStop()?.primary) {
     const sm = app.smartStop(), p = sm.primary;
     body = `<div class="row" style="gap:10px;margin-top:2px">${smartSign(p)}<div style="flex:1;min-width:0">
@@ -1669,6 +1672,14 @@ function routeCard(r, i, count, app) {
 
 // MARK: Settings
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/// "October 2026" for "2026-10-30".
+function monthYear(date) {
+  const [y, m] = String(date ?? '').split('-');
+  return MONTHS[Number(m) - 1] ? `${MONTHS[Number(m) - 1]} ${y}` : String(date ?? '');
+}
+
 export function settingsView(app) {
   const st = app.settings;
   const toggle = (key, label, note = '') => `<label class="field"><span style="flex:1">${h(label)}${note ? `<div class="muted tiny">${h(note)}</div>` : ''}</span><input type="checkbox" class="toggle" data-set="${key}" ${st[key] ? 'checked' : ''}></label>`;
@@ -1718,6 +1729,7 @@ export function settingsView(app) {
       <p><b>State lines:</b> ${meta(app.data?.states.metadata)}</p>
       <p><b>Time zones:</b> ${meta(app.data?.zoneIndex.metadata)}</p>
       <p><b>Exits and places:</b> ${meta(app.data?.interstates.metadata)}. © OpenStreetMap contributors, ODbL 1.0.</p>
+      <p><b>Exits on parkways, turnpikes and other freeways:</b> ${app.data?.freeways ? h(`OpenStreetMap extracts of ${app.data.freeways.metadata.osm_extract_date}, built ${app.data.freeways.metadata.generated_at.slice(0, 10)}`) : 'not loaded'}. Services there are within a straight line distance of the exit, without drive times.</p>
       <p><b>Rest areas and service plazas:</b> ${app.data?.restAreas ? h(`OpenStreetMap, tags checked ${app.data.restAreas.metadata.tags_fetched}; truck parking from the FHWA survey (2019, public domain)`) : 'not loaded'}. Amenities show only what mappers have tagged.</p>
       <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. When you check Google Maps prices, Google's business hours and restroom field for those stations.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
@@ -1726,7 +1738,7 @@ export function settingsView(app) {
       <p><b>Gas prices:</b> reports by you (on this device) and, when turned on, by other ExitAtlas drivers through the owner's server; each shows its time and source. Google Maps prices only when you turn them on and tap to check (paid, your key). No regional average is shown as a station's price.</p>
       <p><b>EV chargers:</b> U.S. DOE Alternative Fuels Data Center (developer.nlr.gov).</p>
       <p><b>Speed limits:</b> OpenStreetMap via the FOSSGIS Valhalla server.</p>
-      <p style="margin-bottom:0" class="muted">Exit and services data are from July 2026 OpenStreetMap and can be out of date.</p></div></div>
+      <p style="margin-bottom:0" class="muted">Exit and services data are from OpenStreetMap (interstates July 2026${app.data?.freeways ? `, other freeways ${h(monthYear(app.data.freeways.metadata.osm_extract_date))}` : ''}) and can be out of date.</p></div></div>
     <button class="btn danger block" data-act="clear-data">Erase profile and trip history</button>
     <p class="note">ExitAtlas web ${h(app.version)}. Not affiliated with iExit or Nexit.</p></div>`;
 }
@@ -1807,7 +1819,7 @@ export function fuelSheet(app) {
     } else if (fp.chargersLoading && !rec) {
       plan = `<div class="card small">${app.chargers.error ? h(`Chargers unavailable: ${app.chargers.error}`) : 'Finding chargers along your route…'}</div>`;
     } else if (fp.status === 'none') {
-      plan = `<div class="banner warn" style="margin:0">${ev ? 'No DC fast charger is listed within 2.5 miles of the route before empty.' : 'No gas is listed at interstate exits before empty. Leave the highway for gas. Turnpikes and US routes have no exit data yet.'}</div>`;
+      plan = `<div class="banner warn" style="margin:0">${ev ? 'No DC fast charger is listed within 2.5 miles of the route before empty.' : app.data?.freeways ? 'No gas is listed at exits before empty. Leave the highway for gas.' : 'No gas is listed at interstate exits before empty. Leave the highway for gas. Turnpikes and US routes have no exit data yet.'}</div>`;
     } else {
       const row = (x, tag) => {
         const sign = x.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(x.exit.label, true);
@@ -1851,7 +1863,7 @@ export function fuelSheet(app) {
       <div class="seg">${[25, 50, 75, 100].map((b) => `<button type="button" class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div>
     </form>
     ${favs}${sm?.primary ? '' : plan}${prices}${others}
-    <p class="note">${ev ? `DC fast chargers within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center (${st.chargerNetwork === 'Tesla' ? 'Tesla Superchargers' : 'all networks'}). Detours are straight line estimates.` : 'Gas stations linked to interstate exits in OpenStreetMap. Detours count against your range.'}${!ev && app.priceOptions() ? ' Prices are reports with their time and source (Settings, Gas prices).' : ''}</p></div>`;
+    <p class="note">${ev ? `DC fast chargers within 2.5 miles of the route from the U.S. DOE Alternative Fuels Data Center (${st.chargerNetwork === 'Tesla' ? 'Tesla Superchargers' : 'all networks'}). Detours are straight line estimates.` : 'Gas stations linked to exits in OpenStreetMap. Detours count against your range.'}${!ev && app.priceOptions() ? ' Prices are reports with their time and source (Settings, Gas prices).' : ''}</p></div>`;
 }
 
 function basisName(st, ev = false) {

@@ -58,6 +58,8 @@ jobs:
         run: node web/tests/layout/autoprices.layout.mjs
       - name: A whole trip with fixture servers (plan, drive, stalled and failed routing, reroute, reload, resume, end)
         run: node web/tests/layout/trip.layout.mjs
+      - name: A Taconic State Parkway trip (road name, next exit, Road Ahead exits in order) at phone sizes
+        run: node web/tests/layout/parkway.layout.mjs
       - name: Offline with the real service worker (first visit, deploy, start with no network)
         run: node web/tests/layout/offline.layout.mjs
       - name: iPhone Safari (sheets, 44 point taps, open sections, screen wake lock, paused location, parked map)

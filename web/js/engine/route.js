@@ -22,9 +22,11 @@ export function parseHighways(text) {
   scan(/\bUS[- ]?(\d{1,3}[A-Z]?)\b/g, (m) => ({ kind: 'usRoute', prefix: 'US', number: m[1] }));
   scan(/\b([A-Z]{2})[- ](\d{1,4}[A-Z]?)\b/g, (m) => (
     STATE_CODES.has(m[1]) && m[1] !== 'US' ? { kind: 'stateRoute', prefix: m[1], number: m[2] } : null));
-  scan(/\b((?:[A-Z][\w']*\s){0,3}Turnpike|NJTP|Parkway|Expressway|Thruway)\b/gi, (m) => {
-    // OSRM names the road "NJTP New Jersey Turnpike" (ref and name): one road, "New Jersey Turnpike".
-    const name = m[1].trim().replace(/^NJTP\s+(?=\S)/i, '');
+  scan(/\b((?:[A-Z][\w'’.–-]*\s){0,3}(?:Turnpike|Parkway|Expressway|Thruway|Freeway|Tollway)|NJTP)\b/gi, (m) => {
+    // Named freeways by their full name: "Taconic State Parkway". OSRM writes ref and name together ("NJTP New
+    // Jersey Turnpike", "GSP Garden State Parkway"): a ref in capitals before the name is the same road.
+    let name = m[1].trim();
+    if (/[a-z]/.test(name)) name = name.replace(/^(?:[A-Z]+\s+)+(?=[A-Z][a-z])/, '');
     return { kind: 'named', prefix: '', number: name === 'NJTP' ? 'New Jersey Turnpike' : name };
   });
   found.sort((a, b) => a[0] - b[0]);
@@ -35,8 +37,14 @@ export function parseHighways(text) {
   return out;
 }
 
+/// A named road as signs shorten it: "Taconic State Pkwy", "Long Island Expy", "New Jersey Tpke".
+export function shortRoadName(name) {
+  return name.replace(/\bParkway\b/, 'Pkwy').replace(/\bExpressway\b/, 'Expy').replace(/\bTurnpike\b/, 'Tpke');
+}
+
+/// "I-95", "US-9", or a named road in its short form ("Taconic State Pkwy"), for the screen and guidance.
 export function highwayLabel(ref) {
-  return ref.kind === 'named' ? ref.number : `${ref.prefix}-${ref.number}`;
+  return ref.kind === 'named' ? shortRoadName(ref.number) : `${ref.prefix}-${ref.number}`;
 }
 
 function numericValue(ref) {

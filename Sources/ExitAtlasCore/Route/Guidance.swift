@@ -52,11 +52,9 @@ public enum Guidance {
     }
 
     /// "I-295 N" for a highway at a distance along the route. Named roads (turnpikes, parkways) are signed by
-    /// their own directions, which the shape of the route does not tell reliably, so they get none.
+    /// their own directions, which the shape of the route does not tell reliably, so they get none: "Sprain Brook Pkwy".
     static func label(_ ref: HighwayRef, _ route: PlannedRoute, at: Double) -> String {
-        if ref.kind == .named {
-            return ref.number.replacingOccurrences(of: "^NJTP\\s+", with: "", options: .regularExpression)
-        }
+        if ref.kind == .named { return ref.description }
         return "\(ref) \(route.direction(of: ref, at: at).rawValue)"
     }
 

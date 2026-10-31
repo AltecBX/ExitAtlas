@@ -1,5 +1,5 @@
 // Browser services: bundled data, OSRM routing, place search, GPS, voice, wake lock and storage.
-import { RegionIndex, InterstateDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
+import { RegionIndex, InterstateDataset, CombinedExitDataset, CorridorDataset, TimeZoneResolver } from '../engine/datasets.js';
 import { routeFromOSRM, osrmRouteQuery } from '../engine/osrm.js';
 import { RestAreaDataset } from '../engine/restareas.js';
 import { StationFacts } from './smartstops.js';
@@ -112,11 +112,12 @@ async function loadFile(name, parse, onProgress) {
 }
 
 /// Loads states, time zones, exits, rest areas, station hours and Discover places. Corridors load later, only for
-/// discovery mode. Rest areas, stations and Discover are optional: without them those rows, details and sections are
-/// simply absent (station hours and restrooms then read as unknown).
+/// discovery mode. Rest areas, stations, Discover and the exits on other freeways (parkways, turnpikes, expressways)
+/// are optional: without them those rows, details and sections are simply absent (station hours and restrooms then
+/// read as unknown; only interstate exits show).
 export async function loadCoreData(onProgress) {
   const { manifest } = await manifestSet();
-  const names = ['states.eab', 'timezones.eab', 'interstates.eax', 'restareas.json', 'discover.json', 'stations.json'];
+  const names = ['states.eab', 'timezones.eab', 'interstates.eax', 'freeways.eax', 'restareas.json', 'discover.json', 'stations.json'];
   const total = names.reduce((sum, n) => sum + (manifest.files[n]?.bytes ?? 0), 0) || 1;
   const done = {};
   const progress = (name) => (n) => {
@@ -124,22 +125,25 @@ export async function loadCoreData(onProgress) {
     onProgress?.(Math.min(1, Object.values(done).reduce((a, b) => a + b, 0) / total), total);
   };
   const json = (Type) => (bytes) => new Type(JSON.parse(new TextDecoder().decode(bytes)));
-  const [s, z, x, r, d, st] = await Promise.all([
+  const [s, z, x, fw, r, d, st] = await Promise.all([
     loadFile('states.eab', (b) => new RegionIndex(b), progress('states.eab')),
     loadFile('timezones.eab', (b) => new RegionIndex(b), progress('timezones.eab')),
     loadFile('interstates.eax', (b) => new InterstateDataset(b), progress('interstates.eax')),
+    manifest.files['freeways.eax'] ? loadFile('freeways.eax', (b) => new InterstateDataset(b), progress('freeways.eax')).catch(() => null) : null,
     loadFile('restareas.json', json(RestAreaDataset), progress('restareas.json')).catch(() => null),
     loadFile('discover.json', json(DiscoverDataset), progress('discover.json')).catch(() => null),
     loadFile('stations.json', json(StationFacts), progress('stations.json')).catch(() => null)]);
   // Everything required loaded: remember these versions as the fallback for the next load.
   try {
-    const used = { 'states.eab': s.entry, 'timezones.eab': z.entry, 'interstates.eax': x.entry,
+    const used = { 'states.eab': s.entry, 'timezones.eab': z.entry, 'interstates.eax': x.entry, 'freeways.eax': fw?.entry,
       'restareas.json': r?.entry, 'discover.json': d?.entry, 'stations.json': st?.entry };
     localStorage.setItem(LAST_GOOD_KEY, JSON.stringify(usedManifest(manifest, used)));
   } catch { /* storage full or blocked */ }
   const zones = z.value;
-  return { states: s.value, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates: x.value,
-    restAreas: r?.value ?? null, discover: d?.value ?? null, stations: st?.value ?? null };
+  // One exit dataset for the route: interstate exits, plus the other freeways' when they loaded.
+  const exits = fw ? new CombinedExitDataset([x.value, fw.value]) : x.value;
+  return { states: s.value, zoneIndex: zones, timeZones: new TimeZoneResolver(zones), interstates: exits,
+    freeways: fw?.value ?? null, restAreas: r?.value ?? null, discover: d?.value ?? null, stations: st?.value ?? null };
 }
 
 export async function loadCorridors() {

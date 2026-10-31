@@ -68,7 +68,7 @@ test('highway parsing', () => {
   assert.deepEqual(parseHighways('I 95; US 17').map(highwayLabel), ['I-95', 'US-17']);
   assert.deepEqual(parseHighways('Merge onto I-95 N toward New York').map(highwayLabel), ['I-95']);
   assert.equal(parseHighways('I-35E')[0].number, '35E');
-  assert.equal(highwayLabel(parseHighways('NJTP')[0]), 'New Jersey Turnpike');
+  assert.equal(highwayLabel(parseHighways('NJTP')[0]), 'New Jersey Tpke');
   assert.equal(highwayLabel(parseHighways('SR 70')[0]), 'SR-70');
   assert.equal(parseHighways('Brickell Avenue').length, 0);
 });

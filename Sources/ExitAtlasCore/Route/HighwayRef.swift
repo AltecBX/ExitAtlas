@@ -18,8 +18,18 @@ public struct HighwayRef: Sendable, Codable, Hashable, CustomStringConvertible {
         self.number = number
     }
 
+    /// "I-95", "US-9", or a named road in its short form ("Taconic State Pkwy"), for the screen and guidance.
     public var description: String {
-        kind == .named ? number : "\(prefix)-\(number)"
+        kind == .named ? Self.shortName(number) : "\(prefix)-\(number)"
+    }
+
+    /// A named road as signs shorten it: "Taconic State Pkwy", "Long Island Expy", "New Jersey Tpke".
+    public static func shortName(_ name: String) -> String {
+        var out = name
+        for (word, short) in [("Parkway", "Pkwy"), ("Expressway", "Expy"), ("Turnpike", "Tpke")] {
+            if let r = out.range(of: "\\b\(word)\\b", options: .regularExpression) { out.replaceSubrange(r, with: short) }
+        }
+        return out
     }
 
     /// Numeric part of the route number ("35" for "35E").
@@ -54,10 +64,13 @@ public struct HighwayRef: Sendable, Codable, Hashable, CustomStringConvertible {
             guard stateCodes.contains(prefix), prefix != "US" else { return nil }
             return HighwayRef(kind: .stateRoute, prefix: prefix, number: ns.substring(with: m.range(at: 2)))
         }
-        scan(#"(?i)\b((?:[A-Z][\w']*\s){0,3}Turnpike|NJTP|Parkway|Expressway|Thruway)\b"#) { m in
-            // OSRM names the road "NJTP New Jersey Turnpike" (ref and name): one road, "New Jersey Turnpike".
-            let name = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
-                .replacingOccurrences(of: #"^(?i)NJTP\s+(?=\S)"#, with: "", options: .regularExpression)
+        scan(#"(?i)\b((?:[A-Z][\w'’.\x{2013}-]*\s){0,3}(?:Turnpike|Parkway|Expressway|Thruway|Freeway|Tollway)|NJTP)\b"#) { m in
+            // Named freeways by their full name: "Taconic State Parkway". OSRM writes ref and name together ("NJTP New
+            // Jersey Turnpike", "GSP Garden State Parkway"): a ref in capitals before the name is the same road.
+            var name = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+            if name.range(of: "[a-z]", options: .regularExpression) != nil {
+                name = name.replacingOccurrences(of: #"^(?:[A-Z]+\s+)+(?=[A-Z][a-z])"#, with: "", options: .regularExpression)
+            }
             return HighwayRef(kind: .named, prefix: "", number: name == "NJTP" ? "New Jersey Turnpike" : name)
         }
         found.sort { $0.0 < $1.0 }
