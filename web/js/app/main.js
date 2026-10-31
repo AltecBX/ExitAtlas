@@ -39,6 +39,8 @@ import { defaultProfile } from '../engine/profile.js';
 
 const VERSION = '2026.10.28';
 const TITLES = { drive: 'Drive', ahead: 'Road Ahead', trip: 'Trip', settings: 'Settings' };
+/// The simulated drive's speeds (simulated seconds per real second); the banner's button steps through them.
+const SIM_SPEEDS = [30, 60, 90, 120];
 
 // The driver's profile (profilestore.js): loaded once, written on every change and read back. When the
 // browser blocks storage (some private modes) a stand-in keeps the profile for this visit only, and
@@ -404,6 +406,7 @@ window.exitAtlas = app; // for debugging from the console
 // MARK: Rendering
 
 const $ = (sel) => document.querySelector(sel);
+const nextSimSpeed = () => SIM_SPEEDS[(SIM_SPEEDS.indexOf(app.sim?.speedup) + 1) % SIM_SPEEDS.length];
 let renderQueued = false;
 let lastViewHTML = '';
 let lastWeatherHTML = '';
@@ -455,8 +458,8 @@ function renderNow() {
   if (along) along.textContent = V.aheadText(app.snapshot, Number(along.dataset.along));
   $('#end').hidden = app.mode === 'idle';
   $('#banner').innerHTML = app.gps === 'simulation' && app.mode !== 'idle'
-    ? `<div class="banner">▶︎ Simulated drive at ${app.sim?.speedup ?? 30}× · sample route, not your GPS
-        <span class="spacer"></span><button class="btn sm" data-act="sim-speed">${app.sim?.speedup === 120 ? '30×' : '120×'}</button></div>` : '';
+    ? `<div class="banner">▶︎ Simulated drive at ${app.sim?.speedup ?? SIM_SPEEDS[0]}× · not your GPS
+        <span class="spacer"></span><button class="btn sm" data-act="sim-speed" aria-label="Simulate at ${nextSimSpeed()} times">${nextSimSpeed()}×</button></div>` : '';
   for (const b of document.querySelectorAll('.tabbar button')) b.classList.toggle('on', b.dataset.arg === app.tab);
   $('#settings-btn').classList.toggle('on', app.tab === 'settings');
   if (!app.data) return;
@@ -1548,7 +1551,7 @@ const actions = {
     startTrip(r.route);
   },
   'simulate-route'(arg) { const r = app.planner.results[Number(arg)]; if (r) startTrip(r.route, { simulate: true }); },
-  'sim-speed'() { if (app.sim) app.sim.speedup = app.sim.speedup === 120 ? 30 : 120; render(); },
+  'sim-speed'() { if (app.sim) app.sim.speedup = nextSimSpeed(); render(); },
   'drive-view'(arg) { app.settings.drivePresentation = arg === 'focus' ? 'focus' : 'map'; saveProfile(); window.scrollTo(0, 0); render(); },
   'nav-recenter'() { app.navMap?.recenter(); },
   'speed-alert'(arg) { app.settings.speedAlertOver = Number(arg); saveProfile(); render(); },
