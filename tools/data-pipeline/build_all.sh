@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Rebuild every bundled dataset from public sources.
 #
-# Requirements: python3 with shapely, pyshp, pyproj; node (for mapshaper); curl; ~2 GB disk.
-#   pip install shapely pyshp pyproj
+# Requirements: python3 with shapely, pyshp, pyproj, osmium; node (for mapshaper); curl; ~2 GB disk, plus room
+# for one regional OpenStreetMap extract at a time (the largest is about 4.6 GB).
+#   pip install shapely pyshp pyproj osmium
 #   npm install --prefix "$WORK" mapshaper@0.6.102
 #
 # Usage: tools/data-pipeline/build_all.sh [work dir]
-# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,vehicles.json,restareas.json,
-#          discover.json,stations.json,manifest.json}
+# Outputs: App/ExitAtlas/Resources/Data/{states.eab,timezones.eab,interstates.eax,corridors.eac,freeways.eax,vehicles.json,
+#          restareas.json,discover.json,stations.json,manifest.json}
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -73,6 +74,22 @@ python3 build_rest_areas.py "$OI_CSV" "$WORK/rest_area_tags.json" "$WORK/ntad.js
 python3 add_plazas.py "$OUT/restareas.json" plazas_supplement.json "$WORK/plaza_osm"
 python3 build_interstates.py "$OI_CSV" "$WORK/reachability.csv" "$OUT/interstates.eax" openinterstate_source.json "$WORK/rest_area_classes.json"
 python3 build_corridors.py "$OI_CSV" "$OUT/corridors.eac" openinterstate_source.json
+# Exits on parkways, turnpikes, expressways and US and state routes built as freeways, and the places near them,
+# from the regional OpenStreetMap extracts of download.openstreetmap.fr (updated daily, so the result reflects
+# the download date, recorded in the file). Each extract is read once and deleted; the junctions and places
+# found are kept in the work dir, so a rebuild downloads nothing. Interstate exits stay in interstates.eax.
+OSMFR_URL="https://download.openstreetmap.fr/extracts/north-america"
+mkdir -p "$WORK/freeways"
+for r in us-northeast us-south us-midwest us-west; do
+  if [ ! -s "$WORK/freeways/$r.json" ]; then
+    fetch "$OSMFR_URL/$r-latest.osm.pbf" "$WORK/freeways/$r.osm.pbf"
+    sha256sum "$WORK/freeways/$r.osm.pbf"
+    python3 -I extract_freeways.py "$WORK/freeways/$r.osm.pbf" "$WORK/freeways/$r.json"
+    rm -f "${WORK:?}/freeways/$r.osm.pbf"
+  fi
+done
+python3 build_freeways.py "$OUT/interstates.eax" "$OUT/corridors.eac" "$OUT/freeways.eax" freeways_source.json \
+  "$WORK"/freeways/us-*.json
 # Brand store listings (All the Places, CC0): one GeoJSON file per fuel brand spider from a pinned weekly run.
 # Pilot Flying J and Buc-ee's returned no features in this run; Exxon, Mobil, Phillips 66, Citgo and
 # 7-Eleven spiders are not included yet (docs/13).

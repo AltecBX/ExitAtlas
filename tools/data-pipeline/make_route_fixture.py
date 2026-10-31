@@ -2,14 +2,15 @@
 """Turn an OSRM route response into a test fixture plus independent oracle expectations.
 
 Usage:
-    make_route_fixture.py <osrm.json> <route index> <name> <states_full.geojson> <interstates.eax> <out dir>
+    make_route_fixture.py <osrm.json> <route index> <name> <states_full.geojson> <interstates.eax> <out dir> [freeways.eax]
 
 Writes <name>.route.json (geometry, OSM node ids, per-segment durations, steps) and
 <name>.expected.json with:
   * states: ordered state segments computed by shapely + pyproj on the FULL resolution
     TIGER polygons (independent of the Swift engine and of the simplified app data);
   * exits_on_route: exit node ids the route passes through, in order, found by OSM node
-    membership (exact, no geometry), which is the ground truth for directional exit matching.
+    membership (exact, no geometry), which is the ground truth for directional exit matching;
+  * freeway_exits_on_route (with freeways.eax): the same for the exits on other freeways.
 """
 import datetime
 import json
@@ -70,6 +71,7 @@ def state_segments(coords, states_path):
 
 def main():
     src, index, name, states_path, eax_path, out_dir = sys.argv[1:7]
+    freeways_path = sys.argv[7] if len(sys.argv) > 7 else None
     data = json.load(open(src))
     route = data["routes"][int(index)]
     coords = route["geometry"]["coordinates"]
@@ -97,24 +99,31 @@ def main():
         "steps": steps,
     }
     pieces, total = state_segments(coords, states_path)
-    exit_ids = read_eax_exit_node_ids(eax_path)
-    seen, exits = set(), []
-    for n in nodes:
-        if n in exit_ids and n not in seen:
-            seen.add(n)
-            exits.append(n)
+
+    def on_route(exit_ids):
+        seen, exits = set(), []
+        for n in nodes:
+            if n in exit_ids and n not in seen:
+                seen.add(n)
+                exits.append(n)
+        return exits
+
+    exits = on_route(read_eax_exit_node_ids(eax_path))
     expected = {
         "oracle": "shapely/pyproj on full-resolution TIGER/Line 2026; exits by OSM node membership",
         "geodesic_length_m": total,
         "states": pieces,
         "exits_on_route": exits,
     }
+    if freeways_path:
+        expected["freeway_exits_on_route"] = on_route(read_eax_exit_node_ids(freeways_path))
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, name + ".route.json"), "w") as fh:
         json.dump(fixture, fh, separators=(",", ":"))
     with open(os.path.join(out_dir, name + ".expected.json"), "w") as fh:
         json.dump(expected, fh, indent=1)
-    print(name, "states:", [(p["code"], round(p["length_m"] / 1609.344, 2)) for p in pieces], "exits:", len(exits))
+    print(name, "states:", [(p["code"], round(p["length_m"] / 1609.344, 2)) for p in pieces], "exits:", len(exits),
+          "freeway exits:", len(expected.get("freeway_exits_on_route", [])))
 
 
 if __name__ == "__main__":
