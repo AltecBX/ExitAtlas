@@ -95,7 +95,7 @@ for (const [label, width, height] of SIZES) {
         const overlays = pres === 'map' ? ['.nav-top', '.nav-left', '.nav-right', '.nav-bottom'] : [];
         return { chrome, tab, width: innerWidth, scrollWidth: document.documentElement.scrollWidth, scrollY: scrollY,
           essentials: essentials.map((s) => [s, box(s)]), overlays: overlays.map((s) => [s, box(s)]),
-          card: box(pres === 'map' ? '.nav-card' : '.fv-card'), actions: box('.fv-actions') };
+          card: box(pres === 'map' ? '.nav-card' : '.fv-card'), actions: box('.fv-actions'), night: Boolean(document.querySelector('.night-card')) };
       }, presentation);
       const fail = (m) => failures.push(`${name}: ${m}`);
       if (r.scrollWidth > r.width + 1) fail(`scrolls sideways (${r.scrollWidth} > ${r.width})`);
@@ -105,8 +105,9 @@ for (const [label, width, height] of SIZES) {
         if (b.bottom > r.tab + 1) fail(`${sel} ends behind the tab bar or below the screen (${Math.round(b.bottom)} > ${Math.round(r.tab)})`);
       }
       // The adaptive card and the action buttons too: on a real drive at every size, sideways included (iPhone SE
-      // sideways is 375 points tall); with the demo banner on portrait screens without the taller overnight card.
-      if (road || (!label.endsWith('landscape') && overnight !== 'on')) for (const [what, b] of [['adaptive card', r.card], ['fuel and restroom buttons', r.actions]]) {
+      // sideways is 375 points tall); with the demo banner on portrait screens without the taller overnight card
+      // (which Auto also shows from midnight to 4 AM, so the check looks at the card, not the setting).
+      if (road || (!label.endsWith('landscape') && !r.night)) for (const [what, b] of [['adaptive card', r.card], ['fuel and restroom buttons', r.actions]]) {
         if (b && b.bottom > r.tab + 1) fail(`${what} below the fold (${Math.round(b.bottom)} > ${Math.round(r.tab)})`);
       }
       const hit = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
