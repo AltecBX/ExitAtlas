@@ -6,7 +6,8 @@
 // Every field is checked on its own: a damaged value falls back to its default (and is reported) without
 // touching the others. Keys this version does not know are kept, so a newer app's settings survive.
 
-export const PROFILE_SCHEMA = 2;
+// 3: the default overnight window became midnight to 5 AM (normalizeProfile moves the old default along).
+export const PROFILE_SCHEMA = 3;
 export const FUEL_CODES = ['R', 'M', 'P', 'D', 'E'];
 export const SERVICE_CATEGORIES = ['gas', 'food', 'lodging', 'evCharging', 'restArea', 'travelCenter'];
 const WHEN = ['overnight', 'always', 'off'];
@@ -120,7 +121,8 @@ export function normalizeProfile(raw) {
   const problems = [];
   if (!isObj(raw)) return { profile: d, problems: ['profile'] };
   const out = { ...raw, ...d };
-  out.schema = Math.max(PROFILE_SCHEMA, Number.isInteger(raw.schema) ? raw.schema : 0);
+  const rawSchema = Number.isInteger(raw.schema) ? raw.schema : 0;
+  out.schema = Math.max(PROFILE_SCHEMA, rawSchema);
   out.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
 
   // Each section: keep unknown keys, check known ones.
@@ -166,6 +168,9 @@ export function normalizeProfile(raw) {
     chargerNetwork: (v) => oneOf(v, ['Tesla', 'all']),
   });
   section('overnight', { mode: (v) => oneOf(v, ['auto', 'on', 'off']), start: clock, end: clock });
+  // A profile saved before schema 3 with the old default window, midnight to 4 AM, gets the new default, midnight
+  // to 5 AM (Jerry asked, Oct 31). Once saved as schema 3, a window the driver sets is never moved.
+  if (rawSchema < 3 && out.overnight.start === '00:00' && out.overnight.end === '04:00') out.overnight = { ...out.overnight, end: '05:00' };
   section('places', {
     home: (v) => (v === null ? null : validPlace(v)),
     saved: (v) => placeList(v, 50),

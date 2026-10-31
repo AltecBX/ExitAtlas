@@ -7,6 +7,29 @@ final class ProfileTests: XCTestCase {
         try JSONValue(data: Data(contentsOf: Fixtures.fixtureDirectory.appendingPathComponent("profiles/\(name).json")))
     }
 
+    func testOldDefaultOvernightWindowMovesToFiveAMOnce() throws {
+        func overnight(_ schema: Int?, _ start: String, _ end: String) -> JSONValue? {
+            var raw: [String: JSONValue] = ["kind": "exitatlas-profile", "overnight": .object(["mode": "auto", "start": .string(start), "end": .string(end)])]
+            if let schema { raw["schema"] = .number(Double(schema)) }
+            return ProfileRules.normalize(.object(raw)).profile["overnight"]
+        }
+        XCTAssertEqual(overnight(2, "00:00", "04:00"), .object(["mode": "auto", "start": "00:00", "end": "05:00"]))
+        XCTAssertEqual(overnight(nil, "00:00", "04:00")?["end"], "05:00")
+        XCTAssertEqual(overnight(2, "23:00", "04:00")?["end"], "04:00")
+        XCTAssertEqual(overnight(2, "00:00", "03:00")?["end"], "03:00")
+        XCTAssertEqual(overnight(3, "00:00", "04:00")?["end"], "04:00")
+        // Only the window's end changes in a full profile.
+        guard var saved = try fixture("full").object else { return XCTFail("full profile") }
+        saved["schema"] = 2
+        saved["overnight"] = .object(["mode": "auto", "start": "00:00", "end": "04:00"])
+        var expected = saved
+        expected["schema"] = 3
+        expected["overnight"] = .object(["mode": "auto", "start": "00:00", "end": "05:00"])
+        let (profile, problems) = ProfileRules.normalize(.object(saved))
+        XCTAssertEqual(problems, [])
+        XCTAssertEqual(profile, .object(expected))
+    }
+
     func testValidProfileIsKeptExactly() throws {
         let full = try fixture("full")
         let (profile, problems) = ProfileRules.normalize(full)

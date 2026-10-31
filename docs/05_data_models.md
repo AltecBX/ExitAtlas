@@ -64,7 +64,7 @@ One JSON format for the website (`localStorage` key `ea.profile`), the iOS app (
 
 | Field | Contents |
 |---|---|
-| `kind`, `schema`, `updatedAt` | `"exitatlas-profile"`, schema 2 (version one was the older separate keys), last write |
+| `kind`, `schema`, `updatedAt` | `"exitatlas-profile"`, schema 3 (version one was the older separate keys; 3 moved the default overnight window to 00:00 to 05:00, and a schema 2 profile still on the old default, 00:00 to 04:00, is moved with it), last write |
 | `vehicles`, `defaultVehicleId` | Up to 10 vehicles: `{id, year, make, model, version, epaId, fuel (R, M, P, D, E), city, highway, combined, tankGallons, tankSource (verified, entered), evRangeMiles, evRangeHighwayMiles, mpgBasis (highway, combined, custom), customMpg, customRangeMiles}`. The id is `year|make|model|version` lowercased with other characters as dashes, the same on both platforms |
 | `fuel` | `brands` (priority order, up to 20; `["Shell"]` for a new profile, never restored once changed), `grade` (null follows the vehicle), `reserveMiles`, `maxDetourMinutes`, `require24Hours` and `requireRestroom` (overnight, always, off), `priceOverBrand`, `chargerNetwork` (Tesla, all) |
 | `overnight` | `mode` (auto, on, off), `start` and `end` as local `"HH:MM"` at the stop (default 00:00 to 05:00; the window may cross midnight) |

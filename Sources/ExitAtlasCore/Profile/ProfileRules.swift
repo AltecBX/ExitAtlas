@@ -4,7 +4,8 @@ import Foundation
 /// same rules on the same fixtures (Tests/ExitAtlasCoreTests/Fixtures/profiles), so a profile reads the
 /// same on the website and the iOS app and in profile files moved between them.
 public enum ProfileRules {
-    public static let schema = 2
+    /// 3: the default overnight window became midnight to 5 AM (normalize moves the old default along).
+    public static let schema = 3
     public static let fuelCodes = ["R", "M", "P", "D", "E"]
     public static let serviceCategories = ["gas", "food", "lodging", "evCharging", "restArea", "travelCenter"]
     static let when = ["overnight", "always", "off"]
@@ -199,6 +200,12 @@ public enum ProfileRules {
             ("chargerNetwork", { oneOf($0, ["Tesla", "all"]) }),
         ])
         section("overnight", [("mode", { oneOf($0, ["auto", "on", "off"]) }), ("start", clock), ("end", clock)])
+        // A profile saved before schema 3 with the old default window, midnight to 4 AM, gets the new default,
+        // midnight to 5 AM. Once saved as schema 3, a window the driver sets is never moved.
+        if rawSchema < 3, var o = out["overnight"]?.object, o["start"]?.string == "00:00", o["end"]?.string == "04:00" {
+            o["end"] = "05:00"
+            out["overnight"] = .object(o)
+        }
         section("places", [
             ("home", { $0.isNull ? .null : place($0) }),
             ("saved", { placeList($0, 50) }),

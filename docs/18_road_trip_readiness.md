@@ -60,7 +60,7 @@ Severity: P1 would hurt the trip, P2 polish.
 * A map that stops drawing (iOS Safari can take a page's WebGL context away) is replaced by a new one on the vehicle within a few seconds; after 3 in 10 minutes it says "Map unavailable" and Focus View still works.
 * The simulated drive's speed button steps through 30, 60, 90 and 120 times.
 * Following again (after 12 s untouched, or from the recenter button), the camera glides back to the vehicle over 1.5 s instead of jumping.
-* Overnight Drive Mode's default window is midnight to 5 AM (was 4 AM) for new profiles; a saved profile keeps its own window (Settings, Overnight Drive Mode, Ends at).
+* Overnight Drive Mode's default window is midnight to 5 AM (was 4 AM). A saved profile still on the old default moves to the new one once, as Jerry asked (profile schema 3); any other window the driver set stays, and nothing else in the profile changes.
 
 ## Known limits (not defects)
 
