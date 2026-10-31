@@ -53,6 +53,13 @@ Severity: P1 would hurt the trip, P2 polish.
 * End asks before ending a real trip ("End this trip? It cannot be resumed after this.").
 * A new trip from Home or a recent place no longer keeps the previous trip's start and stops.
 
+## Also fixed (after the Berkshires drive, Oct 31)
+
+* Parkway and freeway exits nationwide (freeways.eax, 22,468 exits from OpenStreetMap), route choices name their roads, and automatic reroutes keep the driver's highway (PR #43).
+* Navigation View map: while it followed the vehicle, each camera move cancelled the driver's pan or pinch before it started, so the map ignored the finger and no recenter button appeared. The camera now waits while a finger is on the map; a pan or pinch stops following and shows the recenter button; left alone 15 s, the map follows again.
+* A map that stops drawing (iOS Safari can take a page's WebGL context away) is replaced by a new one on the vehicle within a few seconds; after 3 in 10 minutes it says "Map unavailable" and Focus View still works.
+* The simulated drive's speed button steps through 30, 60, 90 and 120 times.
+
 ## Known limits (not defects)
 
 * Safari pauses a web page's GPS, timers and voice when the screen locks or another app is in front. ExitAtlas cannot navigate in the background; it estimates through short gaps and catches up when you return, and says how long location was paused.

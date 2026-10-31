@@ -12,6 +12,15 @@ const STYLES = { dark: 'https://tiles.openfreemap.org/styles/dark', light: 'http
 /// The route drawn ahead of the vehicle and behind it (meters).
 const AHEAD = 160000;
 const BEHIND = 40000;
+/// A map that stops drawing while it should follow the vehicle is replaced by a new one: after this long with a
+/// camera move asked for and no frame drawn (ms). iOS Safari can take a page's WebGL context away, and the map
+/// then freezes on its last frame while the trip goes on.
+const STALL_MS = 4000;
+/// At most this many new maps in REBUILD_WINDOW_MS; past that the map is reported unavailable (Focus View works).
+const MAX_REBUILDS = 3;
+const REBUILD_WINDOW_MS = 600000;
+/// After the driver pans or zooms the map, it follows the vehicle again once left alone this long (ms).
+const RESUME_MS = 15000;
 
 let library = null;
 
@@ -122,6 +131,29 @@ export class NavMap {
     /// The camera last asked for while following (sameCamera()).
     this.camera = null;
     this.onChange = null;
+    /// When a camera move was first asked for without a frame drawn since (performance.now()), or null.
+    this.waitingSince = null;
+    /// When the driver last moved the map by hand (performance.now()), or null.
+    this.touchedAt = null;
+    this.rebuiltAt = [];
+    this.lostTimer = null;
+    // A hidden page draws nothing; the wait starts again when it shows.
+    document.addEventListener('visibilitychange', () => { this.waitingSince = null; });
+    // Fingers (or a mouse button) down on the map. The camera is left alone meanwhile: each camera move cancels a
+    // pan or pinch MapLibre has not started yet, so while following, the map ignored the driver's finger.
+    this.pointers = new Set();
+    this.pointerAt = 0;
+    container.addEventListener('pointerdown', (e) => { this.pointers.add(e.pointerId); this.pointerAt = performance.now(); });
+    const up = (e) => { this.pointers.delete(e.pointerId); this.pointerAt = performance.now(); };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', () => { if (this.pointers.size) this.pointerAt = performance.now(); }, { passive: true });
+  }
+
+  /// A finger is on the map (a lift the browser never reported counts as lifted after 10 s without movement).
+  get touching() {
+    if (this.pointers.size && performance.now() - this.pointerAt > 10000) this.pointers.clear();
+    return this.pointers.size > 0;
   }
 
   /// Creates the map on first use; later calls only switch the light or dark style when needed.
@@ -143,10 +175,19 @@ export class NavMap {
       }
       // The tile style carries its own credit (OpenFreeMap, OpenMapTiles, OpenStreetMap), always shown.
       this.map.addControl(new lib.AttributionControl({ compact: false }), 'bottom-right');
-      this.map.on('style.load', () => { this.ready = true; this.routeKey = null; this.addLayers(); this.draw(true); });
-      const stopFollowing = (e) => { if (e.originalEvent && this.following) { this.following = false; this.onChange?.(); } };
-      this.map.on('dragstart', stopFollowing);
-      this.map.on('zoomstart', stopFollowing);
+      // Events of a map that was replaced (rebuild()) are ignored.
+      const map = this.map;
+      const on = (type, f) => map.on(type, (e) => { if (map === this.map) f(e); });
+      on('style.load', () => { this.ready = true; this.routeKey = null; this.addLayers(); this.draw(true); });
+      const stopFollowing = (e) => { if (e.originalEvent && this.following) { this.following = false; this.touchedAt = performance.now(); this.onChange?.(); } };
+      on('dragstart', stopFollowing);
+      on('zoomstart', stopFollowing);
+      on('move', (e) => { if (e.originalEvent) this.touchedAt = performance.now(); });
+      on('render', () => { this.waitingSince = null; });
+      // MapLibre stops drawing when the WebGL context is lost, and drops the style with it: nothing is drawn on this
+      // map until the browser gives the context back, and if it does not, a new map.
+      on('webglcontextlost', () => { this.ready = false; clearTimeout(this.lostTimer); this.lostTimer = setTimeout(() => this.rebuild(), 1500); });
+      on('webglcontextrestored', () => { clearTimeout(this.lostTimer); if (map.style) { this.ready = true; this.routeKey = null; this.addLayers(); this.draw(true); } });
     }
     if (this.mode !== mode) {
       this.mode = mode;
@@ -156,6 +197,7 @@ export class NavMap {
   }
 
   async loadStyle(mode) {
+    const map = this.map;
     let style = null;
     try {
       const ctrl = new AbortController();
@@ -164,10 +206,10 @@ export class NavMap {
       clearTimeout(timer);
       if (res.ok) style = tunedStyle(await res.json());
     } catch { /* offline: the plain style below */ }
-    if (mode !== this.mode) return;
+    if (mode !== this.mode || map !== this.map) return;
     this.offline = !style;
     this.ready = false;
-    this.map.setStyle(style ?? plainStyle());
+    map.setStyle(style ?? plainStyle());
     this.onChange?.();
   }
 
@@ -192,7 +234,38 @@ export class NavMap {
 
   recenter() {
     this.following = true;
+    this.touchedAt = null;
     this.draw(true);
+    this.onChange?.();
+  }
+
+  /// Replaces a map that stopped drawing with a new one in the same place; the route, the markers and the camera
+  /// are drawn again once its style loads.
+  rebuild() {
+    clearTimeout(this.lostTimer);
+    if (!this.map) return;
+    const now = performance.now();
+    this.rebuiltAt = this.rebuiltAt.filter((t) => now - t < REBUILD_WINDOW_MS);
+    try { this.map.remove(); } catch { /* a map without its context may not tear down cleanly; it is replaced */ }
+    this.container.replaceChildren();
+    this.map = null;
+    this.markers.clear();
+    this.ready = false;
+    this.camera = null;
+    this.routeKey = null;
+    this.waitingSince = null;
+    // The new map starts on the vehicle (a view the driver had moved to is gone with the old map).
+    this.following = true;
+    this.touchedAt = null;
+    const mode = this.mode ?? 'dark';
+    this.mode = null;
+    if (this.rebuiltAt.length >= MAX_REBUILDS) {
+      this.failed = 'it stopped drawing';
+      this.onChange?.();
+      return;
+    }
+    this.rebuiltAt.push(now);
+    this.ensure(mode);
     this.onChange?.();
   }
 
@@ -202,7 +275,7 @@ export class NavMap {
 
   draw(force) {
     const s = this.state, m = this.map;
-    if (!s || !m || !this.ready) return;
+    if (!s || !m || !this.ready || !m.style) return;
     // The route lines: redrawn when the vehicle has moved 50 m (or the route changed).
     if (force || this.routeKey !== s.key || this.drawnAt === null || Math.abs(s.progress - this.drawnAt) > 50) {
       m.getSource('ea-ahead')?.setData(line(routeSlice(s.poly, s.progress, s.progress + AHEAD)));
@@ -211,15 +284,29 @@ export class NavMap {
       this.drawnAt = s.progress;
     }
     this.placeMarkers(s.markers);
-    if (this.following) {
+    const now = performance.now();
+    const resumed = !this.following && this.touchedAt !== null && now - this.touchedAt > RESUME_MS;
+    if (resumed) {
+      this.following = true;
+      this.touchedAt = null;
+      force = true;
+    }
+    if (this.following && !this.touching) {
       const camera = { center: [s.position.lon, s.position.lat], bearing: s.bearing, pitch: 52, zoom: s.zoom, padding: s.padding };
       // Every camera move animates for most of a second, and the map redraws on each frame of it. Parked or
       // stuck in traffic the camera would not move at all, so it is left alone (no frames) until it would.
       if (force || !sameCamera(this.camera, camera)) {
+        // Moves asked for and nothing drawn for STALL_MS on a visible page: the map froze. A new one.
+        if (this.waitingSince !== null && now - this.waitingSince > STALL_MS && document.visibilityState === 'visible') {
+          this.rebuild();
+          return;
+        }
         m.easeTo({ ...camera, duration: force ? 0 : s.duration ?? 600, easing: (t) => t });
         this.camera = camera;
+        this.waitingSince ??= now;
       }
     }
+    if (resumed) this.onChange?.();
   }
 
   placeMarkers(list) {
