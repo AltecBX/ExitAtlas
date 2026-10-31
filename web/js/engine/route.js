@@ -210,3 +210,23 @@ export class PlannedRoute {
 export function makeStep(startDistance, length, instruction, roadName, highways = null) {
   return { startDistance, length, instruction, roadName, highways: highways ?? parseHighways(`${roadName} ${instruction}`) };
 }
+
+/// The two or three longest roads of a route, in driving order, so route choices can be told apart:
+/// "via Sprain Brook Pkwy, Taconic State Pkwy". Numbered roads by their number, named roads by name; roads
+/// under 8% of the route are left out. Empty when the route has no road names.
+export function routeVia(route) {
+  const total = route?.length || 1, roads = new Map();
+  for (const st of route?.steps ?? []) {
+    const raw = (st.roadName ?? '').trim();
+    if (!raw) continue;
+    const ref = raw.match(/^(I|US|[A-Z]{2})[ -]?(\d+[A-Z]?)\b/);
+    const name = ref ? `${ref[1] === 'I' ? 'I-' : `${ref[1]} `}${ref[2]}`
+      : raw.replace(/\bParkway\b/, 'Pkwy').replace(/\bExpressway\b/, 'Expy').replace(/\bTurnpike\b/, 'Tpke');
+    const r = roads.get(name) ?? { name, length: 0, first: st.startDistance };
+    r.length += st.length;
+    roads.set(name, r);
+  }
+  const top = [...roads.values()].filter((r) => r.length >= 0.08 * total)
+    .sort((a, b) => b.length - a.length).slice(0, 3).sort((a, b) => a.first - b.first);
+  return top.length ? `via ${top.map((r) => r.name).join(', ')}` : '';
+}
