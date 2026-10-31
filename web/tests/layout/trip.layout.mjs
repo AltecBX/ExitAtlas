@@ -442,8 +442,8 @@ await app((ahead) => import('./js/engine/geo.js').then(({ RoutePolyline }) => {
 const frame = () => app(() => new Promise((r) => requestAnimationFrame(() => r())));
 await app(() => window.__drive(90, 28));
 await frame();
-check((await state()).status === 'onRoute' && /Take the exit on the right toward NY-82 N/.test(await view()) && routingCalls - planCalls === 1,
-  'from Briarcliff Manor the route says to take the NY 82 exit');
+check((await state()).status === 'onRoute' && /Take Exit 43A toward NY-82 N/.test(await view()) && routingCalls - planCalls === 1,
+  'from Briarcliff Manor the route says to take the NY 82 exit, by its number (Exit 43A)');
 before = routingCalls;
 await app(() => window.__driveOn(60, 28));
 await until(() => !window.exitAtlas.isRerouting);
