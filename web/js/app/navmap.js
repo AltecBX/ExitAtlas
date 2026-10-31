@@ -20,7 +20,10 @@ const STALL_MS = 4000;
 const MAX_REBUILDS = 3;
 const REBUILD_WINDOW_MS = 600000;
 /// After the driver pans or zooms the map, it follows the vehicle again once left alone this long (ms).
-const RESUME_MS = 15000;
+const RESUME_MS = 12000;
+/// Following again (by itself or from the recenter button), the camera glides back to the vehicle over this long
+/// (ms) from where the driver left it, instead of jumping there.
+const RETURN_MS = 1500;
 
 let library = null;
 
@@ -135,6 +138,8 @@ export class NavMap {
     this.waitingSince = null;
     /// When the driver last moved the map by hand (performance.now()), or null.
     this.touchedAt = null;
+    /// When the glide back to the vehicle ends (performance.now()), or null.
+    this.returnUntil = null;
     this.rebuiltAt = [];
     this.lostTimer = null;
     // A hidden page draws nothing; the wait starts again when it shows.
@@ -179,7 +184,7 @@ export class NavMap {
       const map = this.map;
       const on = (type, f) => map.on(type, (e) => { if (map === this.map) f(e); });
       on('style.load', () => { this.ready = true; this.routeKey = null; this.addLayers(); this.draw(true); });
-      const stopFollowing = (e) => { if (e.originalEvent && this.following) { this.following = false; this.touchedAt = performance.now(); this.onChange?.(); } };
+      const stopFollowing = (e) => { if (e.originalEvent && this.following) { this.following = false; this.touchedAt = performance.now(); this.returnUntil = null; this.onChange?.(); } };
       on('dragstart', stopFollowing);
       on('zoomstart', stopFollowing);
       on('move', (e) => { if (e.originalEvent) this.touchedAt = performance.now(); });
@@ -235,7 +240,8 @@ export class NavMap {
   recenter() {
     this.following = true;
     this.touchedAt = null;
-    this.draw(true);
+    this.returnUntil = performance.now() + RETURN_MS;
+    this.draw(false);
     this.onChange?.();
   }
 
@@ -257,6 +263,7 @@ export class NavMap {
     // The new map starts on the vehicle (a view the driver had moved to is gone with the old map).
     this.following = true;
     this.touchedAt = null;
+    this.returnUntil = null;
     const mode = this.mode ?? 'dark';
     this.mode = null;
     if (this.rebuiltAt.length >= MAX_REBUILDS) {
@@ -289,19 +296,26 @@ export class NavMap {
     if (resumed) {
       this.following = true;
       this.touchedAt = null;
-      force = true;
+      this.returnUntil = now + RETURN_MS;
     }
     if (this.following && !this.touching) {
       const camera = { center: [s.position.lon, s.position.lat], bearing: s.bearing, pitch: 52, zoom: s.zoom, padding: s.padding };
       // Every camera move animates for most of a second, and the map redraws on each frame of it. Parked or
       // stuck in traffic the camera would not move at all, so it is left alone (no frames) until it would.
-      if (force || !sameCamera(this.camera, camera)) {
+      const returning = this.returnUntil !== null && now < this.returnUntil;
+      const starting = returning && this.returnUntil - now > RETURN_MS - 50;
+      if (!returning) this.returnUntil = null;
+      if (force || returning || !sameCamera(this.camera, camera)) {
         // Moves asked for and nothing drawn for STALL_MS on a visible page: the map froze. A new one.
         if (this.waitingSince !== null && now - this.waitingSince > STALL_MS && document.visibilityState === 'visible') {
           this.rebuild();
           return;
         }
-        m.easeTo({ ...camera, duration: force ? 0 : s.duration ?? 600, easing: (t) => t });
+        // Gliding back: aimed again at each update so it lands on the moving vehicle when the glide ends, easing in
+        // from where the driver left the map. Otherwise each update eases over its own interval.
+        const step = s.duration ?? 600;
+        const duration = force ? 0 : returning ? Math.max(this.returnUntil - now, step) : step;
+        m.easeTo({ ...camera, duration, easing: starting && !force ? (t) => t * t * (3 - 2 * t) : (t) => t });
         this.camera = camera;
         this.waitingSince ??= now;
       }

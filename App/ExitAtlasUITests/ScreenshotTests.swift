@@ -192,9 +192,15 @@ final class ScreenshotTests: XCTestCase {
             XCTAssertFalse(app.buttons["reportPrice"].exists, "Station details still offer Report a price")
             snap("2j Station prices", dark)
             app.buttons["Done"].firstMatch.tap()
-            sleep(1)
-            app.buttons["settingsButton"].firstMatch.tap()
-            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+            // A tap while the sheet is still closing is lost on a slow runner: wait for it to close, and tap
+            // Settings once more if it has not opened.
+            for _ in 0..<20 where app.navigationBars["Prices"].exists { usleep(500_000) }
+            let settings = app.navigationBars["Settings"]
+            for _ in 0..<2 where !settings.exists {
+                app.buttons["settingsButton"].firstMatch.tap()
+                _ = settings.waitForExistence(timeout: 15)
+            }
+            XCTAssertTrue(settings.exists, "Settings did not open after closing the station's prices")
             let googleSwitch = app.switches["googlePricesToggle"].firstMatch
             for _ in 0..<12 where !(googleSwitch.exists && googleSwitch.isHittable) { app.swipeUp() }
             XCTAssertTrue(googleSwitch.exists, "No Google prices switch")

@@ -1,6 +1,6 @@
 {
   "kind": "exitatlas-profile",
-  "schema": 2,
+  "schema": 3,
   "updatedAt": null,
   "vehicles": [
     {
@@ -40,7 +40,7 @@
   "overnight": {
     "mode": "auto",
     "start": "00:00",
-    "end": "04:00"
+    "end": "05:00"
   },
   "places": {
     "home": {

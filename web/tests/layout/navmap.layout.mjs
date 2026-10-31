@@ -1,5 +1,5 @@
 // The Navigation View map keeps following the vehicle, in a real browser with touch: panning it stops following
-// and shows the recenter button; left alone 15 s it follows again; a map that stops drawing (frozen frames, or a
+// and shows the recenter button; left alone 12 s it follows again, gliding back to the vehicle (no jump); a map that stops drawing (frozen frames, or a
 // lost WebGL context, which iOS Safari can take away) is replaced by a new one on the vehicle; and a normal drive
 // never replaces it. Also the simulated drive's speed button: 30, 60, 90 and 120 times, then 30 again.
 // Run: node web/tests/layout/navmap.layout.mjs   (needs Playwright with Chromium; CI installs it)
@@ -69,6 +69,32 @@ const pan = async () => {
 
 let s = await state();
 if (!s.following || !s.onScreen) fail(`before any touch: not following the vehicle (${JSON.stringify(s)})`);
+// Where the vehicle sits on screen while followed.
+const home = s.puck;
+// The vehicle's distance on screen from that spot, and whether the map follows, every 100 ms for `ms`:
+// [ms since start, px, following]. `before` runs first (a tap on the recenter button).
+const track = (ms, before = null) => page.evaluate(async (args) => {
+  const [hx, hy, span, tap] = args;
+  const out = [];
+  const t0 = performance.now();
+  const sample = () => {
+    const b = document.querySelector('.nav-marker.you')?.getBoundingClientRect();
+    out.push([Math.round(performance.now() - t0), b ? Math.round(Math.hypot(b.x + b.width / 2 - hx, b.y + b.height / 2 - hy)) : 9999, window.exitAtlas.navMap.following]);
+  };
+  if (tap) { sample(); document.querySelector(tap)?.click(); }
+  while (performance.now() - t0 < span) {
+    sample();
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return out;
+}, [home[0], home[1], ms, before]);
+// How long the vehicle took to come back: from when the map follows again to the first sample within 30 px of its
+// spot (a jump arrives in the same or the next sample), and how far away it started.
+const glide = (samples) => {
+  const i = samples.findIndex(([, , f]) => f);
+  const end = i < 0 ? undefined : samples.slice(i).find(([, d]) => d < 30);
+  return { took: end === undefined ? null : end[0] - samples[i][0], from: i < 0 ? null : samples[Math.max(0, i - 1)][1] };
+};
 
 // 1. A pan stops following and shows the recenter button; the vehicle drives off the screen.
 await pan();
@@ -78,7 +104,7 @@ if (!s.button) fail(`no recenter button after a pan (${JSON.stringify(s)})`);
 
 // 1b. So does a two finger pinch (zoom), after the recenter button.
 await page.evaluate(() => document.querySelector('[data-act="nav-recenter"]')?.click());
-await page.waitForTimeout(800);
+await page.waitForTimeout(2000);
 {
   const [x, y] = await page.evaluate(() => {
     const top = document.querySelector('.nav-left').getBoundingClientRect().bottom;
@@ -93,20 +119,29 @@ await page.waitForTimeout(800);
 s = await state();
 if (s.following || !s.button) fail(`a pinch did not stop following (${JSON.stringify(s)})`);
 
-// 2. The recenter button follows again at once.
+// 2. The recenter button follows again at once, the camera gliding back to the vehicle (after a pan, so the
+// vehicle starts well away from its spot).
 await page.evaluate(() => document.querySelector('[data-act="nav-recenter"]')?.click());
-await page.waitForTimeout(800);
+await page.waitForTimeout(2000);
+await pan();
+let back = await track(2500, '[data-act="nav-recenter"]');
+let g = glide(back);
 s = await state();
 if (!s.following || s.button || !s.onScreen) fail(`the recenter button did not bring the vehicle back (${JSON.stringify(s)})`);
+if (!(g.from > 60)) fail(`the pan did not move the vehicle away before the recenter button (${JSON.stringify(back)})`);
+if (g.took === null || g.took < 800) fail(`the recenter button jumped back instead of gliding (${g.took} ms; ${JSON.stringify(back)})`);
 
-// 3. Left alone 15 s after a pan, the map follows again by itself and the button goes.
+// 3. Left alone 12 s after a pan, the map follows again by itself, gliding back, and the button goes.
 await pan();
 await page.waitForTimeout(8000);
 s = await state();
-if (s.following) fail(`the map followed again 8 s after a pan (15 s expected) ${JSON.stringify(s)}`);
-await page.waitForTimeout(9000);
+if (s.following) fail(`the map followed again 8 s after a pan (12 s expected) ${JSON.stringify(s)}`);
+await page.waitForTimeout(3200);
+back = await track(3500);
+g = glide(back);
 s = await state();
-if (!s.following || s.button || !s.onScreen) fail(`the map did not follow again 17 s after a pan (${JSON.stringify(s)})`);
+if (!s.following || s.button || !s.onScreen) fail(`the map did not follow again 12 s after a pan (${JSON.stringify(s)})`);
+if (g.took === null || g.took < 800) fail(`the map jumped back to the vehicle instead of gliding (${g.took} ms; ${JSON.stringify(back)})`);
 if (s.rebuilds) fail(`a normal drive replaced the map ${s.rebuilds} times`);
 
 // 4. Frozen: the map draws no more frames (its camera stops too) while the trip goes on. A new map takes over.

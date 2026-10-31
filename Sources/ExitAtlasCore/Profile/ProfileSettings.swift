@@ -21,7 +21,7 @@ public struct ProfileSettings: Sendable, Equatable {
     /// "auto", "on" or "off"; the window is local "HH:MM" at the stop.
     public var overnightMode = "auto"
     public var overnightStart = "00:00"
-    public var overnightEnd = "04:00"
+    public var overnightEnd = "05:00"
 
     public var home: Waypoint?
     public var savedPlaces: [Waypoint] = []
@@ -101,7 +101,7 @@ public struct ProfileSettings: Sendable, Equatable {
         let o = sec("overnight")
         overnightMode = o["mode"]?.string ?? "auto"
         overnightStart = o["start"]?.string ?? "00:00"
-        overnightEnd = o["end"]?.string ?? "04:00"
+        overnightEnd = o["end"]?.string ?? "05:00"
         let pl = sec("places")
         home = place(pl["home"])
         savedPlaces = pl["saved"]?.array?.compactMap(place) ?? []

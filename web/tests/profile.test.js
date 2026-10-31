@@ -170,8 +170,9 @@ test('S. export and import carry the profile between devices, never the API keys
 test('overnight window: local minutes, windows across midnight, manual override', () => {
   const p = defaultProfile();
   assert.equal(inOvernightWindow(p, 0), true);
-  assert.equal(inOvernightWindow(p, 239), true);
-  assert.equal(inOvernightWindow(p, 240), false);
+  // The default window is midnight to 5 AM.
+  assert.equal(inOvernightWindow(p, 299), true);
+  assert.equal(inOvernightWindow(p, 300), false);
   p.overnight.start = '22:00';
   assert.equal(inOvernightWindow(p, 23 * 60), true);
   assert.equal(inOvernightWindow(p, 12 * 60), false);
@@ -179,6 +180,25 @@ test('overnight window: local minutes, windows across midnight, manual override'
   assert.equal(inOvernightWindow(p, 12 * 60), true);
   p.overnight.mode = 'off';
   assert.equal(inOvernightWindow(p, 60), false);
+});
+
+test('schema 3: a profile saved with the old default overnight window gets midnight to 5 AM; nothing else moves', () => {
+  const overnight = (schema, start, end) => normalizeProfile({ kind: 'exitatlas-profile', schema, overnight: { mode: 'auto', start, end } }).profile.overnight;
+  assert.deepEqual(overnight(2, '00:00', '04:00'), { mode: 'auto', start: '00:00', end: '05:00' });
+  assert.equal(overnight(undefined, '00:00', '04:00').end, '05:00', 'no schema: saved before schema 3');
+  // A window the driver chose stays as it is.
+  assert.equal(overnight(2, '23:00', '04:00').end, '04:00');
+  assert.equal(overnight(2, '00:00', '03:00').end, '03:00');
+  assert.equal(overnight(3, '00:00', '04:00').end, '04:00', 'set to 4 AM after the change');
+  // A stored profile (Jerry's kind: vehicle, Shell first, Home): only the window's end changes, and the next save
+  // writes schema 3, so a window set later is never moved again.
+  const saved = { ...fixture('full'), schema: 2, overnight: { mode: 'auto', start: '00:00', end: '04:00' } };
+  const storage = memoryStorage({ [PROFILE_KEY]: JSON.stringify(saved) });
+  const r = loadProfile(storage);
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(r.profile, { ...saved, schema: 3, overnight: { mode: 'auto', start: '00:00', end: '05:00' } });
+  writeProfile(storage, { ...r.profile, overnight: { ...r.profile.overnight, end: '04:00' } });
+  assert.equal(loadProfile(storage).profile.overnight.end, '04:00');
 });
 
 test('every web module is in the offline cache, so the app (and its profile code) loads without a connection', () => {
