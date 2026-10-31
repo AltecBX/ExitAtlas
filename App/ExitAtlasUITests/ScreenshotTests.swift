@@ -275,9 +275,14 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
         XCTAssertTrue(drive(app), "Drive screen did not appear")
         sleep(3)
-        // Road Ahead, Fuel: prices appear by themselves, with Google Maps as their source.
-        app.tabBars.buttons["Ahead"].tap()
-        XCTAssertTrue(app.navigationBars["Road Ahead"].waitForExistence(timeout: 10))
+        // Road Ahead, Fuel: prices appear by themselves, with Google Maps as their source. This test runs first,
+        // when a tap can come before the app answers: wait longer and tap once more if Road Ahead has not opened.
+        let ahead = app.navigationBars["Road Ahead"]
+        for _ in 0..<2 where !ahead.exists {
+            app.tabBars.buttons["Ahead"].tap()
+            _ = ahead.waitForExistence(timeout: 20)
+        }
+        XCTAssertTrue(ahead.exists, "Road Ahead did not open")
         app.buttons["filter-fuel"].firstMatch.tap()
         app.buttons["100 mi"].firstMatch.tap()
         let compare = app.descendants(matching: .any)["comparePrices"].firstMatch

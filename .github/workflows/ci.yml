@@ -96,6 +96,9 @@ jobs:
           NAME=$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))] | last | .name')
           echo "Using $NAME ($UDID)"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          # Boot it and wait until it has finished booting, so the first UI test does not run while the simulator
+          # is still setting itself up (the first test timed out that way on two runs).
+          xcrun simctl bootstatus "$UDID" -b
       - name: Build and run UI screenshot tests
         working-directory: App
         run: |
