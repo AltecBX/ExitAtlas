@@ -132,15 +132,17 @@ function progress(fraction, thick = false) {
 
 // MARK: Weather
 
-/// The weather pill in the top bar: symbol, temperature and the condition, with "Forecast" when no station
-/// near you reported recently. Compact (symbol and temperature) when the title is a highway name.
+/// The weather pill in the top bar: symbol, temperature and the condition. When no station near you reported
+/// recently it shows the forecast for this hour the same way (Jerry chose no marker, Nov 1); the weather sheet
+/// says it is a forecast, and so does the spoken label. Compact (symbol and temperature) when the title is a
+/// highway name.
 export function weatherPill(app, { compact = false } = {}) {
   const w = app.weatherNow();
   if (!w || w.temperatureF == null) return '';
   const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
   const said = `${w.temperatureF} degrees, ${label}${w.source === 'forecast' ? ', forecast' : ''}`;
   return `<button class="wx-pill${compact ? ' compact' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
-    ${weatherIcon(w.kind, w.isDay)}<span class="wx-temp num">${w.temperatureF}°</span>${label ? `<span class="wx-cond">${h(label)}</span>` : ''}${w.source === 'forecast' ? '<span class="wx-tag">Forecast</span>' : ''}</button>`;
+    ${weatherIcon(w.kind, w.isDay)}<span class="wx-temp num">${w.temperatureF}°</span>${label ? `<span class="wx-cond">${h(label)}</span>` : ''}</button>`;
 }
 
 /// "11 PM" in the time zone of the place.
