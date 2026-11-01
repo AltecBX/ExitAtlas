@@ -1,8 +1,9 @@
 import ExitAtlasCore
 import SwiftUI
 
-/// The weather in the top bar of the Drive screen: symbol and temperature, with "Forecast" when no station
-/// near you reported recently. Tap for the sheet, which names the condition. The web pill also shows the
+/// The weather in the top bar of the Drive screen: symbol and temperature. When no station near you reported
+/// recently it shows the forecast for this hour the same way (no marker, as on the web); the sheet says it is a
+/// forecast, and so does the spoken label. Tap for the sheet, which names the condition. The web pill also shows the
 /// condition when it fits; the iPhone top bar has no room for it next to the status pill.
 struct WeatherPill: View {
     let weather: CurrentWeather.Now
@@ -18,7 +19,6 @@ struct WeatherPill: View {
                 Text("\(temperature)°")
                     .font(.system(.headline, design: .rounded).weight(.bold))
                     .monospacedDigit()
-                if weather.source == .forecast { ForecastTag() }
             }
             .fixedSize()
             .padding(.leading, 6)
