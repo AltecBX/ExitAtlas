@@ -26,7 +26,7 @@ import { NavMap } from './navmap.js';
 import { fetchChargers, DEMO_KEY } from './chargers.js';
 import { miles, clock, spokenMiles } from './format.js';
 import {
-  loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, currentPosition,
+  loadCoreData, loadCorridors, loadDemoRouteJSON, loadVehicles, fetchRoutes, searchPlaces, suggestPlaces, currentPosition,
   LocationService, ScreenWake, Announcer, store, dataStatus, serviceSwitches,
 } from './services.js';
 import { loadProxy, switchedOff } from './proxy.js';
@@ -1880,9 +1880,35 @@ document.addEventListener('change', (ev) => {
   render();
 });
 
+// Place search: suggestions as the driver types (from 3 letters, after a short pause), redrawing only the results
+// so the text box keeps its focus and keyboard. The latest typing wins; an older answer is dropped.
+let suggestTimer = null, suggestSeq = 0;
+function suggestWhileTyping(input) {
+  const ps = app.placeSearch;
+  ps.query = input.value.trim();
+  clearTimeout(suggestTimer);
+  const seq = ++suggestSeq;
+  const show = () => { const el = $('#place-results'); if (el && app.sheet?.kind === 'place') el.innerHTML = V.placeResultsHTML(app); };
+  if (ps.query.length < 3) { ps.results = []; ps.error = null; show(); return; }
+  suggestTimer = setTimeout(async () => {
+    const near = app.snapshot ? app.plan.route.polyline.coordinateAt(app.snapshot.progress) : app.lastSample?.coordinate ?? null;
+    try {
+      const results = await suggestPlaces(ps.query, near);
+      if (seq !== suggestSeq) return;
+      ps.results = results;
+      ps.error = null;
+    } catch {
+      if (seq !== suggestSeq) return;
+    }
+    show();
+  }, 350);
+}
+
 document.addEventListener('input', (ev) => {
   const el = ev.target;
-  if (el.matches('[data-gauge]')) {
+  if (el.matches('[data-form="place-search"] input[name="q"]')) {
+    suggestWhileTyping(el);
+  } else if (el.matches('[data-gauge]')) {
     const v = app.vehicleProfile();
     if (v?.ev) app.fuelUI.batteryTwentieths = Number(el.value); else app.fuelUI.gaugeEighths = Number(el.value);
     const label = $('[data-gauge-label]');

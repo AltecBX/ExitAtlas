@@ -1750,21 +1750,36 @@ export function settingsView(app) {
 
 export function placeSearchSheet(app) {
   const ps = app.placeSearch;
-  const { home, recent, saved: starred } = app.places;
   const label = ps.field === 'from' ? 'Start' : ps.field === 'to' ? 'Destination' : 'Stop';
+  return `<div class="sheet-head"><h2>${label}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
+    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
+      <button class="btn primary sm" type="submit" style="flex:none;align-self:stretch" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
+    <div id="place-results">${placeResultsHTML(app)}</div>
+    <p class="attrib">Search by Photon (komoot) and Nominatim, © OpenStreetMap contributors; street addresses also from the U.S. Census Bureau geocoder.</p>`;
+}
+
+/// Home, starred and recent places, shown before a search.
+function savedPlaceItems(app) {
+  const ps = app.placeSearch;
+  const { home, recent, saved: starred } = app.places;
   const homeBtn = (src) => `<button class="btn sm" data-act="set-home" data-arg="${src}" aria-label="Set as Home">🏠</button>`;
   const saved = [];
   if (ps.field === 'from') saved.push('<button class="item" data-act="use-current"><span style="font-size:20px">📍</span><div class="main"><div class="t">Current location</div></div></button>');
   if (home) saved.push(`<button class="item" data-act="choose-place" data-arg="home"><span style="font-size:20px">🏠</span><div class="main"><div class="t">Home</div><div class="muted tiny">${h(home.name)}</div></div></button>`);
   starred.slice(0, 8).forEach((p, i) => saved.push(`<button class="item" data-act="choose-place" data-arg="saved:${i}"><span style="font-size:20px">★</span><div class="main"><div class="t">${h(p.name)}</div></div></button>`));
   recent.slice(0, 8).filter((r) => !starred.some((p) => p.name === r.name)).forEach((r) => { const i = recent.indexOf(r); saved.push(`<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="recent:${i}"><div class="t">🕘 ${h(r.name)}</div></button>${home && home.name === r.name ? '' : homeBtn(`recent:${i}`)}</div>`); });
-  return `<div class="sheet-head"><h2>${label}</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>
-    <form class="row" data-form="place-search"><input type="search" name="q" placeholder="City, address or place" value="${h(ps.query)}" autocomplete="off" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card)" enterkeyhint="search">
-      <button class="btn primary sm" type="submit" style="flex:none;align-self:stretch" ${ps.busy ? 'disabled' : ''}>${ps.busy ? '…' : 'Search'}</button></form>
-    ${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
+  return saved;
+}
+
+/// The place sheet's results (or the saved places before a search), redrawn on their own while the driver types so
+/// the text box keeps its focus and keyboard.
+export function placeResultsHTML(app) {
+  const ps = app.placeSearch;
+  const saved = savedPlaceItems(app);
+  const homeBtn = (src) => `<button class="btn sm" data-act="set-home" data-arg="${src}" aria-label="Set as Home">🏠</button>`;
+  return `${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
     ${ps.results.length ? `<div class="list" style="margin-top:12px">${ps.results.map((r, i) => `<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="result:${i}"><div class="t">${h(r.name)}</div><div class="muted tiny">${h(r.detail)}</div></button>${homeBtn(`result:${i}`)}</div>`).join('')}</div>` : ''}
-    ${saved.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}
-    <p class="attrib">Search by Nominatim, © OpenStreetMap contributors; street addresses also from the U.S. Census Bureau geocoder.</p>`;
+    ${saved?.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}`;
 }
 
 export function alongRouteSheet(app) {

@@ -310,13 +310,61 @@ export async function searchPlaces(query, near = null, { timeout = REQUEST_TIMEO
       return res.json();
     });
   } catch (e) { failure = e; }
-  const addresses = await census;
-  if (failure && !addresses.length) throw failure;
-  return [...addresses, ...rows.map((r) => ({
+  const photon = photonPlaces(query, near, timeout).catch(() => []);
+  const addresses = await census, suggestions = await photon;
+  if (failure && !addresses.length && !suggestions.length) throw failure;
+  return uniquePlaces([...addresses, ...suggestions, ...rows.map((r) => ({
     name: shortName(r.display_name),
     detail: r.display_name,
     coordinate: { lat: parseFloat(r.lat), lon: parseFloat(r.lon) },
-  }))];
+  }))]);
+}
+
+/// Places while the driver types: Photon (komoot's search over OpenStreetMap, made for search as you type; it finds
+/// addresses Nominatim misses when the town name differs, such as Citrus Park for a Tampa address), nearer places
+/// first, plus the Census Bureau's exact match once the text looks like a full street address. Never Nominatim:
+/// its usage policy forbids autocomplete.
+export async function suggestPlaces(query, near = null, { timeout = 8000 } = {}) {
+  checkSwitch('search', 'Place search');
+  const census = /^\s*\d+[A-Za-z]?\s+\S+\s+\S+/.test(query) ? censusAddresses(query).catch(() => []) : Promise.resolve([]);
+  const photon = await photonPlaces(query, near, timeout).catch(() => []);
+  return uniquePlaces([...(await census), ...photon]).slice(0, 8);
+}
+
+/// US places from Photon, nearer ones first when a position is known.
+async function photonPlaces(query, near, timeout) {
+  const params = new URLSearchParams({ q: query, limit: '10', lang: 'en' });
+  if (near) { params.set('lat', near.lat.toFixed(3)); params.set('lon', near.lon.toFixed(3)); }
+  const json = await timed('the place search server', timeout, null, async (s) => {
+    const res = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: s });
+    if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
+    return res.json();
+  });
+  return (Array.isArray(json?.features) ? json.features : []).map(photonPlace).filter(Boolean);
+}
+
+/// A Photon feature as {name, detail, coordinate}, or null (outside the US, or no name).
+function photonPlace(f) {
+  const p = f?.properties ?? {}, c = f?.geometry?.coordinates;
+  if (p.countrycode !== 'US' || !Array.isArray(c)) return null;
+  const lon = Number(c[0]), lat = Number(c[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const head = p.housenumber ? `${p.housenumber} ${p.street ?? p.name ?? ''}`.trim() : (p.name ?? p.street);
+  if (!head) return null;
+  const town = p.city ?? p.town ?? p.village ?? p.district ?? p.county ?? '';
+  const state = STATE_NAMES[p.state] ?? p.state ?? '';
+  const name = [head, town && town !== head ? town : null, state].filter(Boolean).join(', ');
+  const detail = [!p.housenumber && p.street && p.street !== p.name ? p.street : null, town, p.county !== town ? p.county : null, state, p.postcode].filter(Boolean).join(', ');
+  return { name, detail: detail || name, coordinate: { lat, lon } };
+}
+
+/// The first of places within about 40 m of each other (one address from two sources).
+function uniquePlaces(list) {
+  const out = [];
+  for (const x of list) {
+    if (!out.some((y) => Math.abs(y.coordinate.lat - x.coordinate.lat) < 0.0004 && Math.abs(y.coordinate.lon - x.coordinate.lon) < 0.0004)) out.push(x);
+  }
+  return out;
 }
 
 /// Street addresses from the U.S. Census Bureau geocoder (free, public domain, no key or account). It sends no CORS
