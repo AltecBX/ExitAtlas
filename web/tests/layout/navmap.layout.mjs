@@ -1,7 +1,8 @@
 // The Navigation View map keeps following the vehicle, in a real browser with touch: panning it stops following
 // and shows the recenter button; left alone 12 s it follows again, gliding back to the vehicle (no jump); a map that stops drawing (frozen frames, or a
 // lost WebGL context, which iOS Safari can take away) is replaced by a new one on the vehicle; and a normal drive
-// never replaces it. Also the simulated drive's speed button: 30, 60, 90 and 120 times, then 30 again.
+// never replaces it. Also the simulated drive's speed button: 30, 60, 90 and 120 times, then 30 again, and an open
+// Fuel stop sheet that keeps counting down while driving.
 // Run: node web/tests/layout/navmap.layout.mjs   (needs Playwright with Chromium; CI installs it)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -179,6 +180,33 @@ for (let i = 0; i < 5; i++) {
 const want = [[30, '60×'], [60, '90×'], [90, '120×'], [120, '30×'], [30, '60×']];
 if (speeds.some(([v, b], i) => v !== want[i][0] || b !== want[i][1])) fail(`speed button: ${JSON.stringify(speeds.map(([v, b]) => [v, b]))}, expected ${JSON.stringify(want)}`);
 if (speeds.some(([v, , t]) => !t.includes(`Simulated drive at ${v}×`))) fail(`the banner does not say the speed: ${speeds.map(([, , t]) => t.trim()).join(' | ')}`);
+// 8. An open Fuel stop sheet keeps counting down as the trip goes on (miles ahead, fuel left), says "of fuel
+// left" (not a bare "left" that reads like the trip), and never overwrites a range being typed in.
+await page.evaluate(() => { window.exitAtlas.tab = 'ahead'; document.querySelector('[data-act="tab"][data-arg="ahead"]')?.click(); });
+await page.waitForTimeout(800);
+await page.evaluate(() => document.querySelector('[data-act="sheet"][data-arg="fuel"]')?.click());
+await page.waitForSelector('#sheet.open input[name="dte"]', { timeout: 10000 });
+await page.fill('#sheet-body input[name="dte"]', '123');
+await page.waitForTimeout(5000);
+const typed = await page.inputValue('#sheet-body input[name="dte"]');
+if (typed !== '123') fail(`the open Fuel stop sheet replaced a range being typed in (${typed})`);
+await page.fill('#sheet-body input[name="dte"]', '220');
+await page.click('#sheet-body [data-form="fuel"] button[type="submit"]');
+await page.evaluate(() => document.activeElement?.blur());
+await page.waitForSelector('#sheet-body .smart', { timeout: 10000 });
+const fuelState = () => page.evaluate(() => {
+  const card = document.querySelector('#sheet-body .smart');
+  const line = card?.querySelector('.muted.small')?.textContent.trim() ?? '';
+  return { name: card?.querySelector('.title-md')?.textContent.trim(), line,
+    ahead: Number(line.match(/([\d.]+) mi ahead/)?.[1]), range: Number(document.querySelector('#sheet-body input[name="dte"]')?.value) };
+});
+const f0 = await fuelState();
+await page.waitForTimeout(7000);
+const f1 = await fuelState();
+if (!/of fuel left/.test(f0.line)) fail(`the fuel stop does not say "of fuel left": ${f0.line}`);
+if (!(f1.range < f0.range)) fail(`the open Fuel stop sheet did not count the range down (${f0.range} then ${f1.range})`);
+if (f0.name === f1.name && !(f1.ahead < f0.ahead)) fail(`the open Fuel stop sheet did not count the miles ahead down (${f0.line} then ${f1.line})`);
+await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());
 if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
 
 await browser.close();

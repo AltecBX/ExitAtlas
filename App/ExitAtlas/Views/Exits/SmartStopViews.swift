@@ -49,7 +49,7 @@ enum SmartStopText {
 
     static func arrival(_ c: SmartStop.Candidate, now: Date) -> String {
         var parts = ["Arrive \(Format.time(c.arrival, timeZoneID: c.timeZone.identifier, relativeTo: now))"]
-        if let left = c.rangeOnArrival { parts.append("about \(Format.miles(left)) left") }
+        if let left = c.rangeOnArrival { parts.append("about \(Format.miles(left)) of fuel left") }
         return parts.joined(separator: " · ")
     }
 

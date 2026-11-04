@@ -62,6 +62,12 @@ Severity: P1 would hurt the trip, P2 polish.
 * Following again (after 12 s untouched, or from the recenter button), the camera glides back to the vehicle over 1.5 s instead of jumping.
 * Overnight Drive Mode's default window is midnight to 5 AM (was 4 AM). A saved profile still on the old default moves to the new one once, as Jerry asked (profile schema 3); any other window the driver set stays, and nothing else in the profile changes.
 
+## Also fixed (NY to Tampa drive, Nov 4)
+
+* Place search suggests addresses while typing (Photon, OpenStreetMap) and finds house numbers Nominatim misses (U.S. Census Bureau geocoder) (PR #49).
+* An open sheet (Fuel stop, Restroom stop, exit, rest area, alert, Find along route, station) was drawn once when opened, so its miles ahead, arrival times and range stayed as they were while driving. It now redraws every 2 s during a trip, but not while a finger is on it, for 1.2 s after a tap or scroll, or while a field holds an unsaved entry.
+* Fuel at a stop said "about 59 mi left", which reads like miles left on the trip. It now says "about 59 mi of fuel left" (range for an EV). That number is the estimated fuel in the tank on reaching the stop, so it stays about the same while driving toward it; the miles ahead and the range now count down.
+
 ## Known limits (not defects)
 
 * Safari pauses a web page's GPS, timers and voice when the screen locks or another app is in front. ExitAtlas cannot navigate in the background; it estimates through short gaps and catches up when you return, and says how long location was paused.
