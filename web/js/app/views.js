@@ -431,7 +431,7 @@ function tripStrip(app, s) {
   const discovery = app.mode === 'discovery';
   const left = discovery
     ? `<span><b class="num">${milesValue(s.remaining)}</b> mi of corridor ahead</span>`
-    : `<span><b class="num">${milesValue(s.remaining)}</b> mi left</span><span><b class="num">${clock(s.eta, null, s.t)}</b> arrival</span><span><b class="num">${s.statesAhead.length}</b> state${s.statesAhead.length === 1 ? '' : 's'}</span>`;
+    : `<span><b class="num">${milesValue(s.remaining)}</b> mi left</span><span><b class="num">${clock(s.eta, null, s.t)}</b> arrival</span>${s.statesAhead.length ? `<span><b class="num">${s.statesAhead.length}</b> state${s.statesAhead.length === 1 ? '' : 's'}</span>` : '<span><b>Last</b> state</span>'}`;
   return `<button class="trip-strip" data-act="tab" data-arg="${discovery ? 'ahead' : 'trip'}" aria-label="Trip">${left}</button>`;
 }
 
@@ -492,7 +492,7 @@ function focusView(app, s, f, extras) {
   const named = hw?.ref.kind === 'named';
   const instruments = `<section class="card fv-instruments ${si.level}">
     ${speedo(si.mph, si.limit, si.level)}
-    <div class="limit-col">${limitSign(si)}${si.next ? `<div class="limit-next"><b class="num">${si.next.mph}</b> in ${miles(si.next.distance)}</div>` : si.limit === null && si.limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : ''}</div>
+    <div class="limit-col">${limitSign(si)}${si.next ? `<div class="limit-next"><b class="num">${si.next.mph}</b> ${si.next.distance < 0.1 * MILE ? 'ahead' : `in ${miles(si.next.distance)}`}</div>` : si.limit === null && si.limitState === 'unknown' ? '<div class="limit-next">No limit data</div>' : ''}</div>
     <div class="road-col">${named ? '' : shield(hw?.ref, 40)}<div class="road-name${named ? ' named' : ''}">${hw ? h(highwayLabel(hw.ref)) : 'Local'}</div>
       <div class="road-dir">${hw ? DIRECTION_WORDS[hw.direction] : 'roads'}</div></div>
     ${viewToggle(app)}</section>`;
@@ -1764,7 +1764,7 @@ export function placeSearchSheet(app) {
     ${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
     ${ps.results.length ? `<div class="list" style="margin-top:12px">${ps.results.map((r, i) => `<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="result:${i}"><div class="t">${h(r.name)}</div><div class="muted tiny">${h(r.detail)}</div></button>${homeBtn(`result:${i}`)}</div>`).join('')}</div>` : ''}
     ${saved.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}
-    <p class="attrib">Search by Nominatim, © OpenStreetMap contributors.</p>`;
+    <p class="attrib">Search by Nominatim, © OpenStreetMap contributors; street addresses also from the U.S. Census Bureau geocoder.</p>`;
 }
 
 export function alongRouteSheet(app) {

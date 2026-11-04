@@ -299,16 +299,59 @@ export async function searchPlaces(query, near = null, { timeout = REQUEST_TIMEO
     const d = 3;
     params.set('viewbox', `${near.lon - d},${near.lat + d},${near.lon + d},${near.lat - d}`);
   }
-  const rows = await timed('the place search server', timeout, null, async (s) => {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' }, signal: s });
-    if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
-    return res.json();
-  });
-  return rows.map((r) => ({
+  // A street address (it starts with a house number) is also looked up at the Census Bureau, which knows house
+  // numbers OpenStreetMap often lacks; its exact matches come first.
+  const census = censusAddresses(query).catch(() => []);
+  let rows = [], failure = null;
+  try {
+    rows = await timed('the place search server', timeout, null, async (s) => {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept-Language': 'en-US' }, signal: s });
+      if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
+      return res.json();
+    });
+  } catch (e) { failure = e; }
+  const addresses = await census;
+  if (failure && !addresses.length) throw failure;
+  return [...addresses, ...rows.map((r) => ({
     name: shortName(r.display_name),
     detail: r.display_name,
     coordinate: { lat: parseFloat(r.lat), lon: parseFloat(r.lon) },
-  }));
+  }))];
+}
+
+/// Street addresses from the U.S. Census Bureau geocoder (free, public domain, no key or account). It sends no CORS
+/// headers, so its JSONP answer is read inside a sandboxed frame that has no access to this page or its storage;
+/// only plain data comes back, and it is checked before use. [] when the query is not an address or on any failure.
+function censusAddresses(query, { timeout = 10000 } = {}) {
+  if (typeof document === 'undefined' || !/^\s*\d+[A-Za-z]?\s+\S/.test(query)) return Promise.resolve([]);
+  const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${new URLSearchParams({ address: query, benchmark: 'Public_AR_Current', format: 'jsonp', callback: 'done' })}`;
+  return new Promise((resolve) => {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.display = 'none';
+    let timer = null;
+    const finish = (rows) => { clearTimeout(timer); window.removeEventListener('message', onMessage); frame.remove(); resolve(rows); };
+    const onMessage = (e) => {
+      if (e.source !== frame.contentWindow) return;
+      const matches = Array.isArray(e.data?.matches) ? e.data.matches.slice(0, 3) : [];
+      finish(matches.map(censusPlace).filter(Boolean));
+    };
+    window.addEventListener('message', onMessage);
+    timer = setTimeout(() => finish([]), timeout);
+    frame.srcdoc = `<script>function done(d){parent.postMessage({matches:(d&&d.result&&d.result.addressMatches)||[]},'*')}<\/script><script src="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" onerror="parent.postMessage({matches:[]},'*')"><\/script>`;
+    document.body.append(frame);
+  });
+}
+
+/// "11318 PECKHAM PL, TAMPA, FL, 33625" and its coordinates as a place, or null.
+function censusPlace(m) {
+  const lat = Number(m?.coordinates?.y), lon = Number(m?.coordinates?.x);
+  if (typeof m?.matchedAddress !== 'string' || !Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const title = (t) => t.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  const [street = '', city = '', state = '', zip = ''] = m.matchedAddress.split(',').map((x) => x.trim());
+  const name = [title(street), title(city), state].filter(Boolean).join(', ');
+  return { name, detail: `${name}${zip ? ` ${zip}` : ''} (U.S. Census Bureau address)`, coordinate: { lat, lon } };
 }
 
 function shortName(display) {
