@@ -381,7 +381,7 @@ private struct FuelCard: View {
 
     private var detail: String {
         guard let left = trip.rangeLeft else {
-            return "From your dashboard. ExitAtlas finds the exit where you will have about \(Int(settings.bufferMiles)) mi left."
+            return "From your dashboard. ExitAtlas finds the exit where you will have about \(Int(settings.bufferMiles)) mi of fuel left."
         }
         if plan?.status != .destination, let c = smart?.primary?.candidate, let there = c.rangeOnArrival {
             return "\(Format.miles(left)) of range now, about \(Format.miles(there)) left there"

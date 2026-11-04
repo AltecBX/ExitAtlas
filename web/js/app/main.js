@@ -412,6 +412,10 @@ let lastViewHTML = '';
 let lastWeatherHTML = '';
 let lastExitsRender = 0;
 let exitsTimer = null;
+// The open sheet, kept current while driving (see refreshLiveSheet).
+let lastSheetHTML = '';
+let lastSheetLive = 0;
+let sheetTouch = { down: false, at: 0 };
 
 /// Replaces a container's HTML and keeps each <details> the driver opened or closed as they left it: while
 /// driving the views are rebuilt every second or two, which would otherwise close "Why this stop" and the
@@ -463,6 +467,7 @@ function renderNow() {
   for (const b of document.querySelectorAll('.tabbar button')) b.classList.toggle('on', b.dataset.arg === app.tab);
   $('#settings-btn').classList.toggle('on', app.tab === 'settings');
   if (!app.data) return;
+  refreshLiveSheet();
   if (app.tab === 'ahead' && app.mode !== 'idle') {
     // The exits list is long: refresh it at most every 1.5 s so scrolling stays smooth.
     const now = performance.now();
@@ -538,7 +543,26 @@ function openSheet(kind, arg = null) {
   $('#sheet').classList.add('open');
 }
 
-function renderSheet() {
+/// Sheets whose miles, arrival times and fuel left depend on where the vehicle is.
+const LIVE_SHEETS = new Set(['fuel', 'restroom', 'stop', 'exit', 'rest', 'alert', 'search', 'station']);
+
+/// Redraws the open sheet as the vehicle moves (at most every 2 s), so its miles ahead, arrival times and
+/// fuel left count down like the Drive screen instead of staying as they were when it opened. Never while
+/// a finger is on the sheet or just after (a tap must land on the button it started on, and a scroll keeps
+/// going), and never while a field is being typed in or holds an unsaved entry.
+function refreshLiveSheet() {
+  if (!app.sheet || !app.snapshot || app.mode === 'idle' || !LIVE_SHEETS.has(app.sheet.kind)) return;
+  const now = performance.now();
+  if (now - lastSheetLive < 2000 || sheetTouch.down || now - sheetTouch.at < 1200) return;
+  const body = $('#sheet-body');
+  const typing = body.contains(document.activeElement) && document.activeElement.matches('input, select, textarea');
+  const unsaved = [...body.querySelectorAll('input')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
+  if (typing || unsaved) return;
+  lastSheetLive = now;
+  renderSheet({ live: true });
+}
+
+function renderSheet({ live = false } = {}) {
   if (!app.sheet) return;
   const { kind, arg } = app.sheet;
   let html = '';
@@ -548,13 +572,16 @@ function renderSheet() {
   else if (kind === 'place') html = V.placeSearchSheet(app);
   else if (kind === 'search') html = V.alongRouteSheet(app);
   else if (kind === 'fuel') html = V.fuelSheet(app);
-  else if (kind === 'station') { html = V.stationSheet(app, arg); lookupStationPlace(arg); }
+  else if (kind === 'station') { html = V.stationSheet(app, arg); if (!live) lookupStationPlace(arg); }
   else if (kind === 'stop') html = V.stopSheet(app);
   else if (kind === 'vehicle') html = V.vehicleSheet(app);
   else if (kind === 'weather') html = V.weatherSheet(app);
   else if (kind === 'restroom') html = V.restroomSheet(app);
   else if (kind === 'alert') html = V.alertSheet(app, arg);
+  if (live && html === lastSheetHTML) return;
+  lastSheetHTML = html;
   swapHTML($('#sheet-body'), html, `${kind}|${arg}`);
+  if (live) return;
   if (kind === 'place') setTimeout(() => $('#sheet-body input[name="q"]')?.focus(), 250);
   if (kind === 'exit' || kind === 'station' || kind === 'fuel') { lastAutoPrices = 0; autoGooglePrices(); }
 }
@@ -1927,6 +1954,10 @@ $('#sheet-backdrop').addEventListener('click', closeSheet);
 // anything less springs back. Sideways swipes, scrolling and the form fields keep working as before.
 {
   const sheet = $('#sheet'), backdrop = $('#sheet-backdrop');
+  // A finger on the sheet, or a scroll, holds the live refresh (refreshLiveSheet).
+  sheet.addEventListener('pointerdown', () => { sheetTouch = { down: true, at: performance.now() }; });
+  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, () => { if (sheetTouch.down) sheetTouch = { down: false, at: performance.now() }; });
+  sheet.addEventListener('scroll', () => { sheetTouch.at = performance.now(); }, { passive: true });
   let start = null, dragging = false, dy = 0, samples = [];
   const release = (e, close) => {
     if (!dragging) { start = null; return; }
