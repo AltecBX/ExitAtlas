@@ -1764,7 +1764,7 @@ export function placeSearchSheet(app) {
     ${ps.error ? `<p class="amber-text small">${h(ps.error)}</p>` : ''}
     ${ps.results.length ? `<div class="list" style="margin-top:12px">${ps.results.map((r, i) => `<div class="item"><button class="main" style="background:none;border:0;text-align:left;padding:0;cursor:pointer" data-act="choose-place" data-arg="result:${i}"><div class="t">${h(r.name)}</div><div class="muted tiny">${h(r.detail)}</div></button>${homeBtn(`result:${i}`)}</div>`).join('')}</div>` : ''}
     ${saved.length && !ps.results.length ? `<div class="list" style="margin-top:12px">${saved.join('')}</div><p class="muted tiny">Tap 🏠 to make a place your Home.</p>` : ''}
-    <p class="attrib">Search by Nominatim, © OpenStreetMap contributors.</p>`;
+    <p class="attrib">Search by Nominatim, © OpenStreetMap contributors; street addresses also from the U.S. Census Bureau geocoder.</p>`;
 }
 
 export function alongRouteSheet(app) {
