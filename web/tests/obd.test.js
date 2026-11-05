@@ -3,7 +3,7 @@
 // are not recorded from a car or an adapter, which this repository has not been connected to yet.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { command, parseAnswer, readPID, supports, monitorStatus, parseVoltage, parseIdentity, steadyFuel, rangeFromFuel, SETUP_COMMANDS } from '../js/engine/obd.js';
+import { command, parseAnswer, readPID, supports, monitorStatus, parseVoltage, parseIdentity, steadyFuel, rangeFromFuel, SETUP_COMMANDS, BLUEDRIVER_SETUP, bluedriverCodec } from '../js/engine/obd.js';
 
 test('commands: mode and PID as four hex digits; setup turns echo, spaces and headers off and picks the protocol', () => {
   assert.equal(command(0x2f), '012F');
@@ -67,4 +67,28 @@ test('range from the fuel level: share of the tank times tank size times mpg; no
   assert.equal(rangeFromFuel(60, null, 30), null);
   assert.equal(rangeFromFuel(null, 15, 30), null);
   assert.equal(rangeFromFuel(120, 10, 20), 200);
+});
+
+// BlueDriver (unofficial): the byte scramble and answers as described by github.com/sjalkote/bluedriver-reverse-engineering
+// (data bytes only, spaces on), written here in that format; not recorded from a sensor.
+test('BlueDriver scramble: XOR 0x26 both ways, carriage return and > untouched', () => {
+  const plain = new TextEncoder().encode('012F\r');
+  const wire = bluedriverCodec(plain);
+  assert.deepEqual([...wire], [0x30 ^ 0x26, 0x31 ^ 0x26, 0x32 ^ 0x26, 0x46 ^ 0x26, 0x0d]);
+  assert.equal(new TextDecoder().decode(bluedriverCodec(wire)), '012F\r');
+  assert.deepEqual([...bluedriverCodec(new Uint8Array([0x3e, 0x0d]))], [0x3e, 0x0d]);
+});
+
+test('BlueDriver setup: its own LM commands in its order, no AT commands', () => {
+  assert.deepEqual(BLUEDRIVER_SETUP, ['LMI', 'LMD', 'LML0', 'LMI', 'LMD', 'LMDP', 'LMI', 'LMX1', 'LMX0']);
+  assert.ok(BLUEDRIVER_SETUP.every((c) => !c.startsWith('AT')));
+});
+
+test('BlueDriver answers carry the data bytes only; one with the mode and PID still reads right', () => {
+  assert.ok(Math.abs(readPID('fuelLevel', '9A \r', { bare: true }).value - 60.392) < 0.01);
+  assert.ok(Math.abs(readPID('fuelLevel', '41 2F 9A \r', { bare: true }).value - 60.392) < 0.01);
+  assert.deepEqual(parseAnswer('BE 3E B8 11 \r', 0x00, 1, { bare: true }).bytes, [0xbe, 0x3e, 0xb8, 0x11]);
+  assert.equal(readPID('voltage', '31 2C \r', { bare: true }).value, 12.588);
+  assert.deepEqual(readPID('fuelLevel', 'NO DATA\r', { bare: true }), { problem: 'noData' });
+  assert.equal(parseIdentity('OSAPI v2.60\r'), 'OSAPI v2.60');
 });

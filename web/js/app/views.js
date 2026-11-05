@@ -1192,7 +1192,7 @@ export function carRow(app, { settings = false } = {}) {
       <div style="font-weight:700">Connect your car</div>
       <div class="amber-text tiny">Bluetooth is not available in this browser, so the Connect car button cannot show yet.</div>
       <ol class="car-steps small">
-        <li>Plug an OBD2 adapter with Bluetooth LE that speaks ELM327 (for example OBDLink CX) into the car. BlueDriver works only with its own app.</li>
+        <li>Plug your BlueDriver, or an OBD2 adapter with Bluetooth LE that speaks ELM327 (for example OBDLink CX), into the car. BlueDriver support is unofficial: BlueDriver supports only its own app, so one of its updates could stop it working.</li>
         <li>iPhone: install the free beacio app, then Settings, Apps, Safari, Extensions, beacio: turn it on and allow it on other websites. Not in Private Browsing.</li>
         <li>Reload ExitAtlas in Safari. Connect car shows here.</li>
       </ol>
@@ -1202,19 +1202,19 @@ export function carRow(app, { settings = false } = {}) {
   const btn = (act, text, arg = '') => `<button type="button" class="btn sm" data-act="${act}"${arg ? ` data-arg="${arg}"` : ''}>${text}</button>`;
   let main, side = '';
   if (c.state === 'connecting') {
-    main = `<div style="font-weight:700">Connecting to ${h(c.name ?? 'the adapter')}…</div><div class="muted tiny">Keep the car's ignition on.</div>`;
+    main = `<div style="font-weight:700">Connecting to ${h(c.name ?? 'the adapter')}…</div><div class="muted tiny">Keep the car's ignition on.${c.kind === 'bluedriver' ? ' Close the BlueDriver app: the sensor talks to one app at a time. Allow pairing if the phone asks.' : ''}</div>`;
     side = btn('car-disconnect', 'Cancel');
   } else if (c.state === 'connected') {
     // Settings shows whole percents and no age, so it is not redrawn every few seconds (its fields are typed in).
     const fuel = c.fuel != null ? (settings ? `Fuel <b class="num">${Math.round(c.fuel)}%</b>` : `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`)
       : c.supportsFuel === false ? 'This car does not report its fuel level' : 'Reading the fuel level…';
-    main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
+    main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}${c.kind === 'bluedriver' ? ' · BlueDriver, unofficial' : ''}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
     side = btn('car-disconnect', 'Disconnect');
   } else if (c.state === 'disconnected') {
     main = `<div style="font-weight:700">Car disconnected <span class="muted small" style="font-weight:500">${clock(c.disconnectedAt)}</span></div><div class="muted tiny">Reconnecting when the adapter answers. The range keeps counting down from the last reading.</div>`;
     side = btn('car-connect', 'Connect');
   } else {
-    main = `<div style="font-weight:700">Read the fuel level from your car</div><div class="muted tiny">OBD2 adapter with Bluetooth LE (ELM327, for example OBDLink CX). Not BlueDriver.</div>
+    main = `<div style="font-weight:700">Read the fuel level from your car</div><div class="muted tiny">BlueDriver (unofficial; close its app first) or an OBD2 adapter with Bluetooth LE (ELM327, for example OBDLink CX).</div>
       <button type="button" class="linkish tiny" data-act="car-connect" data-arg="any">Adapter not listed? Show all Bluetooth devices</button>`;
     side = btn('car-connect', 'Connect car');
   }

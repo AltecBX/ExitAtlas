@@ -5,7 +5,7 @@
 // it, Connect car reads the fuel level, the range becomes fuel level x tank size x mpg (Jerry's 911 Turbo S, chosen
 // in the picker) and says it is from the car; a field typed in Settings survives car updates;
 // a dropped adapter is shown with its time and reconnects; a car without the fuel level PID says so and leaves the
-// range alone; the check engine light shows.
+// range alone; the check engine light shows; and a SIMULATED BlueDriver (unofficial) the same way.
 // Run: node web/tests/layout/carlink.layout.mjs   (needs Playwright with Chromium; CI installs it)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -81,12 +81,85 @@ function simulatedAdapter(opts) {
   Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { requestDevice: async (o) => { window.__requestOptions = o; return device; } } });
 }
 
-async function open({ bluetooth = null, scheme = 'light' } = {}) {
+/// A SIMULATED BlueDriver, as github.com/sjalkote/bluedriver-reverse-engineering and Silicon Labs' BGX docs describe
+/// it (not a recording): the Xpress Streaming Service, XOR 0x26 on every byte but CR and ">", Fast Ack flow control
+/// (nothing is sent before the app writes its buffer size to Tx, and nothing after a fragment until the app
+/// acknowledges it), answers with data bytes only, and NO DATA to everything once an AT command arrives.
+function simulatedBlueDriver(opts) {
+  const S = { service: '331a36f5-2459-45ea-9d95-6142f0c4b307', rx: 'a9da6040-0823-4995-94ec-9ce41ca28833', tx: 'a73e9a10-628f-4494-a099-12efaf72258f',
+    mode: '75a9f022-af03-4e41-b4bc-9de90a47d50b', pairService: '169b52a0-b7fd-40da-998c-dd9238327e55', pair: '12e868e7-c926-4906-96c8-a7ee81d4b1b3' };
+  const codec = (b) => Uint8Array.from(b, (x) => (x === 0x0d || x === 0x3e ? x : x ^ 0x26));
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  let spoiled = false, credit = false, waitingAck = false, paired = false;
+  const queue = [];
+  const answer = (cmd) => {
+    if (spoiled) return 'NO DATA';
+    if (cmd === 'LMI') return 'OSAPI v2.60';
+    if (cmd === 'LMDP') return 'AUTO, ISO 15765-4 (CAN 11/500)';
+    if (/^LM/.test(cmd)) return 'OK';
+    if (cmd === '0100') return 'BE 3E B8 11 ';
+    if (cmd === '0120') return 'A0 07 B0 11 ';
+    if (cmd === '012F') return '9A ';
+    if (cmd === '0101') return '00 07 65 00 ';
+    if (cmd === '0142') return '31 2C ';
+    return '?';
+  };
+  class Characteristic extends EventTarget {
+    constructor(uuid, properties) { super(); this.uuid = uuid; this.properties = properties; this.value = null; this.on = false; }
+    async startNotifications() { if (!paired) window.__pairedBy = window.__pairedBy ?? 'notifications'; paired = true; this.on = true; return this; }
+  }
+  const rx = new Characteristic(S.rx, { write: true, writeWithoutResponse: true, notify: true });
+  const tx = new Characteristic(S.tx, { notify: true, indicate: true, writeWithoutResponse: true });
+  const mode = new Characteristic(S.mode, { read: true, write: true, notify: true });
+  const notify = (ch, bytes) => { ch.value = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); ch.dispatchEvent(new Event('characteristicvaluechanged')); };
+  const pump = () => {
+    if (!credit || waitingAck || !queue.length || !tx.on) return;
+    const part = queue.shift();
+    waitingAck = true;
+    setTimeout(() => notify(tx, part), 3);
+  };
+  tx.writeValueWithoutResponse = async (bytes) => {
+    const b = [...new Uint8Array(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)];
+    window.__control.push(b.map((x) => x.toString(16).padStart(2, '0')).join(' '));
+    if (b[0] === 0x00) { credit = true; pump(); }
+    if (b[0] === 0x01) { waitingAck = false; pump(); }
+  };
+  let pending = '';
+  rx.writeValueWithoutResponse = async (bytes) => {
+    pending += dec.decode(codec(new Uint8Array(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)));
+    let i;
+    while ((i = pending.indexOf('\r')) >= 0) {
+      const cmd = pending.slice(0, i).trim();
+      pending = pending.slice(i + 1);
+      window.__sent.push(cmd);
+      if (/^AT/i.test(cmd)) spoiled = true;
+      setTimeout(() => notify(rx, new Uint8Array([0x01, 0x01, 0x00])), 1);
+      // Answers come in two or more fragments.
+      const reply = codec(enc.encode(`${answer(cmd)}\r\r>`));
+      for (let k = 0; k < reply.length; k += 7) queue.push(reply.slice(k, k + 7));
+      pump();
+    }
+  };
+  const streaming = { getCharacteristic: async (u) => ({ [S.rx]: rx, [S.tx]: tx, [S.mode]: mode })[u] ?? Promise.reject(new DOMException('no such characteristic', 'NotFoundError')) };
+  const pairing = { getCharacteristic: async (u) => (u === S.pair ? { readValue: async () => { window.__pairedBy = window.__pairedBy ?? 'read'; paired = true; return new DataView(new Uint8Array([1, 2, 3, 4]).buffer); } } : Promise.reject(new DOMException('no', 'NotFoundError'))) };
+  const device = new EventTarget();
+  device.name = 'BlueDriver';
+  device.gatt = {
+    connected: false,
+    connect: async () => { device.gatt.connected = true; return { getPrimaryService: async (u) => (u === S.service ? streaming : u === S.pairService ? pairing : Promise.reject(new DOMException('no such service', 'NotFoundError'))) }; },
+    disconnect: () => { device.gatt.connected = false; device.dispatchEvent(new Event('gattserverdisconnected')); },
+  };
+  window.__sent = []; window.__control = [];
+  Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { requestDevice: async (o) => { window.__requestOptions = o; return device; } } });
+}
+
+async function open({ bluetooth = null, bluedriver = null, scheme = 'light' } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: SHOTS ? 2 : 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (bluetooth) await page.addInitScript(simulatedAdapter, bluetooth);
+  if (bluedriver) await page.addInitScript(simulatedBlueDriver, bluedriver);
   await page.route((u) => u.protocol === 'https:', (r) => r.fulfill({ status: 503, body: '' }));
   await page.goto(`${base}?demo=120`);
   await page.waitForSelector('.nav-view, .focus-view', { timeout: 60000 });
@@ -224,6 +297,35 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   if (!/does not report its fuel level/.test(problem ?? '')) fail(`problem: ${problem}`);
   const f = await page.evaluate(() => window.exitAtlas.fuel);
   if (f?.source !== 'dashboard' || Math.round(f.rangeMeters / 1609.344) !== 180) fail(`the entered range changed: ${JSON.stringify(f)}`);
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 4. BlueDriver (SIMULATED, unofficial): found by its streaming service, its own setup in order and never an AT
+// command, Fast Ack flow control (buffer size first, every fragment acknowledged), the fuel level, voltage from
+// PID 42, labeled unofficial.
+{
+  const fail = (m) => failures.push(`BlueDriver: ${m}`);
+  const { ctx, page, errors } = await open({ bluedriver: {} });
+  await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
+  await page.waitForFunction(() => /60\.4%/.test(document.querySelector('#sheet [data-testid="car-fuel"]')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+  const opts = await page.evaluate(() => window.__requestOptions);
+  if (!opts?.optionalServices?.includes('331a36f5-2459-45ea-9d95-6142f0c4b307') || !opts.filters?.some((f) => f.namePrefix === 'BlueDriv')) fail(`picker options: ${JSON.stringify(opts)}`);
+  const sent = await page.evaluate(() => window.__sent);
+  if (sent.slice(0, 9).join() !== 'LMI,LMD,LML0,LMI,LMD,LMDP,LMI,LMX1,LMX0') fail(`setup: ${sent.join()}`);
+  if (sent.some((c) => /^AT/i.test(c))) fail(`an AT command was sent: ${sent.join()}`);
+  if (!sent.includes('012F') || !sent.includes('0142')) fail(`requests: ${sent.join()}`);
+  const control = await page.evaluate(() => window.__control);
+  if (control[0] !== '00 ff 7f' || !control.slice(1).every((c) => /^01 0[1-7] 00$/.test(c))) fail(`flow control: ${control.slice(0, 6).join(' | ')}`);
+  const row = await text(page, '#sheet [data-testid="car-row"]');
+  if (!/Fuel 60\.4%/.test(row ?? '') || !/BlueDriver, unofficial/.test(row ?? '') || !/Battery 12\.6 V/.test(row ?? '') || !/OSAPI v2\.60/.test(row ?? '')) fail(`car row: ${row}`);
+  const f = await page.evaluate(() => window.exitAtlas.fuel);
+  if (f?.source !== 'car' || f.percent !== 60.4) fail(`range from the car: ${JSON.stringify(f)}`);
+  if (SHOTS) {
+    await page.evaluate(() => document.querySelector('#sheet [data-testid="car-row"]').scrollIntoView({ block: 'center' }));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(SHOTS, 'car-bluedriver.png') });
+  }
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }
