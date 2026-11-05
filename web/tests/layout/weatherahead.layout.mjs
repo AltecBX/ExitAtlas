@@ -60,15 +60,17 @@ async function serve(page, { failForecasts = false } = {}) {
 
 const failures = [];
 const browser = await chromium.launch();
-const SIZES = [['phone', 390, 844], ['small phone', 375, 667]];
+// The last size uses a wide system font (DejaVu Sans, as on a Linux runner) with the phone's text size, so the
+// pill's shorter forms are checked: the top bar takes the system font, which sets how much room the warning has.
+const SIZES = [['phone', 390, 844], ['small phone', 375, 667], ['wide font phone', 390, 844, 'body { font-family: "DejaVu Sans", sans-serif !important; }']];
 const IOS_TEXT = 'html { font-size: 17px !important; }';
 
-async function open(width, height, scheme, opts = {}) {
+async function open(width, height, scheme, opts = {}, css = '') {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: SHOTS ? 2 : 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.addInitScript((css) => document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.append(s); }), IOS_TEXT);
+  await page.addInitScript((css) => document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.append(s); }), IOS_TEXT + css);
   // 5:15 AM Eastern, Nov 5 2026: within the recording, during the 5 to 7 AM fog forecast for Jacksonville and Brunswick.
   await page.clock.install({ time: new Date('2026-11-05T10:15:00Z') });
   await serve(page, opts);
@@ -78,12 +80,12 @@ async function open(width, height, scheme, opts = {}) {
   return { ctx, page, errors };
 }
 
-for (const [label, width, height] of SIZES) {
+for (const [label, width, height, css = ''] of SIZES) {
   for (const scheme of ['light', 'dark']) {
     for (const presentation of ['map', 'focus']) {
       const name = `${label} ${scheme} ${presentation}`;
       const fail = (m) => failures.push(`${name}: ${m}`);
-      const { ctx, page, errors } = await open(width, height, scheme);
+      const { ctx, page, errors } = await open(width, height, scheme, {}, css);
       if (presentation === 'focus') await page.evaluate(() => document.querySelector('[data-act="drive-view"][data-arg="focus"]').click());
       // The forecast points are looked up one at a time, a quarter second apart.
       await page.waitForFunction(() => document.querySelector('#weather .wx-pill.has-ahead'), null, { timeout: 45000 }).catch(() => {});
@@ -97,9 +99,10 @@ for (const [label, width, height] of SIZES) {
       });
       if (!pill.ahead) fail(`no weather warning in the pill (${JSON.stringify(pill)})`);
       else {
-        if (!/^Fog (in [\d.]+ mi|next [\d.]+ mi)$/.test(pill.text)) fail(`pill says "${pill.text}"`);
+        // The whole warning where it fits; a narrow bar or a wide font gets "Fog now", "Fog ahead" or "Fog".
+        if (!/^Fog( (in [\d.]+ mi|next [\d.]+ mi|now|ahead))?$/.test(pill.text)) fail(`pill says "${pill.text}"`);
         if (!/National Weather Service forecast/.test(pill.label)) fail(`pill label does not name the NWS forecast: ${pill.label}`);
-        if (pill.truncated) fail(`the warning is cut off: "${pill.text}"`);
+        if (pill.truncated) fail(`the warning is cut off: "${pill.text}" ${JSON.stringify(pill)}`);
         const hit = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
         if (hit(pill.pill, pill.status) || hit(pill.pill, pill.end)) fail(`the pill overlaps the top bar controls ${JSON.stringify(pill)}`);
       }

@@ -479,12 +479,16 @@ function renderNow() {
   const cond = $('#weather .wx-cond');
   if (cond) { cond.parentNode.classList.remove('tight'); cond.parentNode.classList.toggle('tight', cond.scrollWidth > cond.clientWidth + 1); }
   // Weather ahead in the pill: when its words do not fit, the temperature goes (the sheet always shows it), then
-  // the icon before the words.
+  // the icon before the words, then shorter words ("Fog ahead", then "Fog"). The system font sets the width, so a
+  // phone with larger text or a wider font needs the shorter forms where another does not.
   const ahead = $('#weather .wx-ahead-t');
   if (ahead) {
     const pill = ahead.closest('.wx-pill');
+    const over = () => ahead.scrollWidth > ahead.clientWidth + 1;
     pill.classList.remove('tighter', 'tightest');
-    for (const c of ['tighter', 'tightest']) if (ahead.scrollWidth > ahead.clientWidth + 1) pill.classList.add(c);
+    if (ahead.dataset.full && ahead.textContent !== ahead.dataset.full) ahead.textContent = ahead.dataset.full;
+    for (const c of ['tighter', 'tightest']) if (over()) pill.classList.add(c);
+    for (const k of ['short', 'name']) if (over() && ahead.dataset[k]) ahead.textContent = ahead.dataset[k];
   }
   $('#title').hidden = Boolean(wx) && !highway;
   $('#status').innerHTML = V.statusPill(app);

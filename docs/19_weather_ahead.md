@@ -17,7 +17,9 @@ arriving about 3:40 PM. Where it shows:
 
 * **Drive screen** (both presentations): the weather pill in the top bar shows the first warning within 60
   miles, in amber, e.g. "Showers in 18 mi" or "Fog next 29 mi". When the words do not fit, the temperature
-  goes first, then the icon.
+  goes first, then the icon, then the words shorten to "Fog ahead" ("Fog now" when already in it), then "Fog".
+  The top bar uses the system font, so how much fits depends on the phone and its text size (a Linux CI runner's
+  wider font cut "Fog next 31 mi" off before these shorter forms existed).
 * **Road Ahead**: a row at the stretch's start under All (warnings, chances, unavailable stretches) and under
   Alerts (warnings only).
 * **Weather sheet** (tap the pill or a row): "Ahead on your route" lists each stretch with where it starts, how

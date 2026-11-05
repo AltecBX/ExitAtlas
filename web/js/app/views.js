@@ -148,9 +148,18 @@ export function weatherPill(app, { compact = false } = {}) {
   const said = [now ? `${now.temperatureF} degrees, ${label}${now.source === 'forecast' ? ', forecast' : ''}` : null,
     wx ? `${wx.phrase} ${aheadWhere(app.snapshot, wx, true)}, National Weather Service forecast` : null].filter(Boolean).join('. ');
   const current = now ? `<span class="wx-now">${weatherIcon(now.kind, now.isDay)}<span class="wx-temp num">${now.temperatureF}°</span></span>${!wx && label ? `<span class="wx-cond">${h(label)}</span>` : ''}` : '';
-  const ahead = wx ? `${now ? '<span class="wx-sep" aria-hidden="true"></span>' : ''}<span class="wx-ahead">${weatherIcon(wx.kind, wx.isDay)}<span class="wx-ahead-t">${h(wx.name)} ${h(aheadWhere(app.snapshot, wx))}</span></span>` : '';
+  const ahead = wx ? `${now ? '<span class="wx-sep" aria-hidden="true"></span>' : ''}<span class="wx-ahead">${weatherIcon(wx.kind, wx.isDay)}${aheadPillText(app.snapshot, wx)}</span>` : '';
   return `<button class="wx-pill${compact && !wx ? ' compact' : ''}${wx ? ' has-ahead' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
     ${current}${ahead}</button>`;
+}
+
+/// The warning's words in the pill, with shorter forms for a narrow bar or a wide system font (main.js fits them):
+/// "Fog in 18 mi", then "Fog ahead" ("Fog now" when already in it), then "Fog". The label and the sheet keep the
+/// whole warning.
+function aheadPillText(s, st) {
+  const full = `${st.name} ${aheadWhere(s, st)}`;
+  const now = st.start - (s?.progress ?? 0) < 0.5 * MILE;
+  return `<span class="wx-ahead-t" data-full="${h(full)}" data-short="${h(`${st.name} ${now ? 'now' : 'ahead'}`)}" data-name="${h(st.name)}">${h(full)}</span>`;
 }
 
 /// "in 18 mi", or "next 12 mi" for a stretch the driver is already in ("in 18 miles" when spoken).
