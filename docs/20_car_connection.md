@@ -9,13 +9,29 @@ the car reports and turns it into the range the fuel planner uses.
   serial service FFF0 with FFF1 (notify) and FFF2 (write), MTU up to 247, no queued writes, bonding open for 5 minutes
   after power on (OBDLink, "OBDLink CX adapter notes", support.obdlink.com). Other ELM327 Bluetooth LE adapters use FFF0,
   FFE0 (FFE1 both ways) or 18F0; all three are tried.
-* **Not BlueDriver.** Its sensor is set up only through its own app, no public interface was found, and Torque Pro's
-  wiki does not list it as approved hardware. Reading it would mean reverse engineering a private protocol, which
-  Jerry's rules rule out.
+* **BlueDriver (unofficial).** BlueDriver supports only its own app. Jerry authorized reverse engineering his own
+  devices (Nov 5, 2026), so the app talks to his sensor directly. See "BlueDriver" below.
 * **A browser with Web Bluetooth.** Chrome on Android and computers has it. Safari on iPhone does not; the free beacio
   Safari extension (formerly WebBLE, App Store id 6761301368) installs the standard `navigator.bluetooth` on HTTPS pages
   (beacio.com/docs.html). Setup: Settings, Apps, Safari, Extensions, beacio, turn it on and allow it on other websites.
   Not in Private Browsing or in apps' built in browsers. The device picker needs a tap.
+
+## BlueDriver
+
+Layers, so a firmware change can be found and fixed in one place:
+
+| Layer | What | Source |
+| --- | --- | --- |
+| Bluetooth transport | Silicon Labs BGX Xpress Streaming Service 331a36f5-2459-45ea-9d95-6142f0c4b307: Peripheral Rx a9da6040-0823-4995-94ec-9ce41ca28833 (requests, write without response; notifies flow control), Peripheral Tx a73e9a10-628f-4494-a099-12efaf72258f (answers, notify; takes flow control writes), Mode 75a9f022-af03-4e41-b4bc-9de90a47d50b | Silicon Labs, docs.silabs.com/gecko-os/1/bgx/1.0/ble-services |
+| Flow control | Fast Ack: the app writes its buffer size to Tx (00 FF 7F = 0x7FFF bytes, little endian), then 01 <n> 00 for every fragment it takes; without it the sensor stops after one fragment | Silicon Labs BGX docs; matches the reverse engineering notes |
+| Pairing | Xpress services are always encrypted; reading 12e868e7-c926-4906-96c8-a7ee81d4b1b3 (service 169b52a0-b7fd-40da-998c-dd9238327e55) makes the phone pair, Just Works | Silicon Labs security page; github.com/sjalkote/bluedriver-reverse-engineering |
+| Byte scramble | every byte XOR 0x26 both ways, except CR (0x0D) and ">" (0x3E) | sjalkote/bluedriver-reverse-engineering |
+| Dialect | setup LMI, LMD, LML0, LMI, LMD, LMDP, LMI, LMX1, LMX0 (LMX0 = fast mode, answers as soon as the car does); no AT commands (they leave it answering NO DATA); ATRV unsupported, so voltage is PID 01 42; answers are data bytes only with spaces ("9A \r>") | sjalkote/bluedriver-reverse-engineering (firmware OSAPI v2.60 there) |
+
+Code: `web/js/engine/obd.js` (BLUEDRIVER_SETUP, bluedriverCodec, bare answers) and `web/js/app/carlink.js`
+(BLUEDRIVER, openBlueDriver). Nothing was copied from the reverse engineering repository (it has no license); the
+implementation follows its notes and Silicon Labs' documentation. Not yet run against a real sensor: the first
+connection and its session log are the test.
 
 ## What it reads (SAE J1979 Mode 01)
 

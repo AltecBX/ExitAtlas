@@ -1,6 +1,6 @@
 // Reading the car's own data through an OBD2 adapter that speaks the ELM327 command set (OBDLink CX, vLinker and
-// most Bluetooth LE adapters; not BlueDriver, whose sensor only talks to its own app). Pure functions: the
-// commands to send, and what the adapter's text answers mean. The Bluetooth side lives in app/carlink.js.
+// most Bluetooth LE adapters), or a BlueDriver sensor (unofficial, below). Pure functions: the commands to send,
+// and what the adapter's text answers mean. The Bluetooth side lives in app/carlink.js.
 //
 // The adapter answers in text: hex bytes, a carriage return per line, and ">" when it is ready for the next
 // command. With echo, line feeds, spaces and headers off (the setup below), "012F" (mode 01, PID 2F: fuel tank
@@ -11,6 +11,21 @@
 /// Sent once after connecting: defaults, echo off, no line feeds, no spaces, no headers, automatic protocol.
 export const SETUP_COMMANDS = Object.freeze(['ATD', 'ATE0', 'ATL0', 'ATS0', 'ATH0', 'ATSP0']);
 
+/// BlueDriver (unofficial; Jerry's decision, Nov 5 2026: BlueDriver does not support other apps). Its sensor talks
+/// through a Silicon Labs BGX module (Xpress Streaming Service, documented by Silicon Labs) to firmware that
+/// answers ELM327 style requests, with two differences recorded by github.com/sjalkote/bluedriver-reverse-engineering
+/// (notes only; no code copied): every byte except carriage return and ">" is XORed with 0x26 both ways, and the
+/// setup is its own "LM" commands, in this order. AT commands put it in a state where every request answers NO
+/// DATA, so none are sent. Answers carry the data bytes only, with spaces ("9A \r>"), no mode and PID.
+export const BLUEDRIVER_SETUP = Object.freeze(['LMI', 'LMD', 'LML0', 'LMI', 'LMD', 'LMDP', 'LMI', 'LMX1', 'LMX0']);
+
+/// The BlueDriver's byte scramble: XOR 0x26, except carriage return (0x0D) and ">" (0x3E). The same both ways.
+export function bluedriverCodec(bytes) {
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] === 0x0d || bytes[i] === 0x3e ? bytes[i] : bytes[i] ^ 0x26;
+  return out;
+}
+
 /// The PIDs read, with how to decode their data bytes.
 export const PIDS = Object.freeze({
   supported01: { pid: 0x00, bytes: 4 },
@@ -19,6 +34,8 @@ export const PIDS = Object.freeze({
   coolant: { pid: 0x05, bytes: 1, decode: ([a]) => a - 40 },
   supported21: { pid: 0x20, bytes: 4 },
   fuelLevel: { pid: 0x2f, bytes: 1, decode: ([a]) => (a * 100) / 255 },
+  /// Control module voltage (the battery while running), for adapters without ATRV (BlueDriver).
+  voltage: { pid: 0x42, bytes: 2, decode: ([a, b]) => ((a << 8) | b) / 1000 },
 });
 
 /// "012F" for mode 01, PID 0x2F.
@@ -37,11 +54,21 @@ const PROBLEMS = [
 ];
 
 /// The data bytes of a Mode 01 answer to `pid`, or { problem } when the adapter or car gave none. Takes the
-/// adapter's whole answer up to ">". Several control units can answer; the first complete answer wins.
-export function parseAnswer(text, pid, mode = 1) {
+/// adapter's whole answer up to ">". Several control units can answer; the first complete answer wins. `bare`:
+/// the answer is the data bytes alone (BlueDriver); a line that does carry the mode and PID still reads right.
+export function parseAnswer(text, pid, mode = 1, { bare = false } = {}) {
   const lines = String(text ?? '').toUpperCase().replace(/>/g, '').split(/[\r\n]+/)
     .map((l) => l.replace(/\s+/g, '').replace(/^SEARCHING\.*/, '')).filter(Boolean);
   const head = `${(mode + 0x40).toString(16)}${pid.toString(16).padStart(2, '0')}`.toUpperCase();
+  if (bare) {
+    for (const line of lines) {
+      if (!/^[0-9A-F]+$/.test(line) || line.length % 2) continue;
+      const hex = line.startsWith(head) && line.length > head.length ? line.slice(head.length) : line;
+      const bytes = [];
+      for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
+      return { bytes };
+    }
+  }
   for (const line of lines) {
     const at = line.indexOf(head);
     if (at < 0 || !/^[0-9A-F]+$/.test(line.slice(at))) continue;
@@ -57,9 +84,9 @@ export function parseAnswer(text, pid, mode = 1) {
 }
 
 /// The value of a PID from the adapter's answer: { value } or { problem }.
-export function readPID(name, text) {
+export function readPID(name, text, { bare = false } = {}) {
   const p = PIDS[name];
-  const r = parseAnswer(text, p.pid);
+  const r = parseAnswer(text, p.pid, 1, { bare });
   if (r.problem) return r;
   if (r.bytes.length < p.bytes) return { problem: 'unreadable' };
   return { value: p.decode ? p.decode(r.bytes) : r.bytes.slice(0, p.bytes) };
@@ -113,6 +140,7 @@ export const PROBLEM_TEXT = Object.freeze({
   busError: 'The adapter could not talk to the car. Check it is pushed fully into the OBD2 port.',
   stopped: 'The adapter stopped the request. Trying again.',
   unknownCommand: 'The adapter did not understand a standard command. It may not be ELM327 compatible.',
+  bluedriverState: 'The BlueDriver stopped answering requests. Unplug it for a few seconds, plug it back in, then Connect car again.',
   unreadable: 'The adapter sent an answer ExitAtlas could not read.',
   noFuelPID: 'Your car does not report its fuel level over OBD2. Enter miles to empty from the dashboard instead.',
 });

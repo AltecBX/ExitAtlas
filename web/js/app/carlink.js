@@ -4,9 +4,12 @@
 // tank level the car reports (OBD2 PID 2F), the check engine light and the adapter's battery voltage. Nothing is
 // stored or sent anywhere; the fuel level becomes the range the fuel planner uses (main.js carChanged).
 //
-// Not BlueDriver: its sensor only works with its own app, and its protocol is not published.
-import { SETUP_COMMANDS, PIDS, command, parseAnswer, readPID, supports, monitorStatus, parseVoltage, parseIdentity,
-  steadyFuel, PROBLEM_TEXT } from '../engine/obd.js';
+// BlueDriver too, unofficially (Jerry's decision, Nov 5 2026; BlueDriver supports only its own app): its sensor is a
+// Silicon Labs BGX module, whose Xpress Streaming Service and flow control Silicon Labs documents
+// (docs.silabs.com/gecko-os/1/bgx/1.0/ble-services), carrying ELM327 style requests with BlueDriver's own setup and
+// byte scramble (engine/obd.js BLUEDRIVER_SETUP, bluedriverCodec).
+import { SETUP_COMMANDS, BLUEDRIVER_SETUP, PIDS, command, parseAnswer, readPID, supports, monitorStatus, parseVoltage,
+  parseIdentity, steadyFuel, bluedriverCodec, PROBLEM_TEXT } from '../engine/obd.js';
 
 /// Bluetooth LE serial services OBD2 adapters use, with their notify and write characteristics. FFF0 (FFF1
 /// notify, FFF2 write) is documented for the OBDLink CX (support.obdlink.com, "OBDLink CX adapter notes") and
@@ -19,8 +22,24 @@ export const UART_SERVICES = Object.freeze([
   { service: 0x18f0, notify: 0x2af0, write: 0x2af1 },
 ]);
 
+/// The BlueDriver's Bluetooth: Silicon Labs' Xpress Streaming Service. Peripheral Rx takes the requests (write
+/// without response) and notifies flow control; Peripheral Tx notifies the answers and takes flow control writes;
+/// Mode notifies status. Silicon Labs' Fast Ack flow control: the app writes its buffer size to Tx (00 FF 7F) and,
+/// for every answer fragment, the bytes it freed (01 <count> 00); without them the sensor stops after one fragment.
+/// The Xpress services are always encrypted: reading the pairing characteristic (another service, as the sensor
+/// shows it) makes the phone pair (Just Works, no code).
+export const BLUEDRIVER = Object.freeze({
+  service: '331a36f5-2459-45ea-9d95-6142f0c4b307',
+  rx: 'a9da6040-0823-4995-94ec-9ce41ca28833',
+  tx: 'a73e9a10-628f-4494-a099-12efaf72258f',
+  mode: '75a9f022-af03-4e41-b4bc-9de90a47d50b',
+  pairService: '169b52a0-b7fd-40da-998c-dd9238327e55',
+  pairCharacteristic: '12e868e7-c926-4906-96c8-a7ee81d4b1b3',
+  names: ['BlueDriv', 'LSB2-'],
+});
+
 /// Names OBD2 adapters advertise, for the device picker (adapters do not always advertise their service).
-const NAME_PREFIXES = ['OBD', 'OBDLink', 'vLinker', 'VLINK', 'V-LINK', 'IOS-Vlink', 'Android-Vlink', 'Vgate', 'Veepeak', 'VEEPEAK', 'ELM', 'iCar'];
+const NAME_PREFIXES = ['OBD', 'OBDLink', 'vLinker', 'VLINK', 'V-LINK', 'IOS-Vlink', 'Android-Vlink', 'Vgate', 'Veepeak', 'VEEPEAK', 'ELM', 'iCar', ...BLUEDRIVER.names];
 
 export const CAR_RULES = Object.freeze({
   /// Seconds between fuel level reads, monitor status and voltage reads.
@@ -54,7 +73,7 @@ export class CarLink {
     this.checkEngine = null; this.codes = null; this.voltage = null;
     this.disconnectedAt = null;
     this.tries = 0;
-    this.write = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
+    this.write = null; this.control = null; this.kind = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
     this.stopTimers();
   }
 
@@ -70,9 +89,9 @@ export class CarLink {
   /// lists every Bluetooth device, for an adapter that advertises neither a known name nor its service.
   async connect({ any = false } = {}) {
     if (!this.available) return;
-    const optionalServices = UART_SERVICES.map((u) => u.service);
+    const optionalServices = [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service), BLUEDRIVER.pairService, 0x180a];
     const options = any ? { acceptAllDevices: true, optionalServices }
-      : { filters: [...optionalServices.map((s) => ({ services: [s] })), ...NAME_PREFIXES.map((namePrefix) => ({ namePrefix }))], optionalServices };
+      : { filters: [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service)].map((s) => ({ services: [s] })).concat(NAME_PREFIXES.map((namePrefix) => ({ namePrefix }))), optionalServices };
     let device;
     try {
       device = await this.bluetooth.requestDevice(options);
@@ -93,13 +112,20 @@ export class CarLink {
     this.state = 'connecting'; this.problem = null; this.changed();
     try {
       const server = await this.device.gatt.connect();
-      const { notify, write } = await this.findSerial(server);
+      const { notify, write, kind, control, mode } = await this.findSerial(server);
+      this.kind = kind;
+      if (kind === 'bluedriver' && !/bluedriv/i.test(this.name ?? '')) this.name = `BlueDriver ${this.name ?? ''}`.trim();
       this.write = write;
+      this.control = control ?? null;
       this.buffer = ''; this.queue = Promise.resolve(); this.waiting = null;
       notify.addEventListener('characteristicvaluechanged', (e) => this.received(e.target.value));
-      await notify.startNotifications();
-      for (const c of SETUP_COMMANDS) await this.send(c);
-      this.identity = parseIdentity(await this.send('ATI'));
+      if (kind === 'bluedriver') {
+        await this.openBlueDriver(server, { notify, write, mode });
+      } else {
+        await notify.startNotifications();
+        for (const c of SETUP_COMMANDS) await this.send(c);
+        this.identity = parseIdentity(await this.send('ATI'));
+      }
       this.state = 'connected'; this.tries = 0; this.disconnectedAt = null;
       this.changed();
       await this.findPIDs();
@@ -113,8 +139,42 @@ export class CarLink {
     }
   }
 
-  /// The adapter's serial service and its notify and write characteristics.
+  /// BlueDriver: notifications on Rx (flow control), Tx (answers) and Mode, the pairing read, the buffer size, then
+  /// its own setup (no AT commands). Notifications first, as its own app does; if the phone refuses them before
+  /// pairing, pair and try again.
+  async openBlueDriver(server, { notify, write, mode }) {
+    const subscribe = async () => {
+      await write.startNotifications();
+      await notify.startNotifications();
+      if (mode) await mode.startNotifications().catch(() => {});
+    };
+    const pair = async () => {
+      try {
+        const svc = await server.getPrimaryService(BLUEDRIVER.pairService);
+        await (await svc.getCharacteristic(BLUEDRIVER.pairCharacteristic)).readValue();
+      } catch { /* not offered on this sensor: the encrypted streaming service pairs by itself */ }
+    };
+    try { await subscribe(); await pair(); } catch { await pair(); await subscribe(); }
+    // Fast Ack: our buffer, 0x7FFF bytes (little endian).
+    await this.control.writeValueWithoutResponse(new Uint8Array([0x00, 0xff, 0x7f]));
+    let id = null;
+    for (const c of BLUEDRIVER_SETUP) {
+      const answer = await this.send(c);
+      if (c === 'LMI' && !id) id = parseIdentity(answer);
+    }
+    this.identity = id;
+  }
+
+  /// The adapter's serial service and its notify and write characteristics: the BlueDriver's Xpress Streaming
+  /// Service first, then the ELM327 serial services.
   async findSerial(server) {
+    try {
+      const svc = await server.getPrimaryService(BLUEDRIVER.service);
+      const rx = await svc.getCharacteristic(BLUEDRIVER.rx);
+      const tx = await svc.getCharacteristic(BLUEDRIVER.tx);
+      const mode = await svc.getCharacteristic(BLUEDRIVER.mode).catch(() => null);
+      return { kind: 'bluedriver', write: rx, notify: tx, control: tx, mode };
+    } catch { /* not a BlueDriver */ }
     for (const u of UART_SERVICES) {
       let service;
       try { service = await server.getPrimaryService(u.service); } catch { continue; }
@@ -123,18 +183,25 @@ export class CarLink {
       if (list?.length) {
         const notify = list.find((c) => c.properties?.notify || c.properties?.indicate);
         const write = list.find((c) => c.properties?.writeWithoutResponse || c.properties?.write);
-        if (notify && write) return { notify, write };
+        if (notify && write) return { kind: 'elm', notify, write };
       }
       try {
-        return { notify: await service.getCharacteristic(u.notify), write: await service.getCharacteristic(u.write) };
+        return { kind: 'elm', notify: await service.getCharacteristic(u.notify), write: await service.getCharacteristic(u.write) };
       } catch { /* try the next service */ }
     }
     throw new Error('no OBD2 serial service found. The adapter may not be ELM327 compatible');
   }
 
-  /// Text from the adapter: an answer is complete at ">".
+  /// Text from the adapter: an answer is complete at ">". A BlueDriver's bytes are unscrambled, and each fragment
+  /// is acknowledged (Fast Ack: bytes freed, little endian) so the next one comes.
   received(view) {
-    this.buffer += new TextDecoder().decode(view);
+    let bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    if (this.kind === 'bluedriver') {
+      bytes = bluedriverCodec(bytes);
+      const n = view.byteLength;
+      this.control?.writeValueWithoutResponse(new Uint8Array([0x01, n & 0xff, n >> 8])).catch(() => {});
+    }
+    this.buffer += new TextDecoder().decode(bytes);
     const end = this.buffer.indexOf('>');
     if (end < 0 || !this.waiting) return;
     const text = this.buffer.slice(0, end);
@@ -152,7 +219,8 @@ export class CarLink {
       const answer = new Promise((resolve, reject) => {
         this.waiting = { resolve, timer: setTimeout(() => { this.waiting = null; reject(new Error(`no answer to ${cmd}`)); }, timeout) };
       });
-      const bytes = new TextEncoder().encode(`${cmd}\r`);
+      const plain = new TextEncoder().encode(`${cmd}\r`);
+      const bytes = this.kind === 'bluedriver' ? bluedriverCodec(plain) : plain;
       const useNoResponse = typeof this.write.writeValueWithoutResponse === 'function' && this.write.properties?.writeWithoutResponse !== false;
       for (let i = 0; i < bytes.length; i += CAR_RULES.chunk) {
         const part = bytes.slice(i, i + CAR_RULES.chunk);
@@ -169,7 +237,8 @@ export class CarLink {
 
   /// Which PIDs the car reports. The first request makes the adapter search for the car's protocol.
   async findPIDs() {
-    const first = parseAnswer(await this.send(command(PIDS.supported01.pid), CAR_RULES.searchTimeout), PIDS.supported01.pid);
+    const bare = { bare: this.kind === 'bluedriver' };
+    const first = parseAnswer(await this.send(command(PIDS.supported01.pid), CAR_RULES.searchTimeout), PIDS.supported01.pid, 1, bare);
     if (first.problem) {
       // Ignition off or no answer: say so, and try again on the next round.
       this.supportsFuel = null;
@@ -179,7 +248,7 @@ export class CarLink {
     }
     let fuel = false;
     if (supports(first.bytes, 0x00, 0x20)) {
-      const second = parseAnswer(await this.send(command(PIDS.supported21.pid)), PIDS.supported21.pid);
+      const second = parseAnswer(await this.send(command(PIDS.supported21.pid)), PIDS.supported21.pid, 1, bare);
       fuel = !second.problem && supports(second.bytes, 0x20, PIDS.fuelLevel.pid);
     }
     this.supportsFuel = fuel;
@@ -190,7 +259,7 @@ export class CarLink {
   }
 
   async readFuel() {
-    const r = readPID('fuelLevel', await this.send(command(PIDS.fuelLevel.pid)));
+    const r = readPID('fuelLevel', await this.send(command(PIDS.fuelLevel.pid)), { bare: this.kind === 'bluedriver' });
     if (r.problem) { if (r.problem === 'noEngine') this.problem = PROBLEM_TEXT.noEngine; this.changed(); return; }
     const now = this.clock();
     this.readings.push({ t: now, percent: r.value });
@@ -202,9 +271,16 @@ export class CarLink {
   }
 
   async readStatus() {
-    const m = parseAnswer(await this.send(command(PIDS.monitor.pid)), PIDS.monitor.pid);
+    const bare = { bare: this.kind === 'bluedriver' };
+    const m = parseAnswer(await this.send(command(PIDS.monitor.pid)), PIDS.monitor.pid, 1, bare);
     if (!m.problem && m.bytes.length >= 1) Object.assign(this, monitorStatus(m.bytes));
-    this.voltage = parseVoltage(await this.send('ATRV'));
+    // The BlueDriver answers ATRV with NO DATA (and AT commands upset it): the control module voltage instead.
+    if (this.kind === 'bluedriver') {
+      const v = readPID('voltage', await this.send(command(PIDS.voltage.pid)), bare);
+      this.voltage = v.problem ? null : v.value;
+    } else {
+      this.voltage = parseVoltage(await this.send('ATRV'));
+    }
     this.changed();
   }
 
