@@ -202,6 +202,12 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .car-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0 12px; border-bottom: 1px solid var(--stroke); margin-bottom: 10px; }
 .car-row .linkish { display: block; margin-top: 6px; padding: 0; text-align: left; font-size: var(--type-caption); }
 .car-steps { margin: 6px 0 4px; padding-left: 18px; color: var(--text-2); }
+.car-side { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.car-tabs { margin: 2px 0; }
+.car-item { gap: 10px; align-items: center; }
+.car-item .spark { flex: none; }
+.car-val { min-width: 84px; text-align: right; white-space: nowrap; }
+.car-log { margin: 0; padding: 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--stroke); font: 11px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; max-height: 50vh; overflow: auto; }
 .car-steps li { margin: 3px 0; }
 .car-field { display: block; }
 .car-field .car-row { border-bottom: 0; margin: 0; padding: 4px 0; }

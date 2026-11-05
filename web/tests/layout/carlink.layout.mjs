@@ -43,8 +43,23 @@ function simulatedAdapter(opts) {
     if (cmd === '0100') return 'SEARCHING...\r4100BE3EB811';
     if (cmd === '0120') return opts.fuelPID ? '4120A007B011' : '4120A005B011';
     if (cmd === '012F') return '412F9A';
-    if (cmd === '0101') return opts.checkEngine ? '410182076500' : '410100076500';
-    return '?';
+    // Diagnostics: the evaporative system test not complete yet (D bit 2).
+    if (cmd === '0101') return opts.diag ? '410182076504' : opts.checkEngine ? '410182076500' : '410100076500';
+    if (cmd === 'ATDP') return 'AUTO, ISO 15765-4 (CAN 11/500)';
+    // Live data (SIMULATED values, SAE J1979 formulas): rpm 992, 65 km/h (40 mph), coolant 50 °C (122 °F), load 50.2%,
+    // MAP 101 kPa, intake 6 °C (43 °F), throttle 16.1%, baro 101 kPa, 12.588 V, outside 27 °C (81 °F), oil 40 °C (104 °F).
+    const live = { '0104': '410480', '0105': '41055A', '010B': '410B65', '010C': '410C0F80', '010D': '410D41', '010F': '410F2E',
+      '0111': '411129', '0133': '413365', '0142': '4142312C', '0146': '414643', '015C': '415C50' };
+    if (opts.diag && live[cmd]) return live[cmd];
+    if (opts.diag && cmd === '0140') return '414044000010';
+    if (opts.diag && cmd === '0103') return 'NO DATA';
+    if (opts.diag && cmd === '03') return '430201330420';
+    if (opts.diag && cmd === '07') return '4700';
+    if (opts.diag && cmd === '0A') return '4A00';
+    if (opts.diag && cmd === '0900') return '490054400000';
+    if (opts.diag && cmd === '0902') return '014\r0:490201575030\r1:4142324139344D\r2:53313233343536';
+    if (opts.diag && cmd === '090A') return '017\r0:490A0145434D\r1:002D456E67696E\r2:65436F6E74726F\r3:6C000000000000';
+    return opts.diag ? 'NO DATA' : '?';
   };
   class Characteristic extends EventTarget {
     constructor(uuid, properties) { super(); this.uuid = uuid; this.properties = properties; this.value = null; }
@@ -297,6 +312,59 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   if (!/does not report its fuel level/.test(problem ?? '')) fail(`problem: ${problem}`);
   const f = await page.evaluate(() => window.exitAtlas.fuel);
   if (f?.source !== 'dashboard' || Math.round(f.rangeMeters / 1609.344) !== 180) fail(`the entered range changed: ${JSON.stringify(f)}`);
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 5. Car diagnostics (SIMULATED adapter): every item the car lists, with the SAE formulas; one listed item that does
+// not answer is flagged; trouble codes; readiness; VIN and control unit name; the session log copies.
+{
+  const fail = (m) => failures.push(`diagnostics: ${m}`);
+  const { ctx, page, errors } = await open({ bluetooth: { fuelPID: true, checkEngine: true, diag: true } });
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
+  await page.waitForSelector('#sheet [data-act="car-details"]', { timeout: 20000 });
+  await page.click('#sheet [data-act="car-details"]');
+  await page.waitForSelector('#sheet [data-testid="car-live"]');
+  await page.click('#sheet [data-testid="car-live"]');
+  await page.waitForFunction(() => /992/.test(document.querySelector('#sheet [data-key="010C"]')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+  const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#sheet .car-item')].map((r) => [r.dataset.key, r.textContent.replace(/\s+/g, ' ').trim()])));
+  const want = { '010C': /992 rpm/, '010D': /40 mph/, '0105': /122 °F/, '0104': /50\.2 %/, '015C': /104 °F/, '0142': /12\.59 V/, '0146': /81 °F/ };
+  for (const [k, re] of Object.entries(want)) if (!re.test(rows[k] ?? '')) fail(`${k}: ${rows[k]}`);
+  if (!/no answer/.test(rows['0103'] ?? '')) fail(`a listed item that does not answer is not flagged: ${rows['0103']}`);
+  if (!/min .* max .* avg/.test(rows['010C'] ?? '')) fail(`no min, max, average: ${rows['010C']}`);
+  const notListed = await text(page, '#sheet details.facilities summary');
+  if (!/Not reported by this car \(\d+\)/.test(notListed ?? '')) fail(`not reported list: ${notListed}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-live.png') });
+  await page.click('#sheet [data-testid="car-live"]');
+  // Codes and readiness.
+  await page.click('#sheet [data-act="car-tab"][data-arg="codes"]');
+  await page.click('#sheet [data-testid="car-read-codes"]');
+  await page.waitForSelector('#sheet [data-testid="dtc"]', { timeout: 15000 }).catch(() => {});
+  const codes = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-testid="dtc"]')].map((d) => d.textContent.trim()));
+  if (codes.join() !== 'P0133,P0420') fail(`codes: ${codes.join()}`);
+  const codesText = await text(page, '#sheet .stack');
+  if (!/Readiness monitors/.test(codesText ?? '') || !/Evaporative system Not ready/.test(codesText ?? '')) fail(`readiness: ${codesText?.slice(0, 400)}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-codes.png') });
+  // Vehicle information.
+  await page.click('#sheet [data-act="car-tab"][data-arg="info"]');
+  await page.click('#sheet [data-testid="car-read-info"]');
+  await page.waitForFunction(() => /WP0AB2A94MS123456/.test(document.querySelector('#sheet .stack')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
+  const info = await text(page, '#sheet .stack');
+  if (!/WP0AB2A94MS123456/.test(info ?? '') || !/ECM-EngineControl/.test(info ?? '') || !/ISO 15765-4/.test(info ?? '')) fail(`vehicle information: ${info?.slice(0, 500)}`);
+  // The log: copied with its header and the raw requests and answers.
+  await page.click('#sheet [data-act="car-tab"][data-arg="log"]');
+  await page.click('#sheet [data-testid="car-log-copy"]');
+  await page.waitForTimeout(300);
+  const copied = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => `clipboard: ${e.message}`);
+  if (!/ExitAtlas car session log/.test(copied) || !/> 012F \| 30 31 32 46 0d/.test(copied) || !/< 412F9A/.test(copied) || !/Mode 01 PIDs listed: .*2f/.test(copied)) fail(`log: ${copied.slice(0, 600)}`);
+  // Closing the screen stops live data.
+  await page.click('#sheet [data-act="car-tab"][data-arg="live"]');
+  await page.click('#sheet [data-testid="car-live"]');
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());
+  await page.waitForTimeout(300);
+  if (await page.evaluate(() => window.exitAtlas.car.live.on)) fail('live data kept running after the screen closed');
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }

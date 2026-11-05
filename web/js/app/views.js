@@ -25,6 +25,8 @@ import { weatherLabel, windText } from '../engine/weather.js';
 import { coveredByAlert } from '../engine/weatherahead.js';
 import { weatherIcon, skyColors } from './weathericons.js';
 import { wazeLink } from '../engine/handoff.js';
+import { PIDS01, GROUPS, NOT_LIVE, channelsFor, toUS, digitsFor } from '../engine/obdpids.js';
+import { DTC_SYSTEMS } from '../engine/obddiag.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
 export const FILTER_CATEGORIES = [1, 2, 3, 4, 5, 7];
@@ -1174,6 +1176,121 @@ function rangeAgeLine(app) {
   return '';
 }
 
+// MARK: Car diagnostics (app/carlink.js; engine/obdpids.js, engine/obddiag.js)
+
+/// A value in US units with its unit, or a text value as it is.
+function carValue(value, unit) {
+  if (value === null || value === undefined) return '<span class="muted">n/a</span>';
+  if (typeof value !== 'number') return h(String(value));
+  const [v, u] = toUS(value, unit);
+  return `<b class="num">${v.toFixed(digitsFor(u))}</b>${u && u !== 'hex' ? ` <span class="muted small">${h(u)}</span>` : ''}`;
+}
+
+/// A trend line for a channel's recent numbers (inline SVG, no library).
+function sparkline(history, width = 96, height = 26) {
+  if (!history || history.length < 2) return `<svg class="spark" width="${width}" height="${height}" aria-hidden="true"></svg>`;
+  const pts = history.slice(-80);
+  const vs = pts.map((p) => p[1]);
+  const lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const t0 = pts[0][0], tspan = pts[pts.length - 1][0] - t0 || 1;
+  const d = pts.map(([t, v], i) => `${i ? 'L' : 'M'}${((t - t0) / tspan * (width - 2) + 1).toFixed(1)},${(height - 2 - (v - lo) / span * (height - 4)).toFixed(1)}`).join('');
+  return `<svg class="spark" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+}
+
+/// The car diagnostics sheet: Live data, Codes, Info, Log.
+export function carSheet(app) {
+  const c = app.car;
+  const ui = app.carUI;
+  const head = `<div class="sheet-head"><h2>Car diagnostics</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>`;
+  if (!c || c.state !== 'connected') {
+    return `${head}<div class="stack"><div class="card">${carRow(app)}</div>
+      ${c?.log?.length ? logSection(c) : ''}</div>`;
+  }
+  const tabs = [['live', 'Live data'], ['codes', 'Codes'], ['info', 'Vehicle'], ['log', 'Log']];
+  const seg = `<div class="seg car-tabs">${tabs.map(([k, n]) => `<button class="${ui.tab === k ? 'on' : ''}" data-act="car-tab" data-arg="${k}">${n}</button>`).join('')}</div>`;
+  let body = '';
+  if (ui.tab === 'codes') body = codesSection(c);
+  else if (ui.tab === 'info') body = infoSection(c);
+  else if (ui.tab === 'log') body = logSection(c);
+  else body = liveSection(c);
+  return `${head}<div class="stack">
+    <div class="muted small">${h(c.name)}${c.kind === 'bluedriver' ? ' · BlueDriver, unofficial' : ''}${c.identity ? ` · ${h(c.identity)}` : ''}${c.protocol ? ` · ${h(c.protocol)}` : ''}</div>
+    ${seg}${body}
+    <p class="note">Not yet checked against your car: readings are decoded with the SAE J1979 formulas; a value that looks wrong, or a sensor that never answers, goes in the Log for a fix. Codes are read, never cleared.</p></div>`;
+}
+
+function liveSection(c) {
+  const live = c.live;
+  const pids = c.livePIDs();
+  // Why a listed item has no reading, in a few words (the full sentences are in engine/obd.js PROBLEM_TEXT).
+  const LIVE_PROBLEM = { noData: 'no answer', noEngine: 'no answer: ignition off?', busError: 'bus error',
+    unreadable: 'answer not readable', unknownCommand: 'request not understood', stopped: 'request stopped', error: 'request failed' };
+  const rate = live.on && live.cycleMs ? `${pids.length} items, all refreshed every ${(live.cycleMs / 1000).toFixed(1)} s` : '';
+  const ctl = `<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm${live.on ? '' : ' primary'}" data-act="car-live" data-testid="car-live">${live.on ? 'Stop live data' : 'Start live data'}</button>
+    ${live.values.size ? '<button class="btn sm" data-act="car-reset-stats">Reset min, max, average</button>' : ''}<span class="muted tiny" style="flex:1;text-align:right">${rate}</span></div>`;
+  if (!c.supported) return `<div class="card">${ctl}<p class="muted small">Finding the items the car reports…</p></div>`;
+  const byGroup = new Map(GROUPS.map((g) => [g, []]));
+  for (const pid of pids) {
+    const status = live.status.get(pid);
+    for (const ch of channelsFor(pid)) {
+      const v = live.values.get(ch.key);
+      byGroup.get(ch.group)?.push({ ch, v, status });
+    }
+  }
+  const rows = [...byGroup].filter(([, list]) => list.length).map(([g, list]) => `<div class="section-title">${h(g)} <span class="muted">${list.length}</span></div>
+    <div class="list car-live">${list.map(({ ch, v, status }) => {
+      const stats = v && v.n ? `min ${carStat(v.min, ch.unit)} · max ${carStat(v.max, ch.unit)} · avg ${carStat(v.sum / v.n, ch.unit)}` : '';
+      const note = status && status !== 'ok' ? `<div class="amber-text tiny">Listed by the car, ${h(LIVE_PROBLEM[status] ?? 'no answer')}</div>` : '';
+      return `<div class="item car-item" data-key="${h(ch.key)}"><div class="main"><div class="t small">${h(ch.name)}</div>${stats ? `<div class="muted tiny">${stats}</div>` : ''}${note}</div>
+        ${ch.raw ? '' : sparkline(v?.history)}<div class="side car-val">${v ? carValue(v.value, ch.unit) : `<span class="muted tiny">${status && status !== 'ok' ? 'none' : 'waiting'}</span>`}</div></div>`;
+    }).join('')}</div>`).join('');
+  const notListed = [...PIDS01.keys()].filter((p) => !NOT_LIVE.has(p) && !c.supported.has(p));
+  const missing = `<details class="facilities"><summary>Not reported by this car (${notListed.length})</summary><div class="muted tiny" style="padding:6px 4px">${notListed.map((p) => h(PIDS01.get(p).name)).join(' · ')}</div></details>`;
+  return `<div class="card">${ctl}</div>${pids.length ? rows : '<div class="card empty">The car lists no live data items.</div>'}${missing}`;
+}
+
+function carStat(value, unit) {
+  const [v, u] = toUS(value, unit);
+  return typeof v === 'number' ? `${v.toFixed(digitsFor(u))}` : '';
+}
+
+function codesSection(c) {
+  const d = c.dtc;
+  const btn = `<button class="btn sm primary" data-act="car-codes" data-testid="car-read-codes"${d?.busy ? ' disabled' : ''}>${d?.busy ? 'Reading…' : d ? 'Read again' : 'Read trouble codes'}</button>`;
+  const group = (title, r) => {
+    if (!r) return '';
+    if (r.problem) return `<div class="section-title">${title}</div><div class="card small amber-text">${h(r.problem === 'noEngine' ? 'The car is not answering. Turn the ignition on.' : 'The answer could not be read (it is in the Log).')}</div>`;
+    return `<div class="section-title">${title} <span class="muted">${r.codes.length}</span></div>${r.codes.length
+      ? `<div class="list">${r.codes.map((code) => `<div class="item"><div class="main"><div class="t num" data-testid="dtc">${h(code)}</div><div class="muted tiny">${h(DTC_SYSTEMS[code[0]] ?? '')}</div></div>
+          <a class="btn sm" href="https://www.google.com/search?q=${encodeURIComponent(`${code} Porsche`)}" target="_blank" rel="noopener">Look up</a></div>`).join('')}</div>`
+      : '<div class="card small muted">None</div>'}`;
+  };
+  const m = c.monitors;
+  const monitors = m ? `<div class="section-title">Readiness monitors</div><div class="list">${m.monitors.filter((x) => x.supported).map((x) => `<div class="item"><div class="main"><div class="t small">${h(x.name)}</div></div>
+      <div class="side small ${x.ready ? '' : 'amber-text'}" style="font-weight:700">${x.ready ? 'Ready' : 'Not ready'}</div></div>`).join('')}</div>
+      <p class="muted tiny" style="margin:4px">${m.checkEngine ? `Check engine light on, ${m.codes} confirmed code${m.codes === 1 ? '' : 's'}.` : 'Check engine light off.'}${m.monitors.some((x) => !x.supported) ? ` Not on this car: ${h(m.monitors.filter((x) => !x.supported).map((x) => x.name).join(', '))}.` : ''}</p>` : '';
+  return `<div class="card"><div class="row" style="gap:8px"><div style="flex:1" class="small">Stored, pending and permanent trouble codes.${d?.at ? ` <span class="muted">Read ${clock(d.at)}.</span>` : ''}</div>${btn}</div></div>
+    ${d && !d.busy ? group('Stored', d.stored) + group('Pending', d.pending) + group('Permanent', d.permanent) : ''}${monitors}`;
+}
+
+function infoSection(c) {
+  const i = c.info;
+  const btn = `<button class="btn sm primary" data-act="car-info" data-testid="car-read-info"${i?.busy ? ' disabled' : ''}>${i?.busy ? 'Reading…' : i ? 'Read again' : 'Read vehicle information'}</button>`;
+  const row = (k, v) => `<div class="field"><span style="flex:1" class="muted small">${h(k)}</span><span class="small num" style="text-align:right">${v ? h(v) : '<span class="muted">n/a</span>'}</span></div>`;
+  const dev = c.deviceInfo ?? {};
+  const listed = c.supported ? `${c.livePIDs().length} live items (${[...c.supported].length} listed)` : null;
+  return `<div class="card"><div class="row" style="gap:8px"><div style="flex:1" class="small">VIN, calibration and control unit names (Mode 09).</div>${btn}</div></div>
+    <div class="list">${row('VIN', i?.vin)}${row('Calibration IDs', i?.calibration)}${row('Calibration verification', i?.cvn)}${row('Control units', i?.ecu)}
+      ${row('Protocol', c.protocol)}${row('Adapter', c.identity)}${row('Adapter model', dev.model)}${row('Adapter firmware', dev.firmware ?? dev.software)}${row('Live data items', listed)}</div>`;
+}
+
+function logSection(c) {
+  const lines = c.log.slice(-60).map((l) => `${String(l.t).padStart(7)} ${l.dir} ${l.text}${l.hex ? `  | ${l.hex}` : ''}`).join('\n');
+  return `<div class="card"><div class="row" style="gap:8px;flex-wrap:wrap"><div style="flex:1" class="small">${c.log.length} lines: every request and answer, raw and readable. Stays on this phone until you copy or share it.</div>
+      <button class="btn sm" data-act="car-log-copy" data-testid="car-log-copy">Copy</button>${typeof navigator !== 'undefined' && navigator.share ? '<button class="btn sm" data-act="car-log-share">Share</button>' : ''}<button class="btn sm" data-act="car-log-clear">Clear</button></div></div>
+    <pre class="car-log" data-testid="car-log">${h(lines)}</pre>`;
+}
+
 /// "just now", "12 s ago", "3 min ago".
 function agoText(seconds) {
   if (seconds < 5) return 'just now';
@@ -1209,7 +1326,7 @@ export function carRow(app, { settings = false } = {}) {
     const fuel = c.fuel != null ? (settings ? `Fuel <b class="num">${Math.round(c.fuel)}%</b>` : `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`)
       : c.supportsFuel === false ? 'This car does not report its fuel level' : 'Reading the fuel level…';
     main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}${c.kind === 'bluedriver' ? ' · BlueDriver, unofficial' : ''}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
-    side = btn('car-disconnect', 'Disconnect');
+    side = `<div class="car-side">${btn('car-details', 'Diagnostics')}${btn('car-disconnect', 'Disconnect')}</div>`;
   } else if (c.state === 'disconnected') {
     main = `<div style="font-weight:700">Car disconnected <span class="muted small" style="font-weight:500">${clock(c.disconnectedAt)}</span></div><div class="muted tiny">Reconnecting when the adapter answers. The range keeps counting down from the last reading.</div>`;
     side = btn('car-connect', 'Connect');

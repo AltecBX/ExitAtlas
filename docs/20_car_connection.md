@@ -55,6 +55,36 @@ automatic protocol). The first data request searches for the car's protocol (up 
 * A car that does not list PID 2F is told so, and the entered range stays.
 * Nothing is stored except the range itself (as with an entered range); nothing is sent anywhere.
 
+## Diagnostics screen (stage 2)
+
+Settings, Car, Diagnostics (shown while connected). Four tabs:
+
+| Tab | What it does | Requests |
+| --- | --- | --- |
+| Live data | Every Mode 01 item the car lists, round robin, one request at a time, as fast as the adapter answers; value, min, max, average and a trend line for each | the 01 00 to 01 E0 masks, then each listed PID |
+| Codes | Stored, pending and permanent trouble codes, readiness monitors (spark or compression ignition names) | 03, 07, 0A, 01 01 |
+| Vehicle | VIN, calibration IDs and verification numbers, control unit names, protocol, adapter identity | 09 00, 09 02, 09 04, 09 06, 09 0A |
+| Log | Every request and answer with time and raw bytes (up to 4,000 lines), copy or share | none |
+
+* The PID table (`web/js/engine/obdpids.js`) has 105 Mode 01 PIDs with names, units and the SAE J1979 formulas, checked
+  against Wikipedia's OBD-II PIDs table. A listed PID that is not in the table still shows, as raw hex, so nothing the
+  car lists is hidden. Units are converted for the driver (°F, mph, psi, miles, gal/h).
+* A listed PID that does not answer is marked "Listed by the car, no answer", never given a value. PIDs the car does
+  not list are named under "Not reported by this car".
+* Codes are read, never cleared (Mode 04 is not sent). Live data stops when the screen closes; the fuel reading
+  pauses while live data runs, since live data reads fuel too.
+* Decoding of codes, readiness and Mode 09 text: `web/js/engine/obddiag.js`, tests in `web/tests/obddiag.test.js`
+  (CAN with a count byte and ISO-TP line numbers, older buses with the mode on every line, padding past the declared
+  length).
+* Nothing here is checked against a real car yet. The first real session log (Log, Copy) becomes the test fixture.
+
+## Next stages
+
+* Stage 3: recording and playback, CSV export, custom dashboards, threshold alerts, larger charts, several PIDs per
+  request (ELM327 and CAN allow up to 6) and slower polling for slow changing items.
+* Stage 4: Porsche specific data (Mode 22 and the control units beyond the engine). There is no public list; it needs a
+  Bluetooth capture of the BlueDriver app talking to this car (iOS Bluetooth logging profile), then decoding.
+
 ## Not standard, so not read
 
 * The dashboard's miles to empty: there is no standard OBD2 request for it; it is manufacturer specific.
@@ -65,6 +95,7 @@ automatic protocol). The first data request searches for the car's protocol (up 
 * `web/tests/obd.test.js`: decoding, written in the ELM327's documented answer format (not recorded from a car).
 * `web/tests/layout/carlink.layout.mjs`: the whole flow in Chromium with a SIMULATED adapter standing in for
   `navigator.bluetooth` (20 byte notifications, the setup, PID discovery, fuel level, a drop and reconnect, a car
-  without PID 2F, the check engine light).
+  without PID 2F, the check engine light, the diagnostics screen: live values, a listed item that does not answer,
+  codes, readiness, VIN, control unit name, the copied log, live data stopping when the screen closes).
 * **Not tested:** a real adapter, a real car, Safari with beacio, Chrome on Android. Until it reads a real car, this
   is built, not verified.
