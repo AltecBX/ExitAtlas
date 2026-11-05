@@ -51,6 +51,18 @@ function simulatedAdapter(opts) {
     const live = { '0104': '410480', '0105': '41055A', '010B': '410B65', '010C': '410C0F80', '010D': '410D41', '010F': '410F2E',
       '0111': '411129', '0133': '413365', '0142': '4142312C', '0146': '414643', '015C': '415C50' };
     if (opts.diag && live[cmd]) return live[cmd];
+    // Several PIDs in one request (CAN, ELM327 format): the mode once, each PID with its data; over 7 bytes the
+    // answer comes as numbered frames after a byte count. A PID without an answer is left out.
+    if (opts.diag && /^01([0-9A-F]{2}){2,6}$/.test(cmd)) {
+      const parts = cmd.slice(2).match(/../g).map((p) => live[`01${p}`]?.slice(2)).filter(Boolean);
+      if (!parts.length) return 'NO DATA';
+      const hex = `41${parts.join('')}`;
+      const n = hex.length / 2;
+      if (n <= 7) return hex;
+      const frames = [hex.slice(0, 12)];
+      for (let i = 12; i < hex.length; i += 14) frames.push(hex.slice(i, i + 14).padEnd(14, '0'));
+      return [n.toString(16).toUpperCase().padStart(3, '0'), ...frames.map((f, i) => `${(i % 16).toString(16).toUpperCase()}:${f}`)].join('\r');
+    }
     if (opts.diag && cmd === '0140') return '414044000010';
     if (opts.diag && cmd === '0103') return 'NO DATA';
     if (opts.diag && cmd === '03') return '430201330420';
@@ -365,6 +377,105 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());
   await page.waitForTimeout(300);
   if (await page.evaluate(() => window.exitAtlas.car.live.on)) fail('live data kept running after the screen closed');
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 6. Live data stage 3 (SIMULATED adapter): several items per request, pinned dashboard, one item's chart, an
+// alert limit, a recording with its CSV and playback; live data keeps running with the screen closed while it
+// watches a limit.
+{
+  const fail = (m) => failures.push(`stage 3: ${m}`);
+  const { ctx, page, errors } = await open({ bluetooth: { fuelPID: true, checkEngine: true, diag: true } });
+  await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
+  await page.waitForSelector('#sheet [data-act="car-details"]', { timeout: 20000 });
+  await page.click('#sheet [data-act="car-details"]');
+  await page.click('#sheet [data-testid="car-live"]');
+  await page.waitForFunction(() => /up to 6 items per request/.test(document.querySelector('#sheet [data-testid="car-rate"]')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+  const rate = await text(page, '#sheet [data-testid="car-rate"]');
+  if (!/readings a second .* up to 6 items per request/.test(rate ?? '')) fail(`rate line: ${rate}`);
+  const log1 = await page.evaluate(() => window.exitAtlas.car.exportLog());
+  if (!/several items per request: yes/.test(log1)) fail('the multi request probe is not in the log');
+  if (!/> 01(0[0-9A-F]|[1-9A-F][0-9A-F]){3,}/.test(log1)) fail('no request for several items in the log');
+  // Values read through several-item requests (numbered frames included) match the single-item ones.
+  const rpm = await text(page, '#sheet .car-item[data-key="010C"] .car-val');
+  const oil = await text(page, '#sheet .car-item[data-key="015C"] .car-val');
+  if (!/992/.test(rpm ?? '') || !/104/.test(oil ?? '')) fail(`values through several-item requests: rpm ${rpm}, oil ${oil}`);
+  // Pin two items: the dashboard tiles.
+  await page.click('#sheet .car-item[data-key="010C"] [data-act="car-pin"]');
+  await page.click('#sheet .car-item[data-key="0105"] [data-act="car-pin"]');
+  await page.waitForTimeout(600);
+  const tiles = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-testid="car-tile"]')].map((t) => t.textContent.replace(/\s+/g, ' ').trim()));
+  if (tiles.length !== 2 || !/992 rpm/.test(tiles[0]) || !/122 °F/.test(tiles[1])) fail(`tiles: ${JSON.stringify(tiles)}`);
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('ea.carPrefs') ?? '{}').pinned);
+  if (JSON.stringify(kept) !== '["010C","0105"]') fail(`pins not kept on the device: ${JSON.stringify(kept)}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-dashboard.png') });
+  // Pinned only: reads just those (and fuel now and then).
+  await page.click('#sheet [data-testid="car-only-pinned"]');
+  await page.waitForTimeout(1500);
+  const pinnedLog = await page.evaluate(() => window.exitAtlas.car.log.slice(-30).filter((l) => l.dir === '>').map((l) => l.text));
+  // Every PID in every Mode 01 request is a pinned one or the fuel level.
+  const asked = pinnedLog.filter((t) => /^01([0-9A-F]{2})+$/.test(t)).flatMap((t) => t.slice(2).match(/../g));
+  if (!asked.length || asked.some((p) => !['0C', '05', '2F'].includes(p))) fail(`pinned only read other items: ${pinnedLog.join(' ')}`);
+  await page.click('#sheet [data-testid="car-only-pinned"]');
+  // One item: chart, touch readout, alert limit.
+  await page.click('#sheet [data-testid="car-tile"][data-key="010C"]');
+  await page.waitForSelector('#sheet [data-testid="car-detail"] .car-chart svg', { timeout: 10000 });
+  const box = await page.locator('#sheet .car-chart svg').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.5);
+  const readout = await text(page, '#sheet .car-chart-readout');
+  await page.mouse.up();
+  if (!/992 rpm/.test(readout ?? '')) fail(`chart readout: ${readout}`);
+  await page.fill('#sheet [data-testid="car-alert-high"]', '900');
+  await page.click('#sheet [data-testid="car-alert-save"]');
+  await page.waitForSelector('#sheet [data-testid="car-alert-on"]', { timeout: 10000 }).catch(() => {});
+  const banner = await text(page, '#sheet [data-testid="car-alert-on"]');
+  if (!/Engine speed high.*992 rpm.*limit 900/.test(banner ?? '')) fail(`alert banner: ${banner}`);
+  const toastText = await text(page, '#toast');
+  if (!/Engine speed high/.test(toastText ?? '') && !/Alert limits saved/.test(toastText ?? '')) fail(`alert toast: ${toastText}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-detail.png') });
+  // Closing the screen while a limit is watched keeps live data on, and says so in Settings.
+  await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());
+  await page.waitForTimeout(800);
+  if (!(await page.evaluate(() => window.exitAtlas.car.live.on))) fail('live data stopped although an alert limit is watched');
+  // Open the screen again the way the Diagnostics button does.
+  await page.evaluate(() => { const b = document.createElement('button'); b.dataset.act = 'car-details'; document.body.appendChild(b); b.click(); b.remove(); });
+  await page.waitForSelector('#sheet [data-testid="car-live"]', { timeout: 5000 }).catch(() => fail('Diagnostics did not open again'));
+  // Clear the limit (from the item), then record.
+  await page.click('#sheet [data-testid="car-tile"][data-key="010C"]').catch(() => {});
+  await page.click('#sheet [data-act="car-alert-clear"]').catch(() => fail('no Clear for the alert limit'));
+  await page.click('#sheet [data-testid="car-detail-back"]');
+  await page.click('#sheet [data-testid="car-rec-start"]');
+  await page.waitForTimeout(2500);
+  await page.click('#sheet [data-testid="car-rec-stop"]');
+  await page.click('#sheet [data-act="car-tab"][data-arg="rec"]');
+  await page.waitForSelector('#sheet [data-testid="car-recording"]', { timeout: 10000 }).catch(() => {});
+  const recs = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-testid="car-recording"]')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
+  if (recs.length !== 1 || !/[1-9][\d,]* readings/.test(recs[0])) fail(`recordings: ${JSON.stringify(recs)}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-record.png') });
+  // CSV: downloaded (no file sharing in this browser), one row per reading in the units shown.
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }).catch(() => null), page.click('#sheet [data-testid="car-rec-csv"]')]);
+  const csv = download ? await readFile(await download.path(), 'utf8') : '';
+  const lines = csv.trim().split('\n');
+  if (lines[0] !== 'time,elapsed_s,pid,sensor,value,unit' || !lines.some((l) => /,0C,Engine speed,992,rpm$/.test(l)) || !lines.some((l) => /,05,Coolant temperature,122,°F$/.test(l))) fail(`CSV: ${csv.slice(0, 300)}`);
+  if (download && !/^ExitAtlas_car_\d{4}-\d\d-\d\d_\d{4}\.csv$/.test(download.suggestedFilename())) fail(`CSV name: ${download.suggestedFilename()}`);
+  // Playback: the recording drives the dashboard and the items, with live data off.
+  await page.click('#sheet [data-testid="car-rec-play"]');
+  await page.waitForSelector('#sheet [data-testid="car-playback"]', { timeout: 10000 }).catch(() => {});
+  // The screen holds still for a moment after a tap, then follows the playback.
+  await page.waitForFunction(() => /992 rpm/.test(document.querySelector('#sheet [data-testid="car-tile"]')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+  const pbTiles = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-testid="car-tile"]')].map((t) => t.textContent.replace(/\s+/g, ' ').trim()));
+  if (!pbTiles.length || !/992 rpm/.test(pbTiles[0])) fail(`playback tiles: ${JSON.stringify(pbTiles)}`);
+  if (await page.evaluate(() => window.exitAtlas.car.live.on)) fail('live data still on during playback');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-playback.png') });
+  await page.click('#sheet [data-testid="car-pb-stop"]');
+  if (await page.$('#sheet [data-testid="car-playback"]')) fail('playback did not stop');
+  // Recordings persist on the device (IndexedDB) across a reload.
+  await page.reload();
+  const kept2 = await page.evaluate(async () => (await new Promise((res) => { const r = indexedDB.open('exitatlas-car'); r.onsuccess = () => { const tx = r.result.transaction('meta').objectStore('meta').getAll(); tx.onsuccess = () => res(tx.result.length); }; r.onerror = () => res(-1); })));
+  if (kept2 !== 1) fail(`recordings after a reload: ${kept2}`);
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }

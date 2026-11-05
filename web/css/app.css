@@ -212,6 +212,35 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .car-field { display: block; }
 .car-field .car-row { border-bottom: 0; margin: 0; padding: 4px 0; }
 .plaques.compact .pn.many { max-width: 32ch; white-space: normal; overflow: visible; }
+/* Car diagnostics, stage 3: dashboard tiles, pins, one item's chart, alerts, playback. */
+.red-text { color: var(--danger); font-weight: 700; }
+.btn.on { box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent); }
+.car-tabs button { min-width: 0; padding-left: 4px; padding-right: 4px; }
+.car-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.car-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--stroke); background: var(--card); color: var(--text); text-align: left; font: inherit; }
+.car-tile .tiny { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.car-tile-v { font-size: 26px; line-height: 1.15; }
+.car-tile .spark { width: 100%; height: 30px; }
+.car-tile.alarm, .car-detail.alarm { border-color: var(--danger); box-shadow: inset 0 0 0 2px var(--danger); }
+.car-alert-on { border: 1px solid var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.car-item { cursor: pointer; }
+.car-live .car-val { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 80px; }
+.car-live .main { min-width: 0; flex: 1; }
+form[data-form="car-alert"] label { min-width: 0; }
+form[data-form="car-alert"] input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; border: 1px solid var(--stroke); border-radius: 10px; padding: 9px 10px; background: var(--bg); }
+.car-pin { flex: none; width: 36px; height: 44px; margin: -6px -8px -6px -10px; border: 0; background: transparent; color: var(--text-2); font-size: 20px; line-height: 1; }
+.car-pin.on { color: var(--amber); }
+.car-big { font-size: 40px; line-height: 1.1; margin: 4px 0 6px; }
+.car-chart svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.car-chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.car-chart .axis { stroke: var(--stroke); stroke-width: 1; }
+.car-chart .limit { stroke: var(--danger); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.car-chart .cursor { stroke: var(--text-2); stroke-width: 1; }
+.car-chart .lbl { font-size: 10px; fill: var(--text-2); }
+.car-chart-readout { min-height: 1.4em; margin-top: 2px; }
+.car-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.car-stats > div { display: flex; flex-direction: column; }
+.car-playback .car-seek { width: 100%; margin: 10px 0; accent-color: var(--accent); }
 
 /* Rest area sign (blue, white lettering) and verified amenity chips */
 .ra-sign {

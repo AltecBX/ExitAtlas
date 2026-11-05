@@ -78,10 +78,27 @@ Settings, Car, Diagnostics (shown while connected). Four tabs:
   length).
 * Nothing here is checked against a real car yet. The first real session log (Log, Copy) becomes the test fixture.
 
-## Next stages
+## Live data, stage 3
 
-* Stage 3: recording and playback, CSV export, custom dashboards, threshold alerts, larger charts, several PIDs per
-  request (ELM327 and CAN allow up to 6) and slower polling for slow changing items.
+| Feature | How |
+| --- | --- |
+| Faster reads | Up to 6 PIDs per request (SAE J1979 on CAN), only after the adapter answered one such request correctly on this car (probed after the first round, with three PIDs that answered one at a time). Answers in one frame or numbered frames; an answer that cannot be split with certainty is read again one PID at a time, and after 3 such answers the session goes back to one PID per request. ELM327 on CAN only; BlueDriver answers carry no PID to split by, so it reads one at a time. |
+| Fast and slow items | Temperatures, levels, distances and fixed facts (`SLOW_PIDS` in `web/js/engine/obdlive.js`) are read every 5th round. |
+| Dashboard | Pin any item (☆): tiles at the top of Live. "Read pinned only (faster)" reads just those, plus the fuel level every 5th round for the range. |
+| Chart | Tap an item: a chart of its last 600 readings (1,200 kept), touch it to read any point, with min, max, average, readings. |
+| Alerts | Low and high limits per item, in the units shown. Shown on screen, in a banner and a toast, and spoken with Voice on (once a minute per item at most). Once on, an alert stays on until the value is back inside by 1% of the limit, so a value on the line does not flap. |
+| Keeps running | With a recording or any alert limit, live data keeps running after the screen closes; Settings, Car says so. It restarts after a reconnect. |
+| Recording | Every reading, on this device only (IndexedDB), saved every 60 s while it runs and when it stops; up to 360,000 readings. Where storage is blocked, kept until the page closes, and the screen says so. |
+| Playback | Play, pause, 1x, 4x, 16x, back and forward 10 s, a position slider; the dashboard, items and charts follow the recording. Works without the car. |
+| CSV | One row per reading: time, elapsed seconds, PID, sensor, value, unit, in the units shown. Shared as a file where the browser can (Safari on iPhone), else downloaded. |
+
+The choices (pinned items, alert limits, pinned only) are kept on this device in `ea.carPrefs`; nothing is sent.
+Tests: `web/tests/obdlive.test.js` (splitting answers, rounds, alerts, CSV, playback) and case 6 of
+`web/tests/layout/carlink.layout.mjs` (SIMULATED adapter that answers several PIDs per request, in one frame and in
+numbered frames).
+
+## Next stage
+
 * Stage 4: Porsche specific data (Mode 22 and the control units beyond the engine). There is no public list; it needs a
   Bluetooth capture of the BlueDriver app talking to this car (iOS Bluetooth logging profile), then decoding.
 
