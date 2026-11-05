@@ -1,0 +1,112 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "s": "https://schema.org/",
+   "geo": "http://www.opengis.net/ont/geosparql#",
+   "unit": "http://codes.wmo.int/common/unit/",
+   "@vocab": "https://api.weather.gov/ontology#",
+   "geometry": {
+    "@id": "s:GeoCoordinates",
+    "@type": "geo:wktLiteral"
+   },
+   "city": "s:addressLocality",
+   "state": "s:addressRegion",
+   "distance": {
+    "@id": "s:Distance",
+    "@type": "s:QuantitativeValue"
+   },
+   "bearing": {
+    "@type": "s:QuantitativeValue"
+   },
+   "value": {
+    "@id": "s:value"
+   },
+   "unitCode": {
+    "@id": "s:unitCode",
+    "@type": "@id"
+   },
+   "forecastOffice": {
+    "@type": "@id"
+   },
+   "forecastGridData": {
+    "@type": "@id"
+   },
+   "publicZone": {
+    "@type": "@id"
+   },
+   "county": {
+    "@type": "@id"
+   }
+  }
+ ],
+ "id": "https://api.weather.gov/points/32.9,-80.66",
+ "type": "Feature",
+ "geometry": {
+  "type": "Point",
+  "coordinates": [
+   -80.66,
+   32.9
+  ]
+ },
+ "properties": {
+  "@id": "https://api.weather.gov/points/32.9,-80.66",
+  "@type": "wx:Point",
+  "cwa": "CHS",
+  "type": "land",
+  "forecastOffice": "https://api.weather.gov/offices/CHS",
+  "gridId": "CHS",
+  "gridX": 59,
+  "gridY": 79,
+  "forecast": "https://api.weather.gov/gridpoints/CHS/59,79/forecast",
+  "forecastHourly": "https://api.weather.gov/gridpoints/CHS/59,79/forecast/hourly",
+  "forecastGridData": "https://api.weather.gov/gridpoints/CHS/59,79",
+  "observationStations": "https://api.weather.gov/gridpoints/CHS/59,79/stations",
+  "relativeLocation": {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -80.6768277,
+     32.901114
+    ]
+   },
+   "properties": {
+    "city": "Walterboro",
+    "state": "SC",
+    "distance": {
+     "unitCode": "wmoUnit:m",
+     "value": 0
+    },
+    "bearing": {
+     "unitCode": "wmoUnit:degree_(angle)",
+     "value": 0
+    }
+   }
+  },
+  "forecastZone": "https://api.weather.gov/zones/forecast/SCZ043",
+  "county": "https://api.weather.gov/zones/county/SCC029",
+  "fireWeatherZone": "https://api.weather.gov/zones/fire/SCZ043",
+  "timeZone": "America/New_York",
+  "radarStation": "KCLX",
+  "astronomicalData": {
+   "sunrise": "2026-11-05T06:44:14-05:00",
+   "sunset": "2026-11-05T17:28:14-05:00",
+   "transit": "2026-11-05T12:06:14-05:00",
+   "civilTwilightBegin": "2026-11-05T06:18:37-05:00",
+   "civilTwilightEnd": "2026-11-05T17:53:50-05:00",
+   "nauticalTwilightBegin": "2026-11-05T05:49:16-05:00",
+   "nauticalTwilightEnd": "2026-11-05T18:23:11-05:00",
+   "astronomicalTwilightBegin": "2026-11-05T05:20:17-05:00",
+   "astronomicalTwilightEnd": "2026-11-05T18:52:10-05:00"
+  },
+  "nwr": {
+   "transmitter": "WXJ23",
+   "sameCode": "045029",
+   "areaBroadcast": "https://api.weather.gov/radio/WXJ23/broadcast",
+   "pointBroadcast": "https://api.weather.gov/points/32.9,-80.66/radio"
+  }
+ }
+}

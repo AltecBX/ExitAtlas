@@ -1,0 +1,112 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "s": "https://schema.org/",
+   "geo": "http://www.opengis.net/ont/geosparql#",
+   "unit": "http://codes.wmo.int/common/unit/",
+   "@vocab": "https://api.weather.gov/ontology#",
+   "geometry": {
+    "@id": "s:GeoCoordinates",
+    "@type": "geo:wktLiteral"
+   },
+   "city": "s:addressLocality",
+   "state": "s:addressRegion",
+   "distance": {
+    "@id": "s:Distance",
+    "@type": "s:QuantitativeValue"
+   },
+   "bearing": {
+    "@type": "s:QuantitativeValue"
+   },
+   "value": {
+    "@id": "s:value"
+   },
+   "unitCode": {
+    "@id": "s:unitCode",
+    "@type": "@id"
+   },
+   "forecastOffice": {
+    "@type": "@id"
+   },
+   "forecastGridData": {
+    "@type": "@id"
+   },
+   "publicZone": {
+    "@type": "@id"
+   },
+   "county": {
+    "@type": "@id"
+   }
+  }
+ ],
+ "id": "https://api.weather.gov/points/34.62,-79.01",
+ "type": "Feature",
+ "geometry": {
+  "type": "Point",
+  "coordinates": [
+   -79.01,
+   34.62
+  ]
+ },
+ "properties": {
+  "@id": "https://api.weather.gov/points/34.62,-79.01",
+  "@type": "wx:Point",
+  "cwa": "ILM",
+  "type": "land",
+  "forecastOffice": "https://api.weather.gov/offices/ILM",
+  "gridId": "ILM",
+  "gridX": 48,
+  "gridY": 88,
+  "forecast": "https://api.weather.gov/gridpoints/ILM/48,88/forecast",
+  "forecastHourly": "https://api.weather.gov/gridpoints/ILM/48,88/forecast/hourly",
+  "forecastGridData": "https://api.weather.gov/gridpoints/ILM/48,88",
+  "observationStations": "https://api.weather.gov/gridpoints/ILM/48,88/stations",
+  "relativeLocation": {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -79.018601,
+     34.6306079
+    ]
+   },
+   "properties": {
+    "city": "Lumberton",
+    "state": "NC",
+    "distance": {
+     "unitCode": "wmoUnit:m",
+     "value": 0
+    },
+    "bearing": {
+     "unitCode": "wmoUnit:degree_(angle)",
+     "value": 0
+    }
+   }
+  },
+  "forecastZone": "https://api.weather.gov/zones/forecast/NCZ087",
+  "county": "https://api.weather.gov/zones/county/NCC155",
+  "fireWeatherZone": "https://api.weather.gov/zones/fire/NCZ087",
+  "timeZone": "America/New_York",
+  "radarStation": "KLTX",
+  "astronomicalData": {
+   "sunrise": "2026-11-05T06:40:24-05:00",
+   "sunset": "2026-11-05T17:18:51-05:00",
+   "transit": "2026-11-05T11:59:38-05:00",
+   "civilTwilightBegin": "2026-11-05T06:14:15-05:00",
+   "civilTwilightEnd": "2026-11-05T17:45:01-05:00",
+   "nauticalTwilightBegin": "2026-11-05T05:44:18-05:00",
+   "nauticalTwilightEnd": "2026-11-05T18:14:58-05:00",
+   "astronomicalTwilightBegin": "2026-11-05T05:14:45-05:00",
+   "astronomicalTwilightEnd": "2026-11-05T18:44:30-05:00"
+  },
+  "nwr": {
+   "transmitter": "WXL50",
+   "sameCode": "037155",
+   "areaBroadcast": "https://api.weather.gov/radio/WXL50/broadcast",
+   "pointBroadcast": "https://api.weather.gov/points/34.62,-79.01/radio"
+  }
+ }
+}

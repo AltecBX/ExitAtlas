@@ -64,6 +64,27 @@ a { color: var(--accent); }
 .wx-pill.compact { padding-right: 10px; }
 .wx-pill.compact .wx-cond, .wx-pill.compact .wx-tag, .wx-pill.tight .wx-cond { display: none; }
 @media (orientation: landscape) and (max-height: 560px) { .wx-pill { height: 32px; } .wx-pill .wx-icon { width: 24px; height: 24px; } }
+/* Weather ahead in the pill: rain, storms, snow, ice or fog in the forecast within 60 miles, in amber after the
+   temperature; when the words do not fit, the temperature goes (.tighter). */
+.wx-now { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.wx-sep { width: 1px; height: 18px; flex: none; margin: 0 2px 0 3px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.wx-ahead { display: inline-flex; align-items: center; gap: 3px; min-width: 0; color: var(--amber); }
+.wx-pill .wx-ahead .wx-icon { width: 24px; height: 24px; }
+.wx-ahead-t { font-size: var(--type-caption); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wx-pill.has-ahead { border-color: color-mix(in srgb, var(--amber) 45%, transparent); background: color-mix(in srgb, var(--amber) 10%, color-mix(in srgb, var(--card) 70%, transparent)); }
+.wx-pill.tighter .wx-now, .wx-pill.tighter .wx-sep, .wx-pill.tightest .wx-ahead .wx-icon { display: none; }
+.wx-pill.tighter { padding-left: 11px; }
+.wx-pill.has-ahead:not(:has(.wx-now)) { padding-left: 8px; }
+/* Weather ahead in the weather sheet. */
+.wx-ahead-list { display: flex; flex-direction: column; gap: 0; padding: 4px 14px; }
+.wx-ah-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; }
+.wx-ah-row + .wx-ah-row { border-top: 1px solid var(--stroke); }
+.wx-ah-row .main { flex: 1; min-width: 0; }
+.wx-ah-row .t { font-weight: 750; }
+.wx-ah-row.warn .t { color: var(--amber); }
+.wx-ah-row.unavail .t { color: var(--text-2); }
+.wx-ah-icon { width: 30px; height: 30px; flex: none; }
+span.wx-ah-icon { display: grid; place-items: center; font-size: 18px; }
 
 /* Weather sheet: a sky card colored by the weather and the time of day. */
 .wx-card {
@@ -476,6 +497,13 @@ a.btn { text-decoration: none; }
 .tl-alert .tl-dot { background: var(--amber); border-color: var(--amber); }
 .tl-alert.tier-urgent .tl-dot { background: var(--danger); border-color: var(--danger); box-shadow: 0 0 0 4px var(--danger-fill); }
 .tl-alert.tier-info .tl-dot { background: var(--info); border-color: var(--info); }
+.tl-wx .tl-dot { border-color: var(--info); }
+.tl-wx.warn .tl-dot { background: var(--amber); border-color: var(--amber); }
+.tl-wx.unavail .tl-dot { border-color: var(--text-2); border-style: dashed; }
+.tl-card.wx.warn { border-left: 4px solid var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--card)); }
+.tl-card.wx.quiet { border-left: 4px solid var(--info); }
+.tl-card.wx.unavail { border-style: dashed; background: transparent; }
+.tl-card.wx .tl-wx-icon { width: 40px; height: 40px; flex: none; }
 .tl-row.best .tl-dot { background: var(--sign-green); border-color: var(--sign-green); }
 .tl-card { display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--stroke); border-radius: 16px; padding: 12px 14px; color: inherit; font: inherit; }
 button.tl-card { cursor: pointer; transition: transform 0.12s ease; }
@@ -520,7 +548,7 @@ button.tl-card:active { transform: scale(0.985); }
 /* Text color, not the sign fill: the sign green is too dark to read as small text on a dark card (3.4:1). */
 .rec-tag { font-size: var(--type-caption); font-weight: 800; color: var(--success); margin-top: 2px; }
 @media (max-width: 370px) {
-  .tl-card.al .al-icon, .tl-card.gap .al-icon { display: none; }
+  .tl-card.al .al-icon, .tl-card.gap .al-icon, .tl-card.wx .al-icon { display: none; }
   .tl-card { padding: 11px 12px; }
   .tl-dist b { font-size: 22px; }
 }

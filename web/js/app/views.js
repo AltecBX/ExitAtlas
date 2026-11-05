@@ -22,6 +22,7 @@ import { ALERT_KINDS, ALERT_GROUPS, freshnessText, alertTier, alertHeadline, dri
 import { WZDX_FEEDS } from '../engine/alertsources.js';
 import { BASIS_LABELS } from '../engine/traffic.js';
 import { weatherLabel, windText } from '../engine/weather.js';
+import { coveredByAlert } from '../engine/weatherahead.js';
 import { weatherIcon, skyColors } from './weathericons.js';
 import { wazeLink } from '../engine/handoff.js';
 
@@ -139,11 +140,24 @@ function progress(fraction, thick = false) {
 /// highway name.
 export function weatherPill(app, { compact = false } = {}) {
   const w = app.weatherNow();
-  if (!w || w.temperatureF == null) return '';
-  const label = weatherLabel(w.kind, w.isDay) ?? w.condition ?? '';
-  const said = `${w.temperatureF} degrees, ${label}${w.source === 'forecast' ? ', forecast' : ''}`;
-  return `<button class="wx-pill${compact ? ' compact' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
-    ${weatherIcon(w.kind, w.isDay)}<span class="wx-temp num">${w.temperatureF}°</span>${label ? `<span class="wx-cond">${h(label)}</span>` : ''}</button>`;
+  const now = w && w.temperatureF != null ? w : null;
+  // A forecast warning ahead (rain, storms, snow, ice, fog within 60 miles) takes the place of the condition.
+  const wx = app.weatherWarning?.() ?? null;
+  if (!now && !wx) return '';
+  const label = now ? weatherLabel(now.kind, now.isDay) ?? now.condition ?? '' : '';
+  const said = [now ? `${now.temperatureF} degrees, ${label}${now.source === 'forecast' ? ', forecast' : ''}` : null,
+    wx ? `${wx.phrase} ${aheadWhere(app.snapshot, wx, true)}, National Weather Service forecast` : null].filter(Boolean).join('. ');
+  const current = now ? `<span class="wx-now">${weatherIcon(now.kind, now.isDay)}<span class="wx-temp num">${now.temperatureF}°</span></span>${!wx && label ? `<span class="wx-cond">${h(label)}</span>` : ''}` : '';
+  const ahead = wx ? `${now ? '<span class="wx-sep" aria-hidden="true"></span>' : ''}<span class="wx-ahead">${weatherIcon(wx.kind, wx.isDay)}<span class="wx-ahead-t">${h(wx.name)} ${h(aheadWhere(app.snapshot, wx))}</span></span>` : '';
+  return `<button class="wx-pill${compact && !wx ? ' compact' : ''}${wx ? ' has-ahead' : ''}" data-act="sheet" data-arg="weather" aria-label="Weather: ${h(said)}. Details">
+    ${current}${ahead}</button>`;
+}
+
+/// "in 18 mi", or "next 12 mi" for a stretch the driver is already in ("in 18 miles" when spoken).
+function aheadWhere(s, st, words = false) {
+  const unit = (m) => (words ? miles(m).replace(/ mi$/, ' miles') : miles(m));
+  const d = st.start - (s?.progress ?? 0);
+  return d < 0.5 * MILE ? `next ${unit(st.end - Math.max(st.start, s?.progress ?? 0))}` : `in ${unit(d)}`;
 }
 
 /// "11 PM" in the time zone of the place.
@@ -157,8 +171,12 @@ function hourText(t, zone) {
 export function weatherSheet(app) {
   const head = '<div class="sheet-head"><h2>Weather</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>';
   const w = app.weatherNow();
+  const ahead = weatherAheadSection(app);
+  // Warnings ahead first: that is what the pill pointed at.
+  const first = ahead && app.aheadWeather()?.warnings.length ? ahead : '';
+  const last = first ? '' : ahead;
   if (!w || w.temperatureF == null) {
-    return `${head}<p class="muted">No current weather for where you are. ExitAtlas asks the National Weather Service while a trip runs, about every 10 minutes; nothing is shown when the answer is old or the service cannot be reached.</p>`;
+    return `${head}${first}<p class="muted">No current weather for where you are. ExitAtlas asks the National Weather Service while a trip runs, about every 10 minutes; nothing is shown when the answer is old or the service cannot be reached.</p>${last}`;
   }
   const now = Date.now() / 1000;
   const [top, bottom] = skyColors(w.kind, w.isDay);
@@ -179,7 +197,7 @@ export function weatherSheet(app) {
   const source = w.source === 'observed'
     ? `Observed ${minutes < 1 ? 'just now' : `${minutes} min ago`} at ${h(w.station.name)}, ${miles(w.station.distance)} away. Next hours from the hourly forecast.`
     : 'No weather station near you reported in the last 90 minutes, so this is the forecast for this hour.';
-  return `${head}<div class="wx-card" style="--sky-top:${top};--sky-bottom:${bottom}">
+  return `${head}${first}<div class="wx-card" style="--sky-top:${top};--sky-bottom:${bottom}">
     <div class="wx-place">${h(w.place ?? 'Where you are')}</div>
     <div class="wx-hero"><div><div class="wx-big num">${w.temperatureF}°</div>
       <div class="wx-cond-lg">${h(label)}${w.source === 'forecast' ? ' <span class="wx-tag">Forecast</span>' : ''}</div>
@@ -188,8 +206,58 @@ export function weatherSheet(app) {
     ${metrics.length ? `<div class="wx-metrics">${metrics.map(([k, v]) => `<div><span>${k}</span><b>${h(v)}</b></div>`).join('')}</div>` : ''}
     ${hours ? `<div class="wx-hours">${hours}</div>` : ''}
   </div>
-  <p class="note">${source} National Weather Service.</p>`;
+  <p class="note">${source} National Weather Service.</p>${last}`;
 }
+
+/// Weather ahead on the route (the weather sheet): each warning, quiet chance and unavailable stretch with where,
+/// how long, the arrival time, and when NWS updated the forecast. Never "clear" for a stretch it could not read.
+function weatherAheadSection(app) {
+  const s = app.snapshot;
+  if (app.mode === 'idle' || !s) return '';
+  const title = '<div class="section-title">Ahead on your route</div>';
+  if (app.settings.alerts?.weather === false) return `${title}<p class="muted small">Weather alerts are off in Settings, Road alerts.</p>`;
+  const wa = app.aheadWeather();
+  if (!wa) return `${title}<div class="card wx-ahead-list"><div class="muted small">Checking the National Weather Service forecast for the road ahead…</div></div>`;
+  const alerts = app.roadIntel()?.alerts ?? [];
+  const rows = wa.stretches.filter((st) => st.end > s.progress).map((st) => {
+    const where = aheadWhere(s, st);
+    const len = st.end - Math.max(st.start, s.progress);
+    if (st.level === 'unavailable') {
+      return `<div class="wx-ah-row unavail"><span class="wx-ah-icon" aria-hidden="true">⚠️</span><div class="main"><div class="t">Weather ahead unavailable</div>
+        <div class="muted tiny">${h(where === `next ${miles(len)}` ? where : `${where}, for ${miles(len)}`)} · the forecast could not be read or is too old</div></div></div>`;
+    }
+    const chance = st.chance != null && st.kind !== 'fog' ? ` · ${st.chance}%` : '';
+    const covered = coveredByAlert(st, alerts) ? '<div class="small amber-text">An NWS warning covers this stretch: see Road Ahead, Alerts.</div>' : '';
+    return `<div class="wx-ah-row ${st.level}">${weatherIcon(st.kind, st.isDay, 'wx-icon wx-ah-icon')}<div class="main"><div class="t">${h(st.phrase)}${chance}</div>
+      <div class="muted tiny">${h(where)}${where.startsWith('next') ? '' : `, for ${h(miles(len))}`} · arriving about ${clock(Math.max(st.eta, Date.now() / 1000), st.timeZone, Date.now() / 1000)}</div>${covered}</div></div>`;
+  });
+  const reach = `${miles(Math.max(0, wa.coveredTo - s.progress))}`;
+  const none = !wa.warnings.length && !wa.quiet.length && !wa.unavailable.length;
+  const body = none
+    ? `<div class="muted small">No rain, storms, snow, ice or fog in the forecast for the next ${h(reach)}.</div>`
+    : rows.join('');
+  const updated = wa.updated ? `NWS updated the forecast ${clock(wa.updated, null, Date.now() / 1000)}. ` : '';
+  return `${title}<div class="card wx-ahead-list">${body}</div>
+    <p class="note">National Weather Service hourly forecast for each point ahead at the time you get there, checked every 20 minutes (${wa.checked} points, next ${h(reach)}). ${updated}A forecast for a 2.5 km area and an hour, not radar: it cannot see a passing shower. Rain shows from a 40% chance (20% as a chance), storms, snow, ice and fog at any chance.</p>`;
+}
+
+/// A forecast stretch in the Road Ahead timeline: warnings in amber, a chance of rain quiet, unavailable gray.
+function weatherTimelineRow(app, st, s) {
+  const len = st.end - Math.max(st.start, s.progress);
+  const d = Math.max(0, st.start - s.progress);
+  const eta = st.start > s.progress ? s.etaTo(st.start) - s.t : null;
+  if (st.level === 'unavailable') {
+    return tlRow('wx', `<button class="tl-card wx unavail" data-act="sheet" data-arg="weather"><div class="tl-head"><span class="al-icon" aria-hidden="true">⚠️</span>
+      <div class="main"><div class="t">Weather ahead unavailable</div><div class="muted small">For ${h(miles(len))}: the forecast could not be read</div></div>
+      ${tlDist(d, null)}</div></button>`, ' unavail');
+  }
+  const chance = st.chance != null && st.kind !== 'fog' ? ` · ${st.chance}%` : '';
+  return tlRow('wx', `<button class="tl-card wx ${st.level}" data-act="sheet" data-arg="weather"><div class="tl-head">${weatherIcon(st.kind, st.isDay, 'wx-icon tl-wx-icon')}
+    <div class="main"><div class="${st.level === 'warn' ? 'al-head' : 't'}">${h(st.phrase)}${chance}</div><div class="muted small">For ${h(miles(len))} · arriving about ${clock(Math.max(st.eta, Date.now() / 1000), st.timeZone, Date.now() / 1000)}</div>
+      <div class="muted tiny">NWS forecast${st.updated ? `, updated ${clock(st.updated, null, Date.now() / 1000)}` : ''}</div></div>
+    ${tlDist(d, eta)}</div></button>`, ` ${st.level}`);
+}
+
 
 /// "Waze" next to the Apple Maps and Google Maps buttons: the official Waze deep link, which opens the Waze
 /// app when it is installed and the Waze website otherwise.
@@ -1347,6 +1415,14 @@ export function exitsView(app) {
     }
     if (f === 'all' || f === 'fuel') for (const g of app.gasGapsAhead(s, win)) add(g.from, 2, gapTimelineRow(g, s));
     for (const a of alerts) if (showAlert(a)) add(Math.max(a.start, s.progress), 0, alertTimelineRow(app, a, s));
+    // Weather ahead (the hourly forecast): warnings under All and Alerts, chances and unavailable stretches
+    // under All; none an NWS warning on the route already covers.
+    if (f === 'all' || f === 'alerts') {
+      for (const st of app.aheadWeather()?.stretches ?? []) {
+        if (st.end <= s.progress || st.start - s.progress > win || (f === 'alerts' && st.level !== 'warn') || coveredByAlert(st, intel?.alerts ?? [])) continue;
+        add(Math.max(st.start, s.progress), 0, weatherTimelineRow(app, st, s));
+      }
+    }
     events.sort((x, y) => x.d - y.d || x.o - y.o);
     rows = events.map((e) => e.html);
     if (f === 'all' || f === 'fuel' || f === 'rest') top = bestStopCard(app, s, { restroom: f === 'rest' });
@@ -2103,7 +2179,7 @@ function alertSettings(app) {
     closures: `Official state work zone feeds (WZDx, public domain): ${Object.keys(WZDX_FEEDS).join(', ')}, checked every 10 to 30 minutes during a trip.${
       app.proxy?.wzdx ? '' : ` ${Object.keys(WZDX_FEEDS).filter((k) => !WZDX_FEEDS[k].cors).join(', ')} need the key proxy here.`} Other states: none yet (docs/13)`,
     incidents: 'No source connected yet: state 511 feeds need registration (docs/13)',
-    weather: 'National Weather Service, public domain, checked every 10 minutes during a trip',
+    weather: 'National Weather Service, public domain: warnings every 10 minutes, and the hourly forecast for the road ahead every 20 minutes, during a trip',
     traffic: 'No licensed traffic source for the website (docs/16)',
     police: 'No authorized live source exists for ExitAtlas, so nothing is shown (docs/13)',
     cameras: 'No source connected yet',
