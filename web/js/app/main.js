@@ -86,6 +86,8 @@ const app = {
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
   /// The car connection (OBD2 adapter over Bluetooth LE, app/carlink.js): its fuel level becomes the range.
   car: new CarLink({ onChange: () => carChanged() }),
+  /// The car diagnostics sheet: which tab shows.
+  carUI: { tab: 'live' },
   fuelAnnounced: new Set(),
   /// Stations the driver turned down on this trip ("Not this one"): SmartStop does not offer them again.
   rejectedStops: [],
@@ -633,6 +635,7 @@ function renderSheet({ live = false } = {}) {
   else if (kind === 'weather') html = V.weatherSheet(app);
   else if (kind === 'restroom') html = V.restroomSheet(app);
   else if (kind === 'alert') html = V.alertSheet(app, arg);
+  else if (kind === 'car') html = V.carSheet(app);
   if (live && html === lastSheetHTML) return;
   lastSheetHTML = html;
   swapHTML($('#sheet-body'), html, `${kind}|${arg}`);
@@ -642,6 +645,8 @@ function renderSheet({ live = false } = {}) {
 }
 
 function closeSheet() {
+  // Live data streams only while its screen is open (it keeps the adapter busy).
+  if (app.sheet?.kind === 'car') app.car.stopLive();
   app.sheet = null;
   $('#sheet-backdrop').classList.remove('open');
   $('#sheet').classList.remove('open');
@@ -691,8 +696,14 @@ function carChanged() {
     const same = f?.source === 'car' && Math.abs((f.percent ?? -1) - percent) < 0.1 && nowSeconds() - f.enteredAt < 30;
     if (mi != null && !same) setFuelRange(mi * MILE, 'car', { percent: Math.round(percent * 10) / 10 });
   }
-  if (app.sheet?.kind === 'fuel' && sheetCanRedraw()) renderSheet({ live: true });
+  if ((app.sheet?.kind === 'fuel' || app.sheet?.kind === 'car') && sheetCanRedraw()) renderSheet({ live: true });
   render();
+}
+
+/// The car session log with what it ran on (page, browser, vehicle), for sending to whoever reads it.
+function carLogText() {
+  const v = app.settings.vehicle;
+  return app.car.exportLog(`Page: ${location.href} · Browser: ${navigator.userAgent}${v ? ` · Vehicle: ${v.year} ${v.make} ${v.model} ${v.label ?? ''}` : ''}`);
 }
 
 /// Folds miles driven in the session that is ending into the saved range, so it carries over.
@@ -1822,6 +1833,18 @@ const actions = {
   // Straight from the tap: the browser opens the Bluetooth picker only during a user gesture.
   'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); },
   'car-disconnect'() { app.car.disconnect(); toast('Car disconnected. The range keeps counting down from its last reading.'); },
+  'car-details'() { openSheet('car'); },
+  'car-tab'(arg) { app.carUI.tab = arg; renderSheet(); },
+  'car-live'() { if (app.car.live.on) app.car.stopLive(); else app.car.startLive(); },
+  'car-reset-stats'() { app.car.resetStats(); },
+  'car-codes'() { app.car.readCodes(); },
+  'car-info'() { app.car.readInfo(); },
+  'car-log-copy'() {
+    const text = carLogText();
+    navigator.clipboard?.writeText(text).then(() => toast(`Log copied (${app.car.log.length} lines)`), () => toast('Copy failed: select the log and copy it'));
+  },
+  'car-log-share'() { navigator.share?.({ title: 'ExitAtlas car log', text: carLogText() }).catch(() => {}); },
+  'car-log-clear'() { app.car.log = []; app.car.logStart = Date.now(); renderSheet(); },
   'fuel-filled'() {
     const full = fullTankRange(app.vehicleProfile());
     if (!full) {
