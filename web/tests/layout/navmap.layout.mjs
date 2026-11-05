@@ -204,6 +204,10 @@ const f0 = await fuelState();
 await page.waitForTimeout(7000);
 const f1 = await fuelState();
 if (!/of fuel left/.test(f0.line)) fail(`the fuel stop does not say "of fuel left": ${f0.line}`);
+// In tenths of a mile, so the driver sees the numbers move.
+if (!/\d\.\d mi ahead · .*about \d+\.\d mi of fuel left/.test(f0.line)) fail(`the fuel stop is not in tenths of a mile: ${f0.line}`);
+const fuelNow = await page.evaluate(() => document.querySelector('#sheet-body [data-testid="fuel-now"]')?.textContent.trim());
+if (!/^⛽ \d+\.\d mi now$/.test(fuelNow ?? '')) fail(`the Fuel stop sheet does not show the fuel now in tenths: ${fuelNow}`);
 if (!(f1.range < f0.range)) fail(`the open Fuel stop sheet did not count the range down (${f0.range} then ${f1.range})`);
 if (f0.name === f1.name && !(f1.ahead < f0.ahead)) fail(`the open Fuel stop sheet did not count the miles ahead down (${f0.line} then ${f1.line})`);
 await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());

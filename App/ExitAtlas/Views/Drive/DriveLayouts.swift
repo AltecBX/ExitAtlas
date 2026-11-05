@@ -273,7 +273,7 @@ struct JourneyPanel: View {
             if trip.mode == .discovery {
                 metric(Format.milesValue(snapshot.remaining), "mi of corridor ahead")
             } else {
-                metric(Format.milesValue(snapshot.remaining), "mi left")
+                metric(Format.tenthsValue(snapshot.remaining), "mi left")
                 Spacer(minLength: 6)
                 let traffic = TrafficText.usesTraffic(snapshot)
                 metric(Format.time(snapshot.eta, relativeTo: snapshot.timestamp), TrafficText.arrivalLabel(snapshot, extra: trip.trafficExtra),

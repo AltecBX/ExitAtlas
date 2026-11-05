@@ -82,7 +82,13 @@ def brand_listings(rows, items, atp_dir, radius=150):
     for fn in sorted(os.listdir(atp_dir)):
         if not fn.endswith(".geojson"):
             continue
-        for f in json.load(open(os.path.join(atp_dir, fn)))["features"]:
+        doc = json.load(open(os.path.join(atp_dir, fn)))
+        # A list the spider collected against the brand's robots.txt is not used (Jerry's rule: nothing taken against
+        # a site's terms), whatever its license.
+        if (doc.get("dataset_attributes") or {}).get("spider:robots_txt") == "ignored":
+            print("skipped (collected against robots.txt):", fn)
+            continue
+        for f in doc["features"]:
             g, p = f.get("geometry") or {}, f.get("properties") or {}
             if g.get("type") != "Point" or p.get("addr:country") not in (None, "US", "USA"):
                 continue

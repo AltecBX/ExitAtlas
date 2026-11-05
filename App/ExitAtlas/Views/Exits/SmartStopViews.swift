@@ -44,12 +44,12 @@ struct SmartStopSign: View {
 
 enum SmartStopText {
     static func whereLine(_ c: SmartStop.Candidate) -> String {
-        (c.exitLabel == nil ? "On the highway · " : "") + "\(Format.milesValue(c.ahead ?? 0)) mi ahead"
+        (c.exitLabel == nil ? "On the highway · " : "") + "\(Format.tenthsValue(c.ahead ?? 0)) mi ahead"
     }
 
     static func arrival(_ c: SmartStop.Candidate, now: Date) -> String {
         var parts = ["Arrive \(Format.time(c.arrival, timeZoneID: c.timeZone.identifier, relativeTo: now))"]
-        if let left = c.rangeOnArrival { parts.append("about \(Format.miles(left)) of fuel left") }
+        if let left = c.rangeOnArrival { parts.append("about \(Format.tenths(left)) of fuel left") }
         return parts.joined(separator: " · ")
     }
 

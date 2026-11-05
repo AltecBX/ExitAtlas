@@ -5,6 +5,7 @@ import { TripPlan, TripSession } from '../engine/trip.js';
 import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
+import { withFoodBrands } from '../engine/foodbrands.js';
 import { gasGaps, restAreaTitle } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
 import { drawTripCard, shareCanvas } from './sharecard.js';
@@ -166,7 +167,7 @@ const app = {
   servicesFor(exit) {
     let s = this.serviceCache.get(exit.id);
     if (!s) {
-      s = this.data ? servicesForExit(this.data.interstates, exit) : [];
+      s = this.data ? withFoodBrands(servicesForExit(this.data.interstates, exit), this.data.foodBrands, exit) : [];
       this.serviceCache.set(exit.id, s);
     }
     return s;

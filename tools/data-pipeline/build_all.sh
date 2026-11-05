@@ -103,6 +103,21 @@ printf '{"run_id":"%s","start_time":"%sT%s:%s:%sZ"}\n' "$ATP_RUN" "${ATP_RUN:0:1
 # Gas station hours, restrooms, rebrands and closures: current tags from the live OSM API (cached in the work
 # dir), and the brands' listed hours and restrooms.
 python3 build_stations.py "$OI_CSV" "$WORK/gas_tags.json" "$OUT/stations.json" "$WORK/atp/$ATP_RUN"
+# Chain restaurants near exits that the exit data misses (OpenInterstate keeps the 12 nearest food places within
+# 1,600 m, and OpenStreetMap does not map every one): the chains' own store locators, All the Places (CC0).
+FOOD_RUN="2026-10-24-13-32-37"
+FOOD_SPIDERS="applebees arbys_us auntie_annes bob_evans_us bojangles burger_king captain_d_us carls_jr_us checkers_and_rallys_us
+  chick_fil_a chilis chipotle churchs_chicken_us cinnabon_us cookout_us culvers_us del_taco_us dennys_us dunkin_us dutch_bros
+  el_pollo_loco firehouse_subs five_guys_us freddys_us golden_corral hardees_us huddle_house_us ihop jersey_mikes_us
+  jimmy_johns_us kfc_us krispy_kreme_us krystal_us little_caesars_us marcos mcdonalds moes_southwest_grill outback_steakhouse
+  panda_express panera_bread_us papa_johns perkins_us pizza_hut_us popeyes qdoba raising_canes_us ruby_tuesday_us sbarro
+  sonic_drivein_us starbucks_us steak_n_shake subway_us taco_bell_us texas_roadhouse tim_hortons tropical_smoothie_cafe_us
+  waffle_house_us wendys whataburger white_castle wienerschnitzel_us wingstop zaxbys_us"
+mkdir -p "$WORK/atp/$FOOD_RUN"
+for s in $FOOD_SPIDERS; do
+  [ -s "$WORK/atp/$FOOD_RUN/$s.geojson" ] || curl -fsSL "https://alltheplaces-data.openaddresses.io/runs/$FOOD_RUN/output/$s.geojson" -o "$WORK/atp/$FOOD_RUN/$s.geojson"
+done
+python3 build_food_brands.py "$OUT/interstates.eax" "$OUT/freeways.eax" "$WORK/atp/$FOOD_RUN" "$FOOD_RUN" "$OUT/foodbrands.json"
 python3 build_vehicles.py "$WORK/epa/vehicles.csv" fuel_tanks.json "$OUT/vehicles.json"
 # Discover places come from the live Wikidata query service (cached per category in the work dir).
 mkdir -p "$WORK/wikidata"

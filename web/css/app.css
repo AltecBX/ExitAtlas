@@ -178,6 +178,7 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .plaques.compact { margin-top: 6px; gap: 5px; }
 .plaques.compact .plaque { flex-direction: row; align-items: baseline; gap: 5px; padding: 4px 8px; }
 .plaques.compact .pn { max-width: 14ch; }
+.plaques.compact .pn.many { max-width: 32ch; white-space: normal; overflow: visible; }
 
 /* Rest area sign (blue, white lettering) and verified amenity chips */
 .ra-sign {
