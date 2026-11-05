@@ -199,6 +199,10 @@ main { padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-are
 .plaques.compact { margin-top: 6px; gap: 5px; }
 .plaques.compact .plaque { flex-direction: row; align-items: baseline; gap: 5px; padding: 4px 8px; }
 .plaques.compact .pn { max-width: 14ch; }
+.car-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0 12px; border-bottom: 1px solid var(--stroke); margin-bottom: 10px; }
+.car-row .linkish { display: block; margin-top: 6px; padding: 0; text-align: left; font-size: var(--type-caption); }
+.car-help { margin: 0 0 10px; }
+.car-help summary { font-weight: 700; cursor: pointer; }
 .plaques.compact .pn.many { max-width: 32ch; white-space: normal; overflow: visible; }
 
 /* Rest area sign (blue, white lettering) and verified amenity chips */

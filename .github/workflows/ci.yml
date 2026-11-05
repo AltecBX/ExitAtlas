@@ -64,6 +64,8 @@ jobs:
         run: node web/tests/layout/navmap.layout.mjs
       - name: Weather ahead from recorded NWS forecasts (pill, Road Ahead row, sheet, unavailable) at phone sizes
         run: node web/tests/layout/weatherahead.layout.mjs
+      - name: Car connection with a SIMULATED OBD2 adapter (Web Bluetooth, fuel level to range, drop and reconnect)
+        run: node web/tests/layout/carlink.layout.mjs
       - name: Offline with the real service worker (first visit, deploy, start with no network)
         run: node web/tests/layout/offline.layout.mjs
       - name: iPhone Safari (sheets, 44 point taps, open sections, screen wake lock, paused location, parked map)
