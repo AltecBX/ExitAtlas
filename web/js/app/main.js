@@ -6,7 +6,9 @@ import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/disco
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { withFoodBrands } from '../engine/foodbrands.js';
-import { CarLink } from './carlink.js';
+import { CarLink, CAR_RULES } from './carlink.js';
+import { RecordingStore } from './carrecord.js';
+import { recordingCSV, recordingSeries, alertRule } from '../engine/obdlive.js';
 import { rangeFromFuel } from '../engine/obd.js';
 import { gasGaps, restAreaTitle } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
@@ -85,9 +87,12 @@ const app = {
   fuel: store.get('ea.fuel', null),
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
   /// The car connection (OBD2 adapter over Bluetooth LE, app/carlink.js): its fuel level becomes the range.
-  car: new CarLink({ onChange: () => carChanged() }),
+  car: new CarLink({ onChange: () => carChanged(), onAlert: (a) => carAlert(a), onRecorded: (r, why) => carRecorded(r, why) }),
+  // Car diagnostics choices (pinned items, alert limits, pinned only) and recordings: on this device only.
+  carRecStore: new RecordingStore(),
+  carRecordings: [],
   /// The car diagnostics sheet: which tab shows.
-  carUI: { tab: 'live' },
+  carUI: { tab: 'live', detail: null, playback: null, alertError: null },
   fuelAnnounced: new Set(),
   /// Stations the driver turned down on this trip ("Not this one"): SmartStop does not offer them again.
   rejectedStops: [],
@@ -645,8 +650,14 @@ function renderSheet({ live = false } = {}) {
 }
 
 function closeSheet() {
-  // Live data streams only while its screen is open (it keeps the adapter busy).
-  if (app.sheet?.kind === 'car') app.car.stopLive();
+  // Live data streams only while its screen is open (it keeps the adapter busy), unless it is recording or
+  // watching alert limits. Playback stops with the screen.
+  if (app.sheet?.kind === 'car') {
+    if (!app.car.watching) app.car.stopLive();
+    stopPlaybackTimer();
+    app.carUI.playback = null;
+    app.carUI.detail = null;
+  }
   app.sheet = null;
   $('#sheet-backdrop').classList.remove('open');
   $('#sheet').classList.remove('open');
@@ -686,6 +697,70 @@ function setFuelRange(meters, source, extra = {}) {
 
 /// A new reading from the car connection: the fuel level times what a full tank goes (tank size times mpg) is
 /// the range now. Without a tank size, the level shows in the fuel sheet and the range stays as entered.
+// MARK: Car diagnostics: choices, alerts, recordings, playback
+
+app.car.prefs = { pinned: [], alerts: {}, onlyPinned: false, ...store.get('ea.carPrefs', {}) };
+function saveCarPrefs() { store.set('ea.carPrefs', app.car.prefs); }
+
+async function refreshRecordings() {
+  try { app.carRecordings = await app.carRecStore.list(); } catch { app.carRecordings = []; }
+  if (app.sheet?.kind === 'car') renderSheet();
+}
+
+/// A recording stopped: saved on this device.
+async function carRecorded(rec, why) {
+  try {
+    await app.carRecStore.save(rec);
+    toast(`Recording saved: ${rec.samples.length.toLocaleString()} readings${why === 'full' ? ' (it was full)' : ''}`);
+  } catch (e) { toast(`Recording not saved: ${e?.message ?? e}`); }
+  refreshRecordings();
+}
+
+// A recording is saved as it runs, so a closed page or a crash keeps all but the last minute.
+setInterval(() => { if (app.car.rec) app.carRecStore.save(app.car.rec).then(() => { if (app.sheet?.kind === 'car' && app.carUI.tab === 'rec') refreshRecordings(); }).catch(() => {}); }, CAR_RULES.autosaveEvery * 1000);
+
+const carAlertSpoken = new Map();
+/// A reading went past a limit the driver set: shown, and spoken with Voice on (once a minute per item at most).
+function carAlert({ channel, state, value, unit }) {
+  const shown = `${Number(value.toFixed(1))} ${unit ?? ''}`.trim();
+  toast(`⚠️ ${channel.name} ${state}: ${shown}`, 6000);
+  const last = carAlertSpoken.get(channel.key) ?? 0;
+  if (app.settings.voice && Date.now() - last > 60000) {
+    carAlertSpoken.set(channel.key, Date.now());
+    const words = { '°F': 'degrees', mph: 'miles per hour', psi: 'P S I', '%': 'percent', V: 'volts', rpm: 'R P M' };
+    app.announcer.speak(`${channel.name} ${state}, ${Math.round(value)} ${words[unit] ?? unit ?? ''}.`);
+  }
+}
+
+let playbackTimer = null;
+function stopPlaybackTimer() { clearInterval(playbackTimer); playbackTimer = null; }
+function startPlaybackTimer() {
+  stopPlaybackTimer();
+  let last = performance.now();
+  playbackTimer = setInterval(() => {
+    const pb = app.carUI.playback;
+    if (!pb || !pb.playing) { stopPlaybackTimer(); return; }
+    const now = performance.now();
+    pb.t = Math.min(pb.duration, pb.t + (now - last) * pb.speed);
+    last = now;
+    if (pb.t >= pb.duration) pb.playing = false;
+    if (app.sheet?.kind === 'car' && sheetCanRedraw()) renderSheet({ live: true });
+  }, 250);
+}
+
+/// Downloads (or shares, where the browser can share files) a text file.
+async function saveTextFile(name, text, type) {
+  const blob = new Blob([text], { type });
+  const file = typeof File === 'function' ? new File([blob], name, { type }) : null;
+  if (file && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e?.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 function carChanged() {
   const c = app.car;
   const v = app.vehicleProfile();
@@ -1833,8 +1908,59 @@ const actions = {
   // Straight from the tap: the browser opens the Bluetooth picker only during a user gesture.
   'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); },
   'car-disconnect'() { app.car.disconnect(); toast('Car disconnected. The range keeps counting down from its last reading.'); },
-  'car-details'() { openSheet('car'); },
-  'car-tab'(arg) { app.carUI.tab = arg; renderSheet(); },
+  'car-details'() { openSheet('car'); refreshRecordings(); },
+  'car-tab'(arg) { app.carUI.tab = arg; app.carUI.detail = null; if (arg === 'rec') refreshRecordings(); renderSheet(); },
+  'car-detail'(arg) { app.carUI.detail = arg || null; app.carUI.alertError = null; renderSheet(); if (arg) $('#sheet')?.scrollTo?.({ top: 0 }); },
+  'car-pin'(arg) {
+    const p = app.car.prefs;
+    p.pinned = p.pinned.includes(arg) ? p.pinned.filter((k) => k !== arg) : [...p.pinned, arg];
+    if (!p.pinned.length) p.onlyPinned = false;
+    saveCarPrefs(); renderSheet();
+  },
+  'car-only-pinned'() { app.car.prefs.onlyPinned = !app.car.prefs.onlyPinned; saveCarPrefs(); renderSheet(); },
+  'car-alert-clear'(arg) {
+    delete app.car.prefs.alerts[arg]; app.car.alertStates.delete(arg); saveCarPrefs();
+    if (!app.car.watching && app.sheet?.kind !== 'car') app.car.stopLive();
+    renderSheet();
+  },
+  'car-rec-start'() {
+    const v = app.settings.vehicle;
+    app.car.startRecording({ vehicle: v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : null });
+    toast('Recording on this device');
+  },
+  'car-rec-stop'() { app.car.stopRecording(); },
+  async 'car-rec-play'(arg) {
+    const rec = await app.carRecStore.load(arg).catch(() => null);
+    if (!rec || !rec.samples.length) { toast('That recording has no readings'); return; }
+    const duration = rec.samples[rec.samples.length - 1][0];
+    if (app.car.live.on && !app.car.rec) app.car.stopLive();
+    app.carUI.playback = { rec, series: recordingSeries(rec), t: 0, duration, playing: true, speed: 1 };
+    app.carUI.tab = 'live'; app.carUI.detail = null;
+    renderSheet(); startPlaybackTimer();
+  },
+  async 'car-rec-csv'(arg) {
+    const rec = await app.carRecStore.load(arg).catch(() => null);
+    if (!rec) { toast('Recording not found'); return; }
+    const d = new Date(rec.startedAt);
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+    await saveTextFile(`ExitAtlas_car_${stamp}.csv`, recordingCSV(rec), 'text/csv');
+  },
+  async 'car-rec-delete'(arg) {
+    if (!confirm('Delete this recording from this device?')) return;
+    if (app.carUI.playback?.rec.id === arg) { stopPlaybackTimer(); app.carUI.playback = null; }
+    await app.carRecStore.remove(arg).catch(() => {});
+    refreshRecordings();
+  },
+  'car-pb-play'() {
+    const pb = app.carUI.playback; if (!pb) return;
+    if (!pb.playing && pb.t >= pb.duration) pb.t = 0;
+    pb.playing = !pb.playing;
+    if (pb.playing) startPlaybackTimer(); else stopPlaybackTimer();
+    renderSheet();
+  },
+  'car-pb-step'(arg) { const pb = app.carUI.playback; if (!pb) return; pb.t = Math.max(0, Math.min(pb.duration, pb.t + Number(arg))); renderSheet(); },
+  'car-pb-speed'(arg) { const pb = app.carUI.playback; if (pb) { pb.speed = Number(arg) || 1; renderSheet(); } },
+  'car-pb-stop'() { stopPlaybackTimer(); app.carUI.playback = null; app.carUI.detail = null; renderSheet(); },
   'car-live'() { if (app.car.live.on) app.car.stopLive(); else app.car.startLive(); },
   'car-reset-stats'() { app.car.resetStats(); },
   'car-codes'() { app.car.readCodes(); },
@@ -1873,6 +1999,23 @@ document.addEventListener('submit', async (ev) => {
   const form = ev.target;
   ev.preventDefault();
   const kind = form.dataset.form;
+  if (kind === 'car-alert') {
+    const key = form.dataset.key;
+    const rule = alertRule(form.low.value, form.high.value);
+    if (!rule) {
+      app.carUI.alertError = form.low.value.trim() || form.high.value.trim() ? 'Enter numbers, with the low limit below the high one.' : null;
+      if (!app.carUI.alertError) delete app.car.prefs.alerts[key];
+    } else {
+      app.carUI.alertError = null;
+      app.car.prefs.alerts[key] = rule;
+      toast('Alert limits saved');
+    }
+    app.car.alertStates.delete(key);
+    saveCarPrefs();
+    document.activeElement?.blur?.();
+    renderSheet();
+    return;
+  }
   if (kind === 'place-search') {
     const ps = app.placeSearch;
     ps.query = form.q.value.trim();
@@ -2052,6 +2195,9 @@ document.addEventListener('input', (ev) => {
     if (v?.ev) app.fuelUI.batteryTwentieths = Number(el.value); else app.fuelUI.gaugeEighths = Number(el.value);
     const label = $('[data-gauge-label]');
     if (label && v && (v.ev || v.tankGallons)) label.textContent = V.gaugeText(Number(el.value), v);
+  } else if (el.matches('[data-input="car-seek"]')) {
+    const pb = app.carUI.playback;
+    if (pb) { pb.t = Number(el.value); renderSheet({ live: true }); }
   } else if (el.matches('[data-stop-hours]')) {
     app.stopQuery.hours = parseFloat(el.value);
     const label = $('[data-stop-hours-label]');
@@ -2060,6 +2206,31 @@ document.addEventListener('input', (ev) => {
 });
 
 $('#sheet-backdrop').addEventListener('click', closeSheet);
+
+// Touching a car chart reads the nearest point (views.js bigChart). The sheet does not redraw under a finger.
+function readCarChart(ev) {
+  const svg = ev.target.closest?.('.car-chart svg');
+  if (!svg) return;
+  const box = svg.closest('.car-chart');
+  const d = box.dataset;
+  const pts = box._pts ?? (box._pts = d.series.split(';').map((p) => p.split(':').map(Number)));
+  const r = svg.getBoundingClientRect();
+  const W = Number(d.w), L = Number(d.l), R = Number(d.r);
+  const fx = ((ev.clientX - r.left) / r.width) * W;
+  const t = Number(d.t0) + ((fx - L) / (W - L - R)) * Number(d.tspan);
+  let best = pts[0];
+  for (const p of pts) if (Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p;
+  const x = L + ((best[0] - Number(d.t0)) / Number(d.tspan)) * (W - L - R);
+  const cursor = svg.querySelector('.cursor');
+  cursor?.setAttribute('x1', x.toFixed(1)); cursor?.setAttribute('x2', x.toFixed(1));
+  const s = Math.max(0, Math.floor(best[0] / 1000));
+  const when = d.rel === '1' ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} into the recording`
+    : new Date(best[0]).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  const out = box.querySelector('.car-chart-readout');
+  if (out) out.textContent = `${when} · ${best[1].toFixed(Number(d.digits))} ${d.unit}`;
+}
+document.addEventListener('pointerdown', readCarChart);
+document.addEventListener('pointermove', (ev) => { if (ev.buttons || ev.pointerType === 'touch') readCarChart(ev); });
 
 // Swipe down to close, like an iOS sheet: a downward pull that starts with the sheet scrolled to the top
 // moves the sheet with the finger; letting go past a third of the way (or with a quick flick) closes it,

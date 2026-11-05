@@ -10,7 +10,8 @@
 // byte scramble (engine/obd.js BLUEDRIVER_SETUP, bluedriverCodec).
 import { SETUP_COMMANDS, BLUEDRIVER_SETUP, PIDS, command, parseAnswer, readPID, supports, monitorStatus, parseVoltage,
   parseIdentity, steadyFuel, bluedriverCodec, PROBLEM_TEXT } from '../engine/obd.js';
-import { MASK_PIDS, NOT_LIVE, PIDS01, channelsFor } from '../engine/obdpids.js';
+import { MASK_PIDS, NOT_LIVE, PIDS01, channelsFor, toUS } from '../engine/obdpids.js';
+import { roundPIDs, batches, multiCommand, parseMulti, alertState, MULTI_MAX, SLOW_EVERY } from '../engine/obdlive.js';
 import { parseDTCs, parseVIN, parseInfoText, answerBytes, readiness } from '../engine/obddiag.js';
 
 /// Bluetooth LE serial services OBD2 adapters use, with their notify and write characteristics. FFF0 (FFF1
@@ -54,17 +55,31 @@ export const CAR_RULES = Object.freeze({
   reconnectAfter: [3, 10, 30],
   /// A fuel reading older than this is not "now".
   freshSeconds: 60,
-  /// Lines kept in the session log, and live samples kept per sensor for its trend line.
-  logLines: 4000, history: 300,
+  /// Lines kept in the session log, and live samples kept per sensor for its chart.
+  logLines: 4000, history: 1200,
+  /// Readings a recording holds at most (about 4 hours at 25 a second), and how often (s) one is saved as it runs.
+  recordCap: 360000, autosaveEvery: 60,
+  /// Answers to a request for several items that cannot be split before going back to one item per request.
+  multiFailures: 3,
   /// The screen is redrawn at most this often (ms) while live data streams.
   liveRedraw: 400,
 });
 
 export class CarLink {
-  constructor({ bluetooth = globalThis.navigator?.bluetooth, onChange = () => {}, clock = () => Date.now() / 1000 } = {}) {
+  constructor({ bluetooth = globalThis.navigator?.bluetooth, onChange = () => {}, onAlert = () => {}, onRecorded = () => {}, clock = () => Date.now() / 1000 } = {}) {
     this.bluetooth = bluetooth;
     this.onChange = onChange;
+    this.onAlert = onAlert;
+    this.onRecorded = onRecorded;
     this.clock = clock;
+    /// The driver's choices (main.js keeps them on this device): pinned channel keys, alert limits per channel key
+    /// in the units shown ({ low, high }), and whether live data reads only the pinned items.
+    this.prefs = { pinned: [], alerts: {}, onlyPinned: false };
+    /// The recording under way: { id, startedAt, endedAt, vehicle, adapter, channels, samples: [[ms, key, value]] }.
+    this.rec = null;
+    /// Live data was started and not stopped by the driver: it starts again after a reconnect.
+    this.wantLive = false;
+    this.alertStates = new Map();
     /// The session log: every request and answer, raw and readable, kept across drops (copy it after a failure).
     this.log = []; this.logStart = Date.now();
     this.reset();
@@ -86,7 +101,9 @@ export class CarLink {
     this.supported = null; this.supported09 = null; this.monitorBytes = null; this.dtc = null; this.info = null;
     this.protocol = null; this.deviceInfo = null;
     /// Live data: on, and per channel key { value, t, min, max, sum, n, history }; per PID 'ok' or 'noData'.
-    this.live = { on: false, values: new Map(), status: new Map(), cycleMs: null, requests: 0, startedAt: null };
+    /// multi: PIDs per request (null until probed, 1 for one at a time); rate: readings and requests a second.
+    this.live = { on: false, values: new Map(), status: new Map(), cycleMs: null, requests: 0, startedAt: null, round: 0, multi: null,
+      multiFailures: 0, rate: null };
     this.write = null; this.control = null; this.kind = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
     this.stopTimers();
   }
@@ -174,6 +191,7 @@ export class CarLink {
       this.changed();
       await this.findPIDs();
       this.startTimers();
+      if (this.wantLive && !this.live.on) this.startLive();
     } catch (e) {
       this.logLine('!', `open failed: ${e?.message ?? e}`);
       if (this.state === 'disconnected') return;
@@ -437,50 +455,149 @@ export class CarLink {
   startLive() {
     if (this.live.on || this.state !== 'connected') return;
     this.live.on = true;
+    this.wantLive = true;
     this.live.startedAt = Date.now();
     this.logLine('i', 'live data on');
     this.changed();
     this.liveLoop();
   }
 
+  /// The driver stops live data (a recording stops with it).
   stopLive() {
+    this.wantLive = false;
+    if (this.rec) this.stopRecording('live data stopped');
     if (!this.live.on) return;
     this.live.on = false;
+    this.alertStates.clear();
     this.logLine('i', 'live data off');
     this.changed();
+  }
+
+  /// Live data keeps running with its screen closed: a recording, or alert limits to watch.
+  get watching() { return Boolean(this.rec) || Object.keys(this.prefs.alerts ?? {}).length > 0; }
+
+  /// The PIDs of the pinned items.
+  pinnedPIDs() {
+    return new Set((this.prefs.pinned ?? []).map((k) => parseInt(String(k).slice(2, 4), 16)).filter((p) => this.supported?.has(p)));
+  }
+
+  /// Whether the adapter answers a request for several PIDs at once, checked on this car after the first round with
+  /// three PIDs that answered one at a time (a listed PID that never answers must not count against it).
+  /// Only the ELM327 on CAN: older buses do not allow it, and the BlueDriver's answers (data bytes only, no PID)
+  /// could not be split.
+  async probeMulti() {
+    const can = /15765|CAN/i.test(this.protocol ?? '');
+    if (this.kind !== 'elm' || !can) {
+      this.live.multi = 1;
+      this.logLine('i', `one item per request (${this.kind === 'bluedriver' ? 'BlueDriver answers carry no PID to split by' : 'not a CAN car or protocol unknown'})`);
+      return;
+    }
+    const pick = this.livePIDs().filter((p) => PIDS01.has(p) && this.live.status.get(p) === 'ok').slice(0, 3);
+    if (pick.length < 2) { this.live.multi = 1; return; }
+    const m = parseMulti(await this.send(multiCommand(pick)), pick);
+    const ok = Boolean(m) && pick.every((p) => m.has(p));
+    this.live.multi = ok ? MULTI_MAX : 1;
+    this.logLine('i', ok ? `several items per request: yes, up to ${MULTI_MAX}` : 'several items per request: no, one at a time');
   }
 
   async liveLoop() {
     while (this.live.on && this.state === 'connected') {
       if (!this.supported) await this.findPIDs().catch(() => {});
-      const pids = this.livePIDs();
-      if (!pids.length) { await new Promise((r) => setTimeout(r, 1000)); continue; }
+      const all = this.livePIDs();
+      if (!all.length) { await new Promise((r) => setTimeout(r, 1000)); continue; }
+      if (this.live.multi === null && this.live.round > 0) await this.probeMulti().catch(() => { this.live.multi = 1; });
+      const round = this.live.round++;
+      const only = this.prefs.onlyPinned ? this.pinnedPIDs() : null;
+      const pids = roundPIDs(all, round, { only });
+      // Reading only the pinned items: the fuel level still every few rounds, for the range.
+      if (only?.size && this.supportsFuel && round % SLOW_EVERY === 0 && !pids.includes(PIDS.fuelLevel.pid)) pids.push(PIDS.fuelLevel.pid);
       const t0 = performance.now();
-      for (const pid of pids) {
+      const req0 = this.live.requests;
+      let readings = 0;
+      for (const group of batches(pids, this.live.multi ?? 1)) {
         if (!this.live.on || this.state !== 'connected') break;
-        try { await this.readLive(pid); } catch (e) { this.live.status.set(pid, 'error'); this.logLine('!', `PID ${pid.toString(16)}: ${e?.message ?? e}`); }
+        try { readings += group.length > 1 ? await this.readLiveMany(group) : await this.readLive(group[0]); } catch (e) {
+          for (const pid of group) this.live.status.set(pid, 'error');
+          this.logLine('!', `PID ${group.map((p) => p.toString(16)).join(' ')}: ${e?.message ?? e}`);
+        }
         this.changedSoon();
       }
-      this.live.cycleMs = performance.now() - t0;
+      const ms = performance.now() - t0;
+      if (round % SLOW_EVERY === 0) this.live.cycleMs = ms;
+      if (ms > 0) {
+        const now = { readings: (readings * 1000) / ms, requests: ((this.live.requests - req0) * 1000) / ms };
+        const was = this.live.rate;
+        this.live.rate = was ? { readings: was.readings * 0.7 + now.readings * 0.3, requests: was.requests * 0.7 + now.requests * 0.3 } : now;
+      }
       await new Promise((r) => setTimeout(r, 20));
     }
     this.live.on = false;
     this.changed();
   }
 
+  /// One PID: returns the number of PIDs read (0 or 1).
   async readLive(pid) {
     const bare = { bare: this.kind === 'bluedriver' };
     const r = parseAnswer(await this.send(command(pid)), pid, 1, bare);
-    if (r.problem) { this.live.status.set(pid, r.problem); return; }
+    if (r.problem) { this.live.status.set(pid, r.problem); return 0; }
+    this.apply(pid, r.bytes, Date.now());
+    return 1;
+  }
+
+  /// Several PIDs in one request. An answer that cannot be split is read again one PID at a time; after a few,
+  /// one PID per request from then on.
+  async readLiveMany(group) {
+    const m = parseMulti(await this.send(multiCommand(group)), group);
+    if (!m) {
+      if (++this.live.multiFailures >= CAR_RULES.multiFailures) {
+        this.live.multi = 1;
+        this.logLine('!', 'answers to several items could not be split: one item per request from now on');
+      }
+      let n = 0;
+      for (const pid of group) n += await this.readLive(pid);
+      return n;
+    }
+    const t = Date.now();
+    for (const pid of group) {
+      const bytes = m.get(pid);
+      if (bytes) this.apply(pid, bytes, t);
+      else this.live.status.set(pid, 'noData');
+    }
+    return m.size;
+  }
+
+  /// A PID's data bytes become its channels' readings (and the fuel level and voltage the rest of the app uses).
+  apply(pid, bytes, t) {
     this.live.status.set(pid, 'ok');
     const need = PIDS01.get(pid)?.bytes ?? 1;
-    const t = Date.now();
     for (const c of channelsFor(pid)) {
-      const value = c.raw ? c.f(r.bytes) : r.bytes.length >= need ? c.f(r.bytes) : null;
+      const value = c.raw ? c.f(bytes) : bytes.length >= need ? c.f(bytes) : null;
       this.record(c, value, t);
     }
-    if (pid === PIDS.fuelLevel.pid && r.bytes.length >= 1) this.noteFuel(PIDS.fuelLevel.decode(r.bytes));
-    if (pid === PIDS.voltage.pid && r.bytes.length >= 2) this.voltage = PIDS.voltage.decode(r.bytes);
+    if (pid === PIDS.fuelLevel.pid && bytes.length >= 1) this.noteFuel(PIDS.fuelLevel.decode(bytes));
+    if (pid === PIDS.voltage.pid && bytes.length >= 2) this.voltage = PIDS.voltage.decode(bytes);
+  }
+
+  /// Recording: every reading from now on, kept on this device (main.js saves it as it runs and when it stops).
+  startRecording(meta = {}) {
+    if (this.rec) return this.rec;
+    const now = Date.now();
+    this.rec = { id: `rec-${now}`, startedAt: now, endedAt: null, vehicle: meta.vehicle ?? null, adapter: this.name, channels: {}, samples: [] };
+    this.logLine('i', 'recording on');
+    if (!this.live.on) this.startLive();
+    this.changed();
+    return this.rec;
+  }
+
+  stopRecording(reason = '') {
+    const r = this.rec;
+    if (!r) return null;
+    r.endedAt = Date.now();
+    this.rec = null;
+    this.logLine('i', `recording off${reason ? ` (${reason})` : ''}: ${r.samples.length} readings`);
+    try { this.onRecorded(r, reason); } catch { /* the app's problem */ }
+    this.changed();
+    return r;
   }
 
   /// One sample for a channel: the value, minimum, maximum, average (numbers) and the trend.
@@ -494,6 +611,25 @@ export class CarLink {
       v.sum += value; v.n++;
       v.history.push([t, value]);
       if (v.history.length > CAR_RULES.history) v.history.splice(0, v.history.length - CAR_RULES.history);
+    }
+    if (this.rec && value !== null && value !== undefined) {
+      const rec = this.rec;
+      if (!rec.channels[channel.key]) rec.channels[channel.key] = { pid: channel.pid, name: channel.name, unit: channel.unit };
+      rec.samples.push([t - rec.startedAt, channel.key, value]);
+      if (rec.samples.length >= CAR_RULES.recordCap) this.stopRecording('full');
+    }
+    const rule = this.prefs.alerts?.[channel.key];
+    if (rule && typeof value === 'number') {
+      const [shown, unit] = toUS(value, channel.unit);
+      const was = this.alertStates.get(channel.key) ?? null;
+      const now = alertState(shown, rule, was);
+      if (now !== was) {
+        this.alertStates.set(channel.key, now);
+        if (now) {
+          this.logLine('!', `alert: ${channel.name} ${now} at ${shown.toFixed(2)} ${unit} (limit ${now === 'high' ? rule.high : rule.low})`);
+          try { this.onAlert({ channel, state: now, value: shown, unit, rule }); } catch { /* the app's problem */ }
+        }
+      }
     }
   }
 
@@ -542,6 +678,8 @@ export class CarLink {
   /// The driver disconnects: no reconnect.
   disconnect() {
     const d = this.device;
+    this.wantLive = false;
+    if (this.rec) this.stopRecording('disconnected');
     this.reset();
     try { d?.gatt?.disconnect(); } catch { /* already gone */ }
     this.changed();

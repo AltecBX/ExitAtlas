@@ -40,6 +40,9 @@ struct DrivePresentationToggle: View {
                 .frame(width: 40, height: 30)
                 .foregroundStyle(on ? Color.white : Theme.secondaryText)
                 .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Color.clear), in: Capsule())
+                // A plain button takes taps only where it draws: without this the option that is not selected
+                // (clear background) answered only on its 15 point symbol, and a tap beside it was lost.
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
