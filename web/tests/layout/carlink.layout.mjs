@@ -180,9 +180,12 @@ function simulatedBlueDriver(opts) {
   Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { requestDevice: async (o) => { window.__requestOptions = o; return device; } } });
 }
 
-async function open({ bluetooth = null, bluedriver = null, scheme = 'light' } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: SHOTS ? 2 : 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block' });
+async function open({ bluetooth = null, bluedriver = null, scheme = 'light', homeScreen = false } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: SHOTS ? 2 : 1, isMobile: true, hasTouch: true, colorScheme: scheme, serviceWorkers: 'block',
+    ...(homeScreen ? { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' } : {}) });
   const page = await ctx.newPage();
+  // A Home Screen web app on iPhone: navigator.standalone is true there.
+  if (homeScreen) await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (bluetooth) await page.addInitScript(simulatedAdapter, bluetooth);
@@ -230,6 +233,22 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(SHOTS, 'car-help.png') });
   }
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 1b. The Home Screen web app on iPhone: Safari extensions do not run there, so the car connects in Safari; the row
+// says so and offers Open in Safari and Copy address.
+{
+  const fail = (m) => failures.push(`Home Screen app: ${m}`);
+  const { ctx, page, errors } = await open({ homeScreen: true });
+  const help = await text(page, '#sheet [data-testid="car-help-homescreen"]');
+  if (!/Connect your car in Safari/.test(help ?? '') || !/Home Screen/.test(help ?? '') || !/beacio/.test(help ?? '')) fail(`help: ${help}`);
+  if (/works only with its own app/.test(help ?? '')) fail('the old BlueDriver line is back');
+  const href = await page.getAttribute('#sheet [data-testid="open-in-safari"]', 'href');
+  if (!/^x-safari-http:\/\/127\.0\.0\.1:\d+\/web\/index\.html$/.test(href ?? '')) fail(`Open in Safari link: ${href}`);
+  if (!(await page.$('#sheet [data-act="copy-address"]'))) fail('no Copy address');
+  if (await page.$('#sheet [data-testid="car-help"]')) fail('the plain Bluetooth help shows too');
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }
