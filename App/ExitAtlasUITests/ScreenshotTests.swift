@@ -180,9 +180,11 @@ final class ScreenshotTests: XCTestCase {
             app.buttons["priceSort-price"].firstMatch.tap()
             sleep(1)
             snap("2i Road Ahead lowest price", dark)
-            let row = app.buttons["priceRow"].firstMatch
-            XCTAssertTrue(row.waitForExistence(timeout: 5), "No station rows")
-            row.tap()
+            XCTAssertTrue(app.buttons["priceRow"].firstMatch.waitForExistence(timeout: 5), "No station rows")
+            // After the swipes the first row can sit under the pinned header: open the first row that can be tapped.
+            let row = app.buttons.matching(identifier: "priceRow").allElementsBoundByIndex.first { $0.isHittable }
+            XCTAssertNotNil(row, "No station row on screen")
+            row?.tap()
             XCTAssertTrue(app.navigationBars["Prices"].waitForExistence(timeout: 10), "No station price sheet")
             sleep(1)
             let google = app.descendants(matching: .any)["checkGoogle"].firstMatch
