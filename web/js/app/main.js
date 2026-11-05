@@ -1909,6 +1909,9 @@ const actions = {
   'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); },
   'car-disconnect'() { app.car.disconnect(); toast('Car disconnected. The range keeps counting down from its last reading.'); },
   'car-details'() { openSheet('car'); refreshRecordings(); },
+  'copy-address'(arg) {
+    navigator.clipboard?.writeText(arg).then(() => toast('Address copied: paste it in Safari'), () => toast(arg, 8000));
+  },
   'car-tab'(arg) { app.carUI.tab = arg; app.carUI.detail = null; if (arg === 'rec') refreshRecordings(); renderSheet(); },
   'car-detail'(arg) { app.carUI.detail = arg || null; app.carUI.alertError = null; renderSheet(); if (arg) $('#sheet')?.scrollTo?.({ top: 0 }); },
   'car-pin'(arg) {
@@ -2347,5 +2350,32 @@ async function boot() {
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  keepCurrent();
+}
+
+/// New versions load without a restart. A Home Screen web app on iPhone resumes from memory for days instead of
+/// reloading, so the page asks for a new version each time it comes to the front (and every 5 minutes while on
+/// screen). The worker installs it and takes over (skipWaiting, clients.claim); the page then reloads at once when
+/// it just came to the front or no trip is under way, else offers a one tap update (a reload resumes the trip, but
+/// not in the middle of driving unasked). Not on a first visit: there was no older version.
+function keepCurrent() {
+  const sw = navigator.serviceWorker;
+  let hadController = Boolean(sw.controller);
+  let shownAt = performance.now();
+  const check = () => sw.getRegistration().then((r) => r?.update()).catch(() => {});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { shownAt = performance.now(); check(); } });
+  setInterval(() => { if (document.visibilityState === 'visible') check(); }, 5 * 60 * 1000);
+  sw.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; }
+    const justOpened = performance.now() - shownAt < 15000;
+    const driving = Boolean(app.snapshot && app.plan);
+    if ((justOpened || !driving) && !fieldInUse(document.body, { unsaved: false })) { location.reload(); return; }
+    if (document.getElementById('update-ready')) return;
+    const b = document.createElement('button');
+    b.id = 'update-ready'; b.type = 'button';
+    b.textContent = 'New version ready · tap to update';
+    b.addEventListener('click', () => location.reload());
+    document.body.appendChild(b);
+  });
 }
 boot();
