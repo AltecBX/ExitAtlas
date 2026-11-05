@@ -11,15 +11,15 @@
 
 /// SHA-256 over APP_FILES (each line "file sha256", web/tests/sw.test.js computes it and says the new value
 /// when an app file changes). It names this version's cache.
-const APP_HASH = 'cacb9364523e331819dd9b21b38091d16c712024c380f54a4a37f2a921c786df';
+const APP_HASH = 'd9a5c9fa2255a3d9455d123706c5aa58b70fa320f89787a2214d000795ff6360';
 const CACHE = `exitatlas-v34-${APP_HASH.slice(0, 12)}`;
 const DATA_CACHE = 'exitatlas-data';
 const APP_FILES = [
   './', 'index.html', 'css/tokens.css', 'css/app.css', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
-  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/pricebook.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weathericons.js', 'js/app/navmap.js', 'js/app/net.js', 'js/app/reroute.js',
+  'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/pricebook.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weatherahead.js', 'js/app/weathericons.js', 'js/app/navmap.js', 'js/app/net.js', 'js/app/reroute.js',
   'js/engine/geo.js', 'js/engine/datasets.js', 'js/engine/exits.js', 'js/engine/foodbrands.js', 'js/engine/route.js',
   'js/engine/tracking.js', 'js/engine/trip.js', 'js/engine/discovery.js', 'js/engine/osrm.js', 'js/engine/fuel.js', 'js/engine/restareas.js', 'js/engine/discover.js', 'js/engine/travels.js', 'js/engine/datamanifest.js', 'js/engine/profile.js',
-  'js/engine/openinghours.js', 'js/engine/smartstop.js', 'js/engine/roadintel.js', 'js/engine/alertsources.js', 'js/engine/dashboard.js', 'js/engine/weather.js', 'js/engine/handoff.js', 'js/engine/guidance.js', 'js/engine/traffic.js', 'js/engine/gasprices.js', 'js/engine/pricecheck.js',
+  'js/engine/openinghours.js', 'js/engine/smartstop.js', 'js/engine/roadintel.js', 'js/engine/alertsources.js', 'js/engine/dashboard.js', 'js/engine/weather.js', 'js/engine/weatherahead.js', 'js/engine/handoff.js', 'js/engine/guidance.js', 'js/engine/traffic.js', 'js/engine/gasprices.js', 'js/engine/pricecheck.js',
 ];
 
 self.addEventListener('install', (event) => {

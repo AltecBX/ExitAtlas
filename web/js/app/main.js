@@ -20,6 +20,8 @@ import { smartStop, evaluateStop, lastOpenBeforeGap } from '../engine/smartstop.
 import { fuelCandidates, aheadCandidates, liveFor, stationName } from './smartstops.js';
 import { RoadAlerts } from './roadalerts.js';
 import { LiveWeather } from './weather.js';
+import { WeatherAhead } from './weatherahead.js';
+import { coveredByAlert, AHEAD_RULES } from '../engine/weatherahead.js';
 import { roadIntel } from '../engine/roadintel.js';
 import { FocusStabilizer } from '../engine/dashboard.js';
 import { ReroutePacer, chooseReroute } from './reroute.js';
@@ -109,6 +111,8 @@ const app = {
   /// Road alert sources for the active trip (app/roadalerts.js).
   roadAlerts: new RoadAlerts({ proxyBase: () => proxyFor('wzdx') }),
   weather: new LiveWeather(),
+  /// The hourly forecast at the arrival time for the route ahead (app/weatherahead.js).
+  weatherAhead: new WeatherAhead(),
 
   /// Gas along the route in order: exits with a gas station and service plazas that list one.
   gasStops(plan = this.plan) {
@@ -184,6 +188,23 @@ const app = {
   /// The next stop or the destination still ahead on a planned trip, for handing off to Waze.
   nextWaypoint() {
     return this.mode === 'trip' ? remainingWaypoints()[0] ?? null : null;
+  },
+
+  /// Weather ahead on the route (engine/weatherahead.js weatherAhead()), only while a trip runs with the weather
+  /// alerts switch on; null before the first answer.
+  aheadWeather() {
+    if (this.mode === 'idle' || !this.snapshot || this.settings.alerts?.weather === false) return null;
+    return this.weatherAhead.ahead(this.snapshot);
+  },
+
+  /// The weather warning the Drive screen shows and the voice says: the first forecast warning within 60 miles
+  /// that an NWS warning already on the route does not cover.
+  weatherWarning() {
+    const wa = this.aheadWeather();
+    const s = this.snapshot;
+    if (!wa || !s) return null;
+    const alerts = this.roadIntel()?.alerts ?? [];
+    return wa.warnings.find((w) => w.end > s.progress && w.start - s.progress <= AHEAD_RULES.chipWindow && !coveredByAlert(w, alerts)) ?? null;
   },
 
   /// The weather where you are now (app/weather.js), only while a trip runs.
@@ -457,6 +478,18 @@ function renderNow() {
   // The condition goes when it does not fit next to the status pill (the sheet always shows it).
   const cond = $('#weather .wx-cond');
   if (cond) { cond.parentNode.classList.remove('tight'); cond.parentNode.classList.toggle('tight', cond.scrollWidth > cond.clientWidth + 1); }
+  // Weather ahead in the pill: when its words do not fit, the temperature goes (the sheet always shows it), then
+  // the icon before the words, then shorter words ("Fog ahead", then "Fog"). The system font sets the width, so a
+  // phone with larger text or a wider font needs the shorter forms where another does not.
+  const ahead = $('#weather .wx-ahead-t');
+  if (ahead) {
+    const pill = ahead.closest('.wx-pill');
+    const over = () => ahead.scrollWidth > ahead.clientWidth + 1;
+    pill.classList.remove('tighter', 'tightest');
+    if (ahead.dataset.full && ahead.textContent !== ahead.dataset.full) ahead.textContent = ahead.dataset.full;
+    for (const c of ['tighter', 'tightest']) if (over()) pill.classList.add(c);
+    for (const k of ['short', 'name']) if (over() && ahead.dataset[k]) ahead.textContent = ahead.dataset[k];
+  }
   $('#title').hidden = Boolean(wx) && !highway;
   $('#status').innerHTML = V.statusPill(app);
   const along = $('#sheet.open [data-along]');
@@ -545,7 +578,7 @@ function openSheet(kind, arg = null) {
 }
 
 /// Sheets whose miles, arrival times and fuel left depend on where the vehicle is.
-const LIVE_SHEETS = new Set(['fuel', 'restroom', 'stop', 'exit', 'rest', 'alert', 'search', 'station']);
+const LIVE_SHEETS = new Set(['fuel', 'restroom', 'stop', 'exit', 'rest', 'alert', 'search', 'station', 'weather']);
 
 /// Redraws the open sheet as the vehicle moves (at most every 2 s), so its miles ahead, arrival times and
 /// fuel left count down like the Drive screen instead of staying as they were when it opened. Never while
@@ -992,6 +1025,7 @@ function resetTripState() {
   app.announcer.reset();
   app.roadAlerts.reset();
   app.weather.reset();
+  app.weatherAhead.stop();
   app.intelKey = null;
   app.limits = null;
   app.lastSpeed = null;
@@ -1180,6 +1214,7 @@ function publish(snap) {
   const gap = app.gasGapsAhead(snap).find((g) => g.before && g.before.distance > snap.progress) ?? null;
   app.announcer.consider(snap, app.settings, {
     zoneID: app.plan?.timeZoneIDAt(snap.progress) ?? null, gasGap: gap, lastOpen: app.lastOpenAhead(), alerts: app.roadIntel()?.alerts ?? [],
+    weather: app.weatherWarning(),
   });
   // Road alert sources: fetched only while a trip runs, when due (app/roadalerts.js).
   app.roadAlerts.refresh(app.plan, snap.progress, { online: navigator.onLine !== false, enabled: app.settings.alerts ?? {} })
@@ -1188,6 +1223,10 @@ function publish(snap) {
   // Current weather where you are: also only while a trip runs, when due (app/weather.js).
   app.weather.refresh(app.lastSample?.coordinate, { online: navigator.onLine !== false })
     .then((changed) => { if (changed) { render(); if (app.sheet?.kind === 'weather') renderSheet(); } })
+    .catch(() => {});
+  // Weather ahead: the hourly forecast at the arrival time, every 20 minutes or 40 miles (app/weatherahead.js).
+  app.weatherAhead.refresh(app.plan, snap, { online: navigator.onLine !== false, enabled: app.settings.alerts?.weather !== false })
+    .then((changed) => { if (changed) { lastViewHTML = ''; render(); if (app.sheet?.kind === 'weather') renderSheet(); } })
     .catch(() => {});
   considerFuelVoice();
   ensureLimits();

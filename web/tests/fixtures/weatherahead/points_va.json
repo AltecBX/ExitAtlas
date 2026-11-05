@@ -1,0 +1,112 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "s": "https://schema.org/",
+   "geo": "http://www.opengis.net/ont/geosparql#",
+   "unit": "http://codes.wmo.int/common/unit/",
+   "@vocab": "https://api.weather.gov/ontology#",
+   "geometry": {
+    "@id": "s:GeoCoordinates",
+    "@type": "geo:wktLiteral"
+   },
+   "city": "s:addressLocality",
+   "state": "s:addressRegion",
+   "distance": {
+    "@id": "s:Distance",
+    "@type": "s:QuantitativeValue"
+   },
+   "bearing": {
+    "@type": "s:QuantitativeValue"
+   },
+   "value": {
+    "@id": "s:value"
+   },
+   "unitCode": {
+    "@id": "s:unitCode",
+    "@type": "@id"
+   },
+   "forecastOffice": {
+    "@type": "@id"
+   },
+   "forecastGridData": {
+    "@type": "@id"
+   },
+   "publicZone": {
+    "@type": "@id"
+   },
+   "county": {
+    "@type": "@id"
+   }
+  }
+ ],
+ "id": "https://api.weather.gov/points/36.69,-77.54",
+ "type": "Feature",
+ "geometry": {
+  "type": "Point",
+  "coordinates": [
+   -77.54,
+   36.69
+  ]
+ },
+ "properties": {
+  "@id": "https://api.weather.gov/points/36.69,-77.54",
+  "@type": "wx:Point",
+  "cwa": "AKQ",
+  "type": "land",
+  "forecastOffice": "https://api.weather.gov/offices/AKQ",
+  "gridId": "AKQ",
+  "gridX": 47,
+  "gridY": 39,
+  "forecast": "https://api.weather.gov/gridpoints/AKQ/47,39/forecast",
+  "forecastHourly": "https://api.weather.gov/gridpoints/AKQ/47,39/forecast/hourly",
+  "forecastGridData": "https://api.weather.gov/gridpoints/AKQ/47,39",
+  "observationStations": "https://api.weather.gov/gridpoints/AKQ/47,39/stations",
+  "relativeLocation": {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -77.5359753,
+     36.696182
+    ]
+   },
+   "properties": {
+    "city": "Emporia",
+    "state": "VA",
+    "distance": {
+     "unitCode": "wmoUnit:m",
+     "value": 0
+    },
+    "bearing": {
+     "unitCode": "wmoUnit:degree_(angle)",
+     "value": 0
+    }
+   }
+  },
+  "forecastZone": "https://api.weather.gov/zones/forecast/VAZ087",
+  "county": "https://api.weather.gov/zones/county/VAC595",
+  "fireWeatherZone": "https://api.weather.gov/zones/fire/VAZ087",
+  "timeZone": "America/New_York",
+  "radarStation": "KAKQ",
+  "astronomicalData": {
+   "sunrise": "2026-11-05T06:38:01-05:00",
+   "sunset": "2026-11-05T17:09:28-05:00",
+   "transit": "2026-11-05T11:53:45-05:00",
+   "civilTwilightBegin": "2026-11-05T06:11:08-05:00",
+   "civilTwilightEnd": "2026-11-05T17:36:22-05:00",
+   "nauticalTwilightBegin": "2026-11-05T05:40:23-05:00",
+   "nauticalTwilightEnd": "2026-11-05T18:07:06-05:00",
+   "astronomicalTwilightBegin": "2026-11-05T05:10:06-05:00",
+   "astronomicalTwilightEnd": "2026-11-05T18:37:24-05:00"
+  },
+  "nwr": {
+   "transmitter": "WWG33",
+   "sameCode": "051595",
+   "areaBroadcast": "https://api.weather.gov/radio/WWG33/broadcast",
+   "pointBroadcast": "https://api.weather.gov/points/36.69,-77.54/radio"
+  }
+ }
+}

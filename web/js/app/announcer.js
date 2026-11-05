@@ -31,6 +31,12 @@ const SAME_ALERT = 1 * MILE;
 /// "New route." after an automatic reroute is said at most once in this many seconds: a driver who keeps
 /// leaving the new route (a detour of their own) hears it once, not at every reroute 20 seconds apart.
 const REROUTE_QUIET = 120;
+/// Weather ahead from the hourly forecast (app/weatherahead.js): said once when a warning stretch starts within
+/// WX_WARN, not within WX_MIN, and not again for the same kind within SAME_WEATHER on the odometer (a refresh
+/// moves a stretch's start by a forecast point, 12 miles).
+const WX_WARN = 20 * MILE;
+const WX_MIN = 1 * MILE;
+const SAME_WEATHER = 30 * MILE;
 
 /// "Central Time" for a zone ID, from the browser's own zone names.
 export function zoneName(zoneID, at = new Date()) {
@@ -107,6 +113,7 @@ export class Announcer {
     this.announcedOpen = new Set();
     this.announcedAlerts = new Set();
     this.spokenAlerts = []; // {category, odometer}
+    this.spokenWeather = []; // {kind, odometer}
     this.lastState = null;
     this.lastZone = null;
     this.reroutedAt = null;
@@ -150,6 +157,17 @@ export class Announcer {
         if (this.spokenAlerts.some((x) => x.category === a.incident.category && Math.abs(x.odometer - odometer) <= SAME_ALERT)) continue;
         this.spokenAlerts.push({ category: a.incident.category, odometer });
         this.speak(alertWords(a, ahead));
+        return;
+      }
+    }
+    // Weather ahead (the forecast, not an NWS warning; a warning already on the route was said above).
+    const wx = ctx.weather;
+    if (settings.alerts?.voice !== false && settings.alerts?.weather !== false && wx?.level === 'warn') {
+      const ahead = wx.start - s.progress;
+      const odometer = (s.drivenTotal ?? s.progress) + Math.max(0, ahead);
+      if (ahead > WX_MIN && ahead <= WX_WARN && !this.spokenWeather.some((x) => x.kind === wx.kind && Math.abs(x.odometer - odometer) <= SAME_WEATHER)) {
+        this.spokenWeather.push({ kind: wx.kind, odometer });
+        this.speak(weatherWords(wx, ahead));
         return;
       }
     }
@@ -240,4 +258,9 @@ export function alertWords(a, ahead) {
   if (i.verification === 'community') text += ' Reported by drivers, not confirmed.';
   if (i.verification === 'simulated') text += ' Simulated test alert.';
   return text;
+}
+
+/// "Weather forecast: showers likely ahead, in about 15 miles."
+export function weatherWords(wx, ahead) {
+  return `Weather forecast: ${wx.phrase.toLowerCase()} ahead, in about ${spokenMiles(ahead)}.`;
 }
