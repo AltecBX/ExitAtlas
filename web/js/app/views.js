@@ -1449,6 +1449,23 @@ export function carRow(app, { settings = false } = {}) {
   const v = app.vehicleProfile();
   if (!c || v?.ev) return '';
   if (!c.available) {
+    // A Home Screen web app on iPhone runs no Safari extensions (Apple, developer.apple.com/forums/thread/715634),
+    // so beacio cannot add Bluetooth there: the car connects in Safari itself.
+    const homeScreen = typeof navigator !== 'undefined' && (navigator.standalone === true || globalThis.matchMedia?.('(display-mode: standalone)').matches)
+      && /iPhone|iPad|iPod/.test(navigator.userAgent ?? '');
+    if (homeScreen) {
+      const here = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : '';
+      return `<div class="car-row car-help" data-testid="car-help-homescreen"><span style="font-size:22px">🚗</span><div style="flex:1;min-width:0">
+        <div style="font-weight:700">Connect your car in Safari</div>
+        <div class="amber-text tiny">You opened ExitAtlas from the Home Screen. iPhone runs Safari extensions such as beacio only in Safari itself, so Bluetooth is not available here.</div>
+        <ol class="car-steps small">
+          <li>Open ExitAtlas in Safari: tap Open in Safari, or Copy address and paste it in Safari.</li>
+          <li>Plug your BlueDriver (unofficial support) or an ELM327 Bluetooth LE adapter (for example OBDLink CX) into the car.</li>
+          <li>In Safari, with beacio turned on (Settings, Apps, Safari, Extensions, beacio, allow on other websites), Connect car shows here.</li>
+        </ol>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><a class="btn sm primary" href="x-safari-${h(here)}" data-testid="open-in-safari">Open in Safari</a><button type="button" class="btn sm" data-act="copy-address" data-arg="${h(here)}">Copy address</button></div>
+        <div class="muted tiny" style="margin-top:6px">Safari may keep its own copy of your settings. If your vehicle or places are missing there, use Export profile in this app's Settings and Import profile in Safari. Open in Safari can fail on some iOS versions; Copy address always works.</div></div></div>`;
+    }
     // Shown open: this is where the driver looks for Connect car, and the button needs Bluetooth first.
     return `<div class="car-row car-help" data-testid="car-help"><span style="font-size:22px">🚗</span><div style="flex:1;min-width:0">
       <div style="font-weight:700">Connect your car</div>
