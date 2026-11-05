@@ -1182,13 +1182,21 @@ function agoText(seconds) {
 
 /// The car connection in the fuel sheet (app/carlink.js): connect, its state, and what the car reports. Without
 /// Web Bluetooth (Safari without the beacio extension), what it takes.
-export function carRow(app) {
+export function carRow(app, { settings = false } = {}) {
   const c = app.car;
   const v = app.vehicleProfile();
   if (!c || v?.ev) return '';
   if (!c.available) {
-    return `<details class="car-help" data-testid="car-help"><summary>🚗 Read the fuel level from your car</summary>
-      <p class="muted small">Plug an OBD2 adapter with Bluetooth LE that speaks ELM327 (for example OBDLink CX) into the car. BlueDriver works only with its own app. On iPhone: install the free beacio app, turn on its Safari extension (Settings, Apps, Safari, Extensions, beacio, allow it on other websites), then open ExitAtlas in Safari. Chrome on Android works without it.</p></details>`;
+    // Shown open: this is where the driver looks for Connect car, and the button needs Bluetooth first.
+    return `<div class="car-row car-help" data-testid="car-help"><span style="font-size:22px">🚗</span><div style="flex:1;min-width:0">
+      <div style="font-weight:700">Connect your car</div>
+      <div class="amber-text tiny">Bluetooth is not available in this browser, so the Connect car button cannot show yet.</div>
+      <ol class="car-steps small">
+        <li>Plug an OBD2 adapter with Bluetooth LE that speaks ELM327 (for example OBDLink CX) into the car. BlueDriver works only with its own app.</li>
+        <li>iPhone: install the free beacio app, then Settings, Apps, Safari, Extensions, beacio: turn it on and allow it on other websites. Not in Private Browsing.</li>
+        <li>Reload ExitAtlas in Safari. Connect car shows here.</li>
+      </ol>
+      <div class="muted tiny">Chrome on Android needs no extension.</div></div></div>`;
   }
   const now = Date.now() / 1000;
   const btn = (act, text, arg = '') => `<button type="button" class="btn sm" data-act="${act}"${arg ? ` data-arg="${arg}"` : ''}>${text}</button>`;
@@ -1197,7 +1205,8 @@ export function carRow(app) {
     main = `<div style="font-weight:700">Connecting to ${h(c.name ?? 'the adapter')}…</div><div class="muted tiny">Keep the car's ignition on.</div>`;
     side = btn('car-disconnect', 'Cancel');
   } else if (c.state === 'connected') {
-    const fuel = c.fuel != null ? `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`
+    // Settings shows whole percents and no age, so it is not redrawn every few seconds (its fields are typed in).
+    const fuel = c.fuel != null ? (settings ? `Fuel <b class="num">${Math.round(c.fuel)}%</b>` : `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`)
       : c.supportsFuel === false ? 'This car does not report its fuel level' : 'Reading the fuel level…';
     main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
     side = btn('car-disconnect', 'Disconnect');
@@ -2055,6 +2064,7 @@ function vehicleSettings(app) {
     ${st.mpgBasis === 'custom' && !v?.ev ? `<label class="field"><span style="flex:1">My real MPG<div class="muted tiny">Interstate speeds often use more fuel than the EPA highway test</div></span><input type="number" inputmode="decimal" step="0.5" min="1" data-set="customMpg" value="${st.customMpg ?? ''}"></label>` : ''}
     ${st.mpgBasis === 'custom' && v?.ev ? `<label class="field"><span style="flex:1">My real range at 100%<div class="muted tiny">Highway speed and cold weather lower EV range</div></span><input type="number" inputmode="decimal" step="5" min="10" data-set="customRange" value="${st.customRange ?? ''}"></label>` : ''}
     <div class="field"><span style="flex:1">Fill up with about</span><div class="seg" style="width:220px">${[25, 50, 75, 100].map((b) => `<button class="${st.bufferMiles === b ? 'on' : ''}" data-act="fuel-buffer" data-arg="${b}">${b} mi</button>`).join('')}</div></div>
+    ${v && !v.ev ? `<div class="field car-field">${carRow(app, { settings: true })}</div>` : ''}
   </div>`;
 }
 
@@ -2066,8 +2076,8 @@ export function vehicleSheet(app) {
   }
   const years = Object.keys(app.vehicles.years).sort((a, b) => b - a);
   const makes = vp.year ? Object.keys(app.vehicles.years[vp.year] ?? {}).sort((a, b) => a.localeCompare(b)) : [];
-  const models = vp.year && vp.make ? Object.keys(app.vehicles.years[vp.year][vp.make] ?? {}).sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) : [];
-  const versions = vp.year && vp.make && vp.model ? app.vehicles.years[vp.year][vp.make][vp.model] ?? [] : [];
+  const models = vp.year && vp.make ? Object.keys(app.vehicles.years[vp.year]?.[vp.make] ?? {}).sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) : [];
+  const versions = vp.year && vp.make && vp.model ? app.vehicles.years[vp.year]?.[vp.make]?.[vp.model] ?? [] : [];
   const select = (name, label, options, value, fmt = (x) => x) => `<label class="field"><span style="width:90px">${label}</span>
     <select data-vp="${name}" style="flex:1;min-width:0;border:1px solid var(--stroke);border-radius:10px;padding:10px;background:var(--bg)" ${options.length ? '' : 'disabled'}>
       <option value="">Select</option>${options.map((o, i) => `<option value="${name === 'version' ? i : h(o)}" ${String(name === 'version' ? i : o) === String(value) ? 'selected' : ''}>${h(fmt(o))}</option>`).join('')}</select></label>`;

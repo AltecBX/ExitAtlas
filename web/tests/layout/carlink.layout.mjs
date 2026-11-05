@@ -110,8 +110,27 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   const help = await text(page, '#sheet [data-testid="car-help"]');
   if (!help || !/OBD2 adapter with Bluetooth LE/.test(help) || !/beacio/.test(help) || !/BlueDriver/.test(help)) fail(`help: ${help}`);
   if (await page.$('#sheet [data-act="car-connect"]')) fail('a Connect button shows without Web Bluetooth');
+  if (!/Bluetooth is not available in this browser/.test(help ?? '')) fail(`the help does not say why there is no Connect car: ${help}`);
+  // Choosing the vehicle from the fuel sheet comes back to it (where the range and Connect car are): the 2021
+  // Porsche 911 Turbo S, EPA 20 mpg highway, 17.6 gallon tank (Porsche press specs, in vehicles.json).
+  await page.click('#sheet [data-act="vehicle"]');
+  await page.waitForFunction(() => window.exitAtlas.vehicles?.years?.['2021']?.Porsche, null, { timeout: 30000 });
+  await page.evaluate(() => {
+    const a = window.exitAtlas;
+    const list = a.vehicles.years['2021'].Porsche['911'];
+    const i = list.findIndex((x) => /^911 Turbo S ·/.test(x[0]));
+    a.vehiclePick = { year: '2021', make: 'Porsche', model: '911', version: String(i), tank: null };
+  });
+  // Redraw the picker with that choice (as picking in the menus does), then Use this vehicle.
+  await page.evaluate(() => { const b = document.createElement('button'); b.dataset.act = 'vehicle-tank'; b.dataset.arg = ''; document.body.append(b); b.click(); b.remove(); });
+  await page.waitForSelector('#sheet [data-act="vehicle-save"]', { timeout: 10000 });
+  await page.click('#sheet [data-act="vehicle-save"]');
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => ({ sheet: window.exitAtlas.sheet?.kind ?? null, v: window.exitAtlas.settings.vehicle }));
+  if (after.sheet !== 'fuel') fail(`after Use this vehicle the open sheet is ${after.sheet}, not the fuel sheet`);
+  if (after.v?.model !== '911' || after.v?.tankGallons !== 17.6 || after.v?.hwy !== 20) fail(`vehicle saved: ${JSON.stringify(after.v)}`);
   if (SHOTS) {
-    await page.evaluate(() => { const d = document.querySelector('#sheet [data-testid="car-help"]'); d.open = true; d.scrollIntoView({ block: 'center' }); });
+    await page.evaluate(() => document.querySelector('#sheet [data-testid="car-help"]').scrollIntoView({ block: 'center' }));
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(SHOTS, 'car-help.png') });
   }
@@ -152,8 +171,13 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(SHOTS, 'car-connected.png') });
   }
-  // The Drive card says where the range comes from.
-  await page.evaluate(() => document.querySelector('[data-act="close-sheet"]')?.click());
+  // Settings shows the car too, in whole percents (no age that changes every few seconds).
+  await page.evaluate(() => { document.querySelector('[data-act="close-sheet"]')?.click(); document.querySelector('#settings-btn')?.click(); });
+  await page.waitForTimeout(500);
+  const inSettings = await text(page, '#view [data-testid="car-row"]');
+  if (!/Car connected/.test(inSettings ?? '') || !/Fuel 60%/.test(inSettings ?? '') || /ago/.test(inSettings ?? '')) fail(`Settings car row: ${inSettings}`);
+  await page.evaluate(() => document.querySelector('[data-act="tab"][data-arg="ahead"]')?.click());
+  await page.waitForTimeout(300);
   // The adapter drops: shown with its time; it reconnects without the picker.
   await page.evaluate(() => document.querySelector('[data-act="sheet"][data-arg="fuel"]')?.click());
   await page.waitForSelector('#sheet.open [data-testid="car-row"]');

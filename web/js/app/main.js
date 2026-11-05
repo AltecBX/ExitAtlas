@@ -982,6 +982,8 @@ app.isIOSSafari = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 async function openVehicleSheet() {
   const v = app.settings.vehicle;
+  // Saving goes back to the sheet this one was opened from (the fuel sheet, with Connect car).
+  app.vehicleReturn = app.sheet?.kind && app.sheet.kind !== 'vehicle' ? app.sheet.kind : null;
   app.vehiclePick = v ? { year: String(v.year), make: v.make, model: v.model, version: null, tank: v.tankGallons } : { year: '', make: '', model: '', version: null, tank: null };
   openSheet('vehicle');
   if (!app.vehicles) {
@@ -1704,7 +1706,9 @@ const actions = {
       tankGallons: ev ? null : gallons, tankBasis: ev ? null : basis, tankSources: ev ? [] : tank?.sources ?? [],
     });
     app.chargers.routeId = null;
-    closeSheet();
+    // Back to the fuel sheet when it was opened from there: the range and Connect car are next.
+    if (app.vehicleReturn === 'fuel') openSheet('fuel'); else closeSheet();
+    app.vehicleReturn = null;
     const pv = app.vehicleProfile();
     toast(ev ? `About ${Math.round(pv.rangeMiles)} mi per charge` : gallons ? `About ${Math.round(gallons * pv.mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
     render();
