@@ -5,8 +5,24 @@
   "gasGapMiles": 40,
   "midnight": "2026-10-29T00:00:00-04:00",
   "windows": [
-   { "atMiles": 1035, "from": "05:35", "to": "22:30", "stop": "way/55331538", "aheadMiles": 19, "lengthMiles": 40, "unlisted": 3 },
-   { "atMiles": 599, "from": "21:40", "to": "06:05", "stop": "node/2952864769", "aheadMiles": 6, "lengthMiles": 46, "unlisted": 6 }
+   {
+    "atMiles": 1035,
+    "from": "05:35",
+    "to": "22:30",
+    "stop": "way/55331538",
+    "aheadMiles": 19,
+    "lengthMiles": 40,
+    "unlisted": 3
+   },
+   {
+    "atMiles": 599,
+    "from": "21:40",
+    "to": "06:05",
+    "stop": "node/2952864769",
+    "aheadMiles": 6,
+    "lengthMiles": 46,
+    "unlisted": 6
+   }
   ]
  },
  "cases": [
@@ -78,9 +94,9 @@
     ],
     "considered": 82,
     "passed": {
-     "Reported closed at arrival": 6,
+     "Reported closed at arrival": 5,
      "Out of range": 18,
-     "Below your reserve": 24
+     "Below your reserve": 25
     },
     "lowRange": false,
     "notice": "No stop ahead has a restroom confirmed open at your arrival time. These list a restroom; its hours are not known."

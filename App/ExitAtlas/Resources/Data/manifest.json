@@ -1,9 +1,9 @@
 {
  "kind": "manifest",
  "schema": 1,
- "version": 202610310308,
- "content": "1f7e178881e171a65b147b9e3a79c4feda4c16111bcac002f4b0d25e337ad9fa",
- "generated_at": "2026-10-31T03:08:18+00:00",
+ "version": 202611050337,
+ "content": "03ad9f0a98f9da19aeb4bc634b55a6c517aafb4946d36543dc63a8edfd6be56e",
+ "generated_at": "2026-11-05T03:37:13+00:00",
  "files": {
   "states.eab": {
    "bytes": 2786240,
@@ -89,8 +89,8 @@
    "count": 1620
   },
   "stations.json": {
-   "bytes": 511912,
-   "sha256": "728cc9d0b2d6dfa6460392f82f778615f4550052f46e8f1db1698c7b2078f924",
+   "bytes": 475618,
+   "sha256": "72aa24aa9e7645b3db71d46cd56cb1b00b3ed7949b082cc4240a5369d2c6d7aa",
    "required": false,
    "role": "Gas station hours and restrooms",
    "kind": "stations",
@@ -101,6 +101,14 @@
    "tags_fetched": "2026-10-28",
    "data_last_edit": "2026-10-28",
    "count": 19679
+  },
+  "foodbrands.json": {
+   "bytes": 2581866,
+   "sha256": "054b11d966d90cc73fc4bb328d7621573088b7c1dca088f861de4a4ad8475725",
+   "required": false,
+   "role": "Chain restaurants near exits from the chains' store lists",
+   "source": "All the Places run 2026-10-24-13-32-37",
+   "license": "CC0-1.0"
   },
   "vehicles.json": {
    "bytes": 3102825,

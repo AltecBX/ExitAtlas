@@ -14,6 +14,17 @@ export function milesValue(meters) {
   return mi < 10 ? mi.toFixed(1) : Math.round(mi).toLocaleString('en-US');
 }
 
+/// Tenths of a mile, always ("59.2 mi", "1,012.4 mi"), for numbers the driver watches count down: miles to a
+/// stop, fuel left, miles left on the trip.
+export function tenthsValue(meters) {
+  const mi = Math.max(meters / METERS_PER_MILE, 0);
+  return mi.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+export function tenths(meters) {
+  return `${tenthsValue(meters)} mi`;
+}
+
 export function spokenMiles(meters) {
   const mi = meters / METERS_PER_MILE;
   if (mi < 0.35) return 'a quarter mile';

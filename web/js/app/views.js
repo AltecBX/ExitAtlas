@@ -1,9 +1,9 @@
 // Screen templates. Pure functions of app state that return HTML strings.
 import { METERS_PER_MILE as MILE } from '../engine/geo.js';
 import { highwayLabel, DIRECTION_WORDS, routeVia } from '../engine/route.js';
-import { CATEGORY_NAMES, placeDisplayName } from '../engine/datasets.js';
+import { CATEGORY_NAMES, PlaceCategory, placeDisplayName } from '../engine/datasets.js';
 import { exitTitle } from '../engine/exits.js';
-import { miles, milesValue, duration, clock, readingAge, escapeHTML as h } from './format.js';
+import { miles, milesValue, tenths, tenthsValue, duration, clock, readingAge, escapeHTML as h } from './format.js';
 import { renderRouteMap } from './map.js';
 import { GRADES, GOOGLE_DAILY_LIMIT, pricedForGrade, priceText, ageText, googlePriceCurrent } from './prices.js';
 import { GRADE_NAMES, PRICE_GRADES, SORTS, SORT_NAMES, sortStations, stationPrice, dollars } from '../engine/gasprices.js';
@@ -56,19 +56,20 @@ const PLAQUE_ORDER = [1, 2, 3, 5, 8, 4, 6, 7];
 const BROWN = new Set([6, 7]);
 
 /// Service plaques: one tile per category with the nearest named places. Text only (no brand logos).
-export function servicePlaques(services, { names = 2, compact = false, max = Infinity } = {}) {
+export function servicePlaques(services, { names = 2, compact = false, max = Infinity, foodNames = 1 } = {}) {
   const tiles = [];
   for (const cat of PLAQUE_ORDER) {
     if (tiles.length >= max) break;
     const items = services.filter((x) => x.place.category === cat).sort((a, b) => a.detourMeters - b.detourMeters);
     if (!items.length) continue;
     const named = [...new Set(items.map((x) => x.place.brand || x.place.name).filter((n) => n && n !== CATEGORY_NAMES[cat]))];
-    const shown = named.slice(0, compact ? 1 : names);
+    // Compact rows name one place per sign; food can name more (foodNames), so a busy exit shows its choices.
+    const shown = named.slice(0, compact ? (cat === PlaceCategory.food ? foodNames : 1) : names);
     const more = items.length - shown.length;
     const word = PLAQUE_WORDS[cat];
     const label = `${CATEGORY_NAMES[cat]}: ${shown.length ? shown.join(', ') : `${items.length} ${items.length === 1 ? 'place' : 'places'}`}${shown.length && more > 0 ? ` and ${more} more` : ''}`;
     const body = compact
-      ? `${shown.length ? `<span class="pn">${h(shown[0])}</span>` : ''}${more > 0 ? `<span class="pm">${shown.length ? '+' : ''}${more}</span>` : ''}`
+      ? `${shown.length ? `<span class="pn${shown.length > 1 ? ' many' : ''}">${h(shown.join(', '))}</span>` : ''}${more > 0 ? `<span class="pm">${shown.length ? '+' : ''}${more}</span>` : ''}`
       : `${shown.map((n) => `<span class="pn">${h(n)}</span>`).join('')}${more > 0 ? `<span class="pm">${shown.length ? `+${more} more` : `${more}`}</span>` : ''}`;
     tiles.push(`<span class="plaque ${BROWN.has(cat) ? 'brown' : 'blue'}" aria-label="${h(label)}"><b>${word}</b>${body}</span>`);
   }
@@ -211,7 +212,7 @@ export function statusPill(app) {
 }
 
 export function attribution() {
-  return '<div class="attrib">Routing and map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">report a map error</a>; navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate, and OpenStreetMap for parkways and other freeways. Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
+  return '<div class="attrib">Routing and map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors (ODbL), <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">report a map error</a>; navigation map tiles OpenFreeMap and OpenMapTiles. Exits and places: OpenInterstate, and OpenStreetMap for parkways and other freeways. Chain restaurants also from the chains\' store locators via All the Places (CC0). Rest area truck parking: FHWA. Discover places: Wikidata (CC0). State lines: U.S. Census TIGER/Line. Not affiliated with iExit.</div>';
 }
 
 // MARK: Drive
@@ -431,7 +432,7 @@ function tripStrip(app, s) {
   const discovery = app.mode === 'discovery';
   const left = discovery
     ? `<span><b class="num">${milesValue(s.remaining)}</b> mi of corridor ahead</span>`
-    : `<span><b class="num">${milesValue(s.remaining)}</b> mi left</span><span><b class="num">${clock(s.eta, null, s.t)}</b> arrival</span>${s.statesAhead.length ? `<span><b class="num">${s.statesAhead.length}</b> state${s.statesAhead.length === 1 ? '' : 's'}</span>` : '<span><b>Last</b> state</span>'}`;
+    : `<span><b class="num">${tenthsValue(s.remaining)}</b> mi left</span><span><b class="num">${clock(s.eta, null, s.t)}</b> arrival</span>${s.statesAhead.length ? `<span><b class="num">${s.statesAhead.length}</b> state${s.statesAhead.length === 1 ? '' : 's'}</span>` : '<span><b>Last</b> state</span>'}`;
   return `<button class="trip-strip" data-act="tab" data-arg="${discovery ? 'ahead' : 'trip'}" aria-label="Trip">${left}</button>`;
 }
 
@@ -795,7 +796,7 @@ function smartSign(x) {
 
 /// Distance line (the sign beside it shows the exit number).
 function smartWhere(x) {
-  return `${x.exit ? '' : 'On the highway · '}${milesValue(x.ahead)} mi ahead`;
+  return `${x.exit ? '' : 'On the highway · '}${tenthsValue(x.ahead)} mi ahead`;
 }
 
 /// "12:00 AM" from "00:00".
@@ -814,7 +815,7 @@ function smartConfidence(x, sm) {
 
 function smartArrival(app, x) {
   const parts = [`Arrive ${clock(x.arrival, x.timeZone, app.snapshot?.t)}`];
-  if (x.rangeOnArrival != null) parts.push(`about ${miles(x.rangeOnArrival)} of fuel left`);
+  if (x.rangeOnArrival != null) parts.push(`about ${tenths(x.rangeOnArrival)} of fuel left`);
   return parts.join(' · ');
 }
 
@@ -840,7 +841,8 @@ function smartSection(app, sm) {
   const alt = (x) => `<div class="item">${smartSign(x)}<div class="main"><div class="t">${h(x.name)}</div><div class="muted tiny">${h(smartWhere(x))} · ${h(smartArrival(app, x))}</div>
       ${smartConfidence(x, sm)}<div class="muted tiny">${h(x.reasons.filter((r) => !r.startsWith(x.evaluation.hours.label) && r !== x.evaluation.restroom.label).join(' · '))}</div></div>
       <button class="btn sm" data-act="skip-stop" data-arg="${h(x.id)}" aria-label="Not this one: ${h(x.name)}">Skip</button></div>`;
-  return `<div class="section-title">${sm.lowRange ? 'Nearest stop, fuel below your reserve' : 'Recommended stop'}</div>
+  const now = app.rangeNow();
+  return `<div class="section-title row" style="gap:8px"><span style="flex:1">${sm.lowRange ? 'Nearest stop, fuel below your reserve' : 'Recommended stop'}</span>${now !== null ? `<span class="num" data-testid="fuel-now" style="text-transform:none;letter-spacing:0">⛽ ${tenths(now)} now</span>` : ''}</div>
     ${sm.notice ? `<div class="banner warn" style="margin:0 0 10px">${h(sm.notice)}</div>` : ''}
     <div class="card smart${sm.lowRange ? ' low' : ''}">
       <div class="row" style="gap:12px">${smartSign(p)}<div style="flex:1;min-width:0"><div class="title-md">${p.brandRank !== null ? '★ ' : ''}${h(p.name)}</div>
@@ -1064,7 +1066,7 @@ function fuelCard(app, s) {
   } else if (app.smartStop()?.primary) {
     const sm = app.smartStop(), p = sm.primary;
     body = `<div class="row" style="gap:10px;margin-top:2px">${smartSign(p)}<div style="flex:1;min-width:0">
-        <div style="font-weight:700${sm.lowRange ? ';color:var(--amber)' : ''}">${sm.lowRange ? 'Fuel low: nearest' : 'Fuel stop'} · ${h(p.name)} · ${milesValue(p.ahead)} mi${p.brandRank !== null ? ' · ★' : ''}</div>
+        <div style="font-weight:700${sm.lowRange ? ';color:var(--amber)' : ''}">${sm.lowRange ? 'Fuel low: nearest' : 'Fuel stop'} · ${h(p.name)} · ${tenthsValue(p.ahead)} mi${p.brandRank !== null ? ' · ★' : ''}</div>
         ${smartConfidence(p, sm)}${priceLine(app, p, { onMap: true })}
         <div class="muted tiny">${h(smartArrival(app, p))}${p.detourMinutes != null ? ` · ${Math.round(p.detourMinutes)} min detour` : ''}</div></div></div>
         ${sm.notice ? `<div class="muted tiny" style="margin-top:6px">${h(sm.notice)}</div>` : ''}${cheaperNote(app, sm, { onMap: true })}`;
@@ -1072,13 +1074,13 @@ function fuelCard(app, s) {
     const low = fp.status === 'low';
     const sign = rec.kind === 'charge' ? '<span class="charge-sign">⚡</span>' : exitSign(rec.exit.label, true);
     body = `<div class="row" style="gap:10px;margin-top:2px">${sign}<div style="flex:1;min-width:0">
-        <div style="font-weight:700${low ? ';color:var(--amber)' : ''}">${low ? `${ev ? 'Charge' : 'Fuel'} low: nearest` : ev ? 'Charge stop' : 'Fuel stop'} · ${milesValue(rec.ahead)} mi${rec.favorite ? ' · ★' : ''}</div>
+        <div style="font-weight:700${low ? ';color:var(--amber)' : ''}">${low ? `${ev ? 'Charge' : 'Fuel'} low: nearest` : ev ? 'Charge stop' : 'Fuel stop'} · ${tenthsValue(rec.ahead)} mi${rec.favorite ? ' · ★' : ''}</div>
         <div class="muted small">${h(stopName(rec, app))}</div>
         ${rec.exit ? priceInfo(app, rec.exit) : ''}
-        <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${miles(rec.rangeOnArrival)} of ${ev ? 'range' : 'fuel'} left when you get there</div></div></div>`;
+        <div class="muted tiny">${clock(rec.eta, app.plan.timeZoneIDAt(rec.along), s.t)} · about ${tenths(rec.rangeOnArrival)} of ${ev ? 'range' : 'fuel'} left when you get there</div></div></div>`;
   }
   return `<button class="card" style="width:100%;text-align:left;cursor:pointer;display:block" data-act="sheet" data-arg="fuel">
-    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${milesValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${rangeAgeLine(app)}${body}</button>`;
+    <div class="row"><div class="eyebrow" style="flex:1">${icon} ${ev ? 'Charge' : 'Fuel'}${app.smartStop()?.overnight ? ' · 🌙 Overnight' : ''}</div><div class="num" style="font-weight:800">${tenthsValue(fp.range)}<span class="muted small"> mi ${ev ? 'range' : 'to empty'}</span></div></div>${rangeAgeLine(app)}${body}</button>`;
 }
 
 /// When the range reading is old (over 6 hours, or from an earlier day), when it was entered: it only counts
@@ -1182,7 +1184,7 @@ function exitTimelineRow(app, u, s, services, tag) {
     <div class="tl-head">${exitSign(u.exit.label, true)}<div class="main">${title}${tag}
       ${u.exit.confidence === 'medium' ? '<div class="muted tiny">Direction not verified in source data</div>' : ''}</div>
       ${tlDist(u.distance, u.eta - s.t)}</div>
-    ${services.length ? servicePlaques(services, { compact: true, max: 3 }) : ''}</button>`, tag ? ' best' : '');
+    ${services.length ? servicePlaques(services, { compact: true, max: 3, foodNames: 3 }) : ''}</button>`, tag ? ' best' : '');
 }
 
 function restTimelineRow(u, s, tag) {
@@ -1447,7 +1449,7 @@ export function exitDetail(app, exitId) {
       <a class="btn sm" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lon}" target="_blank" rel="noopener">Google Maps</a>${wazeButton(c)}</div>
     ${priceSection(app, exit)}
     ${groups || '<div class="card empty">No services are linked to this exit in the offline data.</div>'}
-    <p class="note">Round trips are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
+    <p class="note">Round trips are estimates: twice the drive from the exit ramp to the place (OpenStreetMap drive times from OpenInterstate reachability). The way back can be longer, for example where the entrance ramp is not at the same interchange. Others are straight line estimates and are labeled. Chain restaurants marked "From the chain's store list" come from the chains' own store locators (All the Places, collected ${h(app.data?.foodBrands?.meta?.collected ?? 'recently')}), added where OpenStreetMap does not list them. Hours, ratings, prices and amenities are not in the offline data.</p>${attribution()}`;
 }
 
 export function restAreaDetail(app, id) {
@@ -1535,7 +1537,8 @@ function serviceRow(x) {
   const detour = x.detourBasis === 'routed'
     ? `About ${miles(x.detourMeters)}${x.detourSeconds !== null ? `, ${duration(x.detourSeconds)}` : ''} round trip`
     : `Roughly ${miles(x.detourMeters)} round trip (straight line)`;
-  return `<div class="item"><div class="main"><div class="t">${h(placeDisplayName(p))}</div><div class="muted small">${detour}</div></div>
+  const from = p.source === 'storeList' ? '<div class="muted tiny">From the chain\'s store list</div>' : '';
+  return `<div class="item"><div class="main"><div class="t">${h(placeDisplayName(p))}</div><div class="muted small">${detour}</div>${from}</div>
     <a class="btn sm" href="https://maps.apple.com/?daddr=${p.coordinate.lat},${p.coordinate.lon}&dirflg=d" target="_blank" rel="noopener" aria-label="Directions">Go</a></div>`;
 }
 
@@ -1846,8 +1849,8 @@ export function fuelSheet(app) {
         return `<${el} class="item" ${act} style="color:inherit;text-decoration:none">${sign}<div class="main">
           ${tag ? `<div class="eyebrow${tag.amber ? ' amber' : ''}">${tag.text}</div>` : ''}<div class="t">${x.favorite ? '★ ' : ''}${h(stopName(x, app))}</div>
           ${x.exit ? priceInfo(app, x.exit) : ''}
-          <div class="muted tiny">${clock(x.eta, app.plan.timeZoneIDAt(x.along), app.snapshot.t)} · arrive with about ${miles(x.rangeOnArrival)} of ${ev ? 'range' : 'fuel'}${x.kind === 'charge' ? ` · ${miles(x.charger.offset)} off the route` : ''}</div></div>
-          <div class="side"><div class="big">${milesValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${el}>`;
+          <div class="muted tiny">${clock(x.eta, app.plan.timeZoneIDAt(x.along), app.snapshot.t)} · arrive with about ${tenths(x.rangeOnArrival)} of ${ev ? 'range' : 'fuel'}${x.kind === 'charge' ? ` · ${miles(x.charger.offset)} off the route` : ''}</div></div>
+          <div class="side"><div class="big">${tenthsValue(x.ahead)}</div><div class="muted tiny">mi</div></div></${el}>`;
       };
       const items = [row(rec, { text: fp.status === 'low' ? 'Nearest (below your buffer)' : `${ev ? 'Charge' : 'Fill up'} here · about ${st.bufferMiles} mi of ${ev ? 'range' : 'fuel'} left`, amber: fp.status === 'low' })];
       if (fp.closestToTarget) items.push(row(fp.closestToTarget, { text: 'Closest to your target, not a favorite brand' }));
@@ -1871,7 +1874,7 @@ export function fuelSheet(app) {
     ${sm?.primary ? plan : ''}
     <div class="card">${vehicleLine}</div>
     <form class="card" data-form="fuel">
-      <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now</div>
+      <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now${range !== null ? ` · <span class="num" data-testid="range-now">${tenths(range)}</span>` : ''}</div>
         ${gauge ? `<div class="seg" style="width:190px"><button type="button" class="${ui.mode !== 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="dashboard">Miles</button><button type="button" class="${ui.mode === 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="gauge">${ev ? 'Battery %' : 'Gauge'}</button></div>` : ''}</div>
       ${input}${rangeAgeLine(app)}
       ${ui.error ? `<p class="amber-text small">${h(ui.error)}</p>` : ''}

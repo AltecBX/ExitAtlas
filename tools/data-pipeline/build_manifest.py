@@ -33,6 +33,7 @@ FILES = {
     "restareas.json": (False, "Rest areas and service plazas"),
     "discover.json": (False, "Discover ahead places"),
     "stations.json": (False, "Gas station hours and restrooms"),
+    "foodbrands.json": (False, "Chain restaurants near exits from the chains' store lists"),
     "vehicles.json": (False, "Vehicles, fuel economy and tank sizes"),
 }
 

@@ -16,6 +16,24 @@ enum Format {
         return mi < 10 ? String(format: "%.1f", max(mi, 0)) : String(format: "%.0f", mi.rounded())
     }
 
+    /// Tenths of a mile, always ("59.2", "1,012.4"), for numbers the driver watches count down: miles to a stop,
+    /// fuel left, miles left on the trip.
+    static func tenthsValue(_ meters: Double) -> String {
+        let mi = max(meters / Geodesy.metersPerMile, 0)
+        return tenthsFormatter.string(from: NSNumber(value: mi)) ?? String(format: "%.1f", mi)
+    }
+
+    private static let tenthsFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.minimumFractionDigits = 1
+        f.maximumFractionDigits = 1
+        f.locale = Locale(identifier: "en_US")
+        return f
+    }()
+
+    static func tenths(_ meters: Double) -> String { "\(tenthsValue(meters)) mi" }
+
     static func duration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int((seconds / 60).rounded()))
         let h = total / 60, m = total % 60

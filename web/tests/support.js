@@ -6,6 +6,7 @@ import { RegionIndex, InterstateDataset, CombinedExitDataset, CorridorDataset, T
 import { routeFromJSON } from '../js/engine/osrm.js';
 import { RestAreaDataset } from '../js/engine/restareas.js';
 import { DiscoverDataset } from '../js/engine/discover.js';
+import { FoodBrands } from '../js/engine/foodbrands.js';
 import { decodePolyline, encodePolyline, distance } from '../js/engine/geo.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -29,6 +30,7 @@ export const data = {
   get corridors() { return (cache.cx ??= new CorridorDataset(buffer(path.join(dataDir, 'corridors.eac')))); },
   get discover() { return (cache.dc ??= new DiscoverDataset(JSON.parse(readFileSync(path.join(dataDir, 'discover.json'), 'utf8')))); },
   get restAreas() { return (cache.ra ??= new RestAreaDataset(JSON.parse(readFileSync(path.join(dataDir, 'restareas.json'), 'utf8')))); },
+  get foodBrands() { return (cache.fb ??= new FoodBrands(JSON.parse(readFileSync(path.join(dataDir, 'foodbrands.json'), 'utf8')))); },
 };
 
 export function load(name) {
