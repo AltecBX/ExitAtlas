@@ -522,7 +522,9 @@ function renderNow() {
     case 'settings': html = V.settingsView(app); break;
     default: html = V.driveView(app);
   }
-  if (html !== lastViewHTML) {
+  // Not while a field on the screen is being typed in (Settings saves on change, when the field is left): a
+  // redraw would wipe the entry. Leaving the field redraws (the focusout listener below).
+  if (html !== lastViewHTML && !fieldInUse($('#view'), { unsaved: false })) {
     swapHTML($('#view'), html, app.tab);
     lastViewHTML = html;
   }
@@ -601,11 +603,19 @@ function refreshLiveSheet() {
 function sheetCanRedraw() {
   const now = performance.now();
   if (sheetTouch.down || now - sheetTouch.at < 1200) return false;
-  const body = $('#sheet-body');
-  const typing = body.contains(document.activeElement) && document.activeElement.matches('input, select, textarea');
-  const unsaved = [...body.querySelectorAll('input')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
-  return !typing && !unsaved;
+  return !fieldInUse($('#sheet-body'));
 }
+
+/// A field in `el` is being typed in, or (with `unsaved`) holds an entry that differs from what was drawn.
+function fieldInUse(el, { unsaved = true } = {}) {
+  if (!el) return false;
+  const a = document.activeElement;
+  if (a && el.contains(a) && a.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea')) return true;
+  return unsaved && [...el.querySelectorAll('input, textarea')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
+}
+
+// A redraw held while a field was typed in happens when the field is left.
+document.getElementById('view')?.addEventListener('focusout', () => setTimeout(render, 0));
 
 function renderSheet({ live = false } = {}) {
   if (!app.sheet) return;
