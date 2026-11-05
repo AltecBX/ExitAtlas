@@ -522,7 +522,9 @@ function renderNow() {
     case 'settings': html = V.settingsView(app); break;
     default: html = V.driveView(app);
   }
-  if (html !== lastViewHTML) {
+  // Not while a field on the screen is being typed in (Settings saves on change, when the field is left): a
+  // redraw would wipe the entry. Leaving the field redraws (the focusout listener below).
+  if (html !== lastViewHTML && !fieldInUse($('#view'), { unsaved: false })) {
     swapHTML($('#view'), html, app.tab);
     lastViewHTML = html;
   }
@@ -601,11 +603,19 @@ function refreshLiveSheet() {
 function sheetCanRedraw() {
   const now = performance.now();
   if (sheetTouch.down || now - sheetTouch.at < 1200) return false;
-  const body = $('#sheet-body');
-  const typing = body.contains(document.activeElement) && document.activeElement.matches('input, select, textarea');
-  const unsaved = [...body.querySelectorAll('input')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
-  return !typing && !unsaved;
+  return !fieldInUse($('#sheet-body'));
 }
+
+/// A field in `el` is being typed in, or (with `unsaved`) holds an entry that differs from what was drawn.
+function fieldInUse(el, { unsaved = true } = {}) {
+  if (!el) return false;
+  const a = document.activeElement;
+  if (a && el.contains(a) && a.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea')) return true;
+  return unsaved && [...el.querySelectorAll('input, textarea')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
+}
+
+// A redraw held while a field was typed in happens when the field is left.
+document.getElementById('view')?.addEventListener('focusout', () => setTimeout(render, 0));
 
 function renderSheet({ live = false } = {}) {
   if (!app.sheet) return;
@@ -982,6 +992,8 @@ app.isIOSSafari = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 async function openVehicleSheet() {
   const v = app.settings.vehicle;
+  // Saving goes back to the sheet this one was opened from (the fuel sheet, with Connect car).
+  app.vehicleReturn = app.sheet?.kind && app.sheet.kind !== 'vehicle' ? app.sheet.kind : null;
   app.vehiclePick = v ? { year: String(v.year), make: v.make, model: v.model, version: null, tank: v.tankGallons } : { year: '', make: '', model: '', version: null, tank: null };
   openSheet('vehicle');
   if (!app.vehicles) {
@@ -1704,7 +1716,9 @@ const actions = {
       tankGallons: ev ? null : gallons, tankBasis: ev ? null : basis, tankSources: ev ? [] : tank?.sources ?? [],
     });
     app.chargers.routeId = null;
-    closeSheet();
+    // Back to the fuel sheet when it was opened from there: the range and Connect car are next.
+    if (app.vehicleReturn === 'fuel') openSheet('fuel'); else closeSheet();
+    app.vehicleReturn = null;
     const pv = app.vehicleProfile();
     toast(ev ? `About ${Math.round(pv.rangeMiles)} mi per charge` : gallons ? `About ${Math.round(gallons * pv.mpg)} mi per tank` : 'Vehicle saved. Add the tank size any time.');
     render();
