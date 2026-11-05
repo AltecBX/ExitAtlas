@@ -6,6 +6,8 @@ import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/disco
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { withFoodBrands } from '../engine/foodbrands.js';
+import { CarLink } from './carlink.js';
+import { rangeFromFuel } from '../engine/obd.js';
 import { gasGaps, restAreaTitle } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
 import { drawTripCard, shareCanvas } from './sharecard.js';
@@ -82,6 +84,8 @@ const app = {
   alongRoute: { categories: [], brand: '', window: 100, results: null },
   fuel: store.get('ea.fuel', null),
   fuelUI: { mode: 'dashboard', gaugeEighths: 4, error: null },
+  /// The car connection (OBD2 adapter over Bluetooth LE, app/carlink.js): its fuel level becomes the range.
+  car: new CarLink({ onChange: () => carChanged() }),
   fuelAnnounced: new Set(),
   /// Stations the driver turned down on this trip ("Not this one"): SmartStop does not offer them again.
   rejectedStops: [],
@@ -587,13 +591,20 @@ const LIVE_SHEETS = new Set(['fuel', 'restroom', 'stop', 'exit', 'rest', 'alert'
 function refreshLiveSheet() {
   if (!app.sheet || !app.snapshot || app.mode === 'idle' || !LIVE_SHEETS.has(app.sheet.kind)) return;
   const now = performance.now();
-  if (now - lastSheetLive < 2000 || sheetTouch.down || now - sheetTouch.at < 1200) return;
+  if (now - lastSheetLive < 2000 || !sheetCanRedraw()) return;
+  lastSheetLive = now;
+  renderSheet({ live: true });
+}
+
+/// The open sheet can be redrawn without losing what the driver is doing: no finger on it (or just lifted), no
+/// field being typed in or holding an unsaved entry.
+function sheetCanRedraw() {
+  const now = performance.now();
+  if (sheetTouch.down || now - sheetTouch.at < 1200) return false;
   const body = $('#sheet-body');
   const typing = body.contains(document.activeElement) && document.activeElement.matches('input, select, textarea');
   const unsaved = [...body.querySelectorAll('input')].some((i) => (i.type === 'checkbox' || i.type === 'radio') ? i.checked !== i.defaultChecked : i.value !== i.defaultValue);
-  if (typing || unsaved) return;
-  lastSheetLive = now;
-  renderSheet({ live: true });
+  return !typing && !unsaved;
 }
 
 function renderSheet({ live = false } = {}) {
@@ -645,12 +656,33 @@ function nowSeconds() { return Date.now() / 1000; }
 
 // MARK: Fuel
 
-/// Saves the range the car shows now. Range then counts down with miles driven in this session.
-function setFuelRange(meters, source) {
-  app.fuel = { rangeMeters: meters, drivenAtEntry: app.snapshot ? app.snapshot.drivenTotal : 0, enteredAt: nowSeconds(), source };
-  app.fuelAnnounced = new Set();
+/// Saves the range the car shows now. Range then counts down with miles driven in this session. `extra` keeps
+/// what the car reported ({ percent }) with a reading from the car connection.
+function setFuelRange(meters, source, extra = {}) {
+  const before = app.fuel;
+  app.fuel = { rangeMeters: meters, drivenAtEntry: app.snapshot ? app.snapshot.drivenTotal : 0, enteredAt: nowSeconds(), source, ...extra };
+  // A new reading from the car every few seconds is not a new tank: the fuel voice prompts are kept unless the
+  // range went up (a fill up).
+  const refill = !before || before.source !== 'car' || source !== 'car' || meters > rangeLeft(before, app.fuel.drivenAtEntry) + 20 * MILE;
+  if (refill) app.fuelAnnounced = new Set();
   app.fuelUI.error = null;
   store.set('ea.fuel', app.fuel);
+}
+
+/// A new reading from the car connection: the fuel level times what a full tank goes (tank size times mpg) is
+/// the range now. Without a tank size, the level shows in the fuel sheet and the range stays as entered.
+function carChanged() {
+  const c = app.car;
+  const v = app.vehicleProfile();
+  const percent = c.freshFuel;
+  if (percent != null && v && !v.ev) {
+    const mi = rangeFromFuel(percent, v.tankGallons, v.mpg);
+    const f = app.fuel;
+    const same = f?.source === 'car' && Math.abs((f.percent ?? -1) - percent) < 0.1 && nowSeconds() - f.enteredAt < 30;
+    if (mi != null && !same) setFuelRange(mi * MILE, 'car', { percent: Math.round(percent * 10) / 10 });
+  }
+  if (app.sheet?.kind === 'fuel' && sheetCanRedraw()) renderSheet({ live: true });
+  render();
 }
 
 /// Folds miles driven in the session that is ending into the saved range, so it carries over.
@@ -1773,6 +1805,9 @@ const actions = {
     render();
   },
   'fuel-mode'(arg) { app.fuelUI.mode = arg; renderSheet(); },
+  // Straight from the tap: the browser opens the Bluetooth picker only during a user gesture.
+  'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); },
+  'car-disconnect'() { app.car.disconnect(); toast('Car disconnected. The range keeps counting down from its last reading.'); },
   'fuel-filled'() {
     const full = fullTankRange(app.vehicleProfile());
     if (!full) {
@@ -2064,6 +2099,8 @@ document.addEventListener('visibilitychange', () => {
     }
     if (app.wake.wanted) app.wake.request();
     if (app.location.running && (!app.lastFixAt || Date.now() - app.lastFixAt > 10000)) app.location.restart();
+    // The car adapter drops while the page is hidden: reconnect without the picker.
+    if (app.car.state === 'disconnected' && app.car.device) app.car.open();
     if (app.session && app.gps === 'device') app.snapshot = app.session.snapshotAt(nowSeconds());
     render();
   } else {

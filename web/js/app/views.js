@@ -1161,10 +1161,60 @@ function fuelCard(app, s) {
 }
 
 /// When the range reading is old (over 6 hours, or from an earlier day), when it was entered: it only counts
-/// down with miles driven while ExitAtlas runs, so it is never shown as current. Empty for a recent reading.
+/// down with miles driven while ExitAtlas runs, so it is never shown as current. Empty for a recent reading. A
+/// range from the car connection says so, with the fuel level and, once the car stopped answering, when.
 function rangeAgeLine(app) {
-  const age = readingAge(app.fuel?.enteredAt);
-  return age ? `<div class="amber-text tiny" data-testid="range-age">Range entered ${h(age)}. Check your dashboard.</div>` : '';
+  const f = app.fuel;
+  const age = readingAge(f?.enteredAt);
+  if (age) return `<div class="amber-text tiny" data-testid="range-age">${f?.source === 'car' ? 'Fuel level read from your car' : 'Range entered'} ${h(age)}. Check your dashboard.</div>`;
+  if (f?.source === 'car' && f.percent != null) {
+    const live = app.car?.state === 'connected' && app.car.freshFuel != null;
+    return `<div class="muted tiny" data-testid="range-car">🚗 From your car: ${f.percent.toFixed(1)}% fuel${live ? '' : `, read ${clock(f.enteredAt)}; counting down since`}</div>`;
+  }
+  return '';
+}
+
+/// "just now", "12 s ago", "3 min ago".
+function agoText(seconds) {
+  if (seconds < 5) return 'just now';
+  return seconds < 90 ? `${Math.round(seconds)} s ago` : `${Math.round(seconds / 60)} min ago`;
+}
+
+/// The car connection in the fuel sheet (app/carlink.js): connect, its state, and what the car reports. Without
+/// Web Bluetooth (Safari without the beacio extension), what it takes.
+export function carRow(app) {
+  const c = app.car;
+  const v = app.vehicleProfile();
+  if (!c || v?.ev) return '';
+  if (!c.available) {
+    return `<details class="car-help" data-testid="car-help"><summary>🚗 Read the fuel level from your car</summary>
+      <p class="muted small">Plug an OBD2 adapter with Bluetooth LE that speaks ELM327 (for example OBDLink CX) into the car. BlueDriver works only with its own app. On iPhone: install the free beacio app, turn on its Safari extension (Settings, Apps, Safari, Extensions, beacio, allow it on other websites), then open ExitAtlas in Safari. Chrome on Android works without it.</p></details>`;
+  }
+  const now = Date.now() / 1000;
+  const btn = (act, text, arg = '') => `<button type="button" class="btn sm" data-act="${act}"${arg ? ` data-arg="${arg}"` : ''}>${text}</button>`;
+  let main, side = '';
+  if (c.state === 'connecting') {
+    main = `<div style="font-weight:700">Connecting to ${h(c.name ?? 'the adapter')}…</div><div class="muted tiny">Keep the car's ignition on.</div>`;
+    side = btn('car-disconnect', 'Cancel');
+  } else if (c.state === 'connected') {
+    const fuel = c.fuel != null ? `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`
+      : c.supportsFuel === false ? 'This car does not report its fuel level' : 'Reading the fuel level…';
+    main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
+    side = btn('car-disconnect', 'Disconnect');
+  } else if (c.state === 'disconnected') {
+    main = `<div style="font-weight:700">Car disconnected <span class="muted small" style="font-weight:500">${clock(c.disconnectedAt)}</span></div><div class="muted tiny">Reconnecting when the adapter answers. The range keeps counting down from the last reading.</div>`;
+    side = btn('car-connect', 'Connect');
+  } else {
+    main = `<div style="font-weight:700">Read the fuel level from your car</div><div class="muted tiny">OBD2 adapter with Bluetooth LE (ELM327, for example OBDLink CX). Not BlueDriver.</div>
+      <button type="button" class="linkish tiny" data-act="car-connect" data-arg="any">Adapter not listed? Show all Bluetooth devices</button>`;
+    side = btn('car-connect', 'Connect car');
+  }
+  const notes = [];
+  if (c.problem) notes.push(`<div class="amber-text tiny" data-testid="car-problem">${h(c.problem)}</div>`);
+  if (c.state === 'connected' && c.checkEngine) notes.push(`<div class="amber-text tiny" data-testid="car-check-engine">Check engine light is on${c.codes ? ` (${c.codes} stored code${c.codes === 1 ? '' : 's'})` : ''}.</div>`);
+  if (c.state === 'connected' && c.fuel != null && !(v?.tankGallons > 0)) notes.push('<div class="amber-text tiny">Set your vehicle\'s tank size (Change, above) to turn the fuel level into miles.</div>');
+  if (c.state === 'connected' && c.voltage != null) notes.push(`<div class="muted tiny">Battery ${c.voltage.toFixed(1)} V${c.identity ? ` · ${h(c.identity)}` : ''}</div>`);
+  return `<div class="car-row" data-testid="car-row"><span style="font-size:22px">🚗</span><div style="flex:1;min-width:0">${main}${notes.join('')}</div>${side}</div>`;
 }
 
 /// Name line for a gas exit or a charger.
@@ -1913,7 +1963,7 @@ export function fuelSheet(app) {
     ? `<div class="row"><input type="range" min="0" max="${ev ? 20 : 8}" step="1" value="${ev ? Math.min(20, ui.batteryTwentieths ?? 10) : ui.gaugeEighths}" data-gauge style="flex:1;accent-color:var(--sign-green)"><span class="num" style="width:120px;text-align:right;font-weight:800" data-gauge-label>${gaugeText(ev ? (ui.batteryTwentieths ?? 10) : ui.gaugeEighths, v)}</span></div>
        <p class="muted tiny" style="margin:4px 0 0">${ev ? 'Battery percent times your full charge range.' : `Uses ${v.mpg} mpg ${basisName(st)}.`} The range on your dashboard is more accurate.</p>`
     : `<div class="row"><input type="number" name="dte" inputmode="numeric" min="0" max="1500" placeholder="${ev ? 'Miles of range' : 'Miles to empty'}" value="${range !== null ? Math.round(range / 1609.344) : ''}" style="flex:1;border:1px solid var(--stroke);border-radius:12px;padding:12px;background:var(--card);font-size:20px;font-weight:700"><span class="muted">mi</span></div>
-       <p class="muted tiny" style="margin:4px 0 0">The range your dashboard shows. It counts down as you drive; update it any time.</p>`;
+       <p class="muted tiny" style="margin:4px 0 0">${app.car?.state === 'connected' && app.fuel?.source === 'car' ? 'Follows the car while connected: its fuel level times your tank size and mpg.' : 'The range your dashboard shows. It counts down as you drive; update it any time.'}</p>`;
   let plan = '';
   const sm = ev ? null : app.smartStop();
   if (sm?.primary) {
@@ -1961,6 +2011,7 @@ export function fuelSheet(app) {
     <form class="card" data-form="fuel">
       <div class="row" style="margin-bottom:8px"><div class="eyebrow" style="flex:1">Range now${range !== null ? ` · <span class="num" data-testid="range-now">${tenths(range)}</span>` : ''}</div>
         ${gauge ? `<div class="seg" style="width:190px"><button type="button" class="${ui.mode !== 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="dashboard">Miles</button><button type="button" class="${ui.mode === 'gauge' ? 'on' : ''}" data-act="fuel-mode" data-arg="gauge">${ev ? 'Battery %' : 'Gauge'}</button></div>` : ''}</div>
+      ${carRow(app)}
       ${input}${rangeAgeLine(app)}
       ${ui.error ? `<p class="amber-text small">${h(ui.error)}</p>` : ''}
       <div class="btn-row" style="margin-top:12px"><button class="btn primary" type="submit">Save range</button>
