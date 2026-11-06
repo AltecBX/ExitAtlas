@@ -74,6 +74,20 @@ export const CAR_RULES = Object.freeze({
 
 /// What to do after a failed device list, from the error beacio or the browser gave (beacio's codes and recovery
 /// steps: @beacio/core 2.2.0 README and beacio.com/docs Troubleshooting).
+/// ELM327 protocol numbers (ELM327 data sheet, "SP h" and "DPN"); the BlueDriver's LMDP answers with the number
+/// and OK ("6\rOK" on Jerry's 2021 911, Nov 6 2026).
+const PROTOCOLS = Object.freeze({ 0: 'Automatic', 1: 'SAE J1850 PWM (41.6 kbaud)', 2: 'SAE J1850 VPW (10.4 kbaud)',
+  3: 'ISO 9141-2 (5 baud init)', 4: 'ISO 14230-4 KWP (5 baud init)', 5: 'ISO 14230-4 KWP (fast init)',
+  6: 'ISO 15765-4 CAN (11 bit ID, 500 kbaud)', 7: 'ISO 15765-4 CAN (29 bit ID, 500 kbaud)', 8: 'ISO 15765-4 CAN (11 bit ID, 250 kbaud)',
+  9: 'ISO 15765-4 CAN (29 bit ID, 250 kbaud)', A: 'SAE J1939 CAN (29 bit ID, 250 kbaud)', B: 'User CAN 1', C: 'User CAN 2' });
+
+export function protocolName(answer) {
+  const first = String(answer ?? '').split(/[\r\n>]+/).map((t) => t.trim()).filter((t) => t && !/^OK$/i.test(t))[0] ?? '';
+  const n = first.match(/^A?([0-9A-C])$/i);
+  if (n) { const name = PROTOCOLS[n[1].toUpperCase()]; return name ? `${name}, protocol ${n[1].toUpperCase()}` : first; }
+  return first || null;
+}
+
 export function pickerHint(e) {
   const m = `${e?.name ?? ''} ${e?.message ?? ''}`;
   if (/not enabled|activation|not active|starting up|setup/i.test(m))
@@ -124,7 +138,7 @@ export class CarLink {
     this.tries = 0;
     /// Discovery and diagnostics: the Mode 01 PIDs the car lists, Mode 09 ones, readiness bytes, trouble codes,
     /// vehicle information, the adapter's own details.
-    this.supported = null; this.supported09 = null; this.monitorBytes = null; this.dtc = null; this.info = null;
+    this.supported = null; this.supported09 = null; this.monitorBytes = null; this.monitorByUnit = null; this.dtc = null; this.info = null;
     this.protocol = null; this.deviceInfo = null;
     /// Live data: on, and per channel key { value, t, min, max, sum, n, history }; per PID 'ok' or 'noData'.
     /// multi: PIDs per request (null until probed, 1 for one at a time); rate: readings and requests a second.
@@ -296,7 +310,7 @@ export class CarLink {
     for (const c of BLUEDRIVER_SETUP) {
       const answer = await this.send(c);
       if (c === 'LMI' && !id) id = parseIdentity(answer);
-      if (c === 'LMDP') this.protocol = answer.replace(/[\r>]+/g, ' ').trim() || null;
+      if (c === 'LMDP') this.protocol = protocolName(answer);
     }
     this.identity = id;
   }
@@ -337,15 +351,11 @@ export class CarLink {
       // Fast Ack: the bytes we have taken, 16 bit little endian. Fragments that arrive together are acknowledged in
       // one write, so a several fragment answer costs one Bluetooth request, not one per fragment.
       this.unacked = (this.unacked ?? 0) + view.byteLength;
-      if (!this.ackTimer) {
-        this.ackTimer = setTimeout(() => {
-          this.ackTimer = null;
-          const n = Math.min(this.unacked, 0xffff);
-          this.unacked -= n;
-          const control = this.control;
-          if (n > 0 && control) this.ble(() => control.writeValueWithoutResponse(new Uint8Array([0x01, n & 0xff, n >> 8])), 'Fast Ack').catch(() => {});
-        }, CAR_RULES.ackBatchMs);
-      }
+      if (!this.ackTimer) this.ackTimer = setTimeout(() => this.flushAck(), CAR_RULES.ackBatchMs);
+      // The answer is complete: acknowledge now, before the next request goes out. In Jerry's log (Nov 6) each
+      // request took about 220 ms with the acknowledgement after the next request, against about 100 ms when it
+      // came first, so the sensor appears to wait for it.
+      if (bytes.includes(0x3e)) this.flushAck();
     }
     const fragment = new TextDecoder().decode(bytes);
     this.logLine('<', fragment, new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
@@ -358,6 +368,16 @@ export class CarLink {
     this.waiting = null;
     clearTimeout(w.timer);
     w.resolve(text);
+  }
+
+  /// Fast Ack: the bytes taken since the last acknowledgement, in one write.
+  flushAck() {
+    clearTimeout(this.ackTimer); this.ackTimer = null;
+    const n = Math.min(this.unacked ?? 0, 0xffff);
+    if (!n) return;
+    this.unacked -= n;
+    const control = this.control;
+    if (control) this.ble(() => control.writeValueWithoutResponse(new Uint8Array([0x01, n & 0xff, n >> 8])), 'Fast Ack').catch(() => {});
   }
 
   /// Sends one command and resolves with the adapter's answer (one at a time; the adapter takes no queue).
@@ -460,9 +480,20 @@ export class CarLink {
   async readStatus() {
     const bare = { bare: this.kind === 'bluedriver' };
     const m = parseAnswer(await this.send(command(PIDS.monitor.pid)), PIDS.monitor.pid, 1, bare);
-    if (!m.problem && m.bytes.length >= 1) {
+    if (!m.problem && m.bytes.length >= 4) {
+      // Several control units answer 01 01 in turn (Jerry's 911: "00 07 E4 00" then "00 04 00 00"), and a bare
+      // answer does not say which one: each is kept by the monitors it supports. The light is on when any says so,
+      // stored codes add up, and the readiness shown is the unit with the most monitors (the engine's).
+      const b = m.bytes.slice(0, 4);
+      this.monitorByUnit = this.monitorByUnit ?? new Map();
+      this.monitorByUnit.set(`${b[1] & 0x0f}:${b[2]}`, b);
+      const all = [...this.monitorByUnit.values()];
+      const bits = (x) => { let n = 0; for (let v = x; v; v >>= 1) n += v & 1; return n; };
+      this.monitorBytes = all.reduce((best, x) => (bits(x[1] & 0x07) + bits(x[2]) > bits(best[1] & 0x07) + bits(best[2]) ? x : best));
+      this.checkEngine = all.some((x) => x[0] & 0x80);
+      this.codes = all.reduce((sum, x) => sum + (x[0] & 0x7f), 0);
+    } else if (!m.problem && m.bytes.length >= 1) {
       Object.assign(this, monitorStatus(m.bytes));
-      if (m.bytes.length >= 4) this.monitorBytes = m.bytes.slice(0, 4);
     }
     // The BlueDriver answers ATRV with NO DATA (and AT commands upset it): the control module voltage instead.
     if (this.kind === 'bluedriver') {
