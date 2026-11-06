@@ -217,5 +217,5 @@ export function toUS(value, unit) {
 
 /// Decimal places to show for a US unit.
 export function digitsFor(unit) {
-  return { V: 2, λ: 3, 'g/s': 1, psi: 1, 'gal/h': 2, '%': 1, mA: 2, Pa: 0, '°': 1, rad: 3, 'lb·ft': 0, '': 2, 'kg/h': 1, ms: 1, in: 3 }[unit] ?? 0;
+  return { V: 2, λ: 3, 'g/s': 1, psi: 1, 'gal/h': 2, '%': 1, mA: 2, Pa: 0, '°': 1, rad: 3, 'lb·ft': 0, '': 2, 'kg/h': 1, ms: 1, in: 3, ratio: 3, gear: 0 }[unit] ?? 0;
 }

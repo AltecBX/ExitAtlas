@@ -26,7 +26,7 @@ import { coveredByAlert } from '../engine/weatherahead.js';
 import { weatherIcon, skyColors } from './weathericons.js';
 import { wazeLink } from '../engine/handoff.js';
 import { PIDS01, GROUPS, NOT_LIVE, channelsFor, toUS, digitsFor } from '../engine/obdpids.js';
-import { playbackAt } from '../engine/obdlive.js';
+import { playbackAt, chartSeries } from '../engine/obdlive.js';
 import { DTC_SYSTEMS } from '../engine/obddiag.js';
 
 export const CATEGORY_ICONS = ['📍', '⛽', '🍴', '🛏️', '🚻', '⚡', '🌳', '🐾', '🚛'];
@@ -1206,7 +1206,7 @@ function carSource(app) {
   if (pb) {
     const channels = Object.entries(pb.rec.channels).map(([key, m]) => channelsFor(m.pid).find((x) => x.key === key)
       ?? { key, pid: m.pid, group: 'Other (raw)', name: m.name, unit: m.unit, raw: m.unit === 'hex' });
-    return { playback: pb, channels, get: (key) => { const sr = pb.series.get(key); return sr ? playbackAt(sr, pb.t) : null; }, status: () => 'ok' };
+    return { playback: pb, channels, get: (key) => { const sr = pb.series.get(key); return sr ? playbackAt(sr, pb.t, 900000) : null; }, status: () => 'ok' };
   }
   const channels = c.livePIDs().flatMap((pid) => channelsFor(pid));
   return { playback: null, channels, get: (key) => c.live.values.get(key), status: (pid) => c.live.status.get(pid) };
@@ -1223,14 +1223,16 @@ export function carSheet(app) {
     return `${head}<div class="stack"><div class="card">${carRow(app)}</div>
       ${recordSection(app)}${c?.log?.length ? logSection(c) : ''}</div>`;
   }
-  const tabs = [['live', 'Live'], ['codes', 'Codes'], ['info', 'Vehicle'], ['rec', 'Record'], ['log', 'Log']];
-  const tab = ui.playback && !['live', 'rec'].includes(ui.tab) ? 'live' : ui.tab;
+  const tabs = [['live', 'Live'], ['sensors', 'Sensors'], ['charts', 'Charts'], ['codes', 'Codes'], ['info', 'Vehicle'], ['rec', 'Record'], ['log', 'Log']];
+  const tab = ui.playback && !['live', 'rec', 'charts'].includes(ui.tab) ? 'live' : ui.tab;
   const seg = `<div class="seg car-tabs">${tabs.map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-act="car-tab" data-arg="${k}">${n}</button>`).join('')}</div>`;
   let body = '';
   if (tab === 'codes') body = codesSection(c);
   else if (tab === 'info') body = infoSection(c);
   else if (tab === 'log') body = logSection(c);
   else if (tab === 'rec') body = recordSection(app);
+  else if (tab === 'sensors') body = sensorsSection(app);
+  else if (tab === 'charts') body = chartsSection(app, carSource(app));
   else body = ui.detail ? detailSection(app, carSource(app), ui.detail) : liveSection(app, carSource(app));
   const who = connected ? `${h(c.name)}${c.kind === 'bluedriver' ? ' · BlueDriver, unofficial' : ''}${c.identity ? ` · ${h(c.identity)}` : ''}${c.protocol ? ` · ${h(c.protocol)}` : ''}`
     : 'Not connected: playing back a recording';
@@ -1376,6 +1378,94 @@ function bigChart(history, unit, rule, relative) {
     <div class="car-chart-readout muted tiny">Touch the chart to read any point.</div></div>`;
 }
 
+const statNum = (v, unit) => (typeof v === 'number' ? `${v.toFixed(digitsFor(unit))}` : '–');
+
+/// A recording's summary: duration, highlights and every channel's minimum, maximum and average.
+function summaryHTML(sum) {
+  if (!sum) return '<div class="card muted small">Working out the summary…</div>';
+  const hl = sum.highlights;
+  const top = [hl.maxSpeed != null && `top speed ${Math.round(hl.maxSpeed)} mph`, hl.maxRpm != null && `max ${Math.round(hl.maxRpm).toLocaleString()} rpm`,
+    hl.maxOil != null && `oil up to ${Math.round(hl.maxOil)} °F`, hl.maxCoolant != null && `coolant up to ${Math.round(hl.maxCoolant)} °F`].filter(Boolean).join(' · ');
+  return `<div class="card car-summary" data-testid="car-summary"><div class="small"><b>${fmtElapsed(sum.duration)}</b> · ${sum.readings.toLocaleString()} readings${top ? ` · ${h(top)}` : ''}</div>
+    <table class="car-table"><tr><th>Sensor</th><th>min</th><th>max</th><th>avg</th></tr>${sum.channels.map((c) => `<tr><td>${h(c.name)} <span class="muted">${h(c.unit)}</span></td><td>${statNum(c.min, c.unit)}</td><td>${statNum(c.max, c.unit)}</td><td>${statNum(c.avg, c.unit)}</td></tr>`).join('')}</table></div>`;
+}
+
+/// Two recordings compared: each sensor both have, average and maximum, and the change.
+function compareHTML(app, [a, b]) {
+  const rows = app.carCompare;
+  if (!rows) return '<div class="card muted small">Comparing…</div>';
+  const when = (id) => { const r = (app.carRecordings ?? []).find((x) => x.id === id); return r ? new Date(r.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : id; };
+  const d = (x, unit) => (typeof x === 'number' ? `${x > 0 ? '+' : ''}${x.toFixed(digitsFor(unit))}` : '–');
+  return `<div class="section-title">Compare</div><div class="card" data-testid="car-compare"><div class="muted tiny">A: ${h(when(a))} · B: ${h(when(b))}</div>
+    <table class="car-table"><tr><th>Sensor</th><th>avg A</th><th>avg B</th><th>max A</th><th>max B</th><th>Δ max</th></tr>${rows.map((r) => `<tr><td>${h(r.name)} <span class="muted">${h(r.unit)}</span></td><td>${statNum(r.avgA, r.unit)}</td><td>${statNum(r.avgB, r.unit)}</td><td>${statNum(r.maxA, r.unit)}</td><td>${statNum(r.maxB, r.unit)}</td><td>${d(r.dMax, r.unit)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No sensor in both recordings.</td></tr>'}</table></div>`;
+}
+
+const SOURCE_LABEL = { sae2: ['Verified', 'Standard PID; the formula here and OBDb\'s agree'], sae1: ['Standard', 'Standard PID; one source for the formula (the SAE J1979 table)'],
+  obdb: ['Standard', 'Standard PID; one source for the formula (OBDb)'], porsche: ['Experimental', 'Porsche data, OBDb community research confirmed for this model year'],
+  'porsche-unconfirmed': ['Experimental', 'Porsche data, OBDb community research not confirmed for this model year'], raw: ['Raw', 'No formula known: the bytes as received'] };
+
+/// Every sensor the car offers: source and how sure, whether it answers, its value and how often it updates.
+function sensorsSection(app) {
+  const c = app.car;
+  const chans = app.carChannels?.() ?? [];
+  if (!c.supported) return '<div class="card muted small">Connect the car: its sensors are listed once it says which it has.</div>';
+  const pids = new Set(chans.map((x) => x.pid).filter((x) => x != null));
+  const answering = [...pids].filter((p) => c.live.status.get(p) === 'ok').length;
+  const res = [...c.enhanced.results.values()];
+  const porsche = res.length ? `Porsche data: ${res.filter((x) => x === 'ok').length} of ${res.length} tried answered.` : 'Porsche data not probed yet.';
+  const byGroup = new Map(GROUPS.map((g) => [g, []]));
+  for (const ch of chans) byGroup.get(ch.group)?.push(ch);
+  const custom = new Set((app.cockpitSettings?.custom ?? []).map((x) => x.id));
+  const rows = [...byGroup].filter(([, l]) => l.length).map(([g, list]) => `<div class="section-title">${h(g)} <span class="muted">${list.length}</span></div><div class="list">${list.map((ch) => {
+    const v = c.live.values.get(ch.key);
+    const st = ch.pid != null ? c.live.status.get(ch.pid) : c.enhanced.results.get(ch.req);
+    const [label, why] = SOURCE_LABEL[ch.source] ?? ['Standard', ''];
+    const rate = v?.dt ? (v.dt < 1000 ? `${(1000 / v.dt).toFixed(1)} Hz` : `every ${(v.dt / 1000).toFixed(1)} s`) : v ? 'read once' : '';
+    const state = v && v.value != null ? `<span class="green-text tiny">answering${rate ? ` · ${rate}` : ''}</span>` : st && st !== 'ok' ? '<span class="amber-text tiny">no answer</span>' : '<span class="muted tiny">not read yet</span>';
+    return `<div class="item" data-testid="car-sensor" data-key="${h(ch.key)}"><div class="main"><div class="t small">${h(ch.name)}</div>
+      <div class="tiny"><span class="car-src ${h(label.toLowerCase())}" title="${h(why)}">${h(label)}</span> ${state}</div></div>
+      <div class="side car-val"><span>${v ? carValue(v.value, ch.unit) : ''}</span>${ch.raw || ch.text ? '' : `<button class="btn sm" data-act="ck-add-sensor" data-arg="${h(ch.key)}"${custom.has(ch.key) ? ' disabled' : ''}>${custom.has(ch.key) ? 'In cockpit' : '+ Cockpit'}</button>`}</div></div>`;
+  }).join('')}</div>`).join('');
+  return `<div class="card small"><b>${pids.size} PIDs, ${chans.length} sensors</b> · ${answering} answering so far. ${h(porsche)}
+    <div class="muted tiny" style="margin-top:4px">Verified: our formula and OBDb's agree. Standard: one source. Experimental: Porsche manufacturer data from community research. Start Live data or open the cockpit to read them; rates are measured, not promised.</div>
+    <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm primary" data-act="cockpit-open">Open cockpit</button><button class="btn sm" data-act="ck-probe" data-arg="cockpit" data-testid="car-probe">Probe Porsche data</button><button class="btn sm" data-act="ck-probe" data-arg="all">Probe all Porsche (${app.porscheReqs?.size ?? 0})</button></div></div>${rows}`;
+}
+
+const CHART_COLORS = ['#d5001c', '#0a84ff', '#34c759', '#ff9f0a'];
+const CHART_WINDOWS = [[30000, '30 s'], [120000, '2 min'], [300000, '5 min'], [900000, '15 min']];
+
+/// Several sensors on one chart, each on its own scale, over a time window; touch for every value at a moment.
+function chartsSection(app, src) {
+  const ui = app.carUI.chart ?? (app.carUI.chart = { keys: [], window: 120000 });
+  const withData = src.channels.filter((ch) => !ch.raw && !ch.text && (src.get(ch.key)?.history?.length ?? 0) > 1);
+  const pick = `<div class="car-chips">${withData.map((ch) => { const i = ui.keys.indexOf(ch.key); return `<button class="btn sm${i >= 0 ? ' on' : ''}" data-act="car-chart-toggle" data-arg="${h(ch.key)}"${i >= 0 ? ` style="box-shadow:inset 0 0 0 2px ${CHART_COLORS[i]}"` : ''}>${h(ch.name)}</button>`; }).join('') || '<span class="muted small">Start Live data (or play a recording) to chart its sensors.</span>'}</div>`;
+  const win = `<div class="seg">${CHART_WINDOWS.map(([ms, n]) => `<button class="${ui.window === ms ? 'on' : ''}" data-act="car-chart-window" data-arg="${ms}">${n}</button>`).join('')}</div>`;
+  const keys = ui.keys.filter((k) => withData.some((c) => c.key === k));
+  let chart = '';
+  if (keys.length) {
+    const hist = keys.map((k) => { const ch = withData.find((c) => c.key === k); return { key: k, name: ch.name, unit: ch.unit, history: (src.get(k)?.history ?? []).map(([t, v]) => [t, toUS(v, ch.unit)[0]]) }; });
+    const end = src.playback ? src.playback.t : Date.now();
+    const series = chartSeries(hist, end, ui.window);
+    const W = 340, H = 170, L = 6, R = 6, T = 8, B = 18;
+    const t0 = end - ui.window;
+    const x = (t) => L + ((t - t0) / ui.window) * (W - L - R);
+    const paths = series.map((s, i) => {
+      if (s.pts.length < 2) return '';
+      const span = s.max - s.min || 1;
+      const y = (v) => T + (1 - (v - s.min) / span) * (H - T - B);
+      return `<path class="line" style="stroke:${CHART_COLORS[i]}" d="${s.pts.map(([t, v], j) => `${j ? 'L' : 'M'}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join('')}" data-series="${s.pts.map(([t, v]) => `${Math.round(t)}:${Number(v.toFixed(3))}`).join(';')}" data-name="${h(s.name)}" data-unit="${h(toUS(1, s.unit)[1] ?? '')}"/>`;
+    }).join('');
+    const when = (t) => (src.playback ? fmtElapsed(t) : new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }));
+    chart = `<div class="car-chart car-mchart" data-t0="${t0}" data-tspan="${ui.window}" data-l="${L}" data-r="${R}" data-w="${W}" data-rel="${src.playback ? 1 : 0}">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chart of ${h(series.map((s) => s.name).join(', '))}"><line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="axis"/>
+        <text x="${L}" y="${H - 4}" class="lbl">${h(when(t0))}</text><text x="${W - R}" y="${H - 4}" class="lbl" text-anchor="end">${h(when(end))}</text>${paths}
+        <line class="cursor" x1="-10" x2="-10" y1="${T}" y2="${H - B}"/></svg>
+      <div class="car-chart-readout muted tiny">Touch the chart to read every sensor at one moment.</div></div>
+      <table class="car-table">${series.map((s, i) => { const u = toUS(1, s.unit)[1] ?? ''; return `<tr><td><span class="car-dot" style="background:${CHART_COLORS[i]}"></span>${h(s.name)} <span class="muted">${h(u)}</span></td><td>min ${statNum(s.min, u)}</td><td>max ${statNum(s.max, u)}</td><td>avg ${statNum(s.avg, u)}</td></tr>`; }).join('')}</table>`;
+  }
+  return `${src.playback ? playbackBar(src.playback) : ''}<div class="card"><div class="small" style="font-weight:700">Charts</div><div class="muted tiny" style="margin:2px 0 8px">Up to 4 sensors, each on its own scale. The last ${CHART_WINDOWS.find(([ms]) => ms === ui.window)?.[1]}.</div>${win}<div style="margin-top:8px">${pick}</div></div>${chart ? `<div class="card" data-testid="car-mchart">${chart}</div>` : ''}`;
+}
+
 /// Recordings: start and stop, and every recording on this device with play, CSV and delete.
 function recordSection(app) {
   const c = app.car;
@@ -1389,9 +1479,11 @@ function recordSection(app) {
   const rows = list.length ? `<div class="list">${list.map((r) => `<div class="item" data-testid="car-recording" data-id="${h(r.id)}">
       <div class="main"><div class="t small">${h(new Date(r.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}${r.done ? '' : ' <span class="amber-text tiny">(still recording or not stopped)</span>'}</div>
       <div class="muted tiny">${fmtElapsed(r.duration)} · ${r.samples.toLocaleString()} readings · ${r.channels} items${r.adapter ? ` · ${h(r.adapter)}` : ''}</div></div>
-      <div class="car-side"><button class="btn sm" data-act="car-rec-play" data-arg="${h(r.id)}" data-testid="car-rec-play">Play</button><button class="btn sm" data-act="car-rec-csv" data-arg="${h(r.id)}" data-testid="car-rec-csv">CSV</button><button class="btn sm" data-act="car-rec-delete" data-arg="${h(r.id)}" aria-label="Delete recording">Delete</button></div></div>`).join('')}</div>`
+      <div class="car-side"><button class="btn sm" data-act="car-rec-play" data-arg="${h(r.id)}" data-testid="car-rec-play">Play</button><button class="btn sm" data-act="car-rec-csv" data-arg="${h(r.id)}" data-testid="car-rec-csv">CSV</button><button class="btn sm" data-act="car-rec-json" data-arg="${h(r.id)}" data-testid="car-rec-json">JSON</button><button class="btn sm${app.carUI.summary === r.id ? ' on' : ''}" data-act="car-rec-summary" data-arg="${h(r.id)}" data-testid="car-rec-summary">Summary</button><button class="btn sm${(app.carUI.compare ?? []).includes(r.id) ? ' on' : ''}" data-act="car-rec-compare" data-arg="${h(r.id)}" data-testid="car-rec-compare">Compare</button><button class="btn sm" data-act="car-rec-delete" data-arg="${h(r.id)}" aria-label="Delete recording">Delete</button></div></div>
+      ${app.carUI.summary === r.id ? summaryHTML(app.carSummaries?.get(r.id)) : ''}`).join('')}</div>`
     : '<div class="card empty small">No recordings yet.</div>';
-  return `${ctl}<div class="section-title">Recordings</div>${rows}<div class="muted tiny" style="margin:4px">${where}</div>`;
+  const cmp = (app.carUI.compare ?? []).length === 2 ? compareHTML(app, app.carUI.compare) : (app.carUI.compare ?? []).length === 1 ? '<div class="muted tiny" style="margin:4px">Pick a second recording to compare.</div>' : '';
+  return `${ctl}<div class="section-title">Recordings</div>${rows}${cmp}<div class="muted tiny" style="margin:4px">${where}</div>`;
 }
 
 function carStat(value, unit) {

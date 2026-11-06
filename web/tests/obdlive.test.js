@@ -109,3 +109,34 @@ test('playback: value at a time, minimum, maximum and average up to then, recent
   assert.equal(p.n, 2);
   assert.deepEqual(playbackAt(s, 1000, 600).history, [[500, 2400.5], [1000, 1200]]);
 });
+
+import { recordingJSON, recordingSummary, compareSummaries, chartSeries } from '../js/engine/obdlive.js';
+
+test('JSON export: the recording with its units and a note on the sample layout', () => {
+  const j = JSON.parse(recordingJSON(REC));
+  assert.equal(j.format, 'exitatlas-car-recording');
+  assert.equal(j.startedAt, '2026-11-05T19:00:00.000Z');
+  assert.deepEqual(j.samples[0], [0, '010C', 800]);
+  assert.equal(j.channels['0105'].unit, '°C');
+});
+
+test('session summary and comparison, in the units the app shows', () => {
+  const s = recordingSummary(REC);
+  const rpm = s.channels.find((c) => c.key === '010C');
+  assert.deepEqual([rpm.min, rpm.max, rpm.n], [800, 2400.5, 3]);
+  assert.ok(Math.abs(rpm.avg - (800 + 2400.5 + 1200) / 3) < 1e-9);
+  assert.equal(s.channels.find((c) => c.key === '0105').max, 194);   // 90 °C in °F
+  assert.equal(s.highlights.maxRpm, 2400.5);
+  assert.equal(s.readings, 5);
+  const b = recordingSummary({ ...REC, samples: [[0, '010C', 3000], [10, '0146', 20]] });
+  const cmp = compareSummaries(s, b);
+  assert.deepEqual(cmp.map((c) => c.key), ['010C']);
+  assert.ok(Math.abs(cmp[0].dMax - (3000 - 2400.5)) < 1e-9);
+});
+
+test('chart series: each channel in the window, with its own scale', () => {
+  const [a, b] = chartSeries([{ key: 'x', history: [[0, 1], [500, 5], [1000, 3]] }, { key: 'y', history: [[100, 'A'], [900, 10]] }], 1000, 600);
+  assert.deepEqual(a.pts, [[500, 5], [1000, 3]]);
+  assert.deepEqual([a.min, a.max, a.avg], [3, 5, 4]);
+  assert.deepEqual(b.pts, [[900, 10]]);
+});
