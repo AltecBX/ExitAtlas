@@ -12,7 +12,7 @@ import { Cockpit, cockpitDefaults, moveGauge, nextSize } from './cockpit.js';
 import { MODES as COCKPIT_MODES } from '../engine/cockpit.js';
 import { indexSignalsets, decodeSignal, OBDB_UNITS, porscheRequests } from '../engine/obdb.js';
 import { setStandardSignals, channelsFor as carChannelsFor, NOT_LIVE as CAR_NOT_LIVE } from '../engine/obdpids.js';
-import { recordingCSV, recordingSeries, alertRule } from '../engine/obdlive.js';
+import { recordingCSV, recordingJSON, recordingSeries, recordingSummary, compareSummaries, alertRule } from '../engine/obdlive.js';
 import { rangeFromFuel } from '../engine/obd.js';
 import { gasGaps, restAreaTitle } from '../engine/restareas.js';
 import { placeDisplayName } from '../engine/datasets.js';
@@ -2059,6 +2059,49 @@ const actions = {
     const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
     await saveTextFile(`ExitAtlas_car_${stamp}.csv`, recordingCSV(rec), 'text/csv');
   },
+  async 'car-rec-json'(arg) {
+    const rec = await app.carRecStore.load(arg).catch(() => null);
+    if (!rec) { toast('Recording not found'); return; }
+    const d = new Date(rec.startedAt);
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+    await saveTextFile(`ExitAtlas_car_${stamp}.json`, recordingJSON(rec), 'application/json');
+  },
+  async 'car-rec-summary'(arg) {
+    app.carUI.summary = app.carUI.summary === arg ? null : arg;
+    app.carSummaries ??= new Map();
+    renderSheet();
+    if (app.carUI.summary && !app.carSummaries.has(arg)) {
+      const rec = await app.carRecStore.load(arg).catch(() => null);
+      if (rec) app.carSummaries.set(arg, recordingSummary(rec));
+      renderSheet();
+    }
+  },
+  async 'car-rec-compare'(arg) {
+    const list = app.carUI.compare ?? [];
+    app.carUI.compare = list.includes(arg) ? list.filter((x) => x !== arg) : [...list, arg].slice(-2);
+    app.carCompare = null;
+    renderSheet();
+    if (app.carUI.compare.length === 2) {
+      app.carSummaries ??= new Map();
+      for (const id of app.carUI.compare) if (!app.carSummaries.has(id)) { const rec = await app.carRecStore.load(id).catch(() => null); if (rec) app.carSummaries.set(id, recordingSummary(rec)); }
+      const [a, b] = app.carUI.compare.map((id) => app.carSummaries.get(id));
+      app.carCompare = a && b ? compareSummaries(a, b) : [];
+      renderSheet();
+    }
+  },
+  'car-chart-toggle'(arg) {
+    const ui = app.carUI.chart ?? (app.carUI.chart = { keys: [], window: 120000 });
+    ui.keys = ui.keys.includes(arg) ? ui.keys.filter((k) => k !== arg) : [...ui.keys, arg].slice(-4);
+    renderSheet();
+  },
+  'car-chart-window'(arg) { (app.carUI.chart ?? (app.carUI.chart = { keys: [] })).window = Number(arg); renderSheet(); },
+  'ck-add-sensor'(arg) {
+    const s = app.cockpitSettings;
+    if (!s.custom.some((x) => x.id === arg)) s.custom = [...s.custom, { id: arg, size: 'M' }];
+    saveCockpitSettings();
+    toast('Added to the Custom cockpit');
+    renderSheet();
+  },
   async 'car-rec-delete'(arg) {
     if (!confirm('Delete this recording from this device?')) return;
     if (app.carUI.playback?.rec.id === arg) { stopPlaybackTimer(); app.carUI.playback = null; }
@@ -2337,6 +2380,26 @@ function readCarChart(ev) {
   if (!svg) return;
   const box = svg.closest('.car-chart');
   const d = box.dataset;
+  if (box.classList.contains('car-mchart')) {
+    // Several sensors: each one's reading nearest the touched moment.
+    const r = svg.getBoundingClientRect();
+    const W = Number(d.w), L = Number(d.l), R = Number(d.r);
+    const t = Number(d.t0) + ((((ev.clientX - r.left) / r.width) * W - L) / (W - L - R)) * Number(d.tspan);
+    const parts = [];
+    for (const path of svg.querySelectorAll('path[data-series]')) {
+      const pts = path._pts ?? (path._pts = path.dataset.series.split(';').map((p) => p.split(':').map(Number)));
+      let best = pts[0];
+      for (const p of pts) if (Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p;
+      parts.push(`${path.dataset.name} ${best[1]} ${path.dataset.unit}`);
+    }
+    const x = L + ((t - Number(d.t0)) / Number(d.tspan)) * (W - L - R);
+    svg.querySelector('.cursor')?.setAttribute('x1', x.toFixed(1)); svg.querySelector('.cursor')?.setAttribute('x2', x.toFixed(1));
+    const s = Math.max(0, Math.floor(t / 1000));
+    const when = d.rel === '1' ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    const out = box.querySelector('.car-chart-readout');
+    if (out) out.textContent = `${when} · ${parts.join(' · ')}`;
+    return;
+  }
   const pts = box._pts ?? (box._pts = d.series.split(';').map((p) => p.split(':').map(Number)));
   const r = svg.getBoundingClientRect();
   const W = Number(d.w), L = Number(d.l), R = Number(d.r);

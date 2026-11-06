@@ -99,6 +99,7 @@ async function open(viewport) {
   await page.evaluate(() => { const a = window.exitAtlas; a.settings.vehicle = { ...(a.settings.vehicle ?? {}), year: '2021', make: 'Porsche', model: '911', tankGallons: 17.6, mpg: 20 }; });
   return { ctx, page, errors };
 }
+const cells = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(`${s} tr`)].map((tr) => [...tr.children].map((td) => td.textContent.replace(/\s+/g, ' ').trim()).join('|')), sel);
 const click = (page, act, arg) => page.evaluate(([a, g]) => { const b = document.createElement('button'); b.dataset.act = a; if (g != null) b.dataset.arg = g; document.body.append(b); b.click(); b.remove(); }, [act, arg]);
 
 {
@@ -217,6 +218,67 @@ const click = (page, act, arg) => page.evaluate(([a, g]) => { const b = document
   await click(page, 'ck-close');
   await page.waitForTimeout(400);
   if (await page.evaluate(() => window.exitAtlas.car.live.on || window.exitAtlas.car.plan)) fail('live data or the plan kept running after the cockpit closed');
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+{
+  // Sensors, charts, recording from the cockpit, JSON, summary and comparison.
+  const fail = (m) => failures.push(`sensors and sessions: ${m}`);
+  const { ctx, page, errors } = await open({ width: 430, height: 932 });
+  await click(page, 'car-connect');
+  await page.waitForFunction(() => window.exitAtlas.car.state === 'connected' && window.exitAtlas.car.supported, null, { timeout: 20000 });
+  // Two short recordings from the cockpit.
+  await click(page, 'cockpit-open');
+  for (let i = 0; i < 2; i++) {
+    await click(page, 'ck-rec');
+    await page.waitForTimeout(1800);
+    await click(page, 'ck-rec');
+    await page.waitForTimeout(600);
+  }
+  await click(page, 'ck-close');
+  await click(page, 'car-details');
+  await page.waitForSelector('#sheet [data-act="car-tab"][data-arg="sensors"]', { timeout: 10000 });
+  await click(page, 'car-tab', 'sensors');
+  await page.waitForTimeout(400);
+  const sensors = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#sheet [data-testid="car-sensor"]')].map((r) => [r.dataset.key, r.textContent.replace(/\s+/g, ' ').trim()])));
+  if (!/Verified/.test(sensors['010C'] ?? '') || !/answering/.test(sensors['010C'] ?? '')) fail(`engine speed row: ${sensors['010C']}`);
+  if (!/Standard/.test(sensors['0170_BP_A_ACT'] ?? '')) fail(`boost sensor row (OBDb, one source): ${sensors['0170_BP_A_ACT']}`);
+  if (Object.keys(sensors).length < 50) fail(`only ${Object.keys(sensors).length} sensors listed`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-sensors.png') });
+  // Charts: two sensors on one chart.
+  await click(page, 'car-tab', 'live');
+  await click(page, 'car-live');
+  await page.waitForTimeout(2500);
+  await click(page, 'car-tab', 'charts');
+  await click(page, 'car-chart-toggle', '010C');
+  await click(page, 'car-chart-toggle', '0105');
+  await page.waitForTimeout(300);
+  const lines = await page.evaluate(() => document.querySelectorAll('#sheet [data-testid="car-mchart"] path[data-series]').length);
+  if (lines !== 2) fail(`chart lines: ${lines}`);
+  const legend = await cells(page, '#sheet [data-testid="car-mchart"] table');
+  if (!legend.includes('Engine speed rpm|min 2500|max 2500|avg 2500') || !legend.includes('Coolant temperature °F|min 194|max 194|avg 194')) fail(`chart legend: ${legend}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-charts.png') });
+  await click(page, 'car-live');
+  // Recordings: JSON, summary, compare.
+  await click(page, 'car-tab', 'rec');
+  await page.waitForSelector('#sheet [data-testid="car-recording"]', { timeout: 10000 }).catch(() => {});
+  const ids = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-testid="car-recording"]')].map((r) => r.dataset.id));
+  if (ids.length !== 2) fail(`recordings: ${ids.length}`);
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }).catch(() => null), click(page, 'car-rec-json', ids[0])]);
+  const json = dl ? JSON.parse(await readFile(await dl.path(), 'utf8')) : null;
+  if (json?.format !== 'exitatlas-car-recording' || !json.samples?.length || !json.channels?.['010C']) fail(`JSON: ${JSON.stringify(json)?.slice(0, 200)}`);
+  await click(page, 'car-rec-summary', ids[0]);
+  await page.waitForSelector('#sheet [data-testid="car-summary"] table', { timeout: 10000 }).catch(() => {});
+  const sum = await text(page, '#sheet [data-testid="car-summary"]');
+  const sumRows = await cells(page, '#sheet [data-testid="car-summary"] table');
+  if (!/max 2,500 rpm/.test(sum ?? '') || !sumRows.includes('Engine speed rpm|2500|2500|2500') || !sumRows.includes('Transmission gear ratio ratio|3.200|3.200|3.200')) fail(`summary: ${sumRows}`);
+  await click(page, 'car-rec-compare', ids[0]);
+  await click(page, 'car-rec-compare', ids[1]);
+  await page.waitForSelector('#sheet [data-testid="car-compare"] table', { timeout: 10000 }).catch(() => {});
+  const cmp = await cells(page, '#sheet [data-testid="car-compare"] table');
+  if (!cmp.includes('Engine speed rpm|2500|2500|2500|2500|0')) fail(`compare: ${cmp}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'car-compare.png'), fullPage: false });
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }

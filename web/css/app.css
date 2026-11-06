@@ -840,3 +840,18 @@ body.nav-mode #banner { position: relative; z-index: 15; }
 
 /* A new version is ready while a trip is under way (main.js keepCurrent). */
 #update-ready { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); z-index: 60; border: 0; border-radius: 999px; padding: 12px 18px; min-height: 44px; background: var(--accent); color: #fff; font: inherit; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+/* Car diagnostics: sensors, charts, summaries. */
+.car-tabs { overflow-x: auto; scrollbar-width: none; }
+.car-tabs button { white-space: nowrap; }
+.car-src { display: inline-block; padding: 1px 6px; border-radius: 6px; font-weight: 800; font-size: 10px; letter-spacing: 0.3px; background: var(--chip, #8881); }
+.car-src.verified { color: var(--sign-green); }
+.car-src.experimental { color: var(--amber); }
+.car-src.raw { color: var(--text-2); }
+.green-text { color: var(--sign-green); font-weight: 700; }
+.car-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.car-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.car-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.car-table th { text-align: left; color: var(--text-2); font-weight: 700; padding: 3px 4px; border-bottom: 1px solid var(--stroke); }
+.car-table td { padding: 4px; border-bottom: 1px solid var(--stroke); }
+.car-table td:not(:first-child), .car-table th:not(:first-child) { text-align: right; white-space: nowrap; }

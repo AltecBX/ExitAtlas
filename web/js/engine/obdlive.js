@@ -199,3 +199,50 @@ export function playbackAt(series, t, window = 120000) {
   }
   return { value: series.v[i], t: series.t[i], min, max, sum, n, history };
 }
+
+/// A recording as JSON (readings in the channels' own units, with the units): for other tools and later analysis.
+export function recordingJSON(rec) {
+  return JSON.stringify({ format: 'exitatlas-car-recording', version: 1, startedAt: new Date(rec.startedAt).toISOString(),
+    endedAt: rec.endedAt ? new Date(rec.endedAt).toISOString() : null, vehicle: rec.vehicle ?? null, adapter: rec.adapter ?? null,
+    note: 'samples: [milliseconds since startedAt, channel key, value in the channel unit]', channels: rec.channels, samples: rec.samples });
+}
+
+/// Per channel minimum, maximum, average and count of a recording, in the units the app shows; and its duration.
+export function recordingSummary(rec) {
+  const stats = new Map();
+  for (const [, key, value] of rec.samples) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    const ch = rec.channels[key];
+    if (!ch) continue;
+    const [v, unit] = toUS(value, ch.unit);
+    let s = stats.get(key);
+    if (!s) { s = { key, name: ch.name, unit, min: v, max: v, sum: 0, n: 0 }; stats.set(key, s); }
+    s.min = Math.min(s.min, v); s.max = Math.max(s.max, v); s.sum += v; s.n++;
+  }
+  const last = rec.samples.length ? rec.samples[rec.samples.length - 1][0] : 0;
+  const channels = [...stats.values()].map((s) => ({ ...s, avg: s.sum / s.n })).sort((a, b) => a.name.localeCompare(b.name));
+  const by = (k) => channels.find((c) => c.key === k);
+  return { duration: (rec.endedAt ? rec.endedAt - rec.startedAt : last), readings: rec.samples.length, channels,
+    highlights: { maxSpeed: by('010D')?.max ?? null, maxRpm: by('010C')?.max ?? null, maxOil: by('015C')?.max ?? null, maxCoolant: by('0105')?.max ?? null } };
+}
+
+/// Two sessions side by side: the channels both have, with each one's average and maximum and the difference.
+export function compareSummaries(a, b) {
+  const bb = new Map(b.channels.map((c) => [c.key, c]));
+  return a.channels.filter((c) => bb.has(c.key)).map((c) => {
+    const o = bb.get(c.key);
+    return { key: c.key, name: c.name, unit: c.unit, avgA: c.avg, avgB: o.avg, maxA: c.max, maxB: o.max, dAvg: o.avg - c.avg, dMax: o.max - c.max };
+  });
+}
+
+/// Readings of several channels in a time window ending at `end` (ms), for one chart: each series with its own
+/// scale (minimum and maximum in the window) so different units can share it.
+export function chartSeries(histories, end, windowMs) {
+  return histories.map(({ key, name, unit, history }) => {
+    const pts = (history ?? []).filter(([t, v]) => t >= end - windowMs && t <= end && typeof v === 'number');
+    const vs = pts.map((p) => p[1]);
+    const min = vs.length ? Math.min(...vs) : null;
+    const max = vs.length ? Math.max(...vs) : null;
+    return { key, name, unit, pts, min, max, avg: vs.length ? vs.reduce((s, x) => s + x, 0) / vs.length : null };
+  });
+}
