@@ -10,7 +10,7 @@ const temp = ([a]) => a - 40;
 const u16 = (a, b) => (a << 8) | b;
 const s16 = (a, b) => { const v = u16(a, b); return v >= 0x8000 ? v - 0x10000 : v; };
 // Groups in the order the live data screen shows them.
-export const GROUPS = ['Engine', 'Fuel', 'Air', 'Temperatures', 'Oxygen sensors', 'Transmission', 'Emissions', 'Electrical', 'Status', 'Other (raw)'];
+export const GROUPS = ['Engine', 'Fuel', 'Air', 'Temperatures', 'Oxygen sensors', 'Transmission', 'Emissions', 'Electrical', 'Status', 'Porsche (experimental)', 'Other (raw)'];
 
 const FUEL_SYSTEM = { 0: 'Engine off', 1: 'Open loop, warming up', 2: 'Closed loop', 4: 'Open loop, load or decel', 8: 'Open loop, system fault', 16: 'Closed loop, sensor fault' };
 const SECONDARY_AIR = { 1: 'Upstream', 2: 'Downstream of catalyst', 4: 'Outside or off', 8: 'Pump on for diagnostics' };
@@ -137,7 +137,11 @@ for (const [pid, bank] of [[0x78, 1], [0x79, 2]]) {
 one(0x7f, 'Total engine run time', 13, 'Engine', 's', ([, b, c, d, e]) => b * 2 ** 24 + c * 2 ** 16 + d * 2 ** 8 + e);
 one(0x8e, 'Engine friction torque', 1, 'Engine', '%', ([a]) => a - 125);
 one(0xa2, 'Cylinder fuel rate', 2, 'Fuel', 'mg/stroke', ([a, b]) => u16(a, b) / 32);
-one(0xa4, 'Transmission gear ratio', 4, 'Transmission', 'ratio', ([a, , c, d]) => (a & 2 ? u16(c, d) / 1000 : null));
+// A4: actual gear in the upper half of B (0 neutral), supported when A bit 0 is set; gear ratio (256C+D)/1000 when
+// A bit 1 is set. Wikipedia's PID table ([A0], [B4..B7]) and OBDb (GEAR_ACT bix 8 len 4) agree.
+add(0xa4, 'Transmission actual gear', 4, 'Transmission',
+  ch('G', 'Transmission gear', 'gear', ([a, b]) => (a & 1 ? b >> 4 : null)),
+  ch('', 'Transmission gear ratio', 'ratio', ([a, , c, d]) => (a & 2 ? u16(c, d) / 1000 : null)));
 one(0xa5, 'Commanded DEF dosing', 4, 'Emissions', '%', ([a, b]) => (a & 1 ? b / 2 : null));
 one(0xa6, 'Odometer', 4, 'Status', 'km', ([a, b, c, d]) => (a * 2 ** 24 + b * 2 ** 16 + c * 2 ** 8 + d) / 10);
 one(0xa9, 'ABS disable switch', 4, 'Status', '', ([a, b]) => (a & 1 ? (b & 1 ? 'Yes' : 'No') : null));
@@ -147,11 +151,51 @@ export const MASK_PIDS = [0x00, 0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0];
 export const NOT_LIVE = new Set([...MASK_PIDS, 0x01, 0x02, 0x41]);
 
 /// The channels to poll for a PID the car lists: its table entry, or one raw channel showing the bytes.
+/// Mode 01 PIDs this table has no formula for, from OBDb's SAE J1979 signal set (engine/obdb.js; set once loaded).
+let standardSignals = null;
+export function setStandardSignals(index) { standardSignals = index; }
+
+/// PIDs whose formula here was checked against OBDb's on random bytes and agrees (web/tests/obdb.test.js): two
+/// independent sources. Others in this table rest on one (the SAE J1979 table as Wikipedia lists it).
+/// (Text and bit field items such as fuel system status are not on it: there is no number to compare.)
+export const TWO_SOURCES = new Set([0x04, 0x05, 0x06, 0x07, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x14, 0x15, 0x16,
+  0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e,
+  0x2f, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
+  0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x52, 0x53, 0x59, 0x5a, 0x5b, 0x5c, 0x5e, 0x61, 0x62, 0x63, 0x66, 0x67, 0x78,
+  0x79, 0x8e, 0xa2, 0xa4, 0xa6]);
+
+const OBDB_GROUP = (path = '', name = '') => (/Oxygen/i.test(path) ? 'Oxygen sensors' : /^Fuel/i.test(path) ? 'Fuel'
+  : /temperat/i.test(name) ? 'Temperatures' : /pressure|air/i.test(name) ? 'Air' : /Transmission|gear/i.test(name) ? 'Transmission' : 'Engine');
+
+/// Channels of a PID from an OBDb command: each visible signal, null when its "supported" bit (signal id + "_SUP")
+/// says the car does not have it.
+export function obdbChannels(command, { keyPrefix, pid = null, group = null, unitOf, decode, source }) {
+  const all = command.signals ?? [];
+  const sup = new Map(all.filter((x) => x.hidden && /_SUP$/.test(x.id)).map((x) => [x.id.replace(/_SUP$/, ''), x]));
+  const needBytes = Math.max(1, ...all.map((x) => Math.ceil(((x.fmt.bix ?? 0) + x.fmt.len) / 8)));
+  return all.filter((x) => !x.hidden).map((x) => ({
+    key: `${keyPrefix}_${x.id}`, pid, group: group ?? OBDB_GROUP(x.path, x.name), pidName: x.name, name: x.name.trim(), unit: unitOf(x.fmt.unit),
+    bytes: needBytes, source, signalId: x.id, range: [x.fmt.min ?? null, x.fmt.max ?? null], text: Boolean(x.fmt.map) || ['noyes', 'yesno', 'offon'].includes(x.fmt.unit),
+    f: (bytes) => {
+      const s = sup.get(x.id);
+      if (s && decode(s.fmt, Uint8Array.from(bytes))?.value === 0) return null;
+      const d = decode(x.fmt, Uint8Array.from(bytes));
+      if (!d || d.outOfRange) return null;
+      return d.text ?? d.value;
+    },
+  }));
+}
+
 export function channelsFor(pid) {
   const e = PIDS01.get(pid);
   const hex = pid.toString(16).toUpperCase().padStart(2, '0');
-  if (e) return e.channels.map((c) => ({ ...c, key: `01${hex}${c.suffix}`, pid, group: e.group, pidName: e.name, bytes: e.bytes }));
-  return [{ key: `01${hex}`, pid, group: 'Other (raw)', pidName: `PID ${hex}`, name: `PID ${hex} (raw)`, unit: 'hex', bytes: 1, raw: true,
+  if (e) return e.channels.map((c) => ({ ...c, key: `01${hex}${c.suffix}`, pid, group: e.group, pidName: e.name, bytes: e.bytes, source: TWO_SOURCES.has(pid) ? 'sae2' : 'sae1' }));
+  const c = standardSignals?.mode01.get(pid);
+  if (c && standardSignals.decode) {
+    const chans = obdbChannels(c, { keyPrefix: `01${hex}`, pid, unitOf: standardSignals.unitOf, decode: standardSignals.decode, source: 'obdb' });
+    if (chans.length) return chans;
+  }
+  return [{ key: `01${hex}`, pid, group: 'Other (raw)', pidName: `PID ${hex}`, name: `PID ${hex} (raw)`, unit: 'hex', bytes: 1, raw: true, source: 'raw',
     f: (bytes) => bytes.map((x) => x.toString(16).toUpperCase().padStart(2, '0')).join(' ') }];
 }
 
@@ -164,11 +208,14 @@ export function toUS(value, unit) {
     case 'km': return [value * 0.621371, 'mi'];
     case 'kPa': return [value * 0.145038, 'psi'];
     case 'L/h': return [value * 0.264172, 'gal/h'];
+    case 'bar': return [value * 14.5038, 'psi'];
+    case 'Nm': return [value * 0.737562, 'lb·ft'];
+    case 'mm': return [value / 25.4, 'in'];
     default: return [value, unit];
   }
 }
 
 /// Decimal places to show for a US unit.
 export function digitsFor(unit) {
-  return { V: 2, λ: 3, 'g/s': 1, psi: 1, 'gal/h': 2, '%': 1, mA: 2, Pa: 0 }[unit] ?? 0;
+  return { V: 2, λ: 3, 'g/s': 1, psi: 1, 'gal/h': 2, '%': 1, mA: 2, Pa: 0, '°': 1, rad: 3, 'lb·ft': 0, '': 2, 'kg/h': 1, ms: 1, in: 3 }[unit] ?? 0;
 }

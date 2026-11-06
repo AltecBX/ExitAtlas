@@ -10,9 +10,10 @@
 // byte scramble (engine/obd.js BLUEDRIVER_SETUP, bluedriverCodec).
 import { SETUP_COMMANDS, BLUEDRIVER_SETUP, PIDS, command, parseAnswer, readPID, supports, monitorStatus, parseVoltage,
   parseIdentity, steadyFuel, bluedriverCodec, PROBLEM_TEXT } from '../engine/obd.js';
-import { MASK_PIDS, NOT_LIVE, PIDS01, channelsFor, toUS } from '../engine/obdpids.js';
+import { MASK_PIDS, NOT_LIVE, PIDS01, channelsFor, obdbChannels, toUS } from '../engine/obdpids.js';
+import { mode22Data } from '../engine/obdb.js';
 import { roundPIDs, batches, multiCommand, parseMulti, alertState, MULTI_MAX, SLOW_EVERY } from '../engine/obdlive.js';
-import { parseDTCs, parseVIN, parseInfoText, answerBytes, readiness } from '../engine/obddiag.js';
+import { parseDTCs, parseVIN, parseInfoText, answerBytes, answerLines, readiness } from '../engine/obddiag.js';
 
 /// Bluetooth LE serial services OBD2 adapters use, with their notify and write characteristics. FFF0 (FFF1
 /// notify, FFF2 write) is documented for the OBDLink CX (support.obdlink.com, "OBDLink CX adapter notes") and
@@ -143,7 +144,10 @@ export class CarLink {
     /// Live data: on, and per channel key { value, t, min, max, sum, n, history }; per PID 'ok' or 'noData'.
     /// multi: PIDs per request (null until probed, 1 for one at a time); rate: readings and requests a second.
     this.live = { on: false, values: new Map(), status: new Map(), cycleMs: null, requests: 0, startedAt: null, round: 0, multi: null,
-      multiFailures: 0, rate: null };
+      multiFailures: 0, rate: null, latency: null, answers: 0, timeouts: 0, lastRead: new Map() };
+    /// Porsche manufacturer data (Mode 22): each request's last result by key ('ok', 'noData', 'refused',
+    /// 'several', 'shared', 'error'), and the module header the adapter is set to (ELM327 only).
+    this.enhanced = { results: new Map(), header: null };
     this.write = null; this.control = null; this.kind = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
     this.unacked = 0; clearTimeout(this.ackTimer); this.ackTimer = null;
     this.stopTimers();
@@ -382,6 +386,7 @@ export class CarLink {
 
   /// Sends one command and resolves with the adapter's answer (one at a time; the adapter takes no queue).
   send(cmd, timeout = CAR_RULES.commandTimeout) {
+    let started = performance.now();
     const run = async () => {
       if (!this.write) throw new Error('not connected');
       const answer = new Promise((resolve, reject) => {
@@ -398,8 +403,15 @@ export class CarLink {
         if (useNoResponse) await this.ble(() => w.writeValueWithoutResponse(part), `write ${cmd}`);
         else if (typeof w.writeValueWithResponse === 'function') await this.ble(() => w.writeValueWithResponse(part), `write ${cmd}`);
         else await this.ble(() => w.writeValue(part), `write ${cmd}`);
+        if (i === 0) started = performance.now();
       }
-      return answer;
+      // Time from the request on the air to the whole answer, and answers that never came (dropped).
+      return answer.then((text) => {
+        const ms = performance.now() - started;
+        this.live.answers++;
+        this.live.latency = this.live.latency == null ? ms : this.live.latency * 0.8 + ms * 0.2;
+        return text;
+      }, (e) => { this.live.timeouts++; throw e; });
     };
     const p = this.queue.then(run, run);
     this.queue = p.catch(() => {});
@@ -610,9 +622,55 @@ export class CarLink {
     this.logLine('i', ok ? `several items per request: yes, up to ${MULTI_MAX}` : 'several items per request: no, one at a time');
   }
 
+  /// What the screen needs (the cockpit sets it): [{ id, kind: '01', pid } | { id, kind: '22', req }, period ms].
+  /// With a plan, live data reads only those, each when due: period 0 every pass (engine speed, boost, throttle),
+  /// longer periods for slow ones (temperatures, fuel level). Without one, every PID the car lists.
+  setPlan(plan) { this.plan = plan?.length ? plan : null; }
+
+  async planRound() {
+    const now = performance.now();
+    const last = this.live.lastRead;
+    const due = this.plan.filter((p) => now - (last.get(p.id) ?? -1e9) >= p.period)
+      .sort((a, b) => (a.period - b.period) || ((last.get(a.id) ?? 0) - (last.get(b.id) ?? 0)));
+    if (!due.length) {
+      const wait = Math.min(...this.plan.map((p) => p.period - (now - (last.get(p.id) ?? 0))));
+      await new Promise((r) => setTimeout(r, Math.max(20, Math.min(wait, 500))));
+      return 0;
+    }
+    let readings = 0;
+    const pids = due.filter((p) => p.kind === '01').map((p) => p.pid);
+    for (const group of batches(pids, this.live.multi ?? 1)) {
+      if (!this.live.on || this.state !== 'connected') return readings;
+      try { readings += group.length > 1 ? await this.readLiveMany(group) : await this.readLive(group[0]); } catch (e) {
+        for (const pid of group) this.live.status.set(pid, 'error');
+        this.logLine('!', `PID ${group.map((x) => x.toString(16)).join(' ')}: ${e?.message ?? e}`);
+      }
+      for (const pid of group) last.set(`01:${pid}`, performance.now());
+      this.changedSoon();
+    }
+    for (const p of due.filter((x) => x.kind === '22')) {
+      if (!this.live.on || this.state !== 'connected') return readings;
+      try { readings += await this.readEnhanced(p.req); } catch (e) { this.logLine('!', `${p.req.key}: ${e?.message ?? e}`); }
+      last.set(p.id, performance.now());
+      this.changedSoon();
+    }
+    return readings;
+  }
+
   async liveLoop() {
     while (this.live.on && this.state === 'connected') {
       if (!this.supported) await this.findPIDs().catch(() => {});
+      if (this.plan) {
+        const t0 = performance.now(); const req0 = this.live.requests;
+        const readings = await this.planRound();
+        const ms = performance.now() - t0;
+        if (readings && ms > 0) {
+          const now = { readings: (readings * 1000) / ms, requests: ((this.live.requests - req0) * 1000) / ms };
+          const was = this.live.rate;
+          this.live.rate = was ? { readings: was.readings * 0.7 + now.readings * 0.3, requests: was.requests * 0.7 + now.requests * 0.3 } : now;
+        }
+        continue;
+      }
       const all = this.livePIDs();
       if (!all.length) { await new Promise((r) => setTimeout(r, 1000)); continue; }
       if (this.live.multi === null && this.live.round > 0) await this.probeMulti().catch(() => { this.live.multi = 1; });
@@ -645,8 +703,66 @@ export class CarLink {
     this.changed();
   }
 
+  /// Porsche manufacturer data: the channels of a Mode 22 request (engine/obdb.js porscheRequests), Experimental.
+  enhancedChannels(req) {
+    const ix = this.enhancedIndex;
+    if (!ix) return [];
+    return obdbChannels(req.command, { keyPrefix: `22${req.hdr}${req.did}`, group: 'Porsche (experimental)', unitOf: ix.unitOf, decode: ix.decode,
+      source: req.unconfirmed ? 'porsche-unconfirmed' : 'porsche' }).map((c) => ({ ...c, req: req.key }));
+  }
+
+  /// One Mode 22 request. The ELM327 is pointed at the module first (ATSH); the BlueDriver sends to every module
+  /// at once (its own header command is not known), so a DID that more than one module has is not read through it:
+  /// its answer could not be told apart. Returns the number of signals read.
+  async readEnhanced(req) {
+    const set = (status) => {
+      const was = this.enhanced.results.get(req.key);
+      this.enhanced.results.set(req.key, status);
+      if (was !== status) this.onEnhanced?.(req.key, status);
+      return 0;
+    };
+    if (this.kind === 'bluedriver' && req.shared) return set('shared');
+    if (this.kind === 'elm' && this.enhanced.header !== req.hdr) {
+      await this.send(`ATSH${req.hdr}`);
+      this.enhanced.header = req.hdr;
+    }
+    const text = await this.send(`22${req.did}`);
+    if (/NO ?DATA/i.test(text)) return set('noData');
+    const r = mode22Data(answerLines(text), req.did);
+    if (r.problem) return set(r.problem);
+    const t = Date.now();
+    let n = 0;
+    for (const c of this.enhancedChannels(req)) {
+      const value = c.f(r.bytes);
+      if (value !== null && value !== undefined) { this.record(c, value, t); n++; }
+    }
+    set(n ? 'ok' : 'unreadable');
+    return n;
+  }
+
+  /// Tries Porsche requests one by one (the driver starts it; read only), each result kept and reported.
+  async probeEnhanced(reqs, onProgress = () => {}) {
+    this.probing = { done: 0, total: reqs.length, ok: 0 };
+    this.logLine('i', `--- Porsche data probe: ${reqs.length} requests (Mode 22, read only)`);
+    for (const req of reqs) {
+      if (this.state !== 'connected' || !this.probing) break;
+      let n = 0;
+      try { n = await this.readEnhanced(req); } catch (e) { this.enhanced.results.set(req.key, 'error'); this.logLine('!', `${req.key}: ${e?.message ?? e}`); }
+      this.probing.done++; if (n) this.probing.ok++;
+      onProgress(this.probing);
+      this.changedSoon();
+    }
+    const done = this.probing;
+    this.probing = null;
+    if (this.kind === 'elm' && this.enhanced.header && this.enhanced.header !== '7DF') { await this.send('ATSH7DF').catch(() => {}); this.enhanced.header = '7DF'; }
+    this.logLine('i', `--- Porsche data probe done: ${done?.ok ?? 0} of ${done?.total ?? 0} answered`);
+    this.changed();
+    return done;
+  }
+
   /// One PID: returns the number of PIDs read (0 or 1).
   async readLive(pid) {
+    if (this.kind === 'elm' && this.enhanced.header && this.enhanced.header !== '7DF') { await this.send('ATSH7DF'); this.enhanced.header = '7DF'; }
     const bare = { bare: this.kind === 'bluedriver' };
     const r = parseAnswer(await this.send(command(pid)), pid, 1, bare);
     if (r.problem) { this.live.status.set(pid, r.problem); return 0; }
@@ -713,7 +829,9 @@ export class CarLink {
   /// One sample for a channel: the value, minimum, maximum, average (numbers) and the trend.
   record(channel, value, t) {
     let v = this.live.values.get(channel.key);
-    if (!v) { v = { channel, value: null, t: null, min: null, max: null, sum: 0, n: 0, history: [] }; this.live.values.set(channel.key, v); }
+    if (!v) { v = { channel, value: null, t: null, min: null, max: null, sum: 0, n: 0, history: [], dt: null }; this.live.values.set(channel.key, v); }
+    // Update interval (ms), smoothed: the rate a gauge really refreshes at.
+    if (v.t != null && t > v.t) v.dt = v.dt == null ? t - v.t : v.dt * 0.8 + (t - v.t) * 0.2;
     v.value = value; v.t = t;
     if (typeof value === 'number' && Number.isFinite(value)) {
       v.min = v.min === null ? value : Math.min(v.min, value);

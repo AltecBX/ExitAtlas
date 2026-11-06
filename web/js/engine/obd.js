@@ -57,8 +57,17 @@ const PROBLEMS = [
 /// adapter's whole answer up to ">". Several control units can answer; the first complete answer wins. `bare`:
 /// the answer is the data bytes alone (BlueDriver); a line that does carry the mode and PID still reads right.
 export function parseAnswer(text, pid, mode = 1, { bare = false } = {}) {
-  const lines = String(text ?? '').toUpperCase().replace(/>/g, '').split(/[\r\n]+/)
+  let lines = String(text ?? '').toUpperCase().replace(/>/g, '').split(/[\r\n]+/)
     .map((l) => l.replace(/\s+/g, '').replace(/^SEARCHING\.*/, '')).filter(Boolean);
+  // An answer longer than one CAN frame (more than 4 data bytes for a PID) comes as a byte count line ("00C") and
+  // numbered frames ("0:...", "1:..."): joined into one line, cut at the count (the last frame is padded).
+  if (lines.length > 1 && /^[0-9A-F]{3}$/.test(lines[0]) && /^0:/.test(lines[1])) {
+    const count = parseInt(lines[0], 16);
+    const joined = [];
+    let i = 1;
+    for (let n = 0; i < lines.length && lines[i].startsWith(`${(n % 16).toString(16).toUpperCase()}:`); i++, n++) joined.push(lines[i].slice(2));
+    lines = [joined.join('').slice(0, count * 2), ...lines.slice(i)];
+  }
   const head = `${(mode + 0x40).toString(16)}${pid.toString(16).padStart(2, '0')}`.toUpperCase();
   if (bare) {
     for (const line of lines) {

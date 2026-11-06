@@ -1,0 +1,117 @@
+/* The cockpit (js/app/cockpit.js): full screen instruments. Themes: Classic (black faces, white numerals, red needle),
+   Chrono (white faces, black numerals), Night (deep black, dimmed red). The grid is sized by cockpit.js (--cols, --u). */
+.cockpit {
+  --ck-bg: #070708; --ck-face: radial-gradient(circle at 50% 38%, #26272b 0%, #141518 58%, #0b0b0d 100%); --ck-rim: #3a3b40;
+  --ck-text: #f4f4f2; --ck-dim: #8d8f96; --ck-tick: #c9cacf; --ck-needle: #d5001c; --ck-needle2: #ffffffb0; --ck-track: #2a2b30;
+  --ck-warn: #f2a900; --ck-red: #d5001c; --ck-ok: #34c759; --ck-chip: #ffffff14; --ck-card: #101114;
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--ck-bg); color: var(--ck-text);
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  font-family: inherit; -webkit-user-select: none; user-select: none; overscroll-behavior: none;
+}
+.cockpit[hidden] { display: none; }
+html.cockpit-open, html.cockpit-open body { overflow: hidden; }
+.cockpit.theme-chrono { --ck-bg: #0c0c0d; --ck-face: radial-gradient(circle at 50% 38%, #ffffff 0%, #ececea 60%, #d9d9d6 100%); --ck-rim: #8a8a8a;
+  --ck-text: #111; --ck-dim: #555; --ck-tick: #1b1b1b; --ck-needle2: #00000080; --ck-track: #cfcfcc; --ck-card: #f4f4f2; }
+.cockpit.theme-night { --ck-bg: #000; --ck-face: radial-gradient(circle at 50% 40%, #0d0d0e 0%, #050505 100%); --ck-rim: #1d0b0d; --ck-text: #ff5a4e;
+  --ck-dim: #8a2e29; --ck-tick: #b8443b; --ck-needle: #ff3b30; --ck-needle2: #ff5a4e80; --ck-track: #1a0d0e; --ck-chip: #ff3b3014; --ck-card: #070404; }
+
+.ck-bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; min-height: 44px; border-bottom: 1px solid #ffffff12; }
+.theme-chrono .ck-bar { color: #f4f4f2; }
+.ck-btn { min-height: 34px; min-width: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid #ffffff22; background: #ffffff0d; color: inherit; font: inherit; font-size: 13px; font-weight: 700; }
+.ck-btn.on { background: #ffffff26; border-color: #ffffff55; }
+.ck-btn:disabled { opacity: 0.45; }
+.ck-rec.on { color: #fff; background: var(--ck-red); border-color: var(--ck-red); }
+.ck-modes { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: #ffffff0f; overflow-x: auto; scrollbar-width: none; }
+.ck-modes button { border: 0; background: none; color: #a7a9b0; font: inherit; font-size: 13px; font-weight: 700; padding: 7px 10px; border-radius: 8px; white-space: nowrap; letter-spacing: 0.2px; }
+.ck-modes button.on { background: #f4f4f2; color: #0b0b0d; }
+.ck-link { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 11px; color: #a7a9b0; white-space: nowrap; overflow: hidden; }
+.ck-link span { overflow: hidden; text-overflow: ellipsis; }
+.ck-link i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #55575d; }
+.ck-link[data-q="good"] i { background: var(--ck-ok); box-shadow: 0 0 8px var(--ck-ok); }
+.ck-link[data-q="fair"] i { background: var(--ck-warn); }
+.ck-link[data-q="poor"] i, .ck-link[data-q="off"] i { background: var(--ck-red); }
+
+.ck-banner { margin: 6px 10px 0; padding: 7px 12px; border-radius: 10px; background: #ffffff10; color: #e6e6e6; font-size: 13px; font-weight: 600; }
+.ck-banner[data-kind="cold"] { background: #0a84ff26; color: #9fd0ff; }
+
+.ck-grid { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 6px 10px; grid-template-columns: repeat(var(--cols, 4), var(--u, 140px));
+  grid-auto-rows: calc(var(--u, 140px) / 2 - 4px); grid-auto-flow: row dense; justify-content: center; align-content: center; overflow: auto; }
+.ck-empty { grid-column: 1 / -1; text-align: center; color: #a7a9b0; padding: 30px; }
+
+.ck-gauge { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; min-height: 0;
+  border-radius: 18px; background: var(--ck-card); border: 1px solid #ffffff10; overflow: hidden; color: var(--ck-text); padding: 6px; }
+.ck-gauge.kind-dial { background: transparent; border: 0; padding: 0; }
+.ck-label { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ck-dim); line-height: 1.1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-dlabel { fill: var(--ck-dim); font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-anchor: middle; text-transform: uppercase; }
+.ck-dtarget { fill: var(--ck-dim); font-size: 9.5px; font-weight: 700; text-anchor: middle; }
+.ck-dial { width: 100%; height: 100%; max-height: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--ck-face); box-shadow: inset 0 0 0 2px var(--ck-rim), inset 0 6px 22px #00000080, 0 6px 24px #00000066; }
+.ck-track { fill: none; stroke: var(--ck-track); stroke-width: 5; }
+.ck-zone { fill: none; stroke-width: 5; }
+.ck-zone.warn { stroke: var(--ck-warn); }
+.ck-zone.red { stroke: var(--ck-red); }
+.ck-tick { stroke: var(--ck-tick); stroke-width: 1; opacity: 0.6; }
+.ck-tick.major { stroke-width: 2.4; opacity: 1; }
+.ck-tick.hot { stroke: var(--ck-red); opacity: 1; }
+.ck-num { fill: var(--ck-text); font-size: 13px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.ck-num.sm { font-size: 15px; }
+.ck-num.hot { fill: var(--ck-red); }
+.ck-needle path { fill: var(--ck-needle); filter: drop-shadow(0 0 3px #d5001c80); }
+.ck-needle2 path { fill: var(--ck-needle2); }
+.ck-hub { fill: #1b1c20; stroke: #46474d; stroke-width: 2; }
+.theme-chrono .ck-hub { fill: #222; }
+.ck-dval { fill: var(--ck-text); font-size: 26px; font-weight: 800; text-anchor: middle; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.ck-dunit { fill: var(--ck-dim); font-size: 10px; font-weight: 700; text-anchor: middle; letter-spacing: 1px; text-transform: uppercase; }
+.ck-target { margin-left: auto; font-size: 11px; color: var(--ck-dim); font-weight: 700; white-space: nowrap; }
+.ck-digit { font-size: calc(var(--u, 140px) * 0.62); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.size-L .ck-digit { font-size: calc(var(--u, 140px) * 1.3); }
+/* Compact gauges (small, and meters): name and state, the number, the meter. */
+.ck-gauge.ck-compact { align-items: stretch; justify-content: space-between; padding: 7px 11px 9px; gap: 2px; }
+.ck-srow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ck-srow .ck-label { flex: 1; }
+.ck-chips { display: flex; gap: 3px; flex: none; margin-left: auto; align-self: center; }
+.ck-read { align-items: baseline; gap: 4px; }
+.ck-val { font-size: calc(var(--u, 140px) * 0.2); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.5px; }
+.size-M .ck-val, .size-L .ck-val { font-size: calc(var(--u, 140px) * 0.3); }
+.ck-unit { font-size: 11px; color: var(--ck-dim); font-weight: 700; }
+.ck-meter { position: relative; width: 100%; height: 6px; border-radius: 3px; background: var(--ck-track); overflow: hidden; flex: none; }
+.ck-meter-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--ck-text); border-radius: 3px; }
+.ck-meter-zone { position: absolute; top: 0; bottom: 0; opacity: 0.55; }
+.ck-meter-zone.warn { background: var(--ck-warn); }
+.ck-meter-zone.red { background: var(--ck-red); }
+.ck-foot { display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.kind-dial .ck-foot { position: absolute; bottom: 4%; left: 0; right: 0; }
+.ck-compact .ck-status, .ck-compact .ck-tag { padding: 1px 4px; font-size: 8px; }
+.ck-status, .ck-tag { font-size: 8.5px; font-weight: 800; letter-spacing: 0.8px; padding: 2px 5px; border-radius: 5px; background: var(--ck-chip); color: var(--ck-dim); }
+.ck-gauge[data-status="live"] .ck-status { color: var(--ck-ok); }
+.ck-gauge[data-status="playback"] .ck-status { color: #64d2ff; }
+.ck-gauge[data-status="stale"] .ck-status { color: var(--ck-warn); }
+.ck-gauge[data-status="stale"] .ck-dval, .ck-gauge[data-status="stale"] .ck-val { opacity: 0.55; }
+.ck-gauge:not([data-status="live"]):not([data-status="stale"]):not([data-status="playback"]) .ck-dval { fill: var(--ck-dim); }
+.ck-tag.calc { color: #64d2ff; }
+.ck-tag.exp { color: var(--ck-warn); }
+.ck-gauge[data-zone="warn"] .ck-dval, .ck-gauge[data-zone="warn"] .ck-val { fill: var(--ck-warn); color: var(--ck-warn); }
+.ck-gauge[data-zone="red"] .ck-dval, .ck-gauge[data-zone="red"] .ck-val, .ck-gauge[data-zone="red"] .ck-digit { fill: var(--ck-red); color: var(--ck-red); }
+.ck-gauge[data-zone="red"]:not(.kind-dial), .ck-gauge.size-S[data-zone="red"] { box-shadow: inset 0 0 0 2px var(--ck-red); }
+.ck-edit { position: absolute; inset: auto 4px 4px 4px; display: flex; gap: 4px; justify-content: center; z-index: 2; }
+.ck-edit button { min-width: 34px; min-height: 30px; border-radius: 8px; border: 0; background: #000000b0; color: #fff; font-weight: 800; }
+.ck-add { border: 2px dashed #ffffff30; background: transparent; color: #a7a9b0; font-size: 30px; gap: 4px; }
+.ck-add span { font-size: 12px; font-weight: 700; }
+.ck-peaks { padding: 4px 12px 8px; text-align: center; font-size: 12px; color: #a7a9b0; font-variant-numeric: tabular-nums; min-height: 18px; }
+
+.ck-panel { position: absolute; inset: 44px 0 0 auto; width: min(420px, 100%); background: #121316f2; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-left: 1px solid #ffffff1a; overflow: auto; padding: 10px 14px calc(16px + env(safe-area-inset-bottom, 0)); color: #f4f4f2; z-index: 5; }
+.ck-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.ck-sec { margin: 14px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #8d8f96; }
+.ck-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+.ck-row small { flex-basis: 100%; color: #8d8f96; font-size: 12px; }
+.ck-row input { width: 90px; padding: 8px; border-radius: 9px; border: 1px solid #ffffff2a; background: #000; color: #fff; font: inherit; font-size: 16px; }
+.ck-seg { display: flex; gap: 6px; }
+.ck-seg button, .ck-pick button { border: 1px solid #ffffff22; background: #ffffff0d; color: #f4f4f2; border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 13px; font-weight: 600; text-align: left; }
+.ck-seg button.on { background: #f4f4f2; color: #0b0b0d; }
+.ck-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.ck-pick small { display: block; color: #8d8f96; font-weight: 500; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .ck-bar { min-height: 38px; padding: 3px 10px; }
+  .ck-peaks { padding: 0 12px 4px; }
+  .ck-panel { inset: 38px 0 0 auto; }
+}
