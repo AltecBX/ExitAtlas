@@ -65,6 +65,21 @@ export const CAR_RULES = Object.freeze({
   liveRedraw: 400,
 });
 
+/// What to do after a failed device list, from the error beacio or the browser gave (beacio's codes and recovery
+/// steps: @beacio/core 2.2.0 README and beacio.com/docs Troubleshooting).
+export function pickerHint(e) {
+  const m = `${e?.name ?? ''} ${e?.message ?? ''}`;
+  if (/not enabled|activation|not active|starting up|setup/i.test(m))
+    return 'beacio is not allowed on this site yet: tap the page menu at the left of the address bar, beacio, Allow on Every Website, then reload and tap Connect car.';
+  if (/timed? ?out|timeout/i.test(m))
+    return 'Open the beacio app once and allow Bluetooth; in Safari allow beacio on every website; unplug the adapter for 5 seconds, close its own app, reload, then tap Connect car and pick it within a few seconds.';
+  if (/NotFoundError|no .*device/i.test(m))
+    return 'No adapter was found: plug it in with the ignition on, close its own app, then try "Show all Bluetooth devices".';
+  if (/Security|gesture/i.test(m)) return 'Tap Connect car again (Bluetooth needs a tap).';
+  if (/NotAllowed|denied|permission/i.test(m)) return 'Allow Bluetooth for beacio: iPhone Settings, Privacy & Security, Bluetooth.';
+  return 'Copy the connection log and send it.';
+}
+
 export class CarLink {
   constructor({ bluetooth = globalThis.navigator?.bluetooth, onChange = () => {}, onAlert = () => {}, onRecorded = () => {}, clock = () => Date.now() / 1000 } = {}) {
     this.bluetooth = bluetooth;
@@ -164,9 +179,12 @@ export class CarLink {
       const secs = ((Date.now() - this.picking.at) / 1000).toFixed(1);
       this.picking = null;
       this.logLine('!', `device list: ${e?.name ?? 'Error'}: ${e?.message ?? e} after ${secs} s`);
-      // Closing the picker is not an error.
-      if (e?.name !== 'NotFoundError' && e?.name !== 'AbortError') { this.state = 'error'; this.problem = `Bluetooth: ${e?.message ?? e} (${e?.name ?? 'Error'} after ${secs} s)`; }
-      else this.problem = null;
+      // Closing the picker is not an error. beacio also reports its own setup problems as NotFoundError ("User has
+      // not enabled Web Bluetooth for this origin", "Beacio activation timed out": @beacio/core 2.2.0), so only a
+      // cancel stays quiet; everything else is shown with what to do.
+      const cancelled = e?.name === 'AbortError' || (e?.name === 'NotFoundError' && /cancel/i.test(e?.message ?? ''));
+      if (cancelled) this.problem = null;
+      else { this.state = 'error'; this.problem = `Bluetooth: ${e?.message ?? e} (${e?.name ?? 'Error'} after ${secs} s). ${pickerHint(e)}`; }
       this.changed();
       return;
     }

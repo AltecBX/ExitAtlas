@@ -92,3 +92,14 @@ test('BlueDriver answers carry the data bytes only; one with the mode and PID st
   assert.deepEqual(readPID('fuelLevel', 'NO DATA\r', { bare: true }), { problem: 'noData' });
   assert.equal(parseIdentity('OSAPI v2.60\r'), 'OSAPI v2.60');
 });
+
+test('a failed device list: beacio setup problems (reported as NotFoundError) and timeouts get the right next step', async () => {
+  const { pickerHint } = await import('../js/app/carlink.js');
+  const err = (name, message) => ({ name, message });
+  assert.match(pickerHint(err('NotFoundError', 'User has not enabled Web Bluetooth for this origin.')), /Allow on Every Website/);
+  assert.match(pickerHint(err('NotFoundError', 'Beacio activation timed out')), /Allow on Every Website/);
+  assert.match(pickerHint(err('TimeoutError', 'Request timed out')), /Open the beacio app once/);
+  assert.match(pickerHint(err('NotFoundError', 'No device found')), /Show all Bluetooth devices/);
+  assert.match(pickerHint(err('SecurityError', 'Must be handling a user gesture')), /Tap Connect car again/);
+  assert.match(pickerHint(err('Error', 'something else')), /Copy the connection log/);
+});

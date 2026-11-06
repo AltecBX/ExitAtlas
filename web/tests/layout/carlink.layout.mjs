@@ -265,7 +265,7 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   await page.evaluate(() => { const b = document.createElement('button'); b.dataset.act = 'car-connect'; document.body.append(b); b.click(); b.remove(); });
   await page.waitForSelector('#sheet [data-testid="car-problem"]', { timeout: 8000 }).catch(() => {});
   const problem = await text(page, '#sheet [data-testid="car-problem"]');
-  if (!/Request timed out \(TimeoutError after \d+\.\d s\)/.test(problem ?? '')) fail(`problem: ${problem}`);
+  if (!/Request timed out \(TimeoutError after \d+\.\d s\)\. Open the beacio app once/.test(problem ?? '')) fail(`problem: ${problem}`);
   if ((await page.evaluate(() => window.__requests)) !== 1) fail(`requests while the list was open: ${await page.evaluate(() => window.__requests)}`);
   await page.click('#sheet [data-testid="car-show-log"]');
   await page.waitForSelector('#sheet [data-testid="car-log"]', { timeout: 5000 }).catch(() => {});
