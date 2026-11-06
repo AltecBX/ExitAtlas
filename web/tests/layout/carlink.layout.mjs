@@ -117,11 +117,22 @@ function simulatedBlueDriver(opts) {
     mode: '75a9f022-af03-4e41-b4bc-9de90a47d50b', pairService: '169b52a0-b7fd-40da-998c-dd9238327e55', pair: '12e868e7-c926-4906-96c8-a7ee81d4b1b3' };
   const codec = (b) => Uint8Array.from(b, (x) => (x === 0x0d || x === 0x3e ? x : x ^ 0x26));
   const enc = new TextEncoder(), dec = new TextDecoder();
+  // beacio's limit on Bluetooth operations (SIMULATED: at most 20 in any second), as Jerry's iPhone answered
+  // "Rate limit exceeded — too many BLE requests" (Nov 6 2026).
+  const stamps = [];
+  window.__rateLimited = 0;
+  const limited = (fn) => async (...args) => {
+    const now = performance.now();
+    while (stamps.length && now - stamps[0] > 1000) stamps.shift();
+    if (opts.rateLimit && stamps.length >= 20) { window.__rateLimited++; throw new Error('Rate limit exceeded — too many BLE requests'); }
+    stamps.push(now);
+    return fn(...args);
+  };
   let spoiled = false, credit = false, waitingAck = false, paired = false;
   const queue = [];
   const answer = (cmd) => {
     if (spoiled) return 'NO DATA';
-    if (cmd === 'LMI') return 'OSAPI v2.60';
+    if (cmd === 'LMI') return 'OSAPI v3.16\rOK';
     if (cmd === 'LMDP') return 'AUTO, ISO 15765-4 (CAN 11/500)';
     if (/^LM/.test(cmd)) return 'OK';
     if (cmd === '0100') return 'BE 3E B8 11 ';
@@ -133,7 +144,7 @@ function simulatedBlueDriver(opts) {
   };
   class Characteristic extends EventTarget {
     constructor(uuid, properties) { super(); this.uuid = uuid; this.properties = properties; this.value = null; this.on = false; }
-    async startNotifications() { if (!paired) window.__pairedBy = window.__pairedBy ?? 'notifications'; paired = true; this.on = true; return this; }
+    startNotifications = limited(async () => { if (!paired) window.__pairedBy = window.__pairedBy ?? 'notifications'; paired = true; this.on = true; return this; });
   }
   const rx = new Characteristic(S.rx, { write: true, writeWithoutResponse: true, notify: true });
   const tx = new Characteristic(S.tx, { notify: true, indicate: true, writeWithoutResponse: true });
@@ -145,14 +156,14 @@ function simulatedBlueDriver(opts) {
     waitingAck = true;
     setTimeout(() => notify(tx, part), 3);
   };
-  tx.writeValueWithoutResponse = async (bytes) => {
+  tx.writeValueWithoutResponse = limited(async (bytes) => {
     const b = [...new Uint8Array(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)];
     window.__control.push(b.map((x) => x.toString(16).padStart(2, '0')).join(' '));
     if (b[0] === 0x00) { credit = true; pump(); }
     if (b[0] === 0x01) { waitingAck = false; pump(); }
-  };
+  });
   let pending = '';
-  rx.writeValueWithoutResponse = async (bytes) => {
+  rx.writeValueWithoutResponse = limited(async (bytes) => {
     pending += dec.decode(codec(new Uint8Array(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)));
     let i;
     while ((i = pending.indexOf('\r')) >= 0) {
@@ -166,14 +177,14 @@ function simulatedBlueDriver(opts) {
       for (let k = 0; k < reply.length; k += 7) queue.push(reply.slice(k, k + 7));
       pump();
     }
-  };
-  const streaming = { getCharacteristic: async (u) => ({ [S.rx]: rx, [S.tx]: tx, [S.mode]: mode })[u] ?? Promise.reject(new DOMException('no such characteristic', 'NotFoundError')) };
-  const pairing = { getCharacteristic: async (u) => (u === S.pair ? { readValue: async () => { window.__pairedBy = window.__pairedBy ?? 'read'; paired = true; return new DataView(new Uint8Array([1, 2, 3, 4]).buffer); } } : Promise.reject(new DOMException('no', 'NotFoundError'))) };
+  });
+  const streaming = { getCharacteristic: limited(async (u) => ({ [S.rx]: rx, [S.tx]: tx, [S.mode]: mode })[u] ?? Promise.reject(new DOMException('no such characteristic', 'NotFoundError'))) };
+  const pairing = { getCharacteristic: limited(async (u) => (u === S.pair ? { readValue: limited(async () => { window.__pairedBy = window.__pairedBy ?? 'read'; paired = true; return new DataView(new Uint8Array([1, 2, 3, 4]).buffer); }) } : Promise.reject(new DOMException('no', 'NotFoundError')))) };
   const device = new EventTarget();
   device.name = 'BlueDriver';
   device.gatt = {
     connected: false,
-    connect: async () => { device.gatt.connected = true; return { getPrimaryService: async (u) => (u === S.service ? streaming : u === S.pairService ? pairing : Promise.reject(new DOMException('no such service', 'NotFoundError'))) }; },
+    connect: limited(async () => { device.gatt.connected = true; return { getPrimaryService: limited(async (u) => (u === S.service ? streaming : u === S.pairService ? pairing : Promise.reject(new DOMException('no such service', 'NotFoundError')))) }; }),
     disconnect: () => { device.gatt.connected = false; device.dispatchEvent(new Event('gattserverdisconnected')); },
   };
   window.__sent = []; window.__control = [];
@@ -540,7 +551,7 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   const control = await page.evaluate(() => window.__control);
   if (control[0] !== '00 ff 7f' || !control.slice(1).every((c) => /^01 0[1-7] 00$/.test(c))) fail(`flow control: ${control.slice(0, 6).join(' | ')}`);
   const row = await text(page, '#sheet [data-testid="car-row"]');
-  if (!/Fuel 60\.4%/.test(row ?? '') || !/BlueDriver, unofficial/.test(row ?? '') || !/Battery 12\.6 V/.test(row ?? '') || !/OSAPI v2\.60/.test(row ?? '')) fail(`car row: ${row}`);
+  if (!/Fuel 60\.4%/.test(row ?? '') || !/BlueDriver, unofficial/.test(row ?? '') || !/Battery 12\.6 V/.test(row ?? '') || !/OSAPI v3\.16/.test(row ?? '')) fail(`car row: ${row}`);
   const f = await page.evaluate(() => window.exitAtlas.fuel);
   if (f?.source !== 'car' || f.percent !== 60.4) fail(`range from the car: ${JSON.stringify(f)}`);
   if (SHOTS) {
@@ -548,6 +559,27 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(SHOTS, 'car-bluedriver.png') });
   }
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 4b. BlueDriver behind beacio's limit on Bluetooth requests (SIMULATED limit, 20 a second): Jerry's real sensor
+// (LSB3, BGX220P.2.4-3-0, OSAPI v3.16) answered LMI and LMD, then beacio refused with "Rate limit exceeded — too many
+// BLE requests" and the connection dropped (Nov 6 2026). Now the pace slows, the request is tried again, and it
+// connects.
+{
+  const fail = (m) => failures.push(`BlueDriver with a rate limit: ${m}`);
+  const { ctx, page, errors } = await open({ bluedriver: { rateLimit: true } });
+  await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
+  await page.waitForFunction(() => /60\.4%/.test(document.querySelector('#sheet [data-testid="car-fuel"]')?.textContent ?? ''), null, { timeout: 45000 }).catch(() => {});
+  const row = await text(page, '#sheet [data-testid="car-row"]');
+  if (!/Fuel 60\.4%/.test(row ?? '')) fail(`not connected: ${row}`);
+  const limited = await page.evaluate(() => window.__rateLimited);
+  const log = await page.evaluate(() => window.exitAtlas.car.exportLog());
+  if (!limited || !/Rate limit exceeded .* between Bluetooth requests, trying again/.test(log)) fail(`the limit was not met or not handled (refusals ${limited}): ${log.slice(-600)}`);
+  if (/open failed/.test(log)) fail(`the connection failed on the way: ${log.slice(-600)}`);
+  const sent = await page.evaluate(() => window.__sent);
+  if (sent.slice(0, 9).join() !== 'LMI,LMD,LML0,LMI,LMD,LMDP,LMI,LMX1,LMX0') fail(`setup: ${sent.join()}`);
   if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
   await ctx.close();
 }

@@ -61,6 +61,13 @@ export const CAR_RULES = Object.freeze({
   recordCap: 360000, autosaveEvery: 60,
   /// Answers to a request for several items that cannot be split before going back to one item per request.
   multiFailures: 3,
+  /// Milliseconds between Bluetooth operations: beacio on iPhone limits how many a page may make ("Rate limit
+  /// exceeded — too many BLE requests" after about 25 in under half a second, Jerry's BlueDriver log, Nov 6 2026);
+  /// browsers with their own Web Bluetooth have no such limit. On that error the gap doubles (up to bleGapMax) and
+  /// the operation is tried again after bleRetryPause ms, up to bleRetries times.
+  bleGapIOS: 60, bleGapMax: 1000, bleRetryPause: 1500, bleRetries: 6,
+  /// Fast Ack: fragments that arrive within this many ms are acknowledged in one write.
+  ackBatchMs: 30,
   /// The screen is redrawn at most this often (ms) while live data streams.
   liveRedraw: 400,
 });
@@ -95,6 +102,10 @@ export class CarLink {
     /// Live data was started and not stopped by the driver: it starts again after a reconnect.
     this.wantLive = false;
     this.alertStates = new Map();
+    /// The Bluetooth pacer (ble()): the gap between operations, and when the next one may start.
+    const ios = /iPhone|iPad|iPod/.test(globalThis.navigator?.userAgent ?? '');
+    this.bleGap = ios ? CAR_RULES.bleGapIOS : 0;
+    this.bleNext = 0;
     /// The session log: every request and answer, raw and readable, kept across drops (copy it after a failure).
     this.log = []; this.logStart = Date.now();
     this.reset();
@@ -120,6 +131,7 @@ export class CarLink {
     this.live = { on: false, values: new Map(), status: new Map(), cycleMs: null, requests: 0, startedAt: null, round: 0, multi: null,
       multiFailures: 0, rate: null };
     this.write = null; this.control = null; this.kind = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
+    this.unacked = 0; clearTimeout(this.ackTimer); this.ackTimer = null;
     this.stopTimers();
   }
 
@@ -154,6 +166,26 @@ export class CarLink {
       'Columns: ms since start, direction (> sent, < received, ~ flow control, i info, ! problem), text | raw bytes on the wire', '']
       .filter((l) => l !== '');
     return [...head, ...this.log.map((l) => `${String(l.t).padStart(8)} ${l.dir} ${l.text}${l.hex ? ` | ${l.hex}` : ''}`)].join('\n');
+  }
+
+  /// Every Bluetooth operation goes through here, spaced bleGap ms apart (slots are taken in call order, so
+  /// operations started together still go one gap apart). A rate limit error slows the pace and tries again.
+  async ble(fn, what) {
+    for (let attempt = 0; ; attempt++) {
+      const now = performance.now();
+      const start = Math.max(now, this.bleNext);
+      this.bleNext = start + this.bleGap;
+      if (start > now) await new Promise((r) => setTimeout(r, start - now));
+      try {
+        return await fn();
+      } catch (e) {
+        if (!/rate limit/i.test(e?.message ?? '') || attempt >= CAR_RULES.bleRetries) throw e;
+        this.bleGap = Math.min(CAR_RULES.bleGapMax, Math.max(this.bleGap * 2, 50));
+        this.logLine('!', `${what}: ${e.message}; now ${this.bleGap} ms between Bluetooth requests, trying again in ${CAR_RULES.bleRetryPause / 1000} s`);
+        await new Promise((r) => setTimeout(r, CAR_RULES.bleRetryPause));
+        this.bleNext = performance.now();
+      }
+    }
   }
 
   /// Opens the device picker and connects. Must be called from a tap (browsers require a user gesture). `any`
@@ -203,7 +235,7 @@ export class CarLink {
   async open() {
     this.state = 'connecting'; this.problem = null; this.changed();
     try {
-      const server = await this.device.gatt.connect();
+      const server = await this.ble(() => this.device.gatt.connect(), 'connect');
       const { notify, write, kind, control, mode } = await this.findSerial(server);
       this.kind = kind;
       this.logLine('i', `serial: ${kind}`);
@@ -216,7 +248,7 @@ export class CarLink {
       if (kind === 'bluedriver') {
         await this.openBlueDriver(server, { notify, write, mode });
       } else {
-        await notify.startNotifications();
+        await this.ble(() => notify.startNotifications(), 'notifications');
         for (const c of SETUP_COMMANDS) await this.send(c);
         this.identity = parseIdentity(await this.send('ATI'));
       }
@@ -241,14 +273,15 @@ export class CarLink {
   /// pairing, pair and try again.
   async openBlueDriver(server, { notify, write, mode }) {
     const subscribe = async () => {
-      await write.startNotifications();
-      await notify.startNotifications();
-      if (mode) await mode.startNotifications().catch(() => {});
+      await this.ble(() => write.startNotifications(), 'Rx notifications');
+      await this.ble(() => notify.startNotifications(), 'Tx notifications');
+      if (mode) await this.ble(() => mode.startNotifications(), 'Mode notifications').catch(() => {});
     };
     const pair = async () => {
       try {
-        const svc = await server.getPrimaryService(BLUEDRIVER.pairService);
-        const v = await (await svc.getCharacteristic(BLUEDRIVER.pairCharacteristic)).readValue();
+        const svc = await this.ble(() => server.getPrimaryService(BLUEDRIVER.pairService), 'pairing service');
+        const ch = await this.ble(() => svc.getCharacteristic(BLUEDRIVER.pairCharacteristic), 'pairing characteristic');
+        const v = await this.ble(() => ch.readValue(), 'pairing read');
         this.logLine('i', 'pairing characteristic read', new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
       } catch (e) { this.logLine('i', `pairing characteristic: ${e?.message ?? e}`); }
     };
@@ -258,7 +291,7 @@ export class CarLink {
       this.logLine('~', 'rx flow control', new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
     });
     // Fast Ack: our buffer, 0x7FFF bytes (little endian).
-    await this.control.writeValueWithoutResponse(new Uint8Array([0x00, 0xff, 0x7f]));
+    await this.ble(() => this.control.writeValueWithoutResponse(new Uint8Array([0x00, 0xff, 0x7f])), 'buffer size');
     let id = null;
     for (const c of BLUEDRIVER_SETUP) {
       const answer = await this.send(c);
@@ -272,24 +305,24 @@ export class CarLink {
   /// Service first, then the ELM327 serial services.
   async findSerial(server) {
     try {
-      const svc = await server.getPrimaryService(BLUEDRIVER.service);
-      const rx = await svc.getCharacteristic(BLUEDRIVER.rx);
-      const tx = await svc.getCharacteristic(BLUEDRIVER.tx);
-      const mode = await svc.getCharacteristic(BLUEDRIVER.mode).catch(() => null);
+      const svc = await this.ble(() => server.getPrimaryService(BLUEDRIVER.service), 'BlueDriver service');
+      const rx = await this.ble(() => svc.getCharacteristic(BLUEDRIVER.rx), 'Rx');
+      const tx = await this.ble(() => svc.getCharacteristic(BLUEDRIVER.tx), 'Tx');
+      const mode = await this.ble(() => svc.getCharacteristic(BLUEDRIVER.mode), 'Mode').catch(() => null);
       return { kind: 'bluedriver', write: rx, notify: tx, control: tx, mode };
     } catch { /* not a BlueDriver */ }
     for (const u of UART_SERVICES) {
       let service;
-      try { service = await server.getPrimaryService(u.service); } catch { continue; }
+      try { service = await this.ble(() => server.getPrimaryService(u.service), 'serial service'); } catch { continue; }
       let list = null;
-      try { list = typeof service.getCharacteristics === 'function' ? await service.getCharacteristics() : null; } catch { list = null; }
+      try { list = typeof service.getCharacteristics === 'function' ? await this.ble(() => service.getCharacteristics(), 'characteristics') : null; } catch { list = null; }
       if (list?.length) {
         const notify = list.find((c) => c.properties?.notify || c.properties?.indicate);
         const write = list.find((c) => c.properties?.writeWithoutResponse || c.properties?.write);
         if (notify && write) return { kind: 'elm', notify, write };
       }
       try {
-        return { kind: 'elm', notify: await service.getCharacteristic(u.notify), write: await service.getCharacteristic(u.write) };
+        return { kind: 'elm', notify: await this.ble(() => service.getCharacteristic(u.notify), 'notify'), write: await this.ble(() => service.getCharacteristic(u.write), 'write') };
       } catch { /* try the next service */ }
     }
     throw new Error('no OBD2 serial service found. The adapter may not be ELM327 compatible');
@@ -301,8 +334,18 @@ export class CarLink {
     let bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
     if (this.kind === 'bluedriver') {
       bytes = bluedriverCodec(bytes);
-      const n = view.byteLength;
-      this.control?.writeValueWithoutResponse(new Uint8Array([0x01, n & 0xff, n >> 8])).catch(() => {});
+      // Fast Ack: the bytes we have taken, 16 bit little endian. Fragments that arrive together are acknowledged in
+      // one write, so a several fragment answer costs one Bluetooth request, not one per fragment.
+      this.unacked = (this.unacked ?? 0) + view.byteLength;
+      if (!this.ackTimer) {
+        this.ackTimer = setTimeout(() => {
+          this.ackTimer = null;
+          const n = Math.min(this.unacked, 0xffff);
+          this.unacked -= n;
+          const control = this.control;
+          if (n > 0 && control) this.ble(() => control.writeValueWithoutResponse(new Uint8Array([0x01, n & 0xff, n >> 8])), 'Fast Ack').catch(() => {});
+        }, CAR_RULES.ackBatchMs);
+      }
     }
     const fragment = new TextDecoder().decode(bytes);
     this.logLine('<', fragment, new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
@@ -331,9 +374,10 @@ export class CarLink {
       const useNoResponse = typeof this.write.writeValueWithoutResponse === 'function' && this.write.properties?.writeWithoutResponse !== false;
       for (let i = 0; i < bytes.length; i += CAR_RULES.chunk) {
         const part = bytes.slice(i, i + CAR_RULES.chunk);
-        if (useNoResponse) await this.write.writeValueWithoutResponse(part);
-        else if (typeof this.write.writeValueWithResponse === 'function') await this.write.writeValueWithResponse(part);
-        else await this.write.writeValue(part);
+        const w = this.write;
+        if (useNoResponse) await this.ble(() => w.writeValueWithoutResponse(part), `write ${cmd}`);
+        else if (typeof w.writeValueWithResponse === 'function') await this.ble(() => w.writeValueWithResponse(part), `write ${cmd}`);
+        else await this.ble(() => w.writeValue(part), `write ${cmd}`);
       }
       return answer;
     };
@@ -380,11 +424,12 @@ export class CarLink {
   /// The adapter's own name and firmware (Bluetooth Device Information service), when it shows them.
   async readDeviceInfo(server) {
     try {
-      const svc = await server.getPrimaryService(0x180a);
+      const svc = await this.ble(() => server.getPrimaryService(0x180a), 'device information');
       const out = {};
       for (const [key, uuid] of [['manufacturer', 0x2a29], ['model', 0x2a24], ['firmware', 0x2a26], ['hardware', 0x2a27], ['software', 0x2a28]]) {
         try {
-          const v = await (await svc.getCharacteristic(uuid)).readValue();
+          const ch = await this.ble(() => svc.getCharacteristic(uuid), key);
+          const v = await this.ble(() => ch.readValue(), key);
           out[key] = new TextDecoder().decode(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)).replace(/\0/g, '').trim();
         } catch { /* not offered */ }
       }
