@@ -144,20 +144,36 @@ export class CarLink {
   /// Opens the device picker and connects. Must be called from a tap (browsers require a user gesture). `any`
   /// lists every Bluetooth device, for an adapter that advertises neither a known name nor its service.
   async connect({ any = false } = {}) {
-    if (!this.available) return;
-    const optionalServices = [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service), BLUEDRIVER.pairService, 0x180a];
+    if (!this.available || this.picking) return;
+    // Services as full UUID strings (the standard allows 16 bit numbers too; strings leave nothing to an
+    // implementation's alias handling).
+    const full = (u) => (typeof u === 'number' ? `0000${u.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb` : u);
+    const optionalServices = [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service), BLUEDRIVER.pairService, 0x180a].map(full);
     const options = any ? { acceptAllDevices: true, optionalServices }
-      : { filters: [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service)].map((s) => ({ services: [s] })).concat(NAME_PREFIXES.map((namePrefix) => ({ namePrefix }))), optionalServices };
+      : { filters: [BLUEDRIVER.service, ...UART_SERVICES.map((u) => u.service)].map((s) => ({ services: [full(s)] })).concat(NAME_PREFIXES.map((namePrefix) => ({ namePrefix }))), optionalServices };
+    // The device list is open until the driver picks or it gives up: one request at a time, shown on screen, and
+    // every attempt in the log (kept until a device is picked), so a failure can be copied with its details.
+    this.picking = { any, at: Date.now() };
+    this.problem = null;
+    this.logLine('i', `--- Connect car${any ? ' (all devices)' : ''}: device list requested (${navigator?.userAgent ?? 'unknown browser'})`);
+    this.changed();
     let device;
     try {
       device = await this.bluetooth.requestDevice(options);
     } catch (e) {
+      const secs = ((Date.now() - this.picking.at) / 1000).toFixed(1);
+      this.picking = null;
+      this.logLine('!', `device list: ${e?.name ?? 'Error'}: ${e?.message ?? e} after ${secs} s`);
       // Closing the picker is not an error.
-      if (e?.name !== 'NotFoundError' && e?.name !== 'AbortError') { this.state = 'error'; this.problem = `Bluetooth: ${e?.message ?? e}`; this.changed(); }
+      if (e?.name !== 'NotFoundError' && e?.name !== 'AbortError') { this.state = 'error'; this.problem = `Bluetooth: ${e?.message ?? e} (${e?.name ?? 'Error'} after ${secs} s)`; }
+      else this.problem = null;
+      this.changed();
       return;
     }
+    this.picking = null;
+    const tries = this.log;
     this.reset();
-    this.log = []; this.logStart = Date.now();
+    this.log = tries.slice(-50); this.logStart = Date.now();
     this.device = device;
     this.name = device.name || 'OBD2 adapter';
     this.logLine('i', `picked ${this.name}${any ? ' (all devices)' : ''}`);

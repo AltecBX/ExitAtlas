@@ -105,7 +105,7 @@ function simulatedAdapter(opts) {
   };
   window.__sent = [];
   window.__drop = () => { device.gatt.connected = false; device.dispatchEvent(new Event('gattserverdisconnected')); };
-  Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { requestDevice: async (o) => { window.__requestOptions = o; return device; } } });
+  Object.defineProperty(navigator, 'bluetooth', { configurable: true, value: { requestDevice: async (o) => { window.__requestOptions = o; window.__requests = (window.__requests ?? 0) + 1; if (opts.rejectWith) { await new Promise((r) => setTimeout(r, 4000)); throw new DOMException('Request timed out', opts.rejectWith); } return device; } } });
 }
 
 /// A SIMULATED BlueDriver, as github.com/sjalkote/bluedriver-reverse-engineering and Silicon Labs' BGX docs describe
@@ -253,6 +253,29 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   await ctx.close();
 }
 
+// 1c. The device list fails (beacio answered "Request timed out" on Jerry's iPhone, Nov 6): while it is open the row
+// says so and a second tap cannot start a second request; the failure shows its name and time, and the log with it
+// can be opened and copied without a connection.
+{
+  const fail = (m) => failures.push(`device list fails: ${m}`);
+  const { ctx, page, errors } = await open({ bluetooth: { rejectWith: 'TimeoutError' } });
+  await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
+  await page.waitForSelector('#sheet [data-testid="car-picking"]', { timeout: 3000 }).catch(() => fail('no "Choose your adapter" while the list is open'));
+  if (await page.$('#sheet [data-act="car-connect"]:not([data-arg])')) fail('Connect car still shows while the list is open');
+  await page.evaluate(() => { const b = document.createElement('button'); b.dataset.act = 'car-connect'; document.body.append(b); b.click(); b.remove(); });
+  await page.waitForSelector('#sheet [data-testid="car-problem"]', { timeout: 8000 }).catch(() => {});
+  const problem = await text(page, '#sheet [data-testid="car-problem"]');
+  if (!/Request timed out \(TimeoutError after \d+\.\d s\)/.test(problem ?? '')) fail(`problem: ${problem}`);
+  if ((await page.evaluate(() => window.__requests)) !== 1) fail(`requests while the list was open: ${await page.evaluate(() => window.__requests)}`);
+  await page.click('#sheet [data-testid="car-show-log"]');
+  await page.waitForSelector('#sheet [data-testid="car-log"]', { timeout: 5000 }).catch(() => {});
+  const log = await page.evaluate(() => window.exitAtlas.car.exportLog());
+  if (!/Connect car: device list requested/.test(log) || !/device list: TimeoutError: Request timed out after/.test(log)) fail(`log: ${log.slice(0, 500)}`);
+  if (!(await page.$('#sheet [data-testid="car-log-copy"]'))) fail('no Copy for the log');
+  if (errors.length) fail(`page errors: ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
 // 2. Connect: the fuel level, the range from it, the label, the check engine light, a drop and the reconnect.
 {
   const fail = (m) => failures.push(`connect: ${m}`);
@@ -266,7 +289,8 @@ const text = (page, sel) => page.evaluate((s) => document.querySelector(s)?.text
   await page.click('#sheet [data-act="car-connect"]:not([data-arg])');
   await page.waitForFunction(() => /60\.4%/.test(document.querySelector('#sheet [data-testid="car-fuel"]')?.textContent ?? ''), null, { timeout: 15000 }).catch(() => {});
   const opts = await page.evaluate(() => window.__requestOptions);
-  if (!opts?.filters?.some((f) => f.services?.includes(0xfff0)) || !opts.optionalServices?.includes(0xfff0)) fail(`picker options: ${JSON.stringify(opts)}`);
+  const fff0 = '0000fff0-0000-1000-8000-00805f9b34fb';
+  if (!opts?.filters?.some((f) => f.services?.includes(fff0)) || !opts.optionalServices?.includes(fff0)) fail(`picker options: ${JSON.stringify(opts)}`);
   const sent = await page.evaluate(() => window.__sent);
   if (sent.slice(0, 6).join() !== 'ATD,ATE0,ATL0,ATS0,ATH0,ATSP0') fail(`setup commands: ${sent.join()}`);
   const fuel = await text(page, '#sheet [data-testid="car-fuel"]');
