@@ -771,9 +771,14 @@ function carChanged() {
     const same = f?.source === 'car' && Math.abs((f.percent ?? -1) - percent) < 0.1 && nowSeconds() - f.enteredAt < 30;
     if (mi != null && !same) setFuelRange(mi * MILE, 'car', { percent: Math.round(percent * 10) / 10 });
   }
-  if ((app.sheet?.kind === 'fuel' || app.sheet?.kind === 'car') && sheetCanRedraw()) renderSheet({ live: true });
+  if (app.sheet?.kind === 'fuel' || app.sheet?.kind === 'car') {
+    // A finger was just on the sheet (a tap on Connect car): redraw once the hold ends, not never.
+    if (sheetCanRedraw()) renderSheet({ live: true });
+    else if (!carRedrawSoon) carRedrawSoon = setTimeout(() => { carRedrawSoon = null; carChanged(); }, 700);
+  }
   render();
 }
+let carRedrawSoon = null;
 
 /// The car session log with what it ran on (page, browser, vehicle), for sending to whoever reads it.
 function carLogText() {

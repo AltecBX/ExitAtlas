@@ -1492,6 +1492,9 @@ export function carRow(app, { settings = false } = {}) {
   } else if (c.state === 'disconnected') {
     main = `<div style="font-weight:700">Car disconnected <span class="muted small" style="font-weight:500">${clock(c.disconnectedAt)}</span></div><div class="muted tiny">Reconnecting when the adapter answers. The range keeps counting down from the last reading.</div>`;
     side = btn('car-connect', 'Connect');
+  } else if (c.picking) {
+    main = `<div style="font-weight:700">Choose your adapter in the Bluetooth list</div><div class="muted tiny" data-testid="car-picking">Waiting for the list beacio or the browser shows${c.picking.any ? ' (all devices)' : ''}. Started ${clock(c.picking.at / 1000)}. If no list appears, reload the page and try again.</div>`;
+    side = '';
   } else {
     main = `<div style="font-weight:700">Read the fuel level from your car</div><div class="muted tiny">BlueDriver (unofficial; close its app first) or an OBD2 adapter with Bluetooth LE (ELM327, for example OBDLink CX).</div>
       <button type="button" class="linkish tiny" data-act="car-connect" data-arg="any">Adapter not listed? Show all Bluetooth devices</button>`;
@@ -1499,6 +1502,7 @@ export function carRow(app, { settings = false } = {}) {
   }
   const notes = [];
   if (c.problem) notes.push(`<div class="amber-text tiny" data-testid="car-problem">${h(c.problem)}</div>`);
+  if (c.state !== 'connected' && c.log?.length) notes.push(`<button type="button" class="linkish tiny" data-act="car-details" data-testid="car-show-log">Show the connection log (to copy and send)</button>`);
   if (c.state === 'connected' && c.checkEngine) notes.push(`<div class="amber-text tiny" data-testid="car-check-engine">Check engine light is on${c.codes ? ` (${c.codes} stored code${c.codes === 1 ? '' : 's'})` : ''}.</div>`);
   if (c.state === 'connected' && c.fuel != null && !(v?.tankGallons > 0)) notes.push('<div class="amber-text tiny">Set your vehicle\'s tank size (Change, above) to turn the fuel level into miles.</div>');
   if (c.state === 'connected' && c.live.on) {
