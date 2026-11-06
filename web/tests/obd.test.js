@@ -103,3 +103,9 @@ test('a failed device list: beacio setup problems (reported as NotFoundError) an
   assert.match(pickerHint(err('SecurityError', 'Must be handling a user gesture')), /Tap Connect car again/);
   assert.match(pickerHint(err('Error', 'something else')), /Copy the connection log/);
 });
+
+test('an answer longer than one CAN frame: the numbered frames joined and cut at the byte count', () => {
+  // PID 70, boost pressure control: 12 bytes in two frames (ELM327 format, headers off), padding after the count.
+  assert.deepEqual(parseAnswer('00C\r0:41700317C016\r1:80000000000000\r\r>', 0x70).bytes, [0x03, 0x17, 0xc0, 0x16, 0x80, 0, 0, 0, 0, 0]);
+  assert.deepEqual(parseAnswer('410C2710\r', 0x0c).bytes, [0x27, 0x10]);
+});

@@ -53,8 +53,10 @@ test('the live data table: formulas from SAE J1979 for the common items, raw byt
   assert.equal(v(0x3c, [0x1a, 0x2c]), 630);                  // (256A+B)/10-40 °C
   assert.equal(v(0x42, [0x31, 0x2c]), 12.588);               // V
   assert.equal(v(0x5e, [0x00, 0x64]), 5);                    // L/h
-  assert.equal(v(0xa4, [0x02, 0x00, 0x0b, 0xb8]), 3);        // gear ratio when supported
-  assert.equal(v(0xa4, [0x00, 0x00, 0x0b, 0xb8]), null);     // not supported
+  assert.equal(v(0xa4, [0x02, 0x00, 0x0b, 0xb8], 1), 3);     // gear ratio when supported
+  assert.equal(v(0xa4, [0x00, 0x00, 0x0b, 0xb8], 1), null);  // not supported
+  assert.equal(v(0xa4, [0x01, 0x40, 0x0b, 0xb8], 0), 4);     // actual gear: upper half of B
+  assert.equal(v(0xa4, [0x02, 0x40, 0x0b, 0xb8], 0), null);  // gear not supported
   assert.equal(v(0xa6, [0x00, 0x00, 0x75, 0x30]), 3000);     // odometer km
   assert.deepEqual(channelsFor(0x78).map((c) => c.f([0x03, 0x1a, 0x2c, 0x1a, 0x90, 0, 0, 0, 0])), [630, 640, null, null]);
   const raw = channelsFor(0x9a)[0];

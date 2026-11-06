@@ -1217,7 +1217,7 @@ function carSource(app) {
 export function carSheet(app) {
   const c = app.car;
   const ui = app.carUI;
-  const head = `<div class="sheet-head"><h2>Car diagnostics</h2><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>`;
+  const head = `<div class="sheet-head"><h2>Car diagnostics</h2><button class="btn sm" data-act="cockpit-open" data-testid="open-cockpit" style="margin-left:auto;margin-right:8px">Cockpit</button><button class="x" data-act="close-sheet" aria-label="Close">✕</button></div>`;
   const connected = c?.state === 'connected';
   if (!connected && !ui.playback) {
     return `${head}<div class="stack"><div class="card">${carRow(app)}</div>
@@ -1488,7 +1488,7 @@ export function carRow(app, { settings = false } = {}) {
     const fuel = c.fuel != null ? (settings ? `Fuel <b class="num">${Math.round(c.fuel)}%</b>` : `Fuel <b class="num">${c.fuel.toFixed(1)}%</b> · read ${agoText(now - c.fuelAt)}`)
       : c.supportsFuel === false ? 'This car does not report its fuel level' : 'Reading the fuel level…';
     main = `<div style="font-weight:700">Car connected</div><div class="muted tiny">${h(c.name)}${c.kind === 'bluedriver' ? ' · BlueDriver, unofficial' : ''}</div><div class="small" data-testid="car-fuel">${fuel}</div>`;
-    side = `<div class="car-side">${btn('car-details', 'Diagnostics')}${btn('car-disconnect', 'Disconnect')}</div>`;
+    side = `<div class="car-side">${btn('cockpit-open', 'Cockpit')}${btn('car-details', 'Diagnostics')}${btn('car-disconnect', 'Disconnect')}</div>`;
   } else if (c.state === 'disconnected') {
     main = `<div style="font-weight:700">Car disconnected <span class="muted small" style="font-weight:500">${clock(c.disconnectedAt)}</span></div><div class="muted tiny">Reconnecting when the adapter answers. The range keeps counting down from the last reading.</div>`;
     side = btn('car-connect', 'Connect');

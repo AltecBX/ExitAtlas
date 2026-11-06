@@ -8,6 +8,10 @@ import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js
 import { withFoodBrands } from '../engine/foodbrands.js';
 import { CarLink, CAR_RULES } from './carlink.js';
 import { RecordingStore } from './carrecord.js';
+import { Cockpit, cockpitDefaults, moveGauge, nextSize } from './cockpit.js';
+import { MODES as COCKPIT_MODES } from '../engine/cockpit.js';
+import { indexSignalsets, decodeSignal, OBDB_UNITS, porscheRequests } from '../engine/obdb.js';
+import { setStandardSignals, channelsFor as carChannelsFor, NOT_LIVE as CAR_NOT_LIVE } from '../engine/obdpids.js';
 import { recordingCSV, recordingSeries, alertRule } from '../engine/obdlive.js';
 import { rangeFromFuel } from '../engine/obd.js';
 import { gasGaps, restAreaTitle } from '../engine/restareas.js';
@@ -699,6 +703,53 @@ function setFuelRange(meters, source, extra = {}) {
 /// the range now. Without a tank size, the level shows in the fuel sheet and the range stays as entered.
 // MARK: Car diagnostics: choices, alerts, recordings, playback
 
+/// The vehicle the car settings belong to ("2021 Porsche 911"), or "default".
+const vehicleKey = () => { const v = app.settings.vehicle; return v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : 'default'; };
+
+/// OBDb signal sets (web/data/obdb, CC BY-SA 4.0): formulas for the standard PIDs the app's own table lacks, and
+/// Porsche 911 manufacturer data for this model year. Loaded once, when the car or the cockpit is first used.
+let carSignalsLoading = null;
+function loadCarSignals() {
+  carSignalsLoading ??= Promise.all(['data/obdb/SAEJ1979.json', 'data/obdb/Porsche-911.json'].map((u) => fetch(u).then((r) => (r.ok ? r.json() : null)).catch(() => null)))
+    .then(([standard, porsche]) => {
+      const index = { ...indexSignalsets({ standard, porsche }), decode: decodeSignal, unitOf: (u) => OBDB_UNITS[u] ?? '' };
+      setStandardSignals(index);
+      app.car.enhancedIndex = index;
+      const year = Number(app.settings.vehicle?.year) || null;
+      app.porscheReqs = new Map(porscheRequests(index, year).map((r) => [r.key, r]));
+      // Probe results for this vehicle, kept from earlier sessions.
+      const kept = store.get('ea.carPorsche', {})[vehicleKey()] ?? {};
+      for (const [k, v] of Object.entries(kept)) if (!app.car.enhanced.results.has(k)) app.car.enhanced.results.set(k, v);
+      if (app.cockpit?.open) { app.cockpit.render(); app.cockpit.applyPlan(); }
+      return index;
+    });
+  return carSignalsLoading;
+}
+let porscheSaveTimer = null;
+app.car.onEnhanced = () => {
+  clearTimeout(porscheSaveTimer);
+  porscheSaveTimer = setTimeout(() => {
+    const all = store.get('ea.carPorsche', {});
+    all[vehicleKey()] = Object.fromEntries(app.car.enhanced.results);
+    store.set('ea.carPorsche', all);
+  }, 1000);
+};
+
+/// Every channel the car offers: the Mode 01 PIDs it lists and the Porsche requests that answered.
+app.carChannels = () => {
+  const c = app.car;
+  const out = c.supported ? [...c.supported].filter((p) => !CAR_NOT_LIVE.has(p)).sort((a, b) => a - b).flatMap((p) => carChannelsFor(p)) : [];
+  for (const [k, st] of c.enhanced.results) if (st === 'ok' && app.porscheReqs?.get(k)) out.push(...c.enhancedChannels(app.porscheReqs.get(k)));
+  return out;
+};
+
+/// Cockpit settings, per vehicle on this device.
+function loadCockpitSettings() { app.cockpitSettings = { ...cockpitDefaults(), ...(store.get('ea.cockpit', {})[vehicleKey()] ?? {}) }; }
+function saveCockpitSettings() { const all = store.get('ea.cockpit', {}); all[vehicleKey()] = app.cockpitSettings; store.set('ea.cockpit', all); }
+loadCockpitSettings();
+app.cockpit = new Cockpit(app, { saveSettings: saveCockpitSettings });
+const cockpitRedraw = () => { saveCockpitSettings(); app.cockpit.render(); app.cockpit.applyPlan(); };
+
 app.car.prefs = { pinned: [], alerts: {}, onlyPinned: false, ...store.get('ea.carPrefs', {}) };
 function saveCarPrefs() { store.set('ea.carPrefs', app.car.prefs); }
 
@@ -761,8 +812,10 @@ async function saveTextFile(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+let cockpitPlanFor = null;
 function carChanged() {
   const c = app.car;
+  if (app.cockpit?.open && c.supported !== cockpitPlanFor) { cockpitPlanFor = c.supported; app.cockpit.applyPlan(); if (c.state === 'connected' && !c.live.on) c.startLive(); }
   const v = app.vehicleProfile();
   const percent = c.freshFuel;
   if (percent != null && v && !v.ev) {
@@ -1911,12 +1964,65 @@ const actions = {
   },
   'fuel-mode'(arg) { app.fuelUI.mode = arg; renderSheet(); },
   // Straight from the tap: the browser opens the Bluetooth picker only during a user gesture.
-  'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); },
+  'car-connect'(arg) { app.car.connect({ any: arg === 'any' }); loadCarSignals(); },
   'car-disconnect'() { app.car.disconnect(); toast('Car disconnected. The range keeps counting down from its last reading.'); },
-  'car-details'() { openSheet('car'); refreshRecordings(); },
+  'car-details'() { openSheet('car'); refreshRecordings(); loadCarSignals(); },
   'copy-address'(arg) {
     navigator.clipboard?.writeText(arg).then(() => toast('Address copied: paste it in Safari'), () => toast(arg, 8000));
   },
+  async 'cockpit-open'() {
+    if (app.sheet) closeSheet();
+    loadCockpitSettings();
+    app.cockpit.show();
+    await loadCarSignals();
+  },
+  'ck-close'() { app.cockpit.hide(); },
+  'ck-mode'(arg) { app.cockpitSettings.mode = arg; app.cockpit.editing = false; app.cockpit.panel = null; cockpitRedraw(); },
+  'ck-rec'() {
+    if (app.car.rec) app.car.stopRecording(); else if (app.car.state === 'connected') { const v = app.settings.vehicle; app.car.startRecording({ vehicle: v ? vehicleKey() : null }); }
+    else toast('Connect the car to record');
+    app.cockpit.render();
+  },
+  'ck-edit'() { app.cockpit.editing = !app.cockpit.editing; app.cockpit.render(); },
+  'ck-panel'(arg) { app.cockpit.panel = arg || null; app.cockpit.render(); app.cockpit.applyPlan(); },
+  'ck-theme'(arg) { app.cockpitSettings.theme = arg; cockpitRedraw(); },
+  'ck-porsche'() { app.cockpitSettings.porsche = !app.cockpitSettings.porsche; cockpitRedraw(); },
+  async 'ck-probe'(arg) {
+    await loadCarSignals();
+    if (app.car.state !== 'connected') { toast('Connect the car first'); return; }
+    const all = [...(app.porscheReqs?.values() ?? [])];
+    const wanted = new Set(Object.values(COCKPIT_MODES).flatMap((m) => m.gauges.map(([id]) => id)));
+    const cockpitReqs = all.filter((r) => [...wanted].some((id) => (app.cockpit.gauges().find(([g]) => g === id)?.[1]?.src ?? '').startsWith(`22${r.hdr}${r.did}`)))
+      .concat(all.filter((r) => ['22:7E0:1503', '22:7E1:38BF', '22:7E0:1010', '22:7E0:10E6', '22:7E0:166F', '22:7E0:202A', '22:7E0:2029', '22:7E0:1102', '22:7E0:1001'].includes(r.key)));
+    const reqs = arg === 'all' ? all : [...new Map(cockpitReqs.map((r) => [r.key, r])).values()];
+    const wasPlan = app.car.plan;
+    app.car.setPlan(null);
+    const wasLive = app.car.live.on;
+    if (wasLive) app.car.stopLive();
+    app.cockpit.render();
+    const done = await app.car.probeEnhanced(reqs, () => { if (app.cockpit.panel === 'settings') app.cockpit.render(); });
+    toast(`Porsche data: ${done?.ok ?? 0} of ${done?.total ?? 0} answered`, 5000);
+    if (!app.cockpitSettings.porsche && done?.ok) app.cockpitSettings.porsche = true;
+    saveCockpitSettings();
+    app.car.setPlan(wasPlan);
+    app.cockpit.render(); app.cockpit.applyPlan();
+    if (wasLive || app.cockpit.open) app.car.startLive();
+  },
+  'ck-peaks-reset'() { app.cockpit.peaks = {}; },
+  'ck-copy-mode'() {
+    const s = app.cockpitSettings;
+    if (s.mode !== 'custom') s.custom = COCKPIT_MODES[s.mode].gauges.map(([id, size]) => ({ id, size }));
+    s.mode = 'custom'; app.cockpit.panel = null; app.cockpit.editing = true; cockpitRedraw();
+  },
+  'ck-add'() { app.cockpit.panel = 'add'; app.cockpit.render(); app.cockpit.applyPlan(); },
+  'ck-add-gauge'(arg) {
+    const s = app.cockpitSettings;
+    if (!s.custom.some((x) => x.id === arg)) s.custom = [...s.custom, { id: arg, size: 'M' }];
+    app.cockpit.panel = null; cockpitRedraw();
+  },
+  'ck-move'(arg) { const [id, dir] = arg.split(':'); app.cockpitSettings.custom = moveGauge(app.cockpitSettings.custom, id, Number(dir)); cockpitRedraw(); },
+  'ck-size'(arg) { app.cockpitSettings.custom = app.cockpitSettings.custom.map((x) => (x.id === arg ? { ...x, size: nextSize(x.size) } : x)); cockpitRedraw(); },
+  'ck-remove'(arg) { app.cockpitSettings.custom = app.cockpitSettings.custom.filter((x) => x.id !== arg); cockpitRedraw(); },
   'car-tab'(arg) { app.carUI.tab = arg; app.carUI.detail = null; if (arg === 'rec') refreshRecordings(); renderSheet(); },
   'car-detail'(arg) { app.carUI.detail = arg || null; app.carUI.alertError = null; renderSheet(); if (arg) $('#sheet')?.scrollTo?.({ top: 0 }); },
   'car-pin'(arg) {
@@ -2001,6 +2107,16 @@ document.addEventListener('click', (ev) => {
   ev.preventDefault();
   ev.stopPropagation();
   fn(el.dataset.arg ?? '');
+});
+
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (!el.matches?.('[data-ck-input]')) return;
+  const n = Number(el.value);
+  if (!Number.isFinite(n)) return;
+  if (el.dataset.ckInput === 'redline' && n >= 3000 && n <= 9900) { app.cockpitSettings.redline = n; app.cockpitSettings.redlineSet = true; }
+  if (el.dataset.ckInput === 'warmupF' && n >= 100 && n <= 250) app.cockpitSettings.warmupF = n;
+  cockpitRedraw();
 });
 
 document.addEventListener('submit', async (ev) => {
