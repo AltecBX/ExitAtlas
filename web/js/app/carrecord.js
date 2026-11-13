@@ -17,10 +17,12 @@ export class RecordingStore {
     this.memory = new Map();
     this.persistent = null; // true once IndexedDB opened, false when it cannot be used
     this.db = null;
+    this.kept = null;       // where the last save went: 'device' or 'memory'
+    this.lastError = null;
   }
 
   async open() {
-    if (this.db || this.persistent === false) return this.db;
+    if (this.db || (this.persistent === false && typeof indexedDB === 'undefined')) return this.db;
     try {
       if (typeof indexedDB === 'undefined') throw new Error('no IndexedDB');
       const req = indexedDB.open(DB_NAME, VERSION);
@@ -30,9 +32,13 @@ export class RecordingStore {
         if (!db.objectStoreNames.contains('data')) db.createObjectStore('data', { keyPath: 'id' });
       };
       this.db = await promised(req);
+      // The browser may close the connection (another tab upgrading, storage pressure): open again next time.
+      this.db.onclose = () => { this.db = null; };
+      this.db.onversionchange = () => { try { this.db?.close(); } catch { /* closed */ } this.db = null; };
       this.persistent = true;
     } catch {
-      this.persistent = false;
+      // Never opened: storage is blocked here. Opened before: a passing failure, tried again on the next job.
+      if (this.persistent !== true) this.persistent = false;
       this.db = null;
     }
     return this.db;
@@ -45,33 +51,62 @@ export class RecordingStore {
       channels: Object.keys(rec.channels).length, vehicle: rec.vehicle ?? null, adapter: rec.adapter ?? null, done: Boolean(rec.endedAt) };
   }
 
-  async save(rec) {
+  /// A database job, tried again once on a fresh connection when it fails: Safari closes the connection of a page
+  /// that sat in the background, and a closed connection fails every request from then on.
+  async job(work) {
     const db = await this.open();
-    if (!db) { this.memory.set(rec.id, structuredClone(rec)); return; }
-    const tx = db.transaction(['meta', 'data'], 'readwrite');
-    tx.objectStore('meta').put(RecordingStore.summary(rec));
-    tx.objectStore('data').put(rec);
-    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error); });
+    if (!db) return { db: null };
+    try {
+      return { db, value: await work(db) };
+    } catch (first) {
+      try { this.db?.close?.(); } catch { /* already closed */ }
+      this.db = null;
+      const again = await this.open();
+      if (!again) throw first;
+      return { db: again, value: await work(again) };
+    }
+  }
+
+  /// Saves a recording. When the device's storage cannot take it (full, or blocked), it is kept in memory until
+  /// the page closes and `kept` says so ('memory'), so a drive is never dropped without a word.
+  async save(rec) {
+    const write = (db) => {
+      const tx = db.transaction(['meta', 'data'], 'readwrite');
+      tx.objectStore('meta').put(RecordingStore.summary(rec));
+      tx.objectStore('data').put(rec);
+      return new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storage refused the recording')); });
+    };
+    try {
+      const { db } = await this.job(write);
+      if (db) { this.memory.delete(rec.id); this.kept = 'device'; return 'device'; }
+    } catch (e) {
+      this.lastError = e?.message ?? String(e);
+    }
+    this.memory.set(rec.id, structuredClone(rec));
+    this.kept = 'memory';
+    return 'memory';
   }
 
   async list() {
-    const db = await this.open();
-    const all = db ? await promised(db.transaction('meta').objectStore('meta').getAll()) : [...this.memory.values()].map((r) => RecordingStore.summary(r));
-    return all.sort((a, b) => b.startedAt - a.startedAt);
+    const inMemory = [...this.memory.values()].map((r) => RecordingStore.summary(r));
+    let stored = [];
+    try { stored = (await this.job((db) => promised(db.transaction('meta').objectStore('meta').getAll()))).value ?? []; } catch (e) { this.lastError = e?.message ?? String(e); if (!inMemory.length) throw e; }
+    const ids = new Set(inMemory.map((r) => r.id));
+    return [...inMemory, ...stored.filter((r) => !ids.has(r.id))].sort((a, b) => b.startedAt - a.startedAt);
   }
 
   async load(id) {
-    const db = await this.open();
-    if (!db) return this.memory.get(id) ?? null;
-    return (await promised(db.transaction('data').objectStore('data').get(id))) ?? null;
+    if (this.memory.has(id)) return this.memory.get(id);
+    return (await this.job((db) => promised(db.transaction('data').objectStore('data').get(id)))).value ?? null;
   }
 
   async remove(id) {
-    const db = await this.open();
-    if (!db) { this.memory.delete(id); return; }
-    const tx = db.transaction(['meta', 'data'], 'readwrite');
-    tx.objectStore('meta').delete(id);
-    tx.objectStore('data').delete(id);
-    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    this.memory.delete(id);
+    await this.job((db) => {
+      const tx = db.transaction(['meta', 'data'], 'readwrite');
+      tx.objectStore('meta').delete(id);
+      tx.objectStore('data').delete(id);
+      return new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storage refused')); });
+    });
   }
 }

@@ -43,9 +43,14 @@ export function parseDTCs(text, mode) {
   if (/UNABLE ?TO ?CONNECT/.test(upper)) return { problem: 'noEngine' };
   const lines = answerLines(text);
   if (!lines.length) return /NO ?DATA/.test(upper) ? { codes: [] } : { problem: 'unreadable' };
-  // Older buses: every line is the echo and three pairs.
-  const perLine = lines.length > 1 && lines.every((l) => l.length === 7 && l[0] === echo);
-  let bytes = perLine ? lines.flatMap((l) => l.slice(1)) : lines.flat();
+  // Several lines that each start with the echo and are no numbered frames: every line is one answer of its own.
+  // Older buses send the echo and three pairs per line; on CAN each control unit that answers sends its own line
+  // (the echo, a count, then that many pairs), as a car whose engine and transmission both answer does.
+  const framed = /^\s*[0-9A-F]:/m.test(upper);
+  const perLine = lines.length > 1 && !framed && lines.every((l) => l[0] === echo);
+  let bytes = perLine
+    ? lines.flatMap((l) => { const b = l.slice(1); return b.length % 2 === 1 && b.length === 1 + 2 * b[0] ? b.slice(1) : b; })
+    : lines.flat();
   // A multi frame CAN answer states its length first ("00A"); the last frame is padded past it.
   const declared = upper.match(/^\s*0([0-9A-F]{2})\s*$/m);
   if (!perLine && declared) bytes = bytes.slice(0, parseInt(declared[1], 16));

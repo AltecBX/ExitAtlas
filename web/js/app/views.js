@@ -1204,8 +1204,9 @@ function carSource(app) {
   const c = app.car;
   const pb = app.carUI.playback;
   if (pb) {
-    const channels = Object.entries(pb.rec.channels).map(([key, m]) => channelsFor(m.pid).find((x) => x.key === key)
-      ?? { key, pid: m.pid, group: 'Other (raw)', name: m.name, unit: m.unit, raw: m.unit === 'hex' });
+    // A recorded Porsche channel has no PID (it came from a Mode 22 request): shown from what the recording kept.
+    const channels = Object.entries(pb.rec.channels).map(([key, m]) => (typeof m.pid === 'number' ? channelsFor(m.pid).find((x) => x.key === key) : null)
+      ?? { key, pid: m.pid ?? null, group: typeof m.pid === 'number' ? 'Other (raw)' : 'Porsche (experimental)', name: m.name, unit: m.unit, raw: m.unit === 'hex' });
     return { playback: pb, channels, get: (key) => { const sr = pb.series.get(key); return sr ? playbackAt(sr, pb.t, 900000) : null; }, status: () => 'ok' };
   }
   const channels = c.livePIDs().flatMap((pid) => channelsFor(pid));
@@ -1348,7 +1349,7 @@ function detailSection(app, src, key) {
       <div class="small" style="margin-top:10px;font-weight:700">${h(ch.name)}</div>
       <div class="car-big">${v ? carValue(v.value, ch.unit) : '<span class="muted small">waiting</span>'}</div>
       ${ch.raw ? '' : bigChart(v?.history, ch.unit, rule, Boolean(src.playback))}${stats}
-      <div class="muted tiny" style="margin-top:6px">PID ${ch.pid.toString(16).toUpperCase().padStart(2, '0')}${ch.pidName && ch.pidName !== ch.name ? ` · ${h(ch.pidName)}` : ''}</div></div>${form}`;
+      <div class="muted tiny" style="margin-top:6px">${typeof ch.pid === 'number' ? `PID ${ch.pid.toString(16).toUpperCase().padStart(2, '0')}` : 'Porsche manufacturer data (Mode 22, experimental)'}${ch.pidName && ch.pidName !== ch.name ? ` · ${h(ch.pidName)}` : ''}</div></div>${form}`;
 }
 
 /// A large chart of an item's readings (inline SVG) with its alert limits; touching it reads a value (main.js).
@@ -2263,7 +2264,7 @@ export function settingsView(app) {
       <p><b>Gas station hours and restrooms:</b> ${app.data?.stations ? h(stationCredit(app.data.stations.metadata)) : 'not loaded'}. Shown as reported, not verified; when OpenStreetMap and a brand listing disagree at your arrival time, the hours show as unavailable. When you check Google Maps prices, Google's business hours and restroom field for those stations.</p>
       <p><b>Discover ahead:</b> ${app.data?.discover ? h(`${app.data.discover.metadata.count.toLocaleString('en-US')} places from Wikidata (CC0), fetched ${app.data.discover.metadata.fetched}`) : 'not loaded'}. Hours, fees and closures are not included.</p>
       <p><b>Routing:</b> OSRM demo server (router.project-osrm.org) on OpenStreetMap data; when it does not answer, the FOSSGIS server (routing.openstreetmap.de). Light personal use only.</p>
-      <p><b>Place search:</b> Nominatim (nominatim.openstreetmap.org), searched only when you tap Search.</p>
+      <p><b>Place search:</b> as you type (from 3 letters), suggestions come from Photon (photon.komoot.io) and, for a street address, the U.S. Census Bureau geocoder; Search asks Nominatim (nominatim.openstreetmap.org). What you typed is sent, and to Photon your position rounded to about 7 miles, so nearer places come first.</p>
       <p><b>Gas prices:</b> reports by you (on this device) and, when turned on, by other ExitAtlas drivers through the owner's server; each shows its time and source. Google Maps prices only when you turn them on and tap to check (paid, your key). No regional average is shown as a station's price.</p>
       <p><b>EV chargers:</b> U.S. DOE Alternative Fuels Data Center (developer.nlr.gov).</p>
       <p><b>Speed limits:</b> OpenStreetMap via the FOSSGIS Valhalla server.</p>

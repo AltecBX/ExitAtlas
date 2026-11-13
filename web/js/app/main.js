@@ -123,6 +123,8 @@ const app = {
   sim: null,
   location: new LocationService(),
   wake: new ScreenWake(),
+  /// Gives the screen lock back unless a trip with "keep the screen on" is under way.
+  releaseWake() { if (!(app.settings.keepAwake && app.mode !== 'idle')) app.wake.release(); },
   announcer: new Announcer(),
   /// Road alert sources for the active trip (app/roadalerts.js).
   roadAlerts: new RoadAlerts({ proxyBase: () => proxyFor('wzdx') }),
@@ -771,14 +773,24 @@ async function refreshRecordings() {
 /// A recording stopped: saved on this device.
 async function carRecorded(rec, why) {
   try {
-    await app.carRecStore.save(rec);
-    toast(`Recording saved: ${rec.samples.length.toLocaleString()} readings${why === 'full' ? ' (it was full)' : ''}`);
+    const where = await app.carRecStore.save(rec);
+    const n = `${rec.samples.length.toLocaleString()} readings${why === 'full' ? ' (it was full)' : ''}`;
+    toast(where === 'memory' ? `Recording kept until this page closes (${n}): this device's storage refused it. Export it now to keep it.` : `Recording saved: ${n}`, where === 'memory' ? 9000 : undefined);
   } catch (e) { toast(`Recording not saved: ${e?.message ?? e}`); }
   refreshRecordings();
 }
 
-// A recording is saved as it runs, so a closed page or a crash keeps all but the last minute.
-setInterval(() => { if (app.car.rec) app.carRecStore.save(app.car.rec).then(() => { if (app.sheet?.kind === 'car' && app.carUI.tab === 'rec') refreshRecordings(); }).catch(() => {}); }, CAR_RULES.autosaveEvery * 1000);
+// A recording is saved as it runs, so a closed page or a crash keeps all but the last minute. The first time the
+// device's storage refuses it the driver is told (the recording goes on in memory).
+let autosaveWarned = null;
+setInterval(() => {
+  const rec = app.car.rec;
+  if (!rec) return;
+  app.carRecStore.save(rec).then((where) => {
+    if (where === 'memory' && autosaveWarned !== rec.id) { autosaveWarned = rec.id; toast('This device\'s storage refused the recording: it is kept in memory until this page closes. Export it when you stop.', 9000); }
+    if (app.sheet?.kind === 'car' && app.carUI.tab === 'rec') refreshRecordings();
+  }).catch(() => {});
+}, CAR_RULES.autosaveEvery * 1000);
 
 const carAlertSpoken = new Map();
 /// A reading went past a limit the driver set: shown, and spoken with Voice on (once a minute per item at most).
@@ -935,9 +947,15 @@ async function importProfileFile(file) {
     const { profile, problems } = importProfile(await file.text());
     const what = `${profile.vehicles.length} vehicle${profile.vehicles.length === 1 ? '' : 's'}, ${profile.fuel.brands.length} favorite brand${profile.fuel.brands.length === 1 ? '' : 's'}, ${profile.places.saved.length + (profile.places.home ? 1 : 0)} saved place${profile.places.saved.length + (profile.places.home ? 1 : 0) === 1 ? '' : 's'}`;
     if (!confirm(`Replace the profile on this device with this one (${what})?${problems.length ? ` ${problems.length} unreadable field(s) will use defaults.` : ''}`)) return;
+    // A file never turns on what sends data out or can cost money: Google Maps prices and shared reports stay
+    // off unless they are on here already (they can be turned on in Settings).
+    const kept = [];
+    for (const [key, label] of [['google', 'Google Maps prices'], ['community', 'shared price reports']]) {
+      if (profile.prices?.[key] && !app.profile.prices?.[key]) { profile.prices[key] = false; kept.push(label); }
+    }
     app.profile = profile;
     app.exitsUI.window = profile.driving.exitLookaheadMiles;
-    if (persistProfile()) toast('Profile imported');
+    if (persistProfile()) toast(kept.length ? `Profile imported. ${kept.join(' and ')} stayed off: turn them on in Settings if you want them.` : 'Profile imported', kept.length ? 7000 : undefined);
     render();
   } catch (e) {
     toast(e.message);
@@ -1879,8 +1897,8 @@ const actions = {
   },
   theme(arg) { app.settings.theme = arg; saveProfile(); render(); },
   'clear-data'() {
-    if (!confirm('Erase your profile (vehicles, preferences, places and saved trips) and trip history on this device? API keys stay.')) return;
-    for (const k of [PROFILE_KEY, `${PROFILE_KEY}.previous`, 'ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.activeRoute', 'ea.window',
+    if (!confirm('Erase your profile (vehicles, preferences, places and saved trips) and trip history on this device? API keys, your own gas price reports, car connection settings and car recordings stay.')) return;
+    for (const k of [PROFILE_KEY, `${PROFILE_KEY}.previous`, `${PROFILE_KEY}.corrupt`, 'ea.settings', 'ea.history', 'ea.recent', 'ea.active', 'ea.activeRoute', 'ea.window',
       'ea.paceHistory', 'ea.places', 'ea.fuel', 'ea.vehicles', 'ea.plates']) store.remove(k);
     app.profile = defaultProfile();
     app.settings = settingsFromProfile(app.profile);
@@ -2033,12 +2051,18 @@ const actions = {
     navigator.clipboard?.writeText(arg).then(() => toast('Address copied: paste it in Safari'), () => toast(arg, 8000));
   },
   async 'cockpit-open'() {
+    // A recording being played back goes with the driver into the cockpit (closing the sheet would end it).
+    const pb = app.carUI.playback;
     if (app.sheet) closeSheet();
+    if (pb) { app.carUI.playback = pb; if (pb.playing) startPlaybackTimer(); }
     loadCockpitSettings();
     app.cockpit.show();
     await loadCarSignals();
   },
-  'ck-close'() { app.cockpit.hide(); },
+  'ck-close'() {
+    app.cockpit.hide();
+    if (app.carUI.playback) { stopPlaybackTimer(); app.carUI.playback = null; }
+  },
   'ck-mode'(arg) { app.cockpitSettings.mode = arg; app.cockpit.editing = false; app.cockpit.panel = null; cockpitRedraw(); },
   'ck-rec'() {
     if (app.car.rec) app.car.stopRecording(); else if (app.car.state === 'connected') { const v = app.settings.vehicle; app.car.startRecording({ vehicle: v ? vehicleKey() : null }); }
@@ -2059,8 +2083,9 @@ const actions = {
     const reqs = arg === 'all' ? all : [...new Map(cockpitReqs.map((r) => [r.key, r])).values()];
     const wasPlan = app.car.plan;
     app.car.setPlan(null);
+    // Paused, not stopped: a recording under way goes on after the probe.
     const wasLive = app.car.live.on;
-    if (wasLive) app.car.stopLive();
+    if (wasLive) app.car.pauseLive();
     app.cockpit.render();
     const done = await app.car.probeEnhanced(reqs, () => { if (app.cockpit.panel === 'settings') app.cockpit.render(); });
     toast(`Porsche data: ${done?.ok ?? 0} of ${done?.total ?? 0} answered`, 5000);

@@ -148,7 +148,9 @@ export function recordingCSV(rec) {
     if (!ch) continue;
     const [v, unit] = typeof value === 'number' ? toUS(value, ch.unit) : [value, ch.unit];
     const shown = typeof v === 'number' ? String(Number(v.toFixed(4))) : csvCell(v);
-    rows.push([new Date(rec.startedAt + dt).toISOString(), (dt / 1000).toFixed(3), ch.pid.toString(16).toUpperCase().padStart(2, '0'),
+    // Porsche manufacturer data has no Mode 01 PID: its request ("22" and the data identifier) stands in that column.
+    const pid = typeof ch.pid === 'number' ? ch.pid.toString(16).toUpperCase().padStart(2, '0') : /^22[0-9A-F]{7}/.test(key) ? `22${key.slice(5, 9)}` : '';
+    rows.push([new Date(rec.startedAt + dt).toISOString(), (dt / 1000).toFixed(3), pid,
       csvCell(ch.name), shown, csvCell(unit)].join(','));
   }
   return `${rows.join('\n')}\n`;

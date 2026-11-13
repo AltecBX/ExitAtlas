@@ -98,6 +98,7 @@ export class Cockpit {
     this.panel = null;          // 'settings' | 'add' | null
     this.peaks = {};
     this.state = new Map();     // gauge id -> { shown, target, shown2, target2, refs }
+    this.customGauges = new Map(); // sensor gauge id -> its gauge, as drawn
     this.lastRead = 0;
   }
 
@@ -109,9 +110,17 @@ export class Cockpit {
     const list = s.mode === 'custom' ? s.custom : MODES[s.mode].gauges.map(([id, size]) => ({ id, size }));
     return list.map(({ id, size }) => {
       if (GAUGES[id]) return [id, GAUGES[id], size];
-      const v = this.app.car.live.values.get(id);
-      const ch = v?.channel ?? this.findChannel(id);
-      return ch ? [id, channelGauge(ch, v), size] : null;
+      // A sensor gauge's range comes from its readings so far: it is fixed when the face is drawn (render), so
+      // the needle and the numbers on the face always share one scale. read() redraws when a reading leaves it.
+      let g = this.customGauges.get(id);
+      if (!g) {
+        const v = this.app.car.live.values.get(id);
+        const ch = v?.channel ?? this.findChannel(id);
+        if (!ch) return null;
+        g = channelGauge(ch, v);
+        this.customGauges.set(id, g);
+      }
+      return [id, g, size];
     }).filter(Boolean);
   }
 
@@ -145,6 +154,8 @@ export class Cockpit {
     this.app.car.setPlan(null);
     if (!this.app.car.watching) this.app.car.stopLive();
     this.editing = false; this.panel = null;
+    // The screen lock taken in show() is given back, unless a trip is keeping the screen on.
+    this.app.releaseWake?.();
   }
 
   /// Tells the scanner what to read for the gauges on screen.
@@ -152,13 +163,17 @@ export class Cockpit {
     const car = this.app.car;
     const gauges = this.gauges().map(([, g]) => g);
     if (this.panel === 'add' || (this.settings.mode === 'custom' && !gauges.length)) { car.setPlan(null); return; }
-    car.setPlan(buildPlan(gauges, { supported: car.supported, porsche: this.settings.porsche, porscheResults: car.enhanced.results, porscheReqs: this.app.porscheReqs }));
+    // Besides the gauges: the channels the driver set alert limits on (they are watched in every mode), and the
+    // oil temperature for the warm up line.
+    const also = [...Object.keys(car.prefs.alerts ?? {}), ...inputsOf(GAUGES.oilTemp)];
+    car.setPlan(buildPlan(gauges, { supported: car.supported, porsche: this.settings.porsche, porscheResults: car.enhanced.results, porscheReqs: this.app.porscheReqs, also }));
   }
 
   render() {
     const el = document.getElementById('cockpit');
     if (!el) return;
     const s = this.settings;
+    this.customGauges = new Map();
     el.className = `cockpit theme-${s.theme}`;
     el.dataset.mode = s.mode;
     const modes = Object.entries(MODES).map(([k, m]) => `<button class="${s.mode === k ? 'on' : ''}" data-act="ck-mode" data-arg="${k}">${h(m.name)}</button>`).join('');
@@ -276,9 +291,16 @@ export class Cockpit {
         st.refs.needle?.setAttribute('transform', `rotate(${-SWEEP / 2} 100 100)`);
         if (st.refs.fill) st.refs.fill.style.width = '0%';
       }
-      if (st.target2 != null && st.refs.needle2) {
-        st.shown2 = st.shown2 == null ? st.target2 : st.shown2 + (st.target2 - st.shown2) * k;
-        st.refs.needle2.setAttribute('transform', `rotate(${needleAngle(st.shown2, g.min, g.max).toFixed(2)} 100 100)`);
+      if (st.refs.needle2) {
+        if (st.target2 != null) {
+          st.shown2 = st.shown2 == null ? st.target2 : st.shown2 + (st.target2 - st.shown2) * k;
+          st.refs.needle2.setAttribute('transform', `rotate(${needleAngle(st.shown2, g.min, g.max).toFixed(2)} 100 100)`);
+          if (st.refs.needle2.style.visibility) st.refs.needle2.style.visibility = '';
+        } else if (st.refs.needle2.style.visibility !== 'hidden') {
+          // No current target: the second needle is taken away, not left on an old value.
+          st.shown2 = null;
+          st.refs.needle2.style.visibility = 'hidden';
+        }
       }
     }
   }
@@ -289,18 +311,22 @@ export class Cockpit {
     const ctx = { get: src.get, unitOf: src.unitOf, supported: src.playback ? null : car.supported, status: src.playback ? null : car.live.status,
       porscheResults: car.enhanced.results, porsche: src.playback || this.settings.porsche, now: src.now };
     const readings = {};
+    let outgrown = false;
     for (const [id, g, size] of this.gauges()) {
       const st = this.state.get(id);
       if (!st) continue;
       st.g = g;
       const r = readGauge(g, ctx);
+      if (g.custom && r.value != null && (r.value > g.max || r.value < g.min)) outgrown = true;
       const status = src.playback && r.status === 'live' ? 'playback' : r.status;
       readings[id] = r;
       st.target = r.value != null && (r.status === 'live' || r.status === 'stale') ? r.value : null;
       if (g.dual && GAUGES[g.dual]) {
+        // A target is shown only while it is current: an old one would read as what the car asks for now.
         const t = readGauge(GAUGES[g.dual], ctx);
-        st.target2 = t.value;
-        if (st.refs.target) st.refs.target.textContent = t.value != null ? `${fmt(t.value, gaugeDigits(GAUGES[g.dual]))} ${GAUGES[g.dual].unit}` : STATUS_TEXT[t.status]?.toLowerCase() ?? '–';
+        const current = t.value != null && t.status === 'live';
+        st.target2 = current ? t.value : null;
+        if (st.refs.target) st.refs.target.textContent = current ? `${fmt(t.value, gaugeDigits(GAUGES[g.dual]))} ${GAUGES[g.dual].unit}` : STATUS_TEXT[t.status]?.toLowerCase() ?? '–';
       }
       const text = r.value == null ? '–' : g.text ? g.text(Math.round(r.value)) : fmt(r.value, gaugeDigits(g));
       if (st.refs.value && st.refs.value.textContent !== text) st.refs.value.textContent = text;
@@ -314,7 +340,12 @@ export class Cockpit {
       void size;
     }
     if (!src.playback) this.peaks = updatePeaks(this.peaks, { boost: readings.boost, rpm: readings.rpm, speed: readings.speed });
+    // The oil temperature for the warm up line when no oil gauge is on screen (it is in every plan), with the same
+    // staleness rule as a gauge.
+    if (!readings.oilTemp) readings.oilTemp = readGauge(GAUGES.oilTemp, ctx);
     this.readBars(car, src, readings);
+    // A sensor gauge's reading left the face it was drawn with: draw the faces again with the wider range.
+    if (outgrown && !this.editing && !this.panel) this.render();
   }
 
   /// The driver's own alert limits for a gauge's channel, as zones.
@@ -337,7 +368,7 @@ export class Cockpit {
       if (link.lastChild.textContent !== t) link.lastChild.textContent = t;
     }
     const banner = this.refs.banner;
-    const oil = readings.oilTemp ?? (car.live.values.get('015C') ? { value: toUS(car.live.values.get('015C').value, '°C')[0], status: 'live' } : null);
+    const oil = readings.oilTemp;
     const w = oil?.status === 'live' ? warmup(oil.value, this.settings.warmupF) : null;
     const msg = src.playback ? `Playback of a recording · ${Math.floor(src.now / 60000)}:${String(Math.floor(src.now / 1000) % 60).padStart(2, '0')}`
       : car.state !== 'connected' ? 'Not connected: gauges show no values until the car is connected (Settings, Car, Connect car).'
@@ -361,4 +392,3 @@ export function moveGauge(list, id, dir) {
   return out;
 }
 export const nextSize = (size) => SIZES[(SIZES.indexOf(size) + 1) % SIZES.length];
-export const gaugeInputs = inputsOf;

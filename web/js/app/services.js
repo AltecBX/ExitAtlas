@@ -337,7 +337,8 @@ export async function suggestPlaces(query, near = null, { timeout = 8000 } = {})
 /// US places from Photon, nearer ones first when a position is known.
 async function photonPlaces(query, near, timeout) {
   const params = new URLSearchParams({ q: query, limit: '10', lang: 'en' });
-  if (near) { params.set('lat', near.lat.toFixed(3)); params.set('lon', near.lon.toFixed(3)); }
+  // The position only ranks nearer places first: one decimal (about 7 miles) does that without saying where the car is.
+  if (near) { params.set('lat', near.lat.toFixed(1)); params.set('lon', near.lon.toFixed(1)); }
   const json = await timed('the place search server', timeout, null, async (s) => {
     const res = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: s });
     if (!res.ok) throw new Error(`place search failed (HTTP ${res.status})`);
