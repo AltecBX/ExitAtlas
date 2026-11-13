@@ -9,6 +9,10 @@ const VERSION = '5.24.0';
 const LIB = `vendor/maplibre-gl-${VERSION}/maplibre-gl.js`;
 const LIB_CSS = `vendor/maplibre-gl-${VERSION}/maplibre-gl.css`;
 const STYLES = { dark: 'https://tiles.openfreemap.org/styles/dark', light: 'https://tiles.openfreemap.org/styles/positron' };
+/// The credit OpenFreeMap asks for (openfreemap.org, "Attribution"), as fixed markup of our own.
+const MAP_CREDIT = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> '
+  + '<a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> '
+  + 'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 /// The route drawn ahead of the vehicle and behind it (meters).
 const AHEAD = 160000;
 const BEHIND = 40000;
@@ -31,14 +35,18 @@ let library = null;
 export function loadMapLibrary() {
   if (window.maplibregl) return Promise.resolve(window.maplibregl);
   library ??= new Promise((resolve, reject) => {
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = LIB_CSS;
-    document.head.append(css);
+    if (!document.querySelector(`link[href="${LIB_CSS}"]`)) {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = LIB_CSS;
+      document.head.append(css);
+    }
     const js = document.createElement('script');
     js.src = LIB;
-    js.onload = () => (window.maplibregl ? resolve(window.maplibregl) : reject(new Error('map library did not start')));
-    js.onerror = () => { library = null; reject(new Error('map library did not load')); };
+    // A load that stalls (one bar of signal) counts as failed after 20 s, so the screen says so and tries again.
+    const timer = setTimeout(() => { library = null; js.remove(); reject(new Error('map library did not load')); }, 20000);
+    js.onload = () => { clearTimeout(timer); if (window.maplibregl) resolve(window.maplibregl); else { library = null; reject(new Error('map library did not start')); } };
+    js.onerror = () => { clearTimeout(timer); library = null; js.remove(); reject(new Error('map library did not load')); };
     document.head.append(js);
   });
   return library;
@@ -163,10 +171,16 @@ export class NavMap {
 
   /// Creates the map on first use; later calls only switch the light or dark style when needed.
   async ensure(mode) {
-    if (this.failed) return false;
+    if (this.failed) {
+      // The library not loading (no signal when the page started) is tried again every 30 s; a browser that
+      // cannot draw the map stays failed.
+      if (!this.libraryFailedAt || performance.now() - this.libraryFailedAt < 30000) return false;
+      this.failed = null;
+      this.libraryFailedAt = null;
+    }
     if (!this.map) {
       let lib;
-      try { lib = await loadMapLibrary(); } catch (e) { this.failed = e.message; this.onChange?.(); return false; }
+      try { lib = await loadMapLibrary(); } catch (e) { this.failed = e.message; this.libraryFailedAt = performance.now(); this.onChange?.(); return false; }
       if (this.map) return true;
       try {
         this.map = new lib.Map({
@@ -178,8 +192,19 @@ export class NavMap {
         this.onChange?.();
         return false;
       }
-      // The tile style carries its own credit (OpenFreeMap, OpenMapTiles, OpenStreetMap), always shown.
-      this.map.addControl(new lib.AttributionControl({ compact: false }), 'bottom-right');
+      // The map credit (OpenFreeMap, OpenMapTiles, OpenStreetMap), always shown, written here as fixed text.
+      // MapLibre's own AttributionControl writes whatever attribution the fetched style or its tile list carries
+      // into the page as HTML, behind a sanitizer that can be passed (it skips the attribute after each one it
+      // removes, and ignores srcdoc): a tile server serving hostile JSON could run script in the app. Not used.
+      this.map.addControl({
+        onAdd: () => {
+          const el = document.createElement('div');
+          el.className = 'maplibregl-ctrl maplibregl-ctrl-attrib';
+          el.innerHTML = MAP_CREDIT;
+          return (this.creditEl = el);
+        },
+        onRemove: () => { this.creditEl?.remove(); this.creditEl = null; },
+      }, 'bottom-right');
       // Events of a map that was replaced (rebuild()) are ignored.
       const map = this.map;
       const on = (type, f) => map.on(type, (e) => { if (map === this.map) f(e); });

@@ -40,6 +40,11 @@ export class ReroutePacer {
     this.unfollowed += 1;
   }
 
+  /// The request failed: no new route was given, so none was left unfollowed. The spacing from this attempt stays.
+  failed() {
+    this.unfollowed = Math.max(0, this.unfollowed - 1);
+  }
+
   /// Each trip snapshot: driving a mile of the current route means it was followed.
   observe(snapshot) {
     if (snapshot?.match.status === 'onRoute' && snapshot.progress >= this.pacing.followed) this.unfollowed = 0;

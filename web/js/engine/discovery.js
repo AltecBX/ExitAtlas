@@ -82,6 +82,15 @@ export class HighwayDiscovery {
   }
 }
 
+/// Whether discovery mode needs a new plan for the corridor ahead: off the plan's road, or within 50 miles of the
+/// plan's end while the corridor part itself goes on past it. Without the second condition every fix in the last
+/// 50 miles of a part rebuilt the plan (and with it restarted speed limits, weather ahead and the mile counts).
+///   remaining: meters left on the current plan; partAhead: meters left on the matched corridor part.
+export function discoveryNeedsPlan({ remaining, offRoute, partAhead }, lookahead = 50 * METERS_PER_MILE) {
+  if (offRoute) return true;
+  return remaining < lookahead && partAhead > remaining + 1000;
+}
+
 /// Distance window ahead for "about N hours ahead, plus or minus a tolerance", pace adjusted.
 export function timeWindow(plan, d, seconds, tolerance, pace) {
   const profile = plan.route.timeProfile;

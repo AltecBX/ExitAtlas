@@ -2,7 +2,7 @@
 // reroutes when the driver leaves the route, and runs discovery mode. Mirrors TripController.swift.
 import { METERS_PER_MILE as MILE, distance } from '../engine/geo.js';
 import { TripPlan, TripSession } from '../engine/trip.js';
-import { HighwayDiscovery, GPSSimulator, stopSuggestions } from '../engine/discovery.js';
+import { HighwayDiscovery, GPSSimulator, stopSuggestions, discoveryNeedsPlan } from '../engine/discovery.js';
 import { planStop, gasCandidates, chargerCandidates, projectChargers, rangeLeft, fullTankRange } from '../engine/fuel.js';
 import { servicesForExit, searchAlongRoute, exitTitle } from '../engine/exits.js';
 import { withFoodBrands } from '../engine/foodbrands.js';
@@ -41,6 +41,7 @@ import {
   LocationService, ScreenWake, Announcer, store, dataStatus, serviceSwitches,
 } from './services.js';
 import { loadProxy, switchedOff } from './proxy.js';
+import { withTimeout } from './net.js';
 import * as V from './views.js';
 import {
   loadProfile, writeProfile, settingsFromProfile, placesFromProfile, applyToProfile, profileVehicle, webVehicle,
@@ -617,6 +618,15 @@ function sheetCanRedraw() {
   return !fieldInUse($('#sheet-body'));
 }
 
+/// Redraws the open sheet after a background answer (prices, chargers, a station's town) without taking the
+/// keyboard, an unsaved entry or the button under a finger away: when the sheet is in use it waits and tries again.
+let sheetRedrawSoon = null;
+function redrawSheetWhenFree() {
+  if (!app.sheet) return;
+  if (sheetCanRedraw()) { renderSheet({ live: true }); return; }
+  if (!sheetRedrawSoon) sheetRedrawSoon = setTimeout(() => { sheetRedrawSoon = null; redrawSheetWhenFree(); }, 700);
+}
+
 /// A field in `el` is being typed in, or (with `unsaved`) holds an entry that differs from what was drawn.
 function fieldInUse(el, { unsaved = true } = {}) {
   if (!el) return false;
@@ -846,6 +856,19 @@ function rebaseFuel(drivenTotal = app.snapshot?.drivenTotal ?? 0) {
   store.set('ea.fuel', app.fuel);
 }
 
+/// "Just driving" (discovery mode) saves no trip, so the miles driven since the range was entered are lost when
+/// the page reloads or iOS discards the tab, and the range would jump back up to the value entered. The range is
+/// re-anchored to what is left now and saved: when the page goes to the background or closes, and once a minute.
+function anchorFuel(t = nowSeconds(), force = false) {
+  if (app.mode !== 'discovery' || app.gps !== 'device' || !app.fuel || !app.snapshot) return;
+  if (!force && app.lastFuelAnchorAt && t - app.lastFuelAnchorAt < 60) return;
+  app.lastFuelAnchorAt = t;
+  const total = app.snapshot.drivenTotal;
+  if (!(total > app.fuel.drivenAtEntry)) return;
+  app.fuel = { ...app.fuel, rangeMeters: rangeLeft(app.fuel, total), drivenAtEntry: total };
+  store.set('ea.fuel', app.fuel);
+}
+
 function considerFuelVoice() {
   if (!app.settings.voice || app.snapshot?.match.status !== 'onRoute') return;
   const fp = app.fuelPlan();
@@ -985,7 +1008,7 @@ function loadSharedPrices() {
   const sm = app.smartStop();
   for (const x of [sm?.primary, ...(sm?.alternatives ?? [])]) if (x) ids.add(x.id);
   for (const c of app.bestStopAhead(Math.max(60, app.exitsUI.window))?.stations ?? []) ids.add(c.id);
-  app.priceBook.loadShared([...ids]).then((changed) => { if (changed) { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); } }).catch(() => {});
+  app.priceBook.loadShared([...ids]).then((changed) => { if (changed) { lastViewHTML = ''; render(); redrawSheetWhenFree(); } }).catch(() => {});
 }
 
 /// Google Maps prices without a tap (docs/17), once the driver turned them on: the exits on screen, most
@@ -1045,7 +1068,11 @@ function loadBenchmarks() {
   const b = app.benchmarks;
   if (!base || b.pending || Date.now() - b.at < (b.error ? 30 * 60000 : 6 * 3600000)) return;
   b.pending = true;
-  fetch(new URL('v1/fuel-benchmarks', base)).then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+  withTimeout(async (signal) => {
+    const res = await fetch(new URL('v1/fuel-benchmarks', base), { signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, 15000)
     .then((json) => {
       if (typeof json?.weekOf !== 'string' || typeof json.regular !== 'object') throw new Error('not a summary');
       Object.assign(b, { summary: { weekOf: json.weekOf, regular: json.regular, diesel: json.diesel ?? {} }, error: null });
@@ -1062,12 +1089,15 @@ function lookupStationPlace(id) {
   if (!x?.coordinate || app.placeCache.has(id)) return;
   app.placeCache.set(id, { pending: true });
   const q = new URLSearchParams({ format: 'jsonv2', lat: x.coordinate.lat, lon: x.coordinate.lon, zoom: 10, addressdetails: 1 });
-  fetch(`https://nominatim.openstreetmap.org/reverse?${q}`, { headers: { 'Accept-Language': 'en-US' } })
-    .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+  withTimeout(async (signal) => {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${q}`, { headers: { 'Accept-Language': 'en-US' }, signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, 15000)
     .then((json) => {
       const a = json?.address ?? {};
       app.placeCache.set(id, { city: a.city ?? a.town ?? a.village ?? a.hamlet ?? null, state: a.state ?? app.stationPlace(x).state });
-      if (app.sheet?.kind === 'station' && app.sheet.arg === id) renderSheet();
+      if (app.sheet?.kind === 'station' && app.sheet.arg === id) redrawSheetWhenFree();
     })
     .catch(() => app.placeCache.delete(id));
 }
@@ -1089,7 +1119,7 @@ function loadPrices(exits) {
     if (!e) continue;
     const c = app.prices.cache.get(e.id);
     if (c && (c.pending || Date.now() - c.at < LOOKUP_TTL)) continue;
-    app.prices.load(e).then(() => { lastViewHTML = ''; render(); if (app.sheet) renderSheet(); });
+    app.prices.load(e).then(() => { lastViewHTML = ''; render(); redrawSheetWhenFree(); });
   }
 }
 
@@ -1107,7 +1137,7 @@ function ensureChargers() {
       c.routeId = route.id;
     })
     .catch((e) => { c.error = e.message; c.retryAt = Date.now() + 5 * 60 * 1000; })
-    .finally(() => { c.loading = false; lastViewHTML = ''; render(); if (app.sheet) renderSheet(); });
+    .finally(() => { c.loading = false; lastViewHTML = ''; render(); redrawSheetWhenFree(); });
 }
 
 // MARK: Personal pace
@@ -1193,6 +1223,8 @@ async function startDiscovery() {
     app.corridors ??= await (app.corridorsLoading ??= loadCorridors());
     app.discovery = new HighwayDiscovery(app.corridors);
   } catch (e) {
+    // The next start asks the network again (a kept failed promise would refuse until the page reloads).
+    app.corridorsLoading = null;
     app.lastError = `Could not load interstate corridors: ${e.message}`;
   }
   render();
@@ -1363,6 +1395,7 @@ function handleSample(sample, shouldRender) {
     persistIfDue(sample.t);
   } else if (app.mode === 'discovery') {
     handleDiscovery(sample);
+    anchorFuel(sample.t);
   }
   if (shouldRender) render();
 }
@@ -1385,7 +1418,8 @@ function handleDiscovery(sample) {
   app.discoveryStatus = match.corridor.displayName;
   let needsPlan = true;
   if (app.snapshot && app.plan?.route.title === match.corridor.displayName) {
-    needsPlan = app.snapshot.remaining < 50 * MILE || app.snapshot.match.status === 'offRoute';
+    needsPlan = discoveryNeedsPlan({ remaining: app.snapshot.remaining, offRoute: app.snapshot.match.status === 'offRoute',
+      partAhead: match.part.length - match.projection.distanceAlong });
   }
   if (needsPlan) {
     const plan = new TripPlan(HighwayDiscovery.routeAhead(match, undefined, sample.t * 1000), datasets());
@@ -1446,8 +1480,16 @@ setInterval(() => {
 function remainingWaypoints() {
   const plan = app.plan, s = app.snapshot;
   if (!plan || !s) return app.remainingWaypoints;
-  const passed = plan.route.stops.filter((st) => st.distanceAlongRoute <= s.progress).map((st) => st.waypoint.name);
-  return app.remainingWaypoints.filter((w) => !passed.includes(w.name));
+  const passed = plan.route.stops.filter((st) => st.distanceAlongRoute <= s.progress).map((st) => st.waypoint);
+  return app.remainingWaypoints.filter((w) => !passed.some((p) => sameWaypoint(p, w)));
+}
+
+/// The same stop: its name and its place. By name alone, a second stop with the same name ("Shell" now and another
+/// "Shell" 300 miles on) was dropped from the trip when the first was passed.
+function sameWaypoint(a, b) {
+  if (a.name !== b.name) return false;
+  const p = a.coordinate, q = b.coordinate;
+  return !p || !q ? p === q : Math.abs(p.lat - q.lat) < 1e-6 && Math.abs(p.lon - q.lon) < 1e-6;
 }
 
 /// Returns { ok } and, when no new route was set, the reason.
@@ -1461,6 +1503,8 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
   app.lastRerouteAt = sample.t;
   app.isRerouting = true;
   render();
+  // The answer belongs to this trip only: End and a new trip (or the demo) may start before it arrives.
+  const session = app.session;
   const waypoints = remainingWaypoints();
   const here = { name: 'Current location', coordinate: sample.coordinate };
   // Start on the road going the driver's way when the course is known at driving speed.
@@ -1477,7 +1521,7 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
       if (bearing === null || !/segment/i.test(e.message)) throw e;
       [route] = await fetchRoutes([here, ...waypoints], { alternatives: false });
     }
-    if (!route || !app.session || app.mode !== 'trip') return { ok: false, reason: 'the trip ended' };
+    if (!route || !app.session || app.session !== session || app.mode !== 'trip') return { ok: false, reason: 'the trip ended' };
     route.origin = app.plan.route.origin;
     const plan = new TripPlan(route, datasets());
     app.session.replacePlan(plan, nowSeconds());
@@ -1492,6 +1536,10 @@ async function reroute(sample, { force = false, spoken = 'New route.' } = {}) {
     }
     return { ok: true };
   } catch (e) {
+    if (app.session !== session) return { ok: false, reason: 'the trip ended' };
+    // A request that failed (no signal, servers busy) is not a new route the driver left: it does not lengthen
+    // the wait before the next try.
+    if (!force) app.reroutePacer.failed();
     app.lastError = app.rerouteError = `Reroute failed: ${e.message}. Will retry.`;
     return { ok: false, reason: e.message };
   } finally {
@@ -1512,7 +1560,7 @@ async function addStop(exitID, placeID) {
 /// Inserts a stop before the first remaining stop farther along the route, then reroutes.
 async function addWaypointStop(waypoint, alongRoute) {
   if (!app.canAddStop()) { toast('Adding a stop needs live GPS'); return; }
-  const along = (w) => app.plan.route.stops.find((st) => st.waypoint.name === w.name)?.distanceAlongRoute ?? Infinity;
+  const along = (w) => app.plan.route.stops.find((st) => sameWaypoint(st.waypoint, w))?.distanceAlongRoute ?? Infinity;
   const list = remainingWaypoints();
   const at = list.findIndex((w) => along(w) > alongRoute);
   list.splice(at < 0 ? list.length - 1 : at, 0, waypoint);
@@ -1596,26 +1644,40 @@ function loadResumable() {
 
 // MARK: Planner
 
+/// What the planner asks routes for: an answer is shown only if this is still what the planner says when it
+/// arrives. On a slow connection the driver can pick another destination (or change a stop) while "Finding
+/// routes…" shows; the first answer's routes must not appear under the new destination's name.
+const plannerKey = (p) => JSON.stringify([p.from, p.stops, p.to].flat().map((w) => (w ? [w.name, w.coordinate?.lat, w.coordinate?.lon] : null)));
+let findSeq = 0;
+
 async function findRoutes() {
   const p = app.planner;
   if (!p.to) return;
+  const seq = ++findSeq;
+  const key = plannerKey(p);
   p.busy = true;
   p.error = null;
   p.results = [];
   render();
+  let results = null, error = null;
   try {
     const from = p.from ?? { name: 'Current location', coordinate: await currentPosition() };
     const waypoints = [from, ...p.stops.filter(Boolean), p.to];
     const routes = await fetchRoutes(waypoints, { alternatives: true });
-    p.results = routes.map((route) => ({ route, plan: new TripPlan(route, datasets()) }));
-    recordPlace(p.to);
-    for (const st of p.stops) recordPlace(st);
+    results = routes.map((route) => ({ route, plan: new TripPlan(route, datasets()) }));
   } catch (e) {
-    p.error = e.name === 'AbortError' ? 'Request cancelled.' : `Could not find a route: ${e.message}`;
-  } finally {
-    p.busy = false;
-    render();
+    error = e.name === 'AbortError' ? 'Request cancelled.' : `Could not find a route: ${e.message}`;
   }
+  if (seq !== findSeq) return;            // a newer search is running: it owns the planner now
+  p.busy = false;
+  if (plannerKey(app.planner) === key) {
+    if (results) {
+      p.results = results;
+      recordPlace(p.to);
+      for (const st of p.stops) recordPlace(st);
+    } else p.error = error;
+  }
+  render();
 }
 
 /// The simulated demo. For screenshots and checks: ?demo=<mile> starts at that mile, ?demo&alert adds one
@@ -2189,16 +2251,32 @@ document.addEventListener('submit', async (ev) => {
     if (!ps.query) return;
     ps.busy = true;
     ps.error = null;
+    // The search wins over suggestions still on their way, and a newer search or newer typing wins over this one.
+    clearTimeout(suggestTimer);
+    const seq = ++suggestSeq;
+    ps.searching = seq;
     renderSheet();
     try {
       const near = app.snapshot ? app.plan.route.polyline.coordinateAt(app.snapshot.progress) : null;
-      ps.results = await searchPlaces(ps.query, near);
-      if (!ps.results.length) ps.error = 'No places found. Try adding the city or state.';
+      const results = await searchPlaces(ps.query, near);
+      if (seq === suggestSeq) {
+        ps.results = results;
+        if (!results.length) ps.error = 'No places found. Try adding the city or state.';
+      }
     } catch (e) {
-      ps.error = `Search failed: ${e.message}`;
+      if (seq === suggestSeq) ps.error = `Search failed: ${e.message}`;
     } finally {
-      ps.busy = false;
-      renderSheet();
+      if (ps.searching === seq) {
+        ps.busy = false;
+        ps.searching = null;
+        if (seq === suggestSeq) { if (app.sheet?.kind === 'place') renderSheet(); }
+        else {
+          // Newer typing took over (its suggestions draw the results): only the Search button is this search's to free,
+          // without redrawing the box being typed in.
+          const btn = $('#sheet [data-form="place-search"] button[type="submit"]');
+          if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+        }
+      }
     }
   } else if (kind === 'along-route') {
     const q = app.alongRoute;
@@ -2501,9 +2579,10 @@ document.addEventListener('visibilitychange', () => {
   } else {
     hiddenAt = Date.now();
     if (app.mode === 'trip') persistIfDue(nowSeconds(), true);
+    anchorFuel(nowSeconds(), true);
   }
 });
-window.addEventListener('pagehide', () => persistIfDue(nowSeconds(), true));
+window.addEventListener('pagehide', () => { persistIfDue(nowSeconds(), true); anchorFuel(nowSeconds(), true); });
 
 // MARK: Boot
 
@@ -2518,7 +2597,11 @@ async function boot() {
     app.dataStatus = dataStatus;
     refreshProxy();
   } catch (e) {
-    label.innerHTML = `Could not load the offline data: ${e.message}. <button class="btn sm" onclick="location.reload()">Retry</button>`;
+    label.textContent = `Could not load the offline data: ${e.message}. `;
+    const retry = document.createElement('button');
+    retry.className = 'btn sm'; retry.type = 'button'; retry.textContent = 'Retry';
+    retry.addEventListener('click', () => location.reload());
+    label.append(retry);
     return;
   }
   app.resumable = loadResumable();

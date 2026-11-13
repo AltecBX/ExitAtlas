@@ -6,9 +6,11 @@ compatibility_date = "2026-10-01"
 [vars]
 # Pages that may call the proxy (comma separated).
 ALLOWED_ORIGINS = "https://altecbx.github.io"
-# Daily budgets: all clients together, and each client (by hashed IP). 0 means no limit.
-# Each counted call writes 2 KV keys; the Workers Free plan allows 1,000 KV writes a day, so these
-# defaults (230 calls, 460 writes) fit it. Raise them only on Workers Paid. Google prices stay at 30 a day,
+# Daily budgets: all clients together, and each client (by hashed IPv4 address or IPv6 /64). 0 means no limit;
+# a missing or unreadable value means the default below. With the D1 database bound the counts are kept there
+# (exact); without it, in KV (approximate under bursts): each counted call then writes 2 KV keys, and the Workers
+# Free plan allows 1,000 KV writes a day, so these defaults (230 calls, 460 writes) fit it. Google prices are
+# refused when there is nowhere to count them. Raise them only on Workers Paid. Google prices stay at 30 a day,
 # the same as the daily quota on the Google Cloud project (docs/17), so they stay under Google's 1,000 free a month.
 DAILY_PRICES = "30"
 CLIENT_DAILY_PRICES = "30"
@@ -19,6 +21,7 @@ CLIENT_DAILY_CHARGERS = "40"
 DAILY_PRICE_REPORTS = "2000"
 CLIENT_DAILY_PRICE_REPORTS = "20"
 DAILY_PRICE_READS = "5000"
+CLIENT_DAILY_PRICE_READS = "600"
 # Off switches the app reads from /v1/config: any of prices, chargers, routing, search, wzdx, community, benchmarks.
 DISABLED = ""
 ROUTING = "osrm-demo"

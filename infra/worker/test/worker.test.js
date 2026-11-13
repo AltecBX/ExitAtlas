@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHandler, config, budgetDay } from '../src/index.js';
+import { createHandler, config, budgetDay, clientAddress } from '../src/index.js';
 
 const ORIGIN = 'https://altecbx.github.io';
 const kv = () => {
@@ -117,12 +117,67 @@ test('config: off switches and which services are available', async () => {
   assert.equal(pre.status, 204);
 });
 
-test('a failed budget counter write does not fail the request', async () => {
+test('gas prices fail closed: no Google request when the budget cannot be counted or has no store', async () => {
   const calls = [];
   const handle = createHandler({ fetchImpl: upstream(calls) });
-  const store = { get: async () => null, put: async () => { throw new Error('KV PUT failed: 429 Too Many Requests'); } };
-  const res = await handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }), env({ BUDGET: store }));
-  assert.equal(res.status, 200);
+  const failing = { get: async () => null, put: async () => { throw new Error('KV PUT failed: 429 Too Many Requests'); } };
+  const res = await handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }), env({ BUDGET: failing }));
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /no price request was made/);
+  const none = await handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }), env({ BUDGET: undefined }));
+  assert.equal(none.status, 503);
+  assert.match((await none.json()).error, /budget store is not set up/);
+  assert.equal(calls.length, 0, 'nothing reached Google');
+  // Charger data is free: a counter that is down does not stop it.
+  const chargers = await handle(post('/v1/chargers', `route=${encodeURIComponent(WKT)}`, { json: false }), env({ BUDGET: failing }));
+  assert.equal(chargers.status, 200);
+});
+
+test('budgets that are missing or not numbers fall back to the defaults (30 Google price calls a day)', async () => {
+  const calls = [];
+  const handle = createHandler({ fetchImpl: upstream(calls), now: () => Date.UTC(2026, 9, 28, 23, 0) });
+  const e = env({ DAILY_PRICES: 'thirty', CLIENT_DAILY_PRICES: undefined });
+  let ok = 0, refused = 0;
+  for (let i = 0; i < 33; i++) {
+    const res = await handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }, { ip: `198.51.100.${i}` }), e);
+    if (res.status === 200) ok += 1; else if (res.status === 429) refused += 1;
+  }
+  assert.equal(ok, 30);
+  assert.equal(refused, 3);
+  assert.equal(calls.length, 30);
+});
+
+test('IPv6 clients are counted by their /64 network, IPv4 by address', async () => {
+  const at = (ip) => clientAddress(new Request('https://proxy.test/', { headers: { 'CF-Connecting-IP': ip } }));
+  assert.equal(at('203.0.113.5'), '203.0.113.5');
+  assert.equal(at('2001:db8:12:3400:aaaa:bbbb:cccc:dddd'), '2001:db8:12:3400::/64');
+  assert.equal(at('2001:db8:12:3400::1'), '2001:db8:12:3400::/64');
+  assert.equal(at('2001:0db8:0012:3400:1:2:3:4'), '2001:db8:12:3400::/64');
+  assert.equal(at('2001:db8::1'), '2001:db8:0:0::/64');
+  assert.notEqual(at('2001:db8:12:3401::1'), at('2001:db8:12:3400::1'));
+  const calls = [];
+  const handle = createHandler({ fetchImpl: upstream(calls), now: () => Date.UTC(2026, 9, 28, 23, 0) });
+  const e = env();
+  const a = (ip) => handle(post('/v1/gas-prices', { lat: 30.4, lon: -81.6 }, { ip }), e);
+  assert.equal((await a('2001:db8:12:3400::1')).status, 200);
+  assert.equal((await a('2001:db8:12:3400::2')).status, 200);
+  assert.equal((await a('2001:db8:12:3400:ffff::3')).status, 429, 'a new address in the same /64 is the same client');
+});
+
+test('request bodies are capped whatever Content-Length says, and charger parameters are checked', async () => {
+  const calls = [];
+  const handle = createHandler({ fetchImpl: upstream(calls) });
+  const big = new Request('https://proxy.test/v1/gas-prices', { method: 'POST', duplex: 'half',
+    body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(`{"lat":30.4,"lon":-81.6,"pad":"${'x'.repeat(5000)}"}`)); c.close(); } }),
+    headers: { Origin: ORIGIN, 'CF-Connecting-IP': '203.0.113.5', 'Content-Type': 'application/json' } });
+  assert.equal(big.headers.get('Content-Length'), null);
+  assert.equal((await handle(big, env())).status, 413);
+  const chargers = (body) => handle(post('/v1/chargers', body, { json: false }), env());
+  const route = `route=${encodeURIComponent(WKT)}`;
+  assert.equal((await chargers(`${route}&distance=2.5&fuel_type=ELEC&ev_charging_level=dc_fast&status=E&limit=all`)).status, 200, 'the app\'s own request');
+  assert.equal((await chargers(`${route}&distance=500`)).status, 400);
+  assert.equal((await chargers(`${route}&limit=${encodeURIComponent('all&api_key=x')}`)).status, 400);
+  assert.equal((await chargers(`${route}&status=E&status=P`)).status, 400);
   assert.equal(calls.length, 1);
 });
 

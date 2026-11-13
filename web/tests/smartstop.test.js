@@ -211,3 +211,41 @@ test('P. Overnight on the real route: the last stop listed open before a long st
     }
   }
 });
+
+test('local time: the fast arithmetic agrees with the browser time zone data, across daylight saving changes', async () => {
+  const { localTime } = await import('../js/engine/openinghours.js');
+  const slow = (t, timeZone) => {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t * 1000));
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    return { weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(get('weekday')), minute: (Number(get('hour')) % 24) * 60 + Number(get('minute')) };
+  };
+  const zones = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'America/Adak', 'Pacific/Honolulu', 'America/Puerto_Rico'];
+  // Every minute for three hours around the 2026 and 2027 changes (Nov 1 2026 and Mar 14 2027, 2:00 local), in each zone.
+  for (const zone of zones) {
+    for (const day of [Date.UTC(2026, 10, 1, 4) / 1000, Date.UTC(2027, 2, 14, 5) / 1000]) {
+      for (let m = 0; m < 9 * 60; m++) {
+        const t = day + m * 60 + 17;
+        assert.deepEqual(localTime(t, zone), slow(t, zone), `${zone} at ${new Date(t * 1000).toISOString()}`);
+      }
+    }
+  }
+  // Random times over ten years.
+  let seed = 12345;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  for (let i = 0; i < 20000; i++) {
+    const t = 1600000000 + Math.floor(rnd() * 315000000);
+    const zone = zones[i % zones.length];
+    assert.deepEqual(localTime(t, zone), slow(t, zone), `${zone} at ${t}`);
+  }
+  assert.deepEqual(localTime(1.7e9 + 0.4, 'America/New_York'), slow(1.7e9, 'America/New_York'));
+});
+
+test('opening hours: the same text is parsed once and gives the same answer', async () => {
+  const { parseOpeningHours } = await import('../js/engine/openinghours.js');
+  const a = parseOpeningHours('Mo-Fr 06:00-22:00; Sa,Su 07:00-21:00');
+  assert.equal(parseOpeningHours('Mo-Fr 06:00-22:00; Sa,Su 07:00-21:00'), a);
+  assert.deepEqual(a.week[0], [[360, 1320]]);
+  assert.equal(parseOpeningHours('nonsense'), null);
+  assert.equal(parseOpeningHours('nonsense'), null);
+  assert.equal(parseOpeningHours(null), null);
+});

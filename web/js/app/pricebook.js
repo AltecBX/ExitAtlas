@@ -6,6 +6,7 @@
 // asks, kept in memory and never saved or shared. Nothing here makes up a price or shows a regional
 // average as one (engine/gasprices.js).
 import { validateReport, addReport } from '../engine/gasprices.js';
+import { withTimeout } from './net.js';
 
 export const OWN_SOURCE = Object.freeze({ id: 'own', name: 'You', kind: 'own' });
 export const SHARED_SOURCE = Object.freeze({ id: 'community', name: 'ExitAtlas drivers', kind: 'community' });
@@ -144,8 +145,11 @@ export class PriceBook {
       try {
         const url = new URL('v1/price-reports', base);
         url.searchParams.set('stations', ids.join(','));
-        const res = await this.fetchImpl(url);
-        const body = await res.json().catch(() => null);
+        // A request that stalls gives up after 15 s, so these stations are not left "pending" for the session.
+        const { res, body } = await withTimeout(async (signal) => {
+          const r = await this.fetchImpl(url, { signal });
+          return { res: r, body: await r.json().catch(() => null) };
+        }, 15000);
         if (!res.ok || !Array.isArray(body?.reports)) throw new Error(body?.error ?? `the server answered ${res.status}`);
         const now = Math.floor(this.now() / 1000);
         const by = new Map(ids.map((id) => [id, []]));

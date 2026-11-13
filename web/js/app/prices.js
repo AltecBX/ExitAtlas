@@ -7,6 +7,7 @@
 // them (memory only, an hour); they never go into the shared driver reports.
 
 import { dollars } from '../engine/gasprices.js';
+import { withTimeout } from './net.js';
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchNearby';
 // Hours and the restroom field ride on the same request: Google bills a Nearby Search once, at the
@@ -15,6 +16,8 @@ const FIELDS = 'places.id,places.displayName,places.location,places.fuelOptions,
 // Google's answer for an exit is kept in memory for an hour, then dropped (never saved); the same as
 // AUTO_LOOKUP_RULES.refreshMinutes (engine/gasprices.js).
 export const LOOKUP_TTL = 60 * 60 * 1000;
+const REQUEST_TIMEOUT = 15000;
+const OFFLINE_RETRY = 2 * 60 * 1000;
 /// Google lookups a day on one device, matching the daily quota of 30 set on the key's Google Cloud project
 /// (at most 930 a month, under the 1,000 free; docs/17). The project quota is the hard cap across devices.
 export const GOOGLE_DAILY_LIMIT = 30;
@@ -61,6 +64,7 @@ export class GasPrices {
     this.usedToday = usedToday;
     this.dailyLimit = dailyLimit;
     this.cache = new Map(); // exit id -> {at, stations, error, pending}
+    this.inFlight = 0;
   }
 
   /// On only when the driver turned Google Maps prices on, and then through the proxy when it is set and
@@ -79,38 +83,53 @@ export class GasPrices {
     if (!this.allowed() || (!key && !proxy)) return null;
     const c = this.cache.get(exit.id);
     if (c && (c.pending || this.now() - c.at < LOOKUP_TTL)) return c.pending ?? c;
-    if (this.usedToday() >= this.dailyLimit) {
+    // Requests still on their way count too: they are added to the day's total only when they are answered.
+    if (this.usedToday() + this.inFlight >= this.dailyLimit) {
       const entry = { at: this.now(), stations: [], error: LIMIT_REACHED };
       this.cache.set(exit.id, entry);
       return entry;
     }
     const pending = (async () => {
       let entry;
+      // A request counts against the driver's budget once it may have reached Google: an answer, or no answer
+      // within the time limit. One that never left the phone (no connection) does not, and is tried again in
+      // 2 minutes instead of an hour.
+      let counted = false;
+      const count = () => { if (!counted) { counted = true; this.inFlight -= 1; this.onCall?.(); } };
+      this.inFlight += 1;
       try {
-        this.onCall?.();
         // The proxy makes the same Google request with the owner's key and answers with Google's JSON.
-        const res = proxy
-          ? await this.fetchImpl(new URL('v1/gas-prices', proxy), {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat: exit.coordinate.lat, lon: exit.coordinate.lon }),
-          })
-          : await this.fetchImpl(ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS },
-            body: JSON.stringify({
-              includedTypes: ['gas_station'], maxResultCount: 10, rankPreference: 'DISTANCE',
-              locationRestriction: { circle: { center: { latitude: exit.coordinate.lat, longitude: exit.coordinate.lon }, radius: 1600 } },
-            }),
-          });
-        const json = await res.json().catch(() => null);
+        const { res, json } = await withTimeout(async (signal) => {
+          const r = proxy
+            ? await this.fetchImpl(new URL('v1/gas-prices', proxy), {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+              body: JSON.stringify({ lat: exit.coordinate.lat, lon: exit.coordinate.lon }),
+            })
+            : await this.fetchImpl(ENDPOINT, {
+              method: 'POST', signal,
+              headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELDS },
+              body: JSON.stringify({
+                includedTypes: ['gas_station'], maxResultCount: 10, rankPreference: 'DISTANCE',
+                locationRestriction: { circle: { center: { latitude: exit.coordinate.lat, longitude: exit.coordinate.lon }, radius: 1600 } },
+              }),
+            });
+          count();
+          return { res: r, json: await r.json().catch(() => null) };
+        }, REQUEST_TIMEOUT).catch((e) => {
+          if (/^no answer in/.test(e.message)) { count(); throw e; }
+          if (counted) throw e;
+          throw Object.assign(new Error('No connection'), { offline: true });
+        });
         // The proxy names its own daily budget in a string; Google's quota answers 429 RESOURCE_EXHAUSTED.
         if (!res.ok && typeof json?.error === 'string') throw new Error(json.error);
         if (res.status === 429 || json?.error?.status === 'RESOURCE_EXHAUSTED') throw new Error(QUOTA_REACHED);
         if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
         entry = { at: this.now(), stations: parsePlaces(json ?? {}), error: null };
       } catch (e) {
-        entry = { at: this.now(), stations: [], error: e.message };
+        // `at` is when the answer stops being kept: a failed send is asked again after OFFLINE_RETRY.
+        entry = { at: e.offline ? this.now() - LOOKUP_TTL + OFFLINE_RETRY : this.now(), stations: [], error: e.message };
       }
+      if (!counted) this.inFlight -= 1;
       this.cache.set(exit.id, entry);
       return entry;
     })();

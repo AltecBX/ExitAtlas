@@ -3,6 +3,8 @@
 // may not read directly come through it, and its /v1/config can switch off any public service for everyone
 // (routing, search, prices, chargers, wzdx) without an app update.
 
+import { withTimeout } from './net.js';
+
 /// The proxy's base URL from what was typed, or null. HTTPS only (localhost allowed for testing).
 export function proxyBase(text) {
   if (!text) return null;
@@ -22,9 +24,11 @@ export async function loadProxy(text, fetchImpl = (...a) => fetch(...a)) {
   const base = proxyBase(text);
   if (!base) return null;
   try {
-    const res = await fetchImpl(new URL('v1/config', base), { cache: 'no-store' });
-    if (!res.ok) return null;
-    const c = await res.json();
+    const c = await withTimeout(async (signal) => {
+      const res = await fetchImpl(new URL('v1/config', base), { cache: 'no-store', signal });
+      return res.ok ? res.json() : null;
+    }, 15000);
+    if (!c) return null;
     return { base, prices: c.prices === true, chargers: c.chargers === true, wzdx: c.wzdx === true, community: c.community === true, benchmarks: c.benchmarks === true, disabled: Array.isArray(c.disabled) ? c.disabled : [] };
   } catch {
     return null;

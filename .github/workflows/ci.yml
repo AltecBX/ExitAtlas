@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Nothing here writes to the repository: read access only for every job.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -72,6 +76,8 @@ jobs:
         run: node web/tests/layout/offline.layout.mjs
       - name: iPhone Safari (sheets, 44 point taps, open sections, screen wake lock, paused location, parked map)
         run: node web/tests/layout/mobile.layout.mjs
+      - name: Security policy in a real browser (no violations by the app, inline handlers blocked, fixed map credit, Census lookup)
+        run: node web/tests/layout/security.layout.mjs
       - name: Shared reports on the Worker runtime (wrangler dev, local D1)
         working-directory: infra/worker
         run: |
