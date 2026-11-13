@@ -17,8 +17,8 @@ Open it in Safari or Chrome and allow location. In Safari, Share, Add to Home Sc
 |---|---|
 | Web version (`web/`) | Used on real drives. The dash and arrival times have had road feedback; fuel, gas prices, SmartStop, EV stops, rest areas, the adaptive Drive screen and the newer voice messages have not yet. |
 | iOS app (`App/`) | Builds and passes its screenshot UI tests in CI (latest macOS runner and Xcode, iPhone simulator). Not yet run on a device. Since milestone 2 it has the same features as the web version, built on the same engine. |
-| Engine (`Sources/ExitAtlasCore`) | 113 tests pass on Linux, with the web's 98 tests covering the same cases in JavaScript. |
-| Key proxy (`infra/worker`) | 8 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
+| Engine (`Sources/ExitAtlasCore`) | 170 tests pass on Linux; the web version's 314 tests cover the same engine in JavaScript plus the web only parts (checked Nov 13, 2026). |
+| Key proxy (`infra/worker`) | 26 tests pass. Not deployed: needs a Cloudflare account and the keys ([infra/worker/README.md](infra/worker/README.md)). |
 
 The full feature inventory, by platform and test coverage, and the prioritized plan are in [docs/09_audit_and_plan.md](docs/09_audit_and_plan.md). Road alerts, their sources and the next steps are in [docs/13_road_intelligence_audit.md](docs/13_road_intelligence_audit.md).
 
@@ -64,6 +64,12 @@ In both the web version and the iOS app unless marked.
 * A Live Activity with the next exit, the next state line, the next rest area and your arrival time, on the Lock Screen, in the Dynamic Island, on the CarPlay Dashboard and on Apple Watch.
 * Siri and Shortcuts: "How far to Georgia in ExitAtlas", "Next rest area in ExitAtlas", "Next gas in ExitAtlas", "Find the next Shell in ExitAtlas" (31 brands), "Find an open gas station with a restroom in ExitAtlas", "What is the best stop in the next 50 miles in ExitAtlas" (25, 50 or 100) and three more, answered in full sentences that say when hours or restrooms are not confirmed.
 * A CarPlay app needs Apple's driving task entitlement first; see [docs/10](docs/10_lock_screen_and_carplay.md).
+
+**Car data** *(web, experimental)*
+* Reads the car over Bluetooth with an OBD2 adapter: fuel level for the range planner, live sensors, trouble codes (read only), readiness, VIN, recordings with CSV and JSON export. Needs Web Bluetooth: Chrome, or Safari on iPhone with the beacio extension ([docs/20](docs/20_car_connection.md)).
+* A full screen cockpit for the Porsche 911 Turbo S with four modes; every gauge reads a channel the car reported or is labeled calculated, and a gauge without data says why ([docs/21](docs/21_cockpit.md)).
+* Tested with a simulated adapter in CI. On a real car: fuel level, voltage, codes, readiness and the PID list are confirmed on one car through a BlueDriver; the rest is not yet.
+* The November 2026 audit, with what was fixed and what is still open: [docs/22](docs/22_audit.md).
 
 **Fuel and charging**
 * Vehicle picker: EPA fuel economy for every vehicle since 2000, and EPA range for electric vehicles.
