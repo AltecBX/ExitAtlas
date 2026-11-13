@@ -70,6 +70,9 @@ test('Porsche requests for a 2021 car: oil pressure there, the DID shared by eng
 test('Mode 22 answers: with or without the echo; refusals, silence and two modules are never decoded', () => {
   assert.deepEqual(mode22Data([[0x62, 0x15, 0x03, 0x41, 0x00]], '1503'), { bytes: [0x41, 0x00], echoed: true });
   assert.deepEqual(mode22Data([[0x41, 0x00]], '1503'), { bytes: [0x41, 0x00], echoed: false });
+  // An ELM327 always sends the echo: a Mode 01 answer that landed here is not decoded as oil pressure.
+  assert.deepEqual(mode22Data([[0x41, 0x0c, 0x0f, 0xa0]], '1503', { requireEcho: true }), { problem: 'unreadable' });
+  assert.deepEqual(mode22Data([[0x62, 0x15, 0x03, 0x41, 0x00]], '1503', { requireEcho: true }), { bytes: [0x41, 0x00], echoed: true });
   assert.deepEqual(mode22Data([[0x7f, 0x22, 0x31]], '1503'), { problem: 'refused', nrc: 0x31 });
   assert.deepEqual(mode22Data([], '1503'), { problem: 'noData' });
   assert.deepEqual(mode22Data([[0x62, 0x11, 0x02, 0x80], [0x62, 0x11, 0x02, 0x00, 0x10]], '1102'), { problem: 'several' });

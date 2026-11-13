@@ -876,7 +876,7 @@ export class CarLink {
     }
     const text = await this.send(`22${req.did}`);
     if (/NO ?DATA/i.test(text)) return set('noData');
-    const r = mode22Data(answerLines(text), req.did);
+    const r = mode22Data(answerLines(text), req.did, { requireEcho: this.kind === 'elm' });
     if (r.problem) return set(r.problem);
     const t = Date.now();
     let n = 0;

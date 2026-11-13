@@ -113,8 +113,9 @@ export function porscheRequests(index, year) {
 
 /// The data bytes of a Mode 22 answer: "62 15 03 xx xx" (ELM327, or a BlueDriver that keeps the echo) or the data
 /// bytes alone (as the BlueDriver answers Mode 01). A negative response ("7F 22 31") or more than one module's
-/// answer is reported, never decoded.
-export function mode22Data(lines, did) {
+/// answer is reported, never decoded. `requireEcho` (ELM327, which always sends the echo): an answer without
+/// "62" and the identifier is not this request's answer and is reported unreadable.
+export function mode22Data(lines, did, { requireEcho = false } = {}) {
   const d = [parseInt(did.slice(0, 2), 16), parseInt(did.slice(2, 4), 16)];
   const answers = lines.filter((l) => l.length);
   if (!answers.length) return { problem: 'noData' };
@@ -122,5 +123,6 @@ export function mode22Data(lines, did) {
   if (answers.length > 1) return { problem: 'several' };
   const l = answers[0];
   if (l[0] === 0x62 && l[1] === d[0] && l[2] === d[1]) return { bytes: l.slice(3), echoed: true };
+  if (requireEcho) return { problem: 'unreadable' };
   return { bytes: l, echoed: false };
 }

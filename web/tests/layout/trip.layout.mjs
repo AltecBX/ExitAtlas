@@ -270,8 +270,10 @@ await until(() => !window.exitAtlas.isRerouting);
 check((await ahead()).length === 2 && (await ahead())[1] === 'Richmond, Virginia' && lastRoutingPoints === 3, `a stop added mid trip is routed through (${(await ahead()).join(' then ')})`);
 await app(() => { window.__route = window.exitAtlas.plan.route; window.__gps.d = 0; window.__drive(5); });
 
-// 8. No connection while off the route: paced retries (app/reroute.js: at least 2 minutes apart, longer while
-//    each new route goes unfollowed), not one on every fix.
+// 8. No connection while off the route: paced retries (app/reroute.js: at least 2 minutes apart), not one on every
+//    fix. A request that failed gave no route, so it does not count as a route the driver left: the spacing stays
+//    at 2 minutes (5 requests in 500 s at most) and a reroute comes within 2 minutes of the connection's return,
+//    instead of backing off to 10 minutes.
 servers.routing = 'down';
 before = routingCalls;
 await unpaced();
@@ -281,7 +283,7 @@ const early = routingCalls - before;
 await app(() => window.__park(400, 2000));
 await page.waitForTimeout(300);
 const calls = routingCalls - before;
-check(early <= 1 && calls >= 2 && calls <= 4, `paced reroute requests without a connection (${early} in the first 100 s, ${calls} in 500 s)`);
+check(early <= 1 && calls >= 2 && calls <= 5, `paced reroute requests without a connection (${early} in the first 100 s, ${calls} in 500 s)`);
 servers.routing = 'ok';
 await app(() => window.__drive(35));
 await app(() => window.dispatchEvent(new Event('pagehide')));

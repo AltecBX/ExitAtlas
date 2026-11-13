@@ -59,3 +59,5 @@ touch to read them all at one moment.
 | Individual wheel speeds, steering angle, brake pressure | Chassis module 713: needs module addressing (ELM327 can; BlueDriver unknown) |
 | Requested torque (PID 61), EGT (PIDs 78/79) | Not listed by Jerry's car: Porsche Mode 22 candidates (torque, EGT) only |
 | Differential temperatures, per cylinder ignition correction, VTG actuator per turbo | Not found in the standard set or OBDb's 911 set |
+
+The November 2026 audit fixed defects in the connection, the plan and the recordings: [docs/22](22_audit.md).
