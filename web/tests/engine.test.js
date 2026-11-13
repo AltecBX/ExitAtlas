@@ -504,3 +504,31 @@ test('route serialization round trip keeps geometry, profile and steps', () => {
   assert.equal(back.steps.length, r.steps.length);
   near(back.timeProfile.secondsAt(100000), r.timeProfile.secondsAt(100000), 1);
 });
+
+test('time zone along the route: the one time profile answers exactly as a point in polygon test does', () => {
+  for (const name of ['atlanta_to_nashville', 'yonkers_to_orlando', 'miami_to_manhattan']) {
+    const plan = new TripPlan(route(name), datasets());
+    const exact = (d) => data.timeZones.identifier(plan.route.polyline.coordinateAt(d), plan.states.segmentAt(d)?.code ?? null);
+    const L = plan.route.length;
+    let checked = 0;
+    for (let i = 0; i <= 3000; i++) {
+      const d = (L * i) / 3000;
+      assert.equal(plan.timeZoneIDAt(d), exact(d), `${name} at ${Math.round(d)} m`);
+      checked++;
+    }
+    // Around every zone line, a metre at a time.
+    for (const z of plan.zoneProfile.segments.slice(1)) {
+      for (let k = -200; k <= 200; k++) {
+        if (k >= -1 && k <= 1) continue; // within a metre of the line the two may differ by rounding
+        const d = z.startDistance + k;
+        if (d < 0 || d > L) continue;
+        assert.equal(plan.timeZoneIDAt(d), exact(d), `${name} ${k} m from the zone line`);
+        checked++;
+      }
+    }
+    assert.ok(checked > 3000);
+    assert.equal(plan.timeZoneIDAt(-50), exact(0));
+    assert.equal(plan.timeZoneIDAt(L + 500), exact(L));
+  }
+  assert.deepEqual(new TripPlan(route('atlanta_to_nashville'), datasets()).zoneProfile.segments.map((z) => z.code), ['Eastern', 'Central']);
+});

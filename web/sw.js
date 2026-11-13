@@ -11,11 +11,11 @@
 
 /// SHA-256 over APP_FILES (each line "file sha256", web/tests/sw.test.js computes it and says the new value
 /// when an app file changes). It names this version's cache.
-const APP_HASH = '0a34954ed5d52d45569831b202fded89b947439479e873d55f9f6b3a937a54c1';
+const APP_HASH = '346da956ef29c7e67bfc4bbc56216a07467e9638fcd780051ba31cc46b450f3d';
 const CACHE = `exitatlas-v34-${APP_HASH.slice(0, 12)}`;
 const DATA_CACHE = 'exitatlas-data';
 const APP_FILES = [
-  './', 'index.html', 'css/tokens.css', 'css/app.css', 'css/cockpit.css', 'data/obdb/SAEJ1979.json', 'data/obdb/Porsche-911.json', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
+  './', 'index.html', 'css/tokens.css', 'css/app.css', 'css/cockpit.css', 'vendor/maplibre-gl-5.24.0/maplibre-gl.js', 'vendor/maplibre-gl-5.24.0/maplibre-gl.css', 'data/obdb/SAEJ1979.json', 'data/obdb/Porsche-911.json', 'fonts/overpass-var.woff2', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
   'js/app/main.js', 'js/app/views.js', 'js/app/services.js', 'js/app/format.js', 'js/app/map.js', 'js/app/limits.js', 'js/app/prices.js', 'js/app/pricebook.js', 'js/app/chargers.js', 'js/app/announcer.js', 'js/app/sharecard.js', 'js/app/proxy.js', 'js/app/profilestore.js', 'js/app/smartstops.js', 'js/app/roadalerts.js', 'js/app/weather.js', 'js/app/weatherahead.js', 'js/app/carlink.js', 'js/app/carrecord.js', 'js/app/cockpit.js', 'js/app/weathericons.js', 'js/app/navmap.js', 'js/app/net.js', 'js/app/reroute.js',
   'js/engine/geo.js', 'js/engine/datasets.js', 'js/engine/exits.js', 'js/engine/foodbrands.js', 'js/engine/obd.js', 'js/engine/obdpids.js', 'js/engine/obddiag.js', 'js/engine/obdlive.js', 'js/engine/obdb.js', 'js/engine/cockpit.js', 'js/engine/route.js',
   'js/engine/tracking.js', 'js/engine/trip.js', 'js/engine/discovery.js', 'js/engine/osrm.js', 'js/engine/fuel.js', 'js/engine/restareas.js', 'js/engine/discover.js', 'js/engine/travels.js', 'js/engine/datamanifest.js', 'js/engine/profile.js',

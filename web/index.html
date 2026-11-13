@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Only this site's own scripts run (plus the Census address lookup inside its sandboxed frame and its one inline
+     script, by hash): no inline handlers, no scripts from anywhere else, no plugins. Data requests go to https only. -->
+<!-- Inline event handlers never run (script-src-attr), the usual way injected markup would run script.
+     Script ELEMENTS stay open to inline and extension sources on purpose: the Web Bluetooth extension the car
+     connection needs on iPhone puts its own script into the page, and that cannot be tested from here. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' safari-web-extension: chrome-extension: moz-extension:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://geocoding.geo.census.gov safari-web-extension: chrome-extension: moz-extension:; script-src-attr 'none'; style-src 'self' 'unsafe-inline' safari-web-extension: chrome-extension: moz-extension:; img-src 'self' data: blob: https: safari-web-extension: chrome-extension: moz-extension:; font-src 'self' data: safari-web-extension: chrome-extension: moz-extension:; connect-src 'self' https: http://127.0.0.1:* http://localhost:* safari-web-extension: chrome-extension: moz-extension:; worker-src 'self' blob:; child-src 'self' blob: safari-web-extension: chrome-extension: moz-extension:; frame-src 'self' safari-web-extension: chrome-extension: moz-extension:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <title>ExitAtlas</title>
 <meta name="description" content="Interstate road trip companion: state lines, exits and services ahead, miles per state.">
 <meta name="theme-color" content="#f2f3f5" media="(prefers-color-scheme: light)">

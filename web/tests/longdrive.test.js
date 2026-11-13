@@ -420,3 +420,29 @@ test('reroute on the Taconic: past the exit of the route, one reroute keeps the 
   assert.equal(before.reroutes[0].next.text, 'Take the exit on the right toward US-44 E');
   assert.ok(before.reroutes.length >= 2, `${before.reroutes.length} reroutes taking the fastest`);
 });
+
+test('reroute pacing: requests that fail (no signal) do not lengthen the wait as routes the driver left do', () => {
+  const failing = new ReroutePacer();
+  const sent = [];
+  // Off route with no signal for an hour: every request fails.
+  for (let t = 0; t < 3600; t++) if (failing.allow(t)) { failing.started(t); failing.failed(); sent.push(t); }
+  assert.deepEqual(sent.slice(0, 5), [0, 120, 240, 360, 480]);
+  assert.equal(failing.wait, REROUTE_PACING.spacing);
+  // Routes that arrive and are left still back off.
+  const leaving = new ReroutePacer();
+  for (let t = 0; t < 3600; t++) if (leaving.allow(t)) leaving.started(t);
+  assert.equal(leaving.wait, REROUTE_PACING.maxSpacing);
+});
+
+test('discovery mode: a new plan only off the road, or near the plan end when the highway goes on past it', async () => {
+  const { discoveryNeedsPlan } = await import('../js/engine/discovery.js');
+  const far = 100 * MI, near = 30 * MI;
+  assert.equal(discoveryNeedsPlan({ remaining: far, offRoute: false, partAhead: far }), false);
+  assert.equal(discoveryNeedsPlan({ remaining: far, offRoute: true, partAhead: far }), true);
+  // Within 50 miles of the plan end and the highway continues 300 miles: one rebuild.
+  assert.equal(discoveryNeedsPlan({ remaining: near, offRoute: false, partAhead: 300 * MI }), true);
+  // The plan already reaches the end of this part of the highway: no rebuild on every fix (it used to).
+  assert.equal(discoveryNeedsPlan({ remaining: near, offRoute: false, partAhead: near }), false);
+  assert.equal(discoveryNeedsPlan({ remaining: near, offRoute: false, partAhead: near + 500 }), false);
+  assert.equal(discoveryNeedsPlan({ remaining: 0, offRoute: false, partAhead: 0 }), false);
+});

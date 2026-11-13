@@ -188,3 +188,60 @@ test('the iOS app (no Origin, named in X-ExitAtlas-Client) can share and read; a
   const fake = await handle(new Request('https://proxy.test/v1/price-reports?stations=osm:n1', { headers: { 'X-ExitAtlas-Client': 'curl/8' } }), e);
   assert.equal(fake.status, 403);
 });
+
+test('one vote per client in the outlier check: many install ids from one address cannot outvote the others', async () => {
+  const handle = createHandler({ now: () => NOW });
+  const e = env({ CLIENT_DAILY_PRICE_REPORTS: '0' });
+  // One address sends a false price under four install ids (and payment kinds, so none replaces another).
+  for (const [i, payment] of ['credit', 'cash', null, 'credit'].entries()) {
+    assert.equal((await handle(post(report({ price: 1.999, payment, member: false, install: `install-fake${i}` }), { ip: '198.51.100.77' }), e)).status, 200);
+  }
+  // An honest price from another address is still accepted: the four count as one vote, under the three needed.
+  assert.equal((await handle(post(report({ price: 3.099, install: 'install-honest1' }), { ip: '203.0.113.9' }), e)).status, 200);
+});
+
+test('lookups: a limit per client before the one for everyone, old rows cleaned on lookups too, no reports without the salt', async () => {
+  const handle = createHandler({ now: () => NOW });
+  const e = env({ CLIENT_DAILY_PRICE_READS: '2', DAILY_PRICE_READS: '100' });
+  const read = (ip) => handle(new Request('https://proxy.test/v1/price-reports?stations=osm:n1', { headers: { Origin: ORIGIN, 'CF-Connecting-IP': ip } }), e);
+  assert.equal((await read('1.1.1.1')).status, 200);
+  assert.equal((await read('1.1.1.1')).status, 200);
+  const third = await read('1.1.1.1');
+  assert.equal(third.status, 429);
+  assert.match((await third.json()).error, /your daily lookup limit/);
+  for (let i = 0; i < 5; i++) await read('1.1.1.1');
+  const day = new Date(NOW).toISOString().slice(0, 10);
+  assert.equal(e.PRICES_DB.sql.prepare('SELECT n FROM counters WHERE key = ?').get(`${day}:reads`).n, 2, 'a client past its limit does not use up the shared budget');
+  assert.equal((await read('2.2.2.2')).status, 200);
+
+  // Rows past 7 days are deleted on a lookup when nobody reports (every REPORT_LIMITS.cleanEvery lookups).
+  const f = env({ CLIENT_DAILY_PRICE_READS: '0' });
+  f.PRICES_DB.sql.prepare('INSERT INTO reports (id, station, grade, price, payment, member, reported_at, reporter, client) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run('old', 'osm:n1', 'R', 3.0, null, 0, Math.floor(NOW / 1000) - 8 * 86400, 'r', 'c');
+  f.PRICES_DB.sql.prepare('INSERT INTO counters (key, day, n) VALUES (?, ?, ?)').run(`${day}:reads`, day, REPORT_LIMITS.cleanEvery - 1);
+  assert.equal((await handle(get('osm:n1'), f)).status, 200);
+  assert.equal(f.PRICES_DB.sql.prepare('SELECT COUNT(*) AS n FROM reports').get().n, 0);
+
+  const noSalt = env({ CLIENT_SALT: '' });
+  assert.equal((await handle(post(report()), noSalt)).status, 503);
+  assert.equal((await handle(get('osm:n1'), noSalt)).status, 503);
+  assert.equal(noSalt.PRICES_DB.sql.prepare('SELECT COUNT(*) AS n FROM reports').get().n, 0);
+});
+
+test('budget counts are one statement each: calls at the same moment cannot both slip under a limit', async () => {
+  const handle = createHandler({ now: () => NOW });
+  const e = env({ DAILY_PRICE_REPORTS: '3', CLIENT_DAILY_PRICE_REPORTS: '0' });
+  const all = await Promise.all(Array.from({ length: 8 }, (_, i) => handle(post(report({ stationId: `osm:s${i}`, install: `install-par${i}` }), { ip: `198.51.100.${i}` }), e)));
+  assert.equal(all.filter((r) => r.status === 200).length, 3);
+  assert.equal(all.filter((r) => r.status === 429).length, 5);
+  assert.equal(e.PRICES_DB.sql.prepare('SELECT COUNT(*) AS n FROM reports').get().n, 3);
+  // The Google prices budget is counted the same way when the database is bound (no KV needed).
+  const calls = [];
+  const google = createHandler({ fetchImpl: async (url) => { calls.push(String(url)); return new Response('{"places":[]}'); }, now: () => NOW });
+  const g = env({ GOOGLE_KEY: 'g', DAILY_PRICES: '4', CLIENT_DAILY_PRICES: '0' });
+  const price = (i) => google(new Request('https://proxy.test/v1/gas-prices', { method: 'POST', body: JSON.stringify({ lat: 30.4, lon: -81.6 }),
+    headers: { Origin: ORIGIN, 'CF-Connecting-IP': `198.51.100.${i}`, 'Content-Type': 'application/json' } }), g);
+  const answers = await Promise.all(Array.from({ length: 10 }, (_, i) => price(i)));
+  assert.equal(answers.filter((r) => r.status === 200).length, 4);
+  assert.equal(calls.length, 4, 'exactly the budget reached Google');
+});

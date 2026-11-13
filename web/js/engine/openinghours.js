@@ -20,6 +20,18 @@ const dayIndex = (t) => DAYS.findIndex((d) => d.toLowerCase() === t.toLowerCase(
 /// with Monday first, or null when the text does not parse.
 export function parseOpeningHours(text) {
   if (typeof text !== 'string') return null;
+  // The same few thousand texts are asked for on every redraw: each is parsed once. (Callers do not change the
+  // result.)
+  if (parsed.has(text)) return parsed.get(text);
+  const result = parseHours(text);
+  if (parsed.size >= 5000) parsed.clear();
+  parsed.set(text, result);
+  return result;
+}
+
+const parsed = new Map();
+
+function parseHours(text) {
   const src = text.trim().replace(/\s+/g, ' ');
   if (!src) return null;
   const week = DAYS.map(() => []);
@@ -145,8 +157,10 @@ export function openAt(hours, weekday, minute) {
 
 /// Weekday (0 = Monday) and minute of the day at a time (epoch seconds) in an IANA time zone.
 const formatters = new Map();
+const WEEK = 7 * 1440;
 
-export function localTime(epochSeconds, timeZone) {
+/// From the browser's time zone data (the slow way: about 20 microseconds a call).
+function localTimeIntl(epochSeconds, timeZone) {
   let f = formatters.get(timeZone);
   if (!f) {
     f = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -156,4 +170,30 @@ export function localTime(epochSeconds, timeZone) {
   const get = (type) => parts.find((p) => p.type === type)?.value;
   const weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(get('weekday'));
   return { weekday, minute: (Number(get('hour')) % 24) * 60 + Number(get('minute')) };
+}
+
+/// Minute of the week (Monday 00:00 = 0) in UTC: January 1 1970 was a Thursday.
+const utcWeekMinute = (epochSeconds) => (((Math.floor(epochSeconds / 60) + 3 * 1440) % WEEK) + WEEK) % WEEK;
+
+/// The zone's offset from UTC in minutes, asked of the browser once per zone and quarter hour: offsets change only
+/// on a quarter hour of UTC (daylight saving starts and ends on the hour), so within one the offset is constant
+/// and the local time is plain arithmetic. This is asked for every stop on every redraw.
+const offsets = new Map();
+
+export function localTime(epochSeconds, timeZone) {
+  if (!Number.isFinite(epochSeconds)) return localTimeIntl(epochSeconds, timeZone);
+  const quarter = Math.floor(epochSeconds / 900);
+  const key = `${timeZone}|${quarter}`;
+  let offset = offsets.get(key);
+  if (offset === undefined) {
+    const start = quarter * 900;
+    const local = localTimeIntl(start, timeZone);
+    if (local.weekday < 0 || !Number.isFinite(local.minute)) return localTimeIntl(epochSeconds, timeZone);
+    offset = (((local.weekday * 1440 + local.minute - utcWeekMinute(start)) % WEEK) + WEEK) % WEEK;
+    if (offset > WEEK / 2) offset -= WEEK;
+    if (offsets.size >= 4000) offsets.clear();
+    offsets.set(key, offset);
+  }
+  const m = (((utcWeekMinute(epochSeconds) + offset) % WEEK) + WEEK) % WEEK;
+  return { weekday: Math.floor(m / 1440), minute: m % 1440 };
 }

@@ -188,3 +188,40 @@ test('range reading age: shown when over 6 hours old or from an earlier day, nev
   assert.equal(plain(readingAge(Date.UTC(2026, 9, 28, 13, 0) / 1000, now, ny)), 'Wed 9:00 AM');
   assert.equal(plain(readingAge(Date.UTC(2026, 9, 20, 13, 0) / 1000, now, ny)), 'Oct 20 9:00 AM');
 });
+
+test('Google lookups: one that never left the phone is not counted and is asked again in 2 minutes; lookups on their way count against the limit', async () => {
+  let used = 0, now = 1_000_000_000, fetched = 0, online = false;
+  const prices = new GasPrices({
+    getKey: () => 'k', allowed: () => true, usedToday: () => used, onCall: () => { used += 1; }, now: () => now,
+    fetchImpl: async () => { fetched += 1; if (!online) throw new TypeError('Load failed'); return { ok: true, status: 200, json: async () => ({ places: [] }) }; },
+  });
+  const exit = { id: 'a', coordinate: { lat: 1, lon: 1 } };
+  const failed = await prices.load(exit);
+  assert.equal(failed.error, 'No connection');
+  assert.equal(used, 0, 'a request that never left is not counted');
+  assert.equal(prices.inFlight, 0);
+  now += 60_000;
+  await prices.load(exit);
+  assert.equal(fetched, 1, 'not asked again within 2 minutes');
+  now += 61_000;
+  online = true;
+  assert.equal((await prices.load(exit)).error, null);
+  assert.equal(fetched, 2, 'asked again after 2 minutes, not an hour');
+  assert.equal(used, 1, 'an answered request is counted once');
+  // Two lookups started together with one left in the day's budget: only one goes out.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let sent = 0, count = 29;
+  const slow = new GasPrices({
+    getKey: () => 'k', allowed: () => true, usedToday: () => count, onCall: () => { count += 1; },
+    fetchImpl: async () => { sent += 1; await gate; return { ok: true, status: 200, json: async () => ({ places: [] }) }; },
+  });
+  const first = slow.load({ id: 'x', coordinate: { lat: 1, lon: 1 } });
+  const second = await slow.load({ id: 'y', coordinate: { lat: 1, lon: 1 } });
+  assert.match(second.error, /30 Google price checks are used/);
+  release();
+  await first;
+  assert.equal(sent, 1);
+  assert.equal(count, 30);
+  assert.equal(slow.inFlight, 0);
+});

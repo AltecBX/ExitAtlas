@@ -23,4 +23,8 @@ test('the precached set is the whole app: the page, every module, its styles, fo
   const page = readFileSync(path.join(WEB, 'index.html'), 'utf8');
   for (const [, href] of page.matchAll(/(?:href|src)="([^"#:]+)"/g)) assert.ok(files.includes(href), `${href} (from index.html) is precached`);
   assert.ok(files.includes('./') && files.includes('index.html'));
+  // The map library is loaded by a script tag (app/navmap.js), not an import: it must be kept for offline starts too.
+  const navmap = readFileSync(path.join(WEB, 'js/app/navmap.js'), 'utf8');
+  const version = navmap.match(/const VERSION = '([^']+)'/)[1];
+  for (const f of ['maplibre-gl.js', 'maplibre-gl.css']) assert.ok(files.includes(`vendor/maplibre-gl-${version}/${f}`), `the map library's ${f} is precached`);
 });

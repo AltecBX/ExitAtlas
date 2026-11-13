@@ -373,6 +373,11 @@ function uniquePlaces(list) {
 /// Street addresses from the U.S. Census Bureau geocoder (free, public domain, no key or account). It sends no CORS
 /// headers, so its JSONP answer is read inside a sandboxed frame that has no access to this page or its storage;
 /// only plain data comes back, and it is checked before use. [] when the query is not an address or on any failure.
+/// The one inline script the app has, inside that frame: the JSONP callback, and a failed load reported at once
+/// (a capturing error listener: the page's Content Security Policy, index.html, forbids inline onerror attributes).
+export const CENSUS_FRAME_SCRIPT = "function done(d){parent.postMessage({matches:(d&&d.result&&d.result.addressMatches)||[]},'*')}"
+  + "addEventListener('error',function(){parent.postMessage({matches:[]},'*')},true)";
+
 function censusAddresses(query, { timeout = 10000 } = {}) {
   if (typeof document === 'undefined' || !/^\s*\d+[A-Za-z]?\s+\S/.test(query)) return Promise.resolve([]);
   const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${new URLSearchParams({ address: query, benchmark: 'Public_AR_Current', format: 'jsonp', callback: 'done' })}`;
@@ -390,7 +395,7 @@ function censusAddresses(query, { timeout = 10000 } = {}) {
     };
     window.addEventListener('message', onMessage);
     timer = setTimeout(() => finish([]), timeout);
-    frame.srcdoc = `<script>function done(d){parent.postMessage({matches:(d&&d.result&&d.result.addressMatches)||[]},'*')}<\/script><script src="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" onerror="parent.postMessage({matches:[]},'*')"><\/script>`;
+    frame.srcdoc = `<script>${CENSUS_FRAME_SCRIPT}<\/script><script src="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"><\/script>`;
     document.body.append(frame);
   });
 }

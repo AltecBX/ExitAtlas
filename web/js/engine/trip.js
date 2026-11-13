@@ -1,6 +1,6 @@
 // Trip plan, dashboard snapshot and live session. Port of Trip/*.swift.
 import { METERS_PER_MILE, distance as geoDistance } from './geo.js';
-import { RegionSegmenter } from './datasets.js';
+import { RegionSegmenter, TimeZoneResolver } from './datasets.js';
 import { ExitMatcher, optionsForSource } from './exits.js';
 import { matchRestAreas } from './restareas.js';
 import { matchDiscover } from './discover.js';
@@ -42,6 +42,10 @@ export class TripPlan {
     this.timeZones = datasets.timeZones ?? null;
     this.timeZoneIDs = this.states.segments.map((seg) => (
       this.timeZones ? this.timeZones.identifier(seg.entryCoordinate, seg.code) : null));
+    // The time zones along the route, split once at the exact zone lines (no smoothing): timeZoneIDAt is asked for
+    // every stop on every redraw, and a point in polygon test each time was the largest cost while driving.
+    this.zoneProfile = this.timeZones?.zones
+      ? new RegionSegmenter({ briefThreshold: 0, noiseThreshold: 0 }).segment(route.polyline, this.timeZones.zones) : null;
   }
 
   /// Exits strictly after `start` and before `end`, counted by position, never by exit numbers.
@@ -89,7 +93,9 @@ export class TripPlan {
   timeZoneIDAt(distance) {
     if (!this.timeZones) return null;
     const code = this.states.segmentAt(distance)?.code ?? null;
-    return this.timeZones.identifier(this.route.polyline.coordinateAt(distance), code);
+    if (!this.zoneProfile) return this.timeZones.identifier(this.route.polyline.coordinateAt(distance), code);
+    const zone = this.zoneProfile.segmentAt(Math.min(Math.max(distance, 0), this.route.length))?.code ?? null;
+    return zone ? TimeZoneResolver.iana(zone, code) : null;
   }
 
   timeZoneIDAtSegmentStart(index) {
