@@ -118,25 +118,31 @@ export const periodFor = (speed, pid) => (pid != null && FIXED.has(pid) ? 60000 
 /// What the scanner reads while these gauges are on screen: each request once, at the fastest period any gauge
 /// needs. Mode 01 PIDs the car does not list are left out; Porsche requests only when Porsche data is enabled, and
 /// not once a probe found they do not answer. The fuel level is always in it (the range planner uses it).
-export function buildPlan(gauges, { supported = null, porscheResults = null, porscheReqs = null, porsche = false } = {}) {
+/// A gauge's second needle (its target) is read too, and so is what the screen shows or watches besides its
+/// gauges (`also`: channel keys read every 5 s: the driver's alert limits, the oil temperature of the warm up line).
+export function buildPlan(gauges, { supported = null, porscheResults = null, porscheReqs = null, porsche = false, also = [] } = {}) {
   const plan = new Map();
   const want = (id, item) => { const was = plan.get(id); if (!was || item.period < was.period) plan.set(id, item); };
-  for (const g of gauges) {
-    for (const key of inputsOf(g)) {
-      const r = requestOf(key);
-      if (!r) continue;
-      if (r.kind === '01') {
-        if (supported && !supported.has(r.pid)) continue;
-        want(`01:${r.pid}`, { id: `01:${r.pid}`, kind: '01', pid: r.pid, period: periodFor(g.speed, r.pid) });
-      } else if (porsche) {
-        const st = porscheResults?.get(r.key);
-        if (st && st !== 'ok') continue;
-        const req = porscheReqs?.get(r.key);
-        if (!req) continue;
-        want(r.key, { id: r.key, kind: '22', req, period: Math.max(g.speed === 'slow' ? 5000 : 500, (req.freq ?? 1) * 1000 > 60000 ? 60000 : 0) });
-      }
+  const add = (key, speed) => {
+    const r = requestOf(key);
+    if (!r) return;
+    if (r.kind === '01') {
+      if (supported && !supported.has(r.pid)) return;
+      want(`01:${r.pid}`, { id: `01:${r.pid}`, kind: '01', pid: r.pid, period: periodFor(speed, r.pid) });
+    } else if (porsche) {
+      const st = porscheResults?.get(r.key);
+      if (st && st !== 'ok') return;
+      const req = porscheReqs?.get(r.key);
+      if (!req) return;
+      want(r.key, { id: r.key, kind: '22', req, period: Math.max(speed === 'slow' ? 5000 : 500, (req.freq ?? 1) * 1000 > 60000 ? 60000 : 0) });
     }
+  };
+  for (const g of gauges) {
+    for (const key of inputsOf(g)) add(key, g.speed);
+    const target = g.dual ? GAUGES[g.dual] : null;
+    if (target) for (const key of inputsOf(target)) add(key, target.speed);
   }
+  for (const key of also) add(key, 'slow');
   if (!supported || supported.has(0x2f)) want('01:47', { id: '01:47', kind: '01', pid: 0x2f, period: 10000 });
   return [...plan.values()];
 }

@@ -50,6 +50,12 @@ export const CAR_RULES = Object.freeze({
   fuelEvery: 5, statusEvery: 60,
   /// Command time limits (ms): the first request searches for the car's protocol and can take several seconds.
   commandTimeout: 4000, searchTimeout: 15000,
+  /// A pause between two readings longer than this is not counted into a sensor's update interval (ms).
+  gapMs: 10000,
+  /// After a request with no answer, the longest wait for its late answer before the next request goes out (ms).
+  settleMs: 2000,
+  /// A request that answered with no data or an error is asked again this often (ms), not on every pass.
+  retryFailedMs: 15000,
   /// Bytes per write (the smallest Bluetooth LE payload; the CX takes more but does not queue writes).
   chunk: 20,
   /// Reconnect tries after an unintended disconnect, seconds apart.
@@ -127,6 +133,11 @@ export class CarLink {
   }
 
   reset() {
+    // A connection being opened, a request in the air and the live loop all belong to the old connection.
+    this.openGen = (this.openGen ?? 0) + 1;
+    this.liveGen = (this.liveGen ?? 0) + 1;
+    if (this.waiting || this.settling) this.abandon('disconnected');
+    this.unlisten?.();
     /// idle | connecting | connected | disconnected | error
     this.state = 'idle';
     this.device = null; this.name = null; this.identity = null;
@@ -144,13 +155,27 @@ export class CarLink {
     /// Live data: on, and per channel key { value, t, min, max, sum, n, history }; per PID 'ok' or 'noData'.
     /// multi: PIDs per request (null until probed, 1 for one at a time); rate: readings and requests a second.
     this.live = { on: false, values: new Map(), status: new Map(), cycleMs: null, requests: 0, startedAt: null, round: 0, multi: null,
-      multiFailures: 0, rate: null, latency: null, answers: 0, timeouts: 0, lastRead: new Map() };
+      multiFailures: 0, rate: null, latency: null, answers: 0, timeouts: 0, lastRead: new Map(), fails: new Map(), passes: 0 };
     /// Porsche manufacturer data (Mode 22): each request's last result by key ('ok', 'noData', 'refused',
     /// 'several', 'shared', 'error'), and the module header the adapter is set to (ELM327 only).
     this.enhanced = { results: new Map(), header: null };
     this.write = null; this.control = null; this.kind = null; this.waiting = null; this.buffer = ''; this.queue = Promise.resolve();
+    this.late = false; this.settling = null;
     this.unacked = 0; clearTimeout(this.ackTimer); this.ackTimer = null;
     this.stopTimers();
+  }
+
+  /// Listeners added to the device and its characteristics are removed again (unlisten: all, on reset;
+  /// unlistenSerial: the characteristics', before each open).
+  unlistenSerial() {
+    for (const [target, type, fn] of this.heardSerial ?? []) { try { target.removeEventListener?.(type, fn); } catch { /* gone */ } }
+    this.heardSerial = [];
+  }
+
+  unlisten() {
+    this.unlistenSerial();
+    for (const [target, type, fn] of this.heard ?? []) { try { target.removeEventListener?.(type, fn); } catch { /* gone */ } }
+    this.heard = [];
   }
 
   /// Web Bluetooth is there (Chrome, or Safari with beacio).
@@ -245,24 +270,40 @@ export class CarLink {
     this.device = device;
     this.name = device.name || 'OBD2 adapter';
     this.logLine('i', `picked ${this.name}${any ? ' (all devices)' : ''}`);
-    device.addEventListener?.('gattserverdisconnected', () => this.lost());
+    this.onGattLost = () => { if (this.device === device) this.lost(); };
+    device.addEventListener?.('gattserverdisconnected', this.onGattLost);
+    this.heard.push([device, 'gattserverdisconnected', this.onGattLost]);
     await this.open();
   }
 
   /// Connects to the chosen adapter (again, after a drop) and starts reading.
   async open() {
+    // A newer open, or a disconnect by the driver, makes this one stale: it then changes nothing.
+    const gen = ++this.openGen;
+    const stale = () => gen !== this.openGen;
     this.state = 'connecting'; this.problem = null; this.changed();
     try {
       const server = await this.ble(() => this.device.gatt.connect(), 'connect');
+      if (stale()) return;
       const { notify, write, kind, control, mode } = await this.findSerial(server);
+      if (stale()) return;
       this.kind = kind;
       this.logLine('i', `serial: ${kind}`);
-      this.deviceInfo = await this.readDeviceInfo(server);
+      const deviceInfo = await this.readDeviceInfo(server);
+      if (stale()) return;
+      this.deviceInfo = deviceInfo;
       if (kind === 'bluedriver' && !/bluedriv/i.test(this.name ?? '')) this.name = `BlueDriver ${this.name ?? ''}`.trim();
       this.write = write;
       this.control = control ?? null;
-      this.buffer = ''; this.queue = Promise.resolve(); this.waiting = null;
-      notify.addEventListener('characteristicvaluechanged', (e) => this.received(e.target.value));
+      this.buffer = ''; this.queue = Promise.resolve(); this.waiting = null; this.late = false;
+      // The adapter was reset by the reconnect: it is no longer pointed at one module.
+      this.enhanced.header = null;
+      // One listener per characteristic, whatever the number of reconnects (a platform may hand back the same
+      // object, and two listeners would take every answer twice).
+      this.unlistenSerial();
+      const onValue = (e) => { if (gen === this.openGen) this.received(e.target.value); };
+      notify.addEventListener('characteristicvaluechanged', onValue);
+      this.heardSerial.push([notify, 'characteristicvaluechanged', onValue]);
       if (kind === 'bluedriver') {
         await this.openBlueDriver(server, { notify, write, mode });
       } else {
@@ -270,13 +311,16 @@ export class CarLink {
         for (const c of SETUP_COMMANDS) await this.send(c);
         this.identity = parseIdentity(await this.send('ATI'));
       }
+      if (stale()) return;
       this.logLine('i', `identity: ${this.identity ?? 'none'}`);
       this.state = 'connected'; this.tries = 0; this.disconnectedAt = null;
       this.changed();
       await this.findPIDs();
+      if (stale()) return;
       this.startTimers();
       if (this.wantLive && !this.live.on) this.startLive();
     } catch (e) {
+      if (stale()) return;
       this.logLine('!', `open failed: ${e?.message ?? e}`);
       if (this.state === 'disconnected') return;
       this.state = 'error';
@@ -304,10 +348,12 @@ export class CarLink {
       } catch (e) { this.logLine('i', `pairing characteristic: ${e?.message ?? e}`); }
     };
     try { await subscribe(); await pair(); } catch (e) { this.logLine('i', `notifications before pairing: ${e?.message ?? e}`); await pair(); await subscribe(); }
-    write.addEventListener('characteristicvaluechanged', (e) => {
+    const onFlow = (e) => {
       const v = e.target.value;
       this.logLine('~', 'rx flow control', new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
-    });
+    };
+    write.addEventListener('characteristicvaluechanged', onFlow);
+    this.heardSerial.push([write, 'characteristicvaluechanged', onFlow]);
     // Fast Ack: our buffer, 0x7FFF bytes (little endian).
     await this.ble(() => this.control.writeValueWithoutResponse(new Uint8Array([0x00, 0xff, 0x7f])), 'buffer size');
     let id = null;
@@ -365,11 +411,20 @@ export class CarLink {
     this.logLine('<', fragment, new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
     this.buffer += fragment;
     const end = this.buffer.indexOf('>');
-    if (end < 0 || !this.waiting) return;
+    if (end < 0) return;
+    const w = this.waiting;
+    if (!w || w.done) {
+      // A complete answer nobody waits for (it came after its time limit): dropped, never kept for the next request.
+      this.buffer = this.buffer.slice(this.buffer.lastIndexOf('>') + 1);
+      this.logLine('!', 'late answer dropped');
+      this.late = false;
+      this.settling?.();
+      return;
+    }
     const text = this.buffer.slice(0, end);
     this.buffer = this.buffer.slice(end + 1);
-    const w = this.waiting;
     this.waiting = null;
+    w.done = true;
     clearTimeout(w.timer);
     w.resolve(text);
   }
@@ -385,13 +440,37 @@ export class CarLink {
   }
 
   /// Sends one command and resolves with the adapter's answer (one at a time; the adapter takes no queue).
+  /// An answer belongs to the request before it only by order, so the order must never slip: text left from an
+  /// earlier request is thrown away before a request goes out, the time limit starts once the request is on the
+  /// air, and after a request that got no answer (or failed halfway) the next one waits until that late answer has
+  /// come or the line has been quiet, so a late answer is never taken for the next request's.
   send(cmd, timeout = CAR_RULES.commandTimeout) {
-    let started = performance.now();
     const run = async () => {
       if (!this.write) throw new Error('not connected');
-      const answer = new Promise((resolve, reject) => {
-        this.waiting = { resolve, timer: setTimeout(() => { this.waiting = null; reject(new Error(`no answer to ${cmd}`)); }, timeout) };
-      });
+      // An ELM327 left pointed at one module by a Porsche request: back to every module before a standard request.
+      if (this.kind === 'elm' && this.enhanced.header && this.enhanced.header !== '7DF' && !/^(AT|22)/i.test(cmd)) {
+        await this.exchange('ATSH7DF', CAR_RULES.commandTimeout);
+        this.enhanced.header = '7DF';
+      }
+      return this.exchange(cmd, timeout);
+    };
+    const p = this.queue.then(run, run);
+    this.queue = p.catch(() => {});
+    return p;
+  }
+
+  /// One request and its answer. Only send() calls it, one at a time.
+  async exchange(cmd, timeout) {
+    if (!this.write) throw new Error('not connected');
+    if (this.late) await this.settle();
+    if (!this.write) throw new Error('not connected');
+    this.buffer = '';
+    const w = { cmd, done: false, timer: null, resolve: null, reject: null };
+    const answer = new Promise((resolve, reject) => { w.resolve = resolve; w.reject = reject; });
+    answer.catch(() => {}); // a rejection is always handled below; this keeps an early one from being "unhandled"
+    this.waiting = w;
+    let started = performance.now();
+    try {
       const plain = new TextEncoder().encode(`${cmd}\r`);
       const bytes = this.kind === 'bluedriver' ? bluedriverCodec(plain) : plain;
       this.logLine('>', cmd, bytes);
@@ -399,23 +478,59 @@ export class CarLink {
       const useNoResponse = typeof this.write.writeValueWithoutResponse === 'function' && this.write.properties?.writeWithoutResponse !== false;
       for (let i = 0; i < bytes.length; i += CAR_RULES.chunk) {
         const part = bytes.slice(i, i + CAR_RULES.chunk);
-        const w = this.write;
-        if (useNoResponse) await this.ble(() => w.writeValueWithoutResponse(part), `write ${cmd}`);
-        else if (typeof w.writeValueWithResponse === 'function') await this.ble(() => w.writeValueWithResponse(part), `write ${cmd}`);
-        else await this.ble(() => w.writeValue(part), `write ${cmd}`);
+        const wr = this.write;
+        if (!wr) throw new Error('adapter disconnected');
+        if (useNoResponse) await this.ble(() => wr.writeValueWithoutResponse(part), `write ${cmd}`);
+        else if (typeof wr.writeValueWithResponse === 'function') await this.ble(() => wr.writeValueWithResponse(part), `write ${cmd}`);
+        else await this.ble(() => wr.writeValue(part), `write ${cmd}`);
         if (i === 0) started = performance.now();
       }
-      // Time from the request on the air to the whole answer, and answers that never came (dropped).
-      return answer.then((text) => {
-        const ms = performance.now() - started;
-        this.live.answers++;
-        this.live.latency = this.live.latency == null ? ms : this.live.latency * 0.8 + ms * 0.2;
-        return text;
-      }, (e) => { this.live.timeouts++; throw e; });
-    };
-    const p = this.queue.then(run, run);
-    this.queue = p.catch(() => {});
-    return p;
+    } catch (e) {
+      // Part of the request may have gone out: whatever comes back is not the next request's answer.
+      if (this.waiting === w) this.waiting = null;
+      if (!w.done) { w.done = true; this.late = true; }
+      throw e;
+    }
+    if (!w.done) {
+      w.timer = setTimeout(() => {
+        if (w.done) return;
+        w.done = true;
+        if (this.waiting === w) this.waiting = null;
+        this.late = true;
+        w.reject(new Error(`no answer to ${cmd}`));
+      }, timeout);
+    }
+    // Time from the request on the air to the whole answer, and answers that never came (dropped).
+    try {
+      const text = await answer;
+      const ms = performance.now() - started;
+      this.live.answers++;
+      this.live.latency = this.live.latency == null ? ms : this.live.latency * 0.8 + ms * 0.2;
+      return text;
+    } catch (e) {
+      this.live.timeouts++;
+      throw e;
+    }
+  }
+
+  /// After a request that got no answer: waits for its late answer (the adapter's ">"), at most settleMs, so that
+  /// answer cannot be taken for the next request's.
+  settle() {
+    return new Promise((resolve) => {
+      const done = () => { clearTimeout(timer); this.settling = null; this.late = false; this.buffer = ''; resolve(); };
+      const timer = setTimeout(done, CAR_RULES.settleMs);
+      this.settling = done;
+    });
+  }
+
+  /// Ends the request in the air with an error (the adapter dropped, or the driver disconnected), so whatever was
+  /// waiting for it carries on instead of hanging.
+  abandon(reason) {
+    const w = this.waiting;
+    this.waiting = null;
+    if (w && !w.done) { w.done = true; clearTimeout(w.timer); w.reject(new Error(reason)); }
+    this.settling?.();
+    this.late = false;
   }
 
   /// Which PIDs the car reports: every "supported PIDs" mask in turn (00, 20, ... E0), each listing the next 32
@@ -437,7 +552,12 @@ export class CarLink {
         }
         break;
       }
-      for (let pid = base + 1; pid <= base + 32; pid++) if (supports(r.bytes, base, pid)) listed.add(pid);
+      // Every control unit that answers lists its own PIDs (the engine many, the transmission a few): the car
+      // offers what any of them lists.
+      for (const bytes of r.all ?? [r.bytes]) {
+        if (bytes.length < 4) continue;
+        for (let pid = base + 1; pid <= base + 32; pid++) if (supports(bytes, base, pid)) listed.add(pid);
+      }
     }
     this.supported = listed;
     this.logLine('i', `Mode 01 PIDs listed: ${[...listed].map((p) => p.toString(16).padStart(2, '0')).join(' ')}`);
@@ -496,9 +616,11 @@ export class CarLink {
       // Several control units answer 01 01 in turn (Jerry's 911: "00 07 E4 00" then "00 04 00 00"), and a bare
       // answer does not say which one: each is kept by the monitors it supports. The light is on when any says so,
       // stored codes add up, and the readiness shown is the unit with the most monitors (the engine's).
-      const b = m.bytes.slice(0, 4);
       this.monitorByUnit = this.monitorByUnit ?? new Map();
-      this.monitorByUnit.set(`${b[1] & 0x0f}:${b[2]}`, b);
+      for (const unit of (m.all ?? [m.bytes]).filter((x) => x.length >= 4)) {
+        const b = unit.slice(0, 4);
+        this.monitorByUnit.set(`${b[1] & 0x0f}:${b[2]}`, b);
+      }
       const all = [...this.monitorByUnit.values()];
       const bits = (x) => { let n = 0; for (let v = x; v; v >>= 1) n += v & 1; return n; };
       this.monitorBytes = all.reduce((best, x) => (bits(x[1] & 0x07) + bits(x[2]) > bits(best[1] & 0x07) + bits(best[2]) ? x : best));
@@ -581,7 +703,8 @@ export class CarLink {
     this.live.startedAt = Date.now();
     this.logLine('i', 'live data on');
     this.changed();
-    this.liveLoop();
+    // A loop from before a stop may still be waiting for its last answer: only the newest loop goes on.
+    this.liveLoop(++this.liveGen);
   }
 
   /// The driver stops live data (a recording stops with it).
@@ -592,6 +715,16 @@ export class CarLink {
     this.live.on = false;
     this.alertStates.clear();
     this.logLine('i', 'live data off');
+    this.changed();
+  }
+
+  /// Live data set aside for a moment (the Porsche probe needs the adapter to itself): the loop ends, a recording
+  /// and the driver's wish for live data stay. startLive() carries on.
+  pauseLive() {
+    if (!this.live.on) return;
+    this.live.on = false;
+    this.liveGen++;
+    this.logLine('i', 'live data paused');
     this.changed();
   }
 
@@ -627,42 +760,56 @@ export class CarLink {
   /// longer periods for slow ones (temperatures, fuel level). Without one, every PID the car lists.
   setPlan(plan) { this.plan = plan?.length ? plan : null; }
 
-  async planRound() {
+  async planRound(alive = () => this.live.on && this.state === 'connected') {
     const now = performance.now();
     const last = this.live.lastRead;
-    const due = this.plan.filter((p) => now - (last.get(p.id) ?? -1e9) >= p.period)
+    // An item that failed twice in a row (no data, or no answer) is asked again every retryFailedMs, not on
+    // every pass: each such request costs a whole answer time and would slow every other gauge. One miss is
+    // asked again at once.
+    const fails = this.live.fails;
+    const periodOf = (p) => ((fails.get(p.id) ?? 0) >= 2 ? Math.max(p.period, CAR_RULES.retryFailedMs) : p.period);
+    const note = (id, ok) => { if (ok) fails.delete(id); else fails.set(id, (fails.get(id) ?? 0) + 1); };
+    const due = this.plan.filter((p) => now - (last.get(p.id) ?? -1e9) >= periodOf(p))
       .sort((a, b) => (a.period - b.period) || ((last.get(a.id) ?? 0) - (last.get(b.id) ?? 0)));
     if (!due.length) {
-      const wait = Math.min(...this.plan.map((p) => p.period - (now - (last.get(p.id) ?? 0))));
+      const wait = Math.min(...this.plan.map((p) => periodOf(p) - (now - (last.get(p.id) ?? 0))));
       await new Promise((r) => setTimeout(r, Math.max(20, Math.min(wait, 500))));
       return 0;
     }
     let readings = 0;
     const pids = due.filter((p) => p.kind === '01').map((p) => p.pid);
     for (const group of batches(pids, this.live.multi ?? 1)) {
-      if (!this.live.on || this.state !== 'connected') return readings;
+      if (!alive()) return readings;
       try { readings += group.length > 1 ? await this.readLiveMany(group) : await this.readLive(group[0]); } catch (e) {
         for (const pid of group) this.live.status.set(pid, 'error');
         this.logLine('!', `PID ${group.map((x) => x.toString(16)).join(' ')}: ${e?.message ?? e}`);
       }
-      for (const pid of group) last.set(`01:${pid}`, performance.now());
+      for (const pid of group) { last.set(`01:${pid}`, performance.now()); note(`01:${pid}`, this.live.status.get(pid) === 'ok'); }
       this.changedSoon();
     }
     for (const p of due.filter((x) => x.kind === '22')) {
-      if (!this.live.on || this.state !== 'connected') return readings;
-      try { readings += await this.readEnhanced(p.req); } catch (e) { this.logLine('!', `${p.req.key}: ${e?.message ?? e}`); }
+      if (!alive()) return readings;
+      let ok = false;
+      try { const n = await this.readEnhanced(p.req); readings += n; ok = n > 0; } catch (e) { this.logLine('!', `${p.req.key}: ${e?.message ?? e}`); }
+      note(p.id, ok);
       last.set(p.id, performance.now());
       this.changedSoon();
     }
     return readings;
   }
 
-  async liveLoop() {
-    while (this.live.on && this.state === 'connected') {
+  async liveLoop(gen) {
+    const alive = () => this.live.on && gen === this.liveGen && this.state === 'connected';
+    while (alive()) {
       if (!this.supported) await this.findPIDs().catch(() => {});
+      if (!alive()) break;
+      // Several PIDs per request: checked once per connection, with or without a plan (after the first pass, so
+      // it is tried on PIDs that answered).
+      if (this.live.multi === null && (this.live.round > 0 || this.live.passes > 0)) await this.probeMulti().catch(() => { this.live.multi = 1; });
       if (this.plan) {
         const t0 = performance.now(); const req0 = this.live.requests;
-        const readings = await this.planRound();
+        const readings = await this.planRound(alive);
+        this.live.passes = (this.live.passes ?? 0) + 1;
         const ms = performance.now() - t0;
         if (readings && ms > 0) {
           const now = { readings: (readings * 1000) / ms, requests: ((this.live.requests - req0) * 1000) / ms };
@@ -673,7 +820,6 @@ export class CarLink {
       }
       const all = this.livePIDs();
       if (!all.length) { await new Promise((r) => setTimeout(r, 1000)); continue; }
-      if (this.live.multi === null && this.live.round > 0) await this.probeMulti().catch(() => { this.live.multi = 1; });
       const round = this.live.round++;
       const only = this.prefs.onlyPinned ? this.pinnedPIDs() : null;
       const pids = roundPIDs(all, round, { only });
@@ -683,7 +829,7 @@ export class CarLink {
       const req0 = this.live.requests;
       let readings = 0;
       for (const group of batches(pids, this.live.multi ?? 1)) {
-        if (!this.live.on || this.state !== 'connected') break;
+        if (!alive()) break;
         try { readings += group.length > 1 ? await this.readLiveMany(group) : await this.readLive(group[0]); } catch (e) {
           for (const pid of group) this.live.status.set(pid, 'error');
           this.logLine('!', `PID ${group.map((p) => p.toString(16)).join(' ')}: ${e?.message ?? e}`);
@@ -699,6 +845,8 @@ export class CarLink {
       }
       await new Promise((r) => setTimeout(r, 20));
     }
+    // A newer loop owns live.on now; only the current one switches it off (the link dropped).
+    if (gen !== this.liveGen) return;
     this.live.on = false;
     this.changed();
   }
@@ -754,7 +902,6 @@ export class CarLink {
     }
     const done = this.probing;
     this.probing = null;
-    if (this.kind === 'elm' && this.enhanced.header && this.enhanced.header !== '7DF') { await this.send('ATSH7DF').catch(() => {}); this.enhanced.header = '7DF'; }
     this.logLine('i', `--- Porsche data probe done: ${done?.ok ?? 0} of ${done?.total ?? 0} answered`);
     this.changed();
     return done;
@@ -762,10 +909,17 @@ export class CarLink {
 
   /// One PID: returns the number of PIDs read (0 or 1).
   async readLive(pid) {
-    if (this.kind === 'elm' && this.enhanced.header && this.enhanced.header !== '7DF') { await this.send('ATSH7DF'); this.enhanced.header = '7DF'; }
     const bare = { bare: this.kind === 'bluedriver' };
     const r = parseAnswer(await this.send(command(pid)), pid, 1, bare);
     if (r.problem) { this.live.status.set(pid, r.problem); return 0; }
+    // A BlueDriver answer is the data bytes alone, with nothing that says which PID it answers. For the classic
+    // PIDs (below 60), whose length is fixed, an answer of another length is not this PID's: not decoded.
+    const want = pid < 0x60 ? PIDS01.get(pid)?.bytes : null;
+    if (bare.bare && want && r.bytes.length !== want) {
+      this.live.status.set(pid, 'unreadable');
+      this.logLine('!', `PID ${pid.toString(16)}: ${r.bytes.length} data bytes, expected ${want}; not used`);
+      return 0;
+    }
     this.apply(pid, r.bytes, Date.now());
     return 1;
   }
@@ -831,7 +985,8 @@ export class CarLink {
     let v = this.live.values.get(channel.key);
     if (!v) { v = { channel, value: null, t: null, min: null, max: null, sum: 0, n: 0, history: [], dt: null }; this.live.values.set(channel.key, v); }
     // Update interval (ms), smoothed: the rate a gauge really refreshes at.
-    if (v.t != null && t > v.t) v.dt = v.dt == null ? t - v.t : v.dt * 0.8 + (t - v.t) * 0.2;
+    // A long gap (the screen was closed, the car was off) is a pause, not this gauge's refresh rate.
+    if (v.t != null && t > v.t && t - v.t <= CAR_RULES.gapMs) v.dt = v.dt == null ? t - v.t : v.dt * 0.8 + (t - v.t) * 0.2;
     v.value = value; v.t = t;
     if (typeof value === 'number' && Number.isFinite(value)) {
       v.min = v.min === null ? value : Math.min(v.min, value);
@@ -892,8 +1047,8 @@ export class CarLink {
     if (this.state === 'idle') return;
     this.stopTimers();
     this.logLine('!', 'adapter disconnected');
-    if (this.waiting) { clearTimeout(this.waiting.timer); this.waiting = null; }
     this.write = null;
+    this.abandon('adapter disconnected');
     this.state = 'disconnected';
     this.disconnectedAt = this.clock();
     this.changed();

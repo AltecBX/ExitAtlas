@@ -127,7 +127,8 @@ add(0x66, 'Mass air flow sensors', 5, 'Air',
 add(0x67, 'Coolant temperature sensors', 3, 'Temperatures',
   ch('1', 'Coolant, sensor 1', '°C', ([a, b]) => (a & 1 ? b - 40 : null)),
   ch('2', 'Coolant, sensor 2', '°C', ([a, , c]) => (a & 2 ? c - 40 : null)));
-add(0x68, 'Intake air temperature sensors', 3, 'Temperatures',
+// 7 data bytes (the support byte and six sensors); the two channels read the first three.
+add(0x68, 'Intake air temperature sensors', 7, 'Temperatures',
   ch('1', 'Intake air, sensor 1', '°C', ([a, b]) => (a & 1 ? b - 40 : null)),
   ch('2', 'Intake air, sensor 2', '°C', ([a, , c]) => (a & 2 ? c - 40 : null)));
 for (const [pid, bank] of [[0x78, 1], [0x79, 2]]) {

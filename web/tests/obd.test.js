@@ -1,6 +1,6 @@
 // The car connection's decoding (engine/obd.js). The answers below are written in the ELM327's documented answer
 // format (echo, spaces, line feeds and headers off: hex bytes, a carriage return per line, ">" when ready); they
-// are not recorded from a car or an adapter, which this repository has not been connected to yet.
+// are not recorded from a car or an adapter. Answers recorded from Jerry's BlueDriver are in bluedriver.real.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { command, parseAnswer, readPID, supports, monitorStatus, parseVoltage, parseIdentity, steadyFuel, rangeFromFuel, SETUP_COMMANDS, BLUEDRIVER_SETUP, bluedriverCodec } from '../js/engine/obd.js';

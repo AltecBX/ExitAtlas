@@ -54,8 +54,9 @@ const PROBLEMS = [
 ];
 
 /// The data bytes of a Mode 01 answer to `pid`, or { problem } when the adapter or car gave none. Takes the
-/// adapter's whole answer up to ">". Several control units can answer; the first complete answer wins. `bare`:
-/// the answer is the data bytes alone (BlueDriver); a line that does carry the mode and PID still reads right.
+/// adapter's whole answer up to ">". Several control units can answer: `bytes` is the first complete answer and
+/// `all` every unit's (for the questions where each unit's answer counts: the PIDs listed, the check engine light).
+/// `bare`: the answer is the data bytes alone (BlueDriver); a line that does carry the mode and PID still reads right.
 export function parseAnswer(text, pid, mode = 1, { bare = false } = {}) {
   let lines = String(text ?? '').toUpperCase().replace(/>/g, '').split(/[\r\n]+/)
     .map((l) => l.replace(/\s+/g, '').replace(/^SEARCHING\.*/, '')).filter(Boolean);
@@ -75,9 +76,10 @@ export function parseAnswer(text, pid, mode = 1, { bare = false } = {}) {
       const hex = line.startsWith(head) && line.length > head.length ? line.slice(head.length) : line;
       const bytes = [];
       for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
-      return { bytes };
+      return { bytes, all: [bytes] };
     }
   }
+  const all = [];
   for (const line of lines) {
     const at = line.indexOf(head);
     if (at < 0 || !/^[0-9A-F]+$/.test(line.slice(at))) continue;
@@ -85,10 +87,11 @@ export function parseAnswer(text, pid, mode = 1, { bare = false } = {}) {
     if (hex.length < 2 || hex.length % 2) continue;
     const bytes = [];
     for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
-    return { bytes };
+    all.push(bytes);
   }
-  const all = lines.join(' ');
-  for (const [re, problem] of PROBLEMS) if (lines.some((l) => re.test(l)) || re.test(all)) return { problem };
+  if (all.length) return { bytes: all[0], all };
+  const whole = lines.join(' ');
+  for (const [re, problem] of PROBLEMS) if (lines.some((l) => re.test(l)) || re.test(whole)) return { problem };
   return { problem: 'unreadable' };
 }
 
