@@ -123,6 +123,9 @@ for (const [label, width, height, scheme] of SIZES) {
 
   const ahead = async () => {
     await tap('.tabbar [data-arg="ahead"]');
+    // The tap redraws the list on the next animation frame (app render()): wait for that frame, or the list read
+    // below can be the one from before the tap (it was, on a CI run: the list still started at Exit 41).
+    await app(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     await page.waitForSelector('.tl', { timeout: 20000 });
     return app(() => ({ labels: [...document.querySelectorAll('.tl-exit .exit-sign .n')].map((n) => n.textContent.trim()),
       miles: [...document.querySelectorAll('.tl > .tl-row .tl-dist b')].map((b) => (b.textContent === 'Now' ? 0 : Number(b.textContent.replace(/,/g, '')))),
